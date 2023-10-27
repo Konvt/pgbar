@@ -126,6 +126,7 @@ range(_start, _end, BarT& _bar) // Only support iterators that advance using the
 2. Executing `update()` without setting the number of tasks will also throw the `bad_pgbar` exception.
 3. If the increment step `step` is set to 0, attempting to update the task with `update()` will also throw the `bad_pgbar` exception.
 4. When using `range`, specifying an incorrect range (e.g., the ending value is less than the starting value) will also throw the `bad_pgbar` exception.
+5. The progress bar uses `std::cout` as the output stream object.
 
 ## FAQ
 ### Will it slow down my program?
@@ -251,6 +252,7 @@ range(_start, _end, BarT& _bar) // 仅支持使用自增运算符前进的迭代
 2. 如果没有设置任务数就执行 `update()`，同样会抛出异常 `bad_pgbar`.
 3. 如果递进步数 `step` 为 0，调用 `update()` 尝试更新任务时也会抛出异常 `bad_pgbar`.
 4. 使用 `range` 时，指定了错误的范围（如结尾数值小于开头），同样会抛出异常 `bad_pgbar`.
+5. 进度条使用 `std::cout` 作为输出流对象.
 
 ## FAQ
 ### 会拖慢程序吗？
