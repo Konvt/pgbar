@@ -55,7 +55,7 @@ int main()
 {
     std::size_t TOTAL = 10000;
 
-    pgbar::pgbar bar; // For C++11, should use `pgbar::pgbar<> bar;`.
+    pgbar::pgbar bar;
     bar.set_task(TOTAL).set_step(2); // You can change the number of steps advanced with each `update()` call.
     for (std::size_t i = 0; i<(TOTAL/2); ++i) {
         bar.update(); // Insert an `update()` within the loop or within other task execution points.
@@ -80,26 +80,29 @@ int main()
 /* Notify the progress bar that it's time to update. */
 void update()
 
-/* Set the number of tasks to be updated each time `update()` is called. */
+/* Setting the stream object for progress bar output.
+ * Does not guarantee visibility when output to a file. */
+pgbar& set_ostream(std::ostream& _ostream) noexcept
+
+/* Setting the number of tasks to be updated each time `update()` is called. */
 pgbar& set_step(std::size_t _step) noexcept
 
-/* Set the total number of tasks that the progress bar needs to handle. */
+/* Setting the total number of tasks that the progress bar needs to handle. */
 pgbar& set_task(std::size_t _total_tsk) noexcept
 
-/* Set the character for the unfilled portion of the progress bar.
- * `StrT` is a template parameter that allows using `std::wstring` to support some emoji text. */
-pgbar& set_done_char(StrT _done_ch) // By default, `StrT` is set to `std::string`.
+/* Setting the character for the unfilled portion of the progress bar. */
+pgbar& set_done_char(std::string _done_ch)
 
-/* Set the character used to fill the progress bar. */
-pgbar& set_todo_char(StrT _todo_ch)
+/* Setting the character used to fill the progress bar. */
+pgbar& set_todo_char(std::string _todo_ch)
 
-/* Set the style of the left side of the progress bar. Empty string is okay. */
-pgbar& set_left_bracket(StrT _l_bracket)
+/* Setting the style of the left side of the progress bar. Empty string is okay. */
+pgbar& set_left_bracket(std::string _l_bracket)
 
-/* Set the style on the right side of the progress bar. Same as above. */
-pgbar& set_right_bracket(StrT _r_bracket)
+/* Setting the style on the right side of the progress bar. Same as above. */
+pgbar& set_right_bracket(std::string _r_bracket)
 
-/* Set the length of the progress bar. */
+/* Setting the length of the progress bar. */
 pgbar& set_bar_length(std::size_t _length)
 
 /* Use bitwise operations to set the information to be displayed based on multiple predefined options. */
@@ -126,7 +129,7 @@ range(_start, _end, BarT& _bar) // Only support iterators that advance using the
 2. Executing `update()` without setting the number of tasks will also throw the `bad_pgbar` exception.
 3. If the increment step `step` is set to 0, attempting to update the task with `update()` will also throw the `bad_pgbar` exception.
 4. When using `range`, specifying an incorrect range (e.g., the ending value is less than the starting value) will also throw the `bad_pgbar` exception.
-5. The progress bar uses `std::cout` as the output stream object.
+5. The progress bar uses `std::cout` as the output stream object by default.
 
 ## FAQ
 ### Will it slow down my program?
@@ -142,7 +145,9 @@ Certainly, since the program primarily utilizes standard library functions, it b
 
 Additionally, the program checks whether its standard output is bound to a terminal.
 
-If the output is not being displayed in a terminal, it won't output strings to the outside.
+The program will also determine whether its standard output is bound to the terminal, and it will not output strings to the outside if the output is not displayed in the terminal.
+
+**If a `std::ostream` output stream object is used other than `std::cout` or `std::cerr`, the program will not attempt to determine whether it is running in a terminal.**
 ### What C++ version is required?
 As mentioned, it supports C++11 and later C++ standards.
 
@@ -183,7 +188,7 @@ int main()
 {
     std::size_t TOTAL = 10000;
 
-    pgbar::pgbar bar; // C++11 应该使用 `pgbar::pgbar<> bar;`
+    pgbar::pgbar bar;
     bar.set_task(TOTAL).set_step(2); // 可以更改每次调用 `update()` 时前进的步数
     for (std::size_t i = 0; i<(TOTAL/2); ++i) {
         bar.update(); // 在循环或者是其他任务执行的地方插入一个 `update()`
@@ -208,23 +213,26 @@ int main()
 /* 通知进度条该更新了 */
 void update()
 
+/* 设置进度条输出的流对象，不保证输出到文件中依然有可视性. */
+pgbar& set_ostream(std::ostream& _ostream) noexcept
+
 /* 设置每次调用 `update()` 时更新的任务数. */
 pgbar& set_step(std::size_t _step) noexcept
 
 /* 设置进度条需要处理的总任务数. */
 pgbar& set_task(std::size_t _total_tsk) noexcept
 
-/* 设置进度条中未填充部分的字符，StrT 是一个模板参数，允许使用 `std::wstring` 以支持一些奇怪的 emoji 文字. */
-pgbar& set_done_char(StrT _done_ch) // 但默认情况下 `StrT = std::string`
+/* 设置进度条中未填充部分的字符. */
+pgbar& set_done_char(std::string _done_ch)
 
 /* 设置用于填充进度条的字符. */
-pgbar& set_todo_char(StrT _todo_ch)
+pgbar& set_todo_char(std::string _todo_ch)
 
 /* 设置进度条左侧的括号样式，可以传入一个空字符串. */
-pgbar& set_left_bracket(StrT _l_bracket)
+pgbar& set_left_bracket(std::string _l_bracket)
 
 /* 设置进度条右侧样式. */
-pgbar& set_right_bracket(StrT _r_bracket)
+pgbar& set_right_bracket(std::string _r_bracket)
 
 /* 设置进度条的长度. */
 pgbar& set_bar_length(std::size_t _length)
@@ -252,7 +260,7 @@ range(_start, _end, BarT& _bar) // 仅支持使用自增运算符前进的迭代
 2. 如果没有设置任务数就执行 `update()`，同样会抛出异常 `bad_pgbar`.
 3. 如果递进步数 `step` 为 0，调用 `update()` 尝试更新任务时也会抛出异常 `bad_pgbar`.
 4. 使用 `range` 时，指定了错误的范围（如结尾数值小于开头），同样会抛出异常 `bad_pgbar`.
-5. 进度条使用 `std::cout` 作为输出流对象.
+5. 进度条默认使用 `std::cout` 作为输出流对象.
 
 ## FAQ
 ### 会拖慢程序吗？
@@ -265,6 +273,8 @@ range(_start, _end, BarT& _bar) // 仅支持使用自增运算符前进的迭代
 可以的，由于程序主要功能只使用了标准库功能，因此具有很好的跨平台兼容性.
 
 并且程序还会判断自己的标准输出是否绑定在终端上，如果输出不在终端中显示则不会对外输出字符串.
+
+**但是如果使用除了 `std::cout` 或 `std::cerr` 之外的 `std::ostream` 输出流对象，程序将不会尝试判断自己是否运行在终端中.**
 ### 需要什么样的 C++ 版本？
 如题，支持 C++11 及以后的 C++ 标准. 由于 range.hpp 部分涉及大量模板匹配操作，所以使用这部分时可能会加长编译时间.
 ### 与 Github 上的其他 C++ 进度条有什么区别？
