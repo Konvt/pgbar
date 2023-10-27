@@ -81,10 +81,10 @@ int main()
 void update()
 
 /* Set the number of tasks to be updated each time `update()` is called. */
-pgbar& set_step(SizeT _step) noexcept
+pgbar& set_step(std::size_t _step) noexcept
 
 /* Set the total number of tasks that the progress bar needs to handle. */
-pgbar& set_task(SizeT _total_tsk) noexcept
+pgbar& set_task(std::size_t _total_tsk) noexcept
 
 /* Set the character for the unfilled portion of the progress bar.
  * `StrT` is a template parameter that allows using `std::wstring` to support some emoji text. */
@@ -209,10 +209,10 @@ int main()
 void update()
 
 /* 设置每次调用 `update()` 时更新的任务数. */
-pgbar& set_step(SizeT _step) noexcept
+pgbar& set_step(std::size_t _step) noexcept
 
 /* 设置进度条需要处理的总任务数. */
-pgbar& set_task(SizeT _total_tsk) noexcept
+pgbar& set_task(std::size_t _total_tsk) noexcept
 
 /* 设置进度条中未填充部分的字符，StrT 是一个模板参数，允许使用 `std::wstring` 以支持一些奇怪的 emoji 文字. */
 pgbar& set_done_char(StrT _done_ch) // 但默认情况下 `StrT = std::string`
