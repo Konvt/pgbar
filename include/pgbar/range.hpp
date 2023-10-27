@@ -1,6 +1,6 @@
 // This code is licensed under the MIT License.
 // Please see the LICENSE file in the root of the repository for the full license text.
-
+// Copyright (c) 2023 Konvt
 #pragma once
 
 #ifndef __PGBAR_RANGE_HPP__

@@ -81,10 +81,10 @@ int main()
 void update()
 
 /* Set the number of tasks to be updated each time `update()` is called. */
-pgbar& set_step(SizeT _step) noexcept
+pgbar& set_step(std::size_t _step) noexcept
 
 /* Set the total number of tasks that the progress bar needs to handle. */
-pgbar& set_task(SizeT _total_tsk) noexcept
+pgbar& set_task(std::size_t _total_tsk) noexcept
 
 /* Set the character for the unfilled portion of the progress bar.
  * `StrT` is a template parameter that allows using `std::wstring` to support some emoji text. */
@@ -126,6 +126,7 @@ range(_start, _end, BarT& _bar) // Only support iterators that advance using the
 2. Executing `update()` without setting the number of tasks will also throw the `bad_pgbar` exception.
 3. If the increment step `step` is set to 0, attempting to update the task with `update()` will also throw the `bad_pgbar` exception.
 4. When using `range`, specifying an incorrect range (e.g., the ending value is less than the starting value) will also throw the `bad_pgbar` exception.
+5. The progress bar uses `std::cout` as the output stream object.
 
 ## FAQ
 ### Will it slow down my program?
@@ -208,10 +209,10 @@ int main()
 void update()
 
 /* 设置每次调用 `update()` 时更新的任务数. */
-pgbar& set_step(SizeT _step) noexcept
+pgbar& set_step(std::size_t _step) noexcept
 
 /* 设置进度条需要处理的总任务数. */
-pgbar& set_task(SizeT _total_tsk) noexcept
+pgbar& set_task(std::size_t _total_tsk) noexcept
 
 /* 设置进度条中未填充部分的字符，StrT 是一个模板参数，允许使用 `std::wstring` 以支持一些奇怪的 emoji 文字. */
 pgbar& set_done_char(StrT _done_ch) // 但默认情况下 `StrT = std::string`
@@ -251,6 +252,7 @@ range(_start, _end, BarT& _bar) // 仅支持使用自增运算符前进的迭代
 2. 如果没有设置任务数就执行 `update()`，同样会抛出异常 `bad_pgbar`.
 3. 如果递进步数 `step` 为 0，调用 `update()` 尝试更新任务时也会抛出异常 `bad_pgbar`.
 4. 使用 `range` 时，指定了错误的范围（如结尾数值小于开头），同样会抛出异常 `bad_pgbar`.
+5. 进度条使用 `std::cout` 作为输出流对象.
 
 ## FAQ
 ### 会拖慢程序吗？
@@ -268,6 +270,6 @@ range(_start, _end, BarT& _bar) // 仅支持使用自增运算符前进的迭代
 ### 与 Github 上的其他 C++ 进度条有什么区别？
 嗯... 没有太大区别，除了支持更自由的进度条字符设定操作.
 
-写这个的原因是因为 [tqdm.cpp](https://github.com/tqdm/tqdm.cpp) 没法在我自己的机器上运行，还有 [progressbar](https://github.com/gipert/progressbar) 太慢，以及 [cpptqdm](https://github.com/aminnj/cpptqdm) 没法在 windows 上运行.
+写这个是因为 [tqdm.cpp](https://github.com/tqdm/tqdm.cpp) 没法在我自己的机器上运行，还有 [progressbar](https://github.com/gipert/progressbar) 太慢，以及 [cpptqdm](https://github.com/aminnj/cpptqdm) 没法在 windows 上运行.
 
 纯粹练手，就是这样.
