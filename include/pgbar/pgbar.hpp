@@ -1,6 +1,6 @@
 // This code is licensed under the MIT License.
 // Please see the LICENSE file in the root of the repository for the full license text.
-
+// Copyright (c) 2023 Konvt
 #pragma once
 
 #ifndef __PROGRESSBAR_HPP__
@@ -12,7 +12,7 @@
 #include <string>      // std::string
 #include <chrono>      // as u know
 #include <exception>   // bad_pgbar exception
-#include <iostream>    // std::ostream&
+#include <iostream>    // std::cout, the output stream object used.
 
 #if defined(__GNUC__) || defined(__clang__)
     #define __PGBAR_INLINE_FUNC__ __attribute__((always_inline))
@@ -291,7 +291,7 @@ namespace pgbar {
                 disp_rate = option & style_opts::rate,
                 disp_cntdwn = option & style_opts::countdown;
             /* Based on the bit vector indicating the switching of different sections,
-            * the parts that are not turned on will be empty. */
+             * the parts that are not turned on will be empty. */
             if (disp_bar)
                 bar_str = show_bar(percent);
             if (disp_perc)
@@ -304,7 +304,7 @@ namespace pgbar {
                 cntdwn_str = show_time(std::move(now));
 
             /* Using the sections that are enabled in the bit vector
-            * to insert separators between different status bars. */
+             * to insert separators between different status bars. */
             bool perc_divi = false, tsk_cnt_divi = false, rate_divi = false;
             if ((disp_perc) && (disp_tsk_cnt || disp_rate || disp_cntdwn)) {
                 perc_divi = true; // There are something behind the proportion.
@@ -320,7 +320,7 @@ namespace pgbar {
             }
 
             /* Using the sections that are enabled in the bit vector
-            * to calculate the number of backspace characters. */
+             * to calculate the number of backspace characters. */
             static SizeT tsk_cnt_len = 0;
             if (!is_invoked) tsk_cnt_len = std::to_string(total_tsk).size()*2+1;
             SizeT backtrack_len = 0;
@@ -345,7 +345,7 @@ namespace pgbar {
             }
 
             /* When some strings are empty,
-            * use a string composed of escape sequences to move the cursor to the right. */
+             * use a string composed of escape sequences to move the cursor to the right. */
             static const std::string skip_perc {bulk_copy<std::string>(ratio_len, rightward)};
             static const std::string skip_rate {bulk_copy<std::string>(rate_len, rightward)};
             static const std::string skip_cntdwn {bulk_copy<std::string>(time_len, rightward)};
@@ -369,7 +369,7 @@ namespace pgbar {
             if (tsk_cnt_divi) tsk_cnt_str = std::move(tsk_cnt_str) + division;
             if (rate_divi) rate_str = std::move(rate_str) + division;
             /* If there is something to be displayed after the progress bar,
-            * concatenate the brackets of the status bar. */
+             * concatenate the brackets of the status bar. */
             if (disp_perc || disp_tsk_cnt || disp_rate || disp_cntdwn) {
                 perc_str = col_fmt + l_status + std::move(perc_str);
                 cntdwn_str = std::move(cntdwn_str) + r_status + defult_col;
