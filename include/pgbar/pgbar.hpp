@@ -38,6 +38,7 @@
     #define __PGBAR_CXX20__
 #endif // __cplusplus >= 202002L
 #if __cplusplus >= 201703L
+    #include <string_view>
     #define __PGBAR_CXX17__
     #define __PGBAR_IF_CONSTEXPR__ constexpr
 #else
@@ -76,11 +77,16 @@ namespace pgbar {
         static constexpr OptT entire = ~0;
     };
 
-    template<typename StrT = std::string>
     class pgbar {
         /* auxiliary type definition */
 
         using SizeT = std::size_t;
+        using StrT = std::string;
+#ifdef __PGBAR_CXX17__
+        using ReadOnlyT = std::string_view;
+#else
+        using ReadOnlyT = const std::string;
+#endif
         enum class txt_layut { align_left, align_right, align_center }; // text layout
 
         /* static variable definition */
@@ -99,6 +105,7 @@ namespace pgbar {
 
         /* private data member */
 
+        std::ostream *stream;
         StrT todo_ch, done_ch;
         StrT l_bracket, r_bracket;
         SizeT step; // The number of steps per invoke `update()`.
@@ -119,18 +126,18 @@ namespace pgbar {
             if (_width == 0) return {}; // `StrT` is only effective for the progress bar.
             if (_str.size() >= _width) return _str; // The other are all `std::string` type.
             // Thus the return type of `formatter` is `std::string`.
-    #ifdef __PGBAR_CXX20__
+#ifdef __PGBAR_CXX20__
             if __PGBAR_IF_CONSTEXPR__ (_style == txt_layut::align_right)
                 return std::format("{:>{}}", std::move(_str), _width);
             else if __PGBAR_IF_CONSTEXPR__ (_style == txt_layut::align_left)
                 return std::format("{:<{}}", std::move(_str), _width);
-    #else
+#else
             SizeT str_size = _str.size();
             if __PGBAR_IF_CONSTEXPR__ (_style == txt_layut::align_right)
                 return std::string(_width-str_size, blank) + std::move(_str);
             else if __PGBAR_IF_CONSTEXPR__ (_style == txt_layut::align_left)
                 return std::move(_str) + std::string(_width-str_size, blank);
-    #endif
+#endif
             else {
                 _width -= _str.size();
                 SizeT r_blank = _width/2;
@@ -142,13 +149,26 @@ namespace pgbar {
         /// @param _time Copy times.
         /// @param _src The string to be copied.
         /// @return The string copied mutiple times.
-        template<typename S>
-        static S bulk_copy(SizeT _time, const S& _src) {
+        static StrT bulk_copy(SizeT _time, ReadOnlyT _src) {
             if (_time == 0 || _src.size() == 0) return {};
-            S ret; ret.reserve(_src.size()*_time);
+            StrT ret; ret.reserve(_src.size()*_time);
             for (SizeT _ = 0; _ < _time; ++_)
                 ret.append(_src, 0);
             return ret;
+        }
+        __PGBAR_INLINE_FUNC__ bool check_output_stream() {
+            if (stream != &std::cout || stream != &std::cerr)
+                return true; // Custom object, the program does not block output.
+#ifdef __PGBAR_WIN__
+            if (_isatty(_fileno(stdout)))
+                return true;
+#elif defined(__PGBAR_UNIX__)
+            if (isatty(fileno(stdout)))
+                return true;
+#elif defined(__PGBAR_UNKNOW_PLATFORM__)
+            if (true) return true;
+#endif
+            else return false;
         }
 
         __PGBAR_INLINE_FUNC__ StrT show_bar(double percent) {
@@ -160,8 +180,8 @@ namespace pgbar {
             StrT buf {}; buf.reserve(l_bracket.size()+r_bracket.size()+bar_length+1);
             SizeT done_len = std::round(bar_length*percent);
             buf.append(
-                bulk_copy<StrT>(1, l_bracket) + bulk_copy<StrT>(done_len, done_ch) +
-                bulk_copy<StrT>(bar_length-done_len, todo_ch) + bulk_copy<StrT>(1, r_bracket) +
+                bulk_copy(1, l_bracket) + bulk_copy(done_len, done_ch) +
+                bulk_copy(bar_length-done_len, todo_ch) + bulk_copy(1, r_bracket) +
                 StrT(1, blank)
             );
             return buf;
@@ -340,19 +360,19 @@ namespace pgbar {
                 lately_bcktck_len = 0;
             }
             if (backtrack_len != 0 && lately_bcktck_len != backtrack_len) {
-                backtrack[0] = bulk_copy<std::string>(backtrack_len, std::string(1, backspace));
+                backtrack[0] = bulk_copy(backtrack_len, std::string(1, backspace));
                 lately_bcktck_len = backtrack_len;
             }
 
             /* When some strings are empty,
              * use a string composed of escape sequences to move the cursor to the right. */
-            static const std::string skip_perc {bulk_copy<std::string>(ratio_len, rightward)};
-            static const std::string skip_rate {bulk_copy<std::string>(rate_len, rightward)};
-            static const std::string skip_cntdwn {bulk_copy<std::string>(time_len, rightward)};
+            static const std::string skip_perc {bulk_copy(ratio_len, rightward)};
+            static const std::string skip_rate {bulk_copy(rate_len, rightward)};
+            static const std::string skip_cntdwn {bulk_copy(time_len, rightward)};
             static std::string skip_tsk_cnt {};
             static SizeT skp_tsk_cnt_len = 0;
             if (skp_tsk_cnt_len != tsk_cnt_len) {
-                skip_tsk_cnt = bulk_copy<std::string>(tsk_cnt_len, rightward);
+                skip_tsk_cnt = bulk_copy(tsk_cnt_len, rightward);
                 skp_tsk_cnt_len = tsk_cnt_len;
             }
             if (disp_perc && perc_str.size() == 0) // Skip updating the proportion.
@@ -387,30 +407,24 @@ namespace pgbar {
         pgbar(pgbar&&) = delete;
         pgbar& operator=(pgbar&&) = delete;
 
-        pgbar(SizeT _total_tsk) {
+        pgbar(SizeT _total_tsk, std::ostream& _ostream) {
+            stream = &_ostream;
             todo_ch = StrT(1, blank); done_ch = StrT(1, '#');
             l_bracket = StrT(1, '['); r_bracket = StrT(1, ']');
             step = 1; total_tsk = _total_tsk; done_cnt = 0;
             bar_length = 50; // default value
             option = style_opts::entire;
-    #ifdef __PGBAR_WIN__
-            if (_isatty(_fileno(stdout)))
-                in_terminal = true;
-    #elif defined(__PGBAR_UNIX__)
-            if (isatty(fileno(stdout)))
-                in_terminal = true;
-    #elif defined(__PGBAR_UNKNOW_PLATFORM__)
-            if (true) in_terminal = true;
-    #endif
-            else in_terminal = false;
+            in_terminal = check_output_stream();
             is_done = is_invoked = false;
         }
-        pgbar(): pgbar(0) {} // default constructor
+        pgbar(): pgbar(0, std::cout) {} // default constructor
         pgbar(const pgbar& _other): pgbar() { // style copy
+            stream = _other.stream;
             todo_ch = _other.todo_ch;
             done_ch = _other.done_ch;
             l_bracket = _other.l_bracket;
             r_bracket = _other.r_bracket;
+            in_terminal = check_output_stream();
             option = _other.option;
         }
         ~pgbar() {}
@@ -423,7 +437,13 @@ namespace pgbar {
             is_done = is_invoked = false;
             return *this;
         }
-        /* Sets the number of steps the counter is updated each time `update()` is called. */
+        /* Set the output stream object. */
+        pgbar& set_ostream(std::ostream& _ostream) noexcept {
+            stream = &_ostream;
+            in_terminal = check_output_stream();
+            return *this;
+        }
+        /* Set the number of steps the counter is updated each time `update()` is called. */
         pgbar& set_step(SizeT _step) noexcept { step = _step; return *this; }
         /* Set the number of tasks to be updated. */
         pgbar& set_task(SizeT _total_tsk) noexcept { total_tsk = _total_tsk; return *this; }
@@ -440,11 +460,15 @@ namespace pgbar {
         /* Select the display style by using bit operations. */
         pgbar& set_style(style_opts::OptT _selection) noexcept { option = _selection; return *this; }
         pgbar& operator=(const pgbar& _other) {
+            if (this == &_other) return *this;
+            stream = _other.stream;
             todo_ch = _other.todo_ch;
             done_ch = _other.done_ch;
             l_bracket = _other.l_bracket;
             r_bracket = _other.r_bracket;
+            in_terminal = check_output_stream();
             option = _other.option;
+            return *this;
         }
 
         /* Update progress bar. */
@@ -459,8 +483,7 @@ namespace pgbar {
                 if (step == 0) throw bad_pgbar {"bad_pgbar: zero step"};
                 lately_called = std::chrono::system_clock::now();
                 auto info = switch_feature(0, lately_called);
-                std::cout << info.first;
-                std::cout << info.second;
+                *stream << info.first << info.second;
                 is_invoked = true;
             }
 
@@ -472,8 +495,7 @@ namespace pgbar {
 
             double perc = done_cnt / static_cast<double>(total_tsk);
             auto info = switch_feature(perc, std::move(now));
-            std::cout << info.first;
-            std::cout << info.second;
+            *stream << info.first << info.second;
             if (done_cnt >= total_tsk) {
                 is_done = true;
                 std::endl(std::cout);
@@ -481,16 +503,11 @@ namespace pgbar {
         }
     };
 
-    template<typename StrT>
-    const std::string pgbar<StrT>::rightward {"\033[C"};
-    template<typename StrT>
-    const std::string pgbar<StrT>::l_status {"[ "};
-    template<typename StrT>
-    const std::string pgbar<StrT>::r_status {" ]"};
-    template<typename StrT>
-    const std::string pgbar<StrT>::col_fmt {__PGBAR_COL__};
-    template<typename StrT>
-    const std::string pgbar<StrT>::defult_col {__PGBAR_DEFAULT_COL__};
+    const std::string pgbar::rightward {"\033[C"};
+    const std::string pgbar::l_status {"[ "};
+    const std::string pgbar::r_status {" ]"};
+    const std::string pgbar::col_fmt {__PGBAR_COL__};
+    const std::string pgbar::defult_col {__PGBAR_DEFAULT_COL__};
 
 } // namespace pgbar
 

@@ -28,11 +28,11 @@ namespace pgbar {
     template< // Numeric type iterator.
         typename EleT, typename BarT
     #ifdef __PGBAR_CXX20__
-    > requires std::is_same_v<BarT, pgbar<>> && std::is_arithmetic_v<EleT>
+    > requires std::is_same_v<BarT, pgbar> && std::is_arithmetic_v<EleT>
     #elif defined(__PGBAR_CXX14__)
-        , typename = std::enable_if_t<std::is_same_v<BarT, pgbar<>> && std::is_arithmetic<EleT>::value>>
+        , typename = std::enable_if_t<std::is_same_v<BarT, pgbar> && std::is_arithmetic<EleT>::value>>
     #else
-        , typename = typename std::enable_if<std::is_same<BarT, pgbar<>>::value && std::is_arithmetic<EleT>::value>::type>
+        , typename = typename std::enable_if<std::is_same<BarT, pgbar>::value && std::is_arithmetic<EleT>::value>::type>
     #endif
     class range_iterator_arith {
         using SizeT = std::size_t;
@@ -105,11 +105,11 @@ namespace pgbar {
     template< // Iterator type iterator.
         typename IterT, typename BarT // `IterT` means iterator type
     #ifdef __PGBAR_CXX20__
-    > requires std::is_same_v<BarT, pgbar<>>
+    > requires std::is_same_v<BarT, pgbar>
     #elif defined(__PGBAR_CXX14__)
-        , typename = std::enable_if_t<std::is_same_v<BarT, pgbar<>> && !std::is_arithmetic<IterT>::value>>
+        , typename = std::enable_if_t<std::is_same_v<BarT, pgbar> && !std::is_arithmetic<IterT>::value>>
     #else
-        , typename = typename std::enable_if<std::is_same<BarT, pgbar<>>::value && !std::is_arithmetic<IterT>::value>::type>
+        , typename = typename std::enable_if<std::is_same<BarT, pgbar>::value && !std::is_arithmetic<IterT>::value>::type>
     #endif
     class range_iterator_iter {
         using SizeT = std::size_t;
