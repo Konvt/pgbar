@@ -1,5 +1,5 @@
 #include <vector>
-#include "include/pgbar/range.hpp"
+#include "pgbar/range.hpp"
 
 int main()
 {
