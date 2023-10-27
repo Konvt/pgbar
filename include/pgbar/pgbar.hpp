@@ -417,7 +417,7 @@ namespace pgbar {
             in_terminal = check_output_stream();
             is_done = is_invoked = false;
         }
-        pgbar(): pgbar(0, std::cout) {} // default constructor
+        pgbar(): pgbar(0, std::cerr) {} // default constructor
         pgbar(const pgbar& _other): pgbar() { // style copy
             stream = _other.stream;
             todo_ch = _other.todo_ch;
@@ -498,7 +498,7 @@ namespace pgbar {
             *stream << info.first << info.second;
             if (done_cnt >= total_tsk) {
                 is_done = true;
-                std::endl(std::cout);
+                *stream << '\n';
             }
         }
     };
