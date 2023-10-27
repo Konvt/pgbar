@@ -268,6 +268,6 @@ range(_start, _end, BarT& _bar) // 仅支持使用自增运算符前进的迭代
 ### 与 Github 上的其他 C++ 进度条有什么区别？
 嗯... 没有太大区别，除了支持更自由的进度条字符设定操作.
 
-写这个的原因是因为 [tqdm.cpp](https://github.com/tqdm/tqdm.cpp) 没法在我自己的机器上运行，还有 [progressbar](https://github.com/gipert/progressbar) 太慢，以及 [cpptqdm](https://github.com/aminnj/cpptqdm) 没法在 windows 上运行.
+写这个是因为 [tqdm.cpp](https://github.com/tqdm/tqdm.cpp) 没法在我自己的机器上运行，还有 [progressbar](https://github.com/gipert/progressbar) 太慢，以及 [cpptqdm](https://github.com/aminnj/cpptqdm) 没法在 windows 上运行.
 
 纯粹练手，就是这样.
