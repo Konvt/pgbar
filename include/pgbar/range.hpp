@@ -19,7 +19,7 @@
 #else
     #define __PGBAR_IF_CONSTEXPR__
 #endif // __cplusplus >= 201703L
-#if __cplusplus >= 201402L
+#if __cplusplus > 201402L
     #define __PGBAR_CXX14__
 #endif // __cplusplus >= 201402L
 
