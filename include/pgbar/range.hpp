@@ -19,7 +19,7 @@
 #else
     #define __PGBAR_IF_CONSTEXPR__
 #endif // __cplusplus >= 201703L
-#if __cplusplus > 201402L
+#if __cplusplus >= 201402L
     #define __PGBAR_CXX14__
 #endif // __cplusplus >= 201402L
 
@@ -27,13 +27,13 @@ namespace pgbar {
 
     template< // Numeric type iterator.
         typename EleT, typename BarT
-    #ifdef __PGBAR_CXX20__
+#ifdef __PGBAR_CXX20__
     > requires std::is_same_v<BarT, pgbar> && std::is_arithmetic_v<EleT>
-    #elif defined(__PGBAR_CXX14__)
-        , typename = std::enable_if_t<std::is_same_v<BarT, pgbar> && std::is_arithmetic<EleT>::value>>
-    #else
+#elif defined(__PGBAR_CXX14__)
+        , typename = std::enable_if_t<std::is_same<BarT, pgbar>::value && std::is_arithmetic<EleT>::value>>
+#else
         , typename = typename std::enable_if<std::is_same<BarT, pgbar>::value && std::is_arithmetic<EleT>::value>::type>
-    #endif
+#endif
     class range_iterator_arith {
         using SizeT = std::size_t;
 
@@ -104,13 +104,13 @@ namespace pgbar {
 
     template< // Iterator type iterator.
         typename IterT, typename BarT // `IterT` means iterator type
-    #ifdef __PGBAR_CXX20__
+#ifdef __PGBAR_CXX20__
     > requires std::is_same_v<BarT, pgbar>
-    #elif defined(__PGBAR_CXX14__)
-        , typename = std::enable_if_t<std::is_same_v<BarT, pgbar> && !std::is_arithmetic<IterT>::value>>
-    #else
+#elif defined(__PGBAR_CXX14__)
+        , typename = std::enable_if_t<std::is_same<BarT, pgbar>::value && !std::is_arithmetic<IterT>::value>>
+#else
         , typename = typename std::enable_if<std::is_same<BarT, pgbar>::value && !std::is_arithmetic<IterT>::value>::type>
-    #endif
+#endif
     class range_iterator_iter {
         using SizeT = std::size_t;
         using EleT = typename std::iterator_traits<IterT>::value_type;
@@ -162,11 +162,11 @@ namespace pgbar {
         range_iterator_iter operator++(int) { range_iterator_iter before = *this; operator++(); return before; }
     };
 
-    #ifdef __PGBAR_CXX20__
+#ifdef __PGBAR_CXX20__
     template<typename EleT>
     concept ValidEleT = 
         std::is_arithmetic_v<std::decay_t<EleT>>;
-    #endif
+#endif
 
     /// @brief Update the progress bar based on the range specified by the parameters.
     /// @tparam EleT The type of generated elements.
@@ -178,67 +178,67 @@ namespace pgbar {
         ValidEleT _EleT, typename BarT
         , typename EleT = std::decay_t<_EleT>
     > range_iterator_arith<EleT, BarT> // return type
-    #else
+#else
     template<
         typename _EleT, typename BarT
-    #ifdef __PGBAR_CXX14__
+#ifdef __PGBAR_CXX14__
         , typename EleT = std::decay_t<_EleT>
     > std::enable_if_t<
         std::is_arithmetic<EleT>::value
         , range_iterator_arith<EleT, BarT>>
-    #else
+#else
         , typename EleT = typename std::decay<_EleT>::type
     > typename std::enable_if<
         std::is_arithmetic<EleT>::value
         , range_iterator_arith<EleT, BarT>>::type
-    #endif
-    #endif
+#endif
+#endif
     inline range(_EleT&& _start, _EleT&& _end, _EleT&& _step, BarT& _bar)
         { return range_iterator_arith<EleT, BarT>(_start, _end, _step, _bar); }
 
-    #ifdef __PGBAR_CXX20__
+#ifdef __PGBAR_CXX20__
     template<
         ValidEleT _EleT, typename BarT
         , typename EleT = std::decay_t<_EleT>
     > range_iterator_arith<EleT, BarT> // return type
-    #else
+#else
     template<
         typename _EleT, typename BarT
-    #ifdef __PGBAR_CXX14__
+#ifdef __PGBAR_CXX14__
         , typename EleT = std::decay_t<_EleT>
     > std::enable_if_t<
         std::is_arithmetic<EleT>::value
         , range_iterator_arith<EleT, BarT>>
-    #else
+#else
         , typename EleT = typename std::decay<_EleT>::type
     > typename std::enable_if<
         std::is_arithmetic<EleT>::value
         , range_iterator_arith<EleT, BarT>>::type
-    #endif
-    #endif
+#endif
+#endif
     inline range(_EleT&& _start, _EleT&& _end, BarT& _bar)
         { return range_iterator_arith<EleT, BarT>(_start, _end, _bar); }
 
-    #ifdef __PGBAR_CXX20__
+#ifdef __PGBAR_CXX20__
     template<
         ValidEleT _EleT, typename BarT
         , typename EleT = std::decay_t<_EleT>
     > range_iterator_arith<EleT, BarT> // return type
-    #else
+#else
     template<
         typename _EleT, typename BarT
-    #ifdef __PGBAR_CXX14__
+#ifdef __PGBAR_CXX14__
         , typename EleT = std::decay_t<_EleT>
     > std::enable_if_t<
         std::is_arithmetic<EleT>::value
         , range_iterator_arith<EleT, BarT>>
-    #else
+#else
         , typename EleT = typename std::decay<_EleT>::type
     > typename std::enable_if<
         std::is_arithmetic<EleT>::value
         , range_iterator_arith<EleT, BarT>>::type
-    #endif
-    #endif
+#endif
+#endif
     inline range(_EleT&& _end, BarT& _bar)
         { return range_iterator_arith<EleT, BarT>(_end, _bar); }
 
@@ -247,23 +247,23 @@ namespace pgbar {
     /// @tparam IterT The type of the iterators.
     template<
         typename _BeginT, typename _EndT, typename BarT
-    #ifdef __PGBAR_CXX14__
+#ifdef __PGBAR_CXX14__
         , typename IterT = std::decay_t<_BeginT>
-    #ifdef __PGBAR_CXX20__
-    > requires std::is_same_v<std::decay_t<_BeginT>, std::decay_t<_EndT>>
-    range_iterator_iter<IterT, BarT>> // return type
-    #else
+#ifdef __PGBAR_CXX20__
+    > requires std::is_same_v<IterT, std::decay_t<_EndT>>
+    range_iterator_iter<IterT, BarT> // return type
+#else
     > std::enable_if_t<
-        std::is_same_v<std::decay_t<_BeginT>, std::decay_t<_EndT>>
+        std::is_same<IterT, std::decay_t<_EndT>>::value
         , range_iterator_iter<IterT, BarT>>
-    #endif
-    #else
+#endif
+#else
         , typename IterT = typename std::decay<_BeginT>::type
     > typename std::enable_if<
         !std::is_arithmetic<IterT>::value &&
-        std::is_same<typename std::decay<_BeginT>::type, typename std::decay<_EndT>::type>::value
+        std::is_same<IterT, typename std::decay<_EndT>::type>::value
         , range_iterator_iter<IterT, BarT>>::type
-    #endif
+#endif
     inline range(_BeginT&& _start, _EndT&& _end, BarT& _bar)
         { return range_iterator_iter<IterT, BarT>(_start, _end, _bar); }
 
