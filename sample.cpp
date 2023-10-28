@@ -30,7 +30,7 @@ int main()
     float *pointer_arr = new float[TOTAL] {0.0};
     bar.reset().set_style(pgbar::style_opts::task_counter);
     std::cout << "Pointer arrays is okay: ";
-    for (auto iter : pgbar::range(pointer_arr, pointer_arr+TOTAL, bar))
+    for (auto iter : pgbar::range(pointer_arr+TOTAL-1, pointer_arr-1, bar))
         continue;
 
     delete[] pointer_arr; return 0;

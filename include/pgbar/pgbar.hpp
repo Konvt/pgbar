@@ -85,7 +85,7 @@ namespace pgbar {
 #ifdef __PGBAR_CXX17__
         using ReadOnlyT = std::string_view;
 #else
-        using ReadOnlyT = const std::string;
+        using ReadOnlyT = const StrT;
 #endif
         enum class txt_layut { align_left, align_right, align_center }; // text layout
 
@@ -97,11 +97,11 @@ namespace pgbar {
         static constexpr SizeT ratio_len = 7; // The length of `100.00%`.
         static constexpr SizeT time_len = 11; // The length of `9.9m < 9.9m`.
         static constexpr SizeT rate_len = 10; // The length of `999.99 kHz`.
-        static const std::string rightward;   // ASCII Escape Sequence: moves the cursor right.
-        static const std::string l_status;    // The left bracket of status bar.
-        static const std::string r_status;    // The right bracket of status bar.
-        static const std::string col_fmt;     // The color and font style of status bar.
-        static const std::string defult_col;  // The default color and font style.
+        static const StrT rightward;          // ASCII Escape Sequence: moves the cursor right.
+        static const StrT l_status;           // The left bracket of status bar.
+        static const StrT r_status;           // The right bracket of status bar.
+        static const StrT col_fmt;            // The color and font style of status bar.
+        static const StrT defult_col;         // The default color and font style.
 
         /* private data member */
 
@@ -122,10 +122,10 @@ namespace pgbar {
         /// @param _str The string will be formatted.
         /// @return Formatted string.
         template<txt_layut _style>
-        __PGBAR_INLINE_FUNC__ static std::string formatter(SizeT _width, std::string _str) {
+        __PGBAR_INLINE_FUNC__ static StrT formatter(SizeT _width, StrT _str) {
             if (_width == 0) return {}; // `StrT` is only effective for the progress bar.
-            if (_str.size() >= _width) return _str; // The other are all `std::string` type.
-            // Thus the return type of `formatter` is `std::string`.
+            if (_str.size() >= _width) return _str; // The other are all `StrT` type.
+            // Thus the return type of `formatter` is `StrT`.
 #ifdef __PGBAR_CXX20__
             if __PGBAR_IF_CONSTEXPR__ (_style == txt_layut::align_right)
                 return std::format("{:>{}}", std::move(_str), _width);
@@ -134,14 +134,14 @@ namespace pgbar {
 #else
             SizeT str_size = _str.size();
             if __PGBAR_IF_CONSTEXPR__ (_style == txt_layut::align_right)
-                return std::string(_width-str_size, blank) + std::move(_str);
+                return StrT(_width-str_size, blank) + std::move(_str);
             else if __PGBAR_IF_CONSTEXPR__ (_style == txt_layut::align_left)
-                return std::move(_str) + std::string(_width-str_size, blank);
+                return std::move(_str) + StrT(_width-str_size, blank);
 #endif
             else {
                 _width -= _str.size();
                 SizeT r_blank = _width/2;
-                return std::string(_width-r_blank, blank) + std::move(_str) + std::string(r_blank, blank);
+                return StrT(_width-r_blank, blank) + std::move(_str) + StrT(r_blank, blank);
             }
         }
         /// @brief Copy a string mutiple times and concatenate them together.
@@ -186,11 +186,11 @@ namespace pgbar {
             );
             return buf;
         }
-        __PGBAR_INLINE_FUNC__ std::string show_proportion(double percent) {
+        __PGBAR_INLINE_FUNC__ StrT show_proportion(double percent) {
             static double lately_perc = 0;
             if (!is_invoked){
                 lately_perc = 0;
-                static const std::string default_str =
+                static const StrT default_str =
                     formatter<txt_layut::align_left>(ratio_len, "0.00%");
                 return default_str;
             }
@@ -198,24 +198,24 @@ namespace pgbar {
                 return {};
             lately_perc = percent;
 
-            std::string proportion = std::to_string(percent*100);
+            StrT proportion = std::to_string(percent*100);
             proportion.resize(proportion.find('.')+3);
 
             return formatter<txt_layut::align_left>(
                 ratio_len-proportion.size(),
-                std::move(proportion) + std::string(1, '%')
+                std::move(proportion) + StrT(1, '%')
             );
         }
-        __PGBAR_INLINE_FUNC__ std::string show_remain_task() {
+        __PGBAR_INLINE_FUNC__ StrT show_remain_task() {
             //if (!is_invoked); // nothing
-            std::string total_str = std::to_string(total_tsk);
+            StrT total_str = std::to_string(total_tsk);
             SizeT size = total_str.size();
             return (
                 formatter<txt_layut::align_right>(size, std::to_string(done_cnt)) +
-                std::string(1, '/') + std::move(total_str)
+                StrT(1, '/') + std::move(total_str)
             );
         }
-        __PGBAR_INLINE_FUNC__ std::string show_rate(std::chrono::system_clock::time_point now) {
+        __PGBAR_INLINE_FUNC__ StrT show_rate(std::chrono::system_clock::time_point now) {
             using namespace std::chrono;
             static std::chrono::duration<SizeT, std::nano> invoke_interval {};
             static system_clock::time_point first_invoke {};
@@ -223,7 +223,7 @@ namespace pgbar {
             if (!is_invoked) {
                 invoke_interval = {};
                 first_invoke = now;
-                static const std::string default_str =
+                static const StrT default_str =
                     formatter<txt_layut::align_center>(rate_len, "0.00 Hz");
                 return default_str;
             }
@@ -231,28 +231,28 @@ namespace pgbar {
             invoke_interval = (invoke_interval + (now-first_invoke)/(done_cnt/step))/2; // each invoke interval
             SizeT frequency = duration_cast<nanoseconds>(seconds(1)) / invoke_interval;
 
-            auto splice = [](double val) -> std::string {
-                std::string str = std::to_string(val);
+            auto splice = [](double val) -> StrT {
+                StrT str = std::to_string(val);
                 str.resize(str.find('.')+3); // Keep two decimal places.
                 return str;
             };
 
-            std::string rate {}; rate.reserve(rate_len);
+            StrT rate {}; rate.reserve(rate_len);
             if (frequency < 1e3) // < 1Hz => 999.99 Hz
-                rate.append(splice(frequency) + std::string(" Hz"));
+                rate.append(splice(frequency) + StrT(" Hz"));
             else if (frequency < 1e6) // < 1 kHz => 999.99 kHz
-                rate.append(splice(frequency/1e3) + std::string(" kHz"));
+                rate.append(splice(frequency/1e3) + StrT(" kHz"));
             else if (frequency < 1e9) // < 1 MHz => 999.99 MHz
-                rate.append(splice(frequency/1e6) + std::string(" kHz"));
+                rate.append(splice(frequency/1e6) + StrT(" kHz"));
             else { // < 1 GHz => 999.99 GHz
                 double temp = frequency/1e9;
                 if (temp > 999.99) rate.append("999.99 GHz");
-                else rate.append(splice(temp) + std::string(" GHz"));
+                else rate.append(splice(temp) + StrT(" GHz"));
             }
 
             return formatter<txt_layut::align_center>(rate_len, std::move(rate));
         }
-        __PGBAR_INLINE_FUNC__ std::string show_time(std::chrono::system_clock::time_point now) {
+        __PGBAR_INLINE_FUNC__ StrT show_time(std::chrono::system_clock::time_point now) {
             using namespace std::chrono;
             static system_clock::time_point first_invoke {};
             static duration<SizeT, std::nano> invoke_interval {};
@@ -260,7 +260,7 @@ namespace pgbar {
             if (!is_invoked) {
                 first_invoke = now;
                 invoke_interval = {};
-                static const std::string default_str =
+                static const StrT default_str =
                     formatter<txt_layut::align_center>(time_len, "0s < 99h");
                 return default_str;
             }
@@ -269,40 +269,40 @@ namespace pgbar {
             invoke_interval = time_differ/done_cnt;
             auto sec = duration_cast<seconds>(invoke_interval*(total_tsk-done_cnt)).count();
 
-            auto splice = [](double val) -> std::string {
-                std::string str = std::to_string(val);
+            auto splice = [](double val) -> StrT {
+                StrT str = std::to_string(val);
                 str.resize(str.find('.')+2); // Keep one decimal places.
                 return str;
             };
-            auto to_time = [&splice](int64_t sec) -> std::string {
+            auto to_time = [&splice](int64_t sec) -> StrT {
                 if (sec < 60) // < 1 minute => 59s
-                    return std::to_string(sec) + std::string(1, 's');
+                    return std::to_string(sec) + StrT(1, 's');
                 else if (sec < 60*9) // < 9 minutes => 9.9m
-                    return splice(static_cast<double>(sec)/60.0) + std::string(1, 'm');
+                    return splice(static_cast<double>(sec)/60.0) + StrT(1, 'm');
                 else if (sec < 60*60) // >= 9 minutes => 59m
-                    return std::to_string(sec/60) + std::string(1, 'm');
+                    return std::to_string(sec/60) + StrT(1, 'm');
                 else if (sec < 60*60*9) // < 9 hour => 9.9h
-                    return splice(static_cast<double>(sec)/(60.0*60.0)) + std::string(1, 'h');
+                    return splice(static_cast<double>(sec)/(60.0*60.0)) + StrT(1, 'h');
                 else { // >= 9 hour => 999h
                     if (sec > 60*60*99) return "99h";
-                    else return std::to_string(sec/(60*60)) + std::string(1, 'h');
+                    else return std::to_string(sec/(60*60)) + StrT(1, 'h');
                 }
             };
 
             return formatter<txt_layut::align_center>(
                 time_len, to_time(duration_cast<seconds>(time_differ).count()) +
-                std::string(" < ") + to_time(sec)
+                StrT(" < ") + to_time(sec)
             );
         }
         /// @brief Based on the value of `option` and bitwise operations,
         /// @brief determine which part of the string needs to be concatenated.
         /// @param percent The percentage of the current task execution.
         /// @return The progress bar that has been assembled but is pending output.
-        __PGBAR_INLINE_FUNC__ std::pair<StrT, std::string>
+        __PGBAR_INLINE_FUNC__ std::pair<StrT, StrT>
         switch_feature(double percent, std::chrono::system_clock::time_point now) {
             StrT bar_str {};
-            static const std::string division {" | "};
-            std::string perc_str {}, tsk_cnt_str {}, rate_str{}, cntdwn_str {};
+            static const StrT division {" | "};
+            StrT perc_str {}, tsk_cnt_str {}, rate_str{}, cntdwn_str {};
             SizeT divi_len = 0;
 
             bool disp_bar = option & style_opts::bar,
@@ -353,23 +353,23 @@ namespace pgbar {
                 backtrack_len += divi_len + l_status.size() + r_status.size();
             } else if (disp_bar && bar_str.size() != 0) // Updating `bar_str`, it will always back to the head of the line.
                 bar_str = StrT(1, reboot) + std::move(bar_str);
-            static std::string backtrack[2] {{}, {}}; // Provide an empty string to use when backspaces are not needed.
+            static StrT backtrack[2] {{}, {}}; // Provide an empty string to use when backspaces are not needed.
             static SizeT lately_bcktck_len = 0;
             if (!is_invoked) {
                 backtrack[0] = {};
                 lately_bcktck_len = 0;
             }
             if (backtrack_len != 0 && lately_bcktck_len != backtrack_len) {
-                backtrack[0] = bulk_copy(backtrack_len, std::string(1, backspace));
+                backtrack[0] = bulk_copy(backtrack_len, StrT(1, backspace));
                 lately_bcktck_len = backtrack_len;
             }
 
             /* When some strings are empty,
              * use a string composed of escape sequences to move the cursor to the right. */
-            static const std::string skip_perc {bulk_copy(ratio_len, rightward)};
-            static const std::string skip_rate {bulk_copy(rate_len, rightward)};
-            static const std::string skip_cntdwn {bulk_copy(time_len, rightward)};
-            static std::string skip_tsk_cnt {};
+            static const StrT skip_perc {bulk_copy(ratio_len, rightward)};
+            static const StrT skip_rate {bulk_copy(rate_len, rightward)};
+            static const StrT skip_cntdwn {bulk_copy(time_len, rightward)};
+            static StrT skip_tsk_cnt {};
             static SizeT skp_tsk_cnt_len = 0;
             if (skp_tsk_cnt_len != tsk_cnt_len) {
                 skip_tsk_cnt = bulk_copy(tsk_cnt_len, rightward);
@@ -439,28 +439,58 @@ namespace pgbar {
         }
         /* Set the output stream object. */
         pgbar& set_ostream(std::ostream& _ostream) noexcept {
+            if (is_invoked) return *this;
             stream = &_ostream;
             in_terminal = check_output_stream();
             return *this;
         }
         /* Set the number of steps the counter is updated each time `update()` is called. */
-        pgbar& set_step(SizeT _step) noexcept { step = _step; return *this; }
+        pgbar& set_step(SizeT _step) noexcept {
+            if (is_invoked) return *this;
+            step = _step; return *this;
+        }
         /* Set the number of tasks to be updated. */
-        pgbar& set_task(SizeT _total_tsk) noexcept { total_tsk = _total_tsk; return *this; }
+        pgbar& set_task(SizeT _total_tsk) noexcept {
+            if (is_invoked) return *this;
+            total_tsk = _total_tsk; return *this;
+        }
         /* Set the TODO characters in the progress bar. */
-        pgbar& set_done_char(StrT _done_ch) { done_ch = std::move(_done_ch); return *this; }
+        pgbar& set_done_char(StrT _done_ch) {
+            if (is_invoked) return *this;
+            done_ch = std::move(_done_ch);
+            return *this;
+        }
         /* Set the DONE characters in the progress bar. */
-        pgbar& set_todo_char(StrT _todo_ch) { todo_ch = std::move(_todo_ch); return *this; }
+        pgbar& set_todo_char(StrT _todo_ch) {
+            if (is_invoked) return *this;
+            todo_ch = std::move(_todo_ch);
+            return *this;
+        }
         /* Set the left bracket of the progress bar. */
-        pgbar& set_left_bracket(StrT _l_bracket) { l_bracket = std::move(_l_bracket); return *this; }
+        pgbar& set_left_bracket(StrT _l_bracket) {
+            if (is_invoked) return *this;
+            l_bracket = std::move(_l_bracket);
+            return *this;
+        }
         /* Set the right bracket of the progress bar. */
-        pgbar& set_right_bracket(StrT _r_bracket) { r_bracket = std::move(_r_bracket); return *this; }
+        pgbar& set_right_bracket(StrT _r_bracket) {
+            if (is_invoked) return *this;
+            r_bracket = std::move(_r_bracket);
+            return *this;
+        }
         /* Set the length of the progress bar. */
-        pgbar& set_bar_length(SizeT _length) { bar_length = _length; return *this; }
+        pgbar& set_bar_length(SizeT _length) {
+            if (is_invoked) return *this;
+            bar_length = _length; return *this;
+        }
         /* Select the display style by using bit operations. */
-        pgbar& set_style(style_opts::OptT _selection) noexcept { option = _selection; return *this; }
+        pgbar& set_style(style_opts::OptT _selection) noexcept {
+            if (is_invoked) return *this;
+            option = _selection; return *this;
+        }
         pgbar& operator=(const pgbar& _other) {
-            if (this == &_other) return *this;
+            if (this == &_other || is_invoked)
+                return *this;
             stream = _other.stream;
             todo_ch = _other.todo_ch;
             done_ch = _other.done_ch;
@@ -503,11 +533,11 @@ namespace pgbar {
         }
     };
 
-    const std::string pgbar::rightward {"\033[C"};
-    const std::string pgbar::l_status {"[ "};
-    const std::string pgbar::r_status {" ]"};
-    const std::string pgbar::col_fmt {__PGBAR_COL__};
-    const std::string pgbar::defult_col {__PGBAR_DEFAULT_COL__};
+    const pgbar::StrT pgbar::rightward {"\033[C"};
+    const pgbar::StrT pgbar::l_status {"[ "};
+    const pgbar::StrT pgbar::r_status {" ]"};
+    const pgbar::StrT pgbar::col_fmt {__PGBAR_COL__};
+    const pgbar::StrT pgbar::defult_col {__PGBAR_DEFAULT_COL__};
 
 } // namespace pgbar
 

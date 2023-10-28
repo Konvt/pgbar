@@ -118,10 +118,8 @@ range(_start, _end, _step, BarT& _bar)
 range(_start, _end, BarT& _bar)
 range(_end, BarT& _bar)
 
-/* Accept an iterator type as the range for `range`, incorrect iterator order will throw an exception. */
-range(_start, _end, BarT& _bar) // Only support iterators that advance using the increment operator.
-// To determine the order of iterators, it is required that the passed iterators have overloaded `operator>()`.
-// Otherwise, a compilation error will occur
+/* Accept an iterator type as the range for `range`. */
+range(_start, _end, BarT& _bar) // Only iterators moved by increment/decrement operators are supported
 ```
 
 ## NOTICE:
@@ -130,6 +128,7 @@ range(_start, _end, BarT& _bar) // Only support iterators that advance using the
 3. If the increment step `step` is set to 0, attempting to update the task with `update()` will also throw the `bad_pgbar` exception.
 4. When using `range`, specifying an incorrect range (e.g., the ending value is less than the starting value) will also throw the `bad_pgbar` exception.
 5. The progress bar uses `std::cerr` as the output stream object by default.
+6. After the task is completed, if you need to reset the progress bar style, or the output stream object, you must first execute `reset()`, otherwise the change will not occur.
 
 ## FAQ
 ### Will it slow down my program?
@@ -196,7 +195,7 @@ int main()
     }
 
     bar.reset(); // 重置进度条状态
-    for (auto iter : pgbar::range(TOTAL, bar))
+    for (auto iter : pgbar::range(TOTAL, bar)) // for (std::size_t i = 0; i < TOTAL; ++i) ...
         continue; // 不想调用 `update()` 时，可以使用 'pgbar/range.hpp' 中的 `range`
     // 把更新操作和任务数设置交给迭代器进行
 
@@ -250,9 +249,8 @@ range(_start, _end, _step, BarT& _bar)
 range(_start, _end, BarT& _bar)
 range(_end, BarT& _bar)
 
-/* 接受迭代器类型作为范围的 `range`，错误的迭代器顺序会抛出异常 */
-range(_start, _end, BarT& _bar) // 仅支持使用自增运算符前进的迭代器
-// 为了判断迭代器顺序，这里要求传入的迭代器必须重载了 `operator>()`, 否则会编译报错
+/* 接受迭代器类型作为范围的 `range` */
+range(_start, _end, BarT& _bar) // 仅支持使用自增/自减运算符移动的迭代器
 ```
 
 ## 注意事项
@@ -261,6 +259,7 @@ range(_start, _end, BarT& _bar) // 仅支持使用自增运算符前进的迭代
 3. 如果递进步数 `step` 为 0，调用 `update()` 尝试更新任务时也会抛出异常 `bad_pgbar`.
 4. 使用 `range` 时，指定了错误的范围（如结尾数值小于开头），同样会抛出异常 `bad_pgbar`.
 5. 进度条默认使用 `std::cerr` 作为输出流对象.
+6. 任务完成后，如果需要重设进度条风格、或是输出流对象，必须先执行 `reset()`，否则更改不会发生.
 
 ## FAQ
 ### 会拖慢程序吗？
