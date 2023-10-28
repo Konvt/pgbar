@@ -126,11 +126,11 @@ namespace pgbar {
         using reference = EleT&;
 
         explicit range_iterator_iter(IterT _begin, IterT _end, BarT& _bar) {
-            if (_begin > _end)
+            extent = std::distance(start, terminus);
+            if (extent < 0)
                 throw bad_pgbar {"bad_pgbar: invalid iterator"};
             bar = &_bar;
             start = _begin; terminus = _end; current = start;
-            extent = std::distance(start, terminus);
             bar->set_task(extent).set_step(1); // Only constructor with arguments will invoke.
         }
         range_iterator_iter(const range_iterator_iter& _other) {

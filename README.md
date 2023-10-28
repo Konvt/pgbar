@@ -120,8 +120,6 @@ range(_end, BarT& _bar)
 
 /* Accept an iterator type as the range for `range`, incorrect iterator order will throw an exception. */
 range(_start, _end, BarT& _bar) // Only support iterators that advance using the increment operator.
-// To determine the order of iterators, it is required that the passed iterators have overloaded `operator>()`.
-// Otherwise, a compilation error will occur
 ```
 
 ## NOTICE:
@@ -252,7 +250,6 @@ range(_end, BarT& _bar)
 
 /* 接受迭代器类型作为范围的 `range`，错误的迭代器顺序会抛出异常 */
 range(_start, _end, BarT& _bar) // 仅支持使用自增运算符前进的迭代器
-// 为了判断迭代器顺序，这里要求传入的迭代器必须重载了 `operator>()`, 否则会编译报错
 ```
 
 ## 注意事项
