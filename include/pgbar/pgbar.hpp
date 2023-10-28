@@ -439,28 +439,58 @@ namespace pgbar {
         }
         /* Set the output stream object. */
         pgbar& set_ostream(std::ostream& _ostream) noexcept {
+            if (is_invoked) return *this;
             stream = &_ostream;
             in_terminal = check_output_stream();
             return *this;
         }
         /* Set the number of steps the counter is updated each time `update()` is called. */
-        pgbar& set_step(SizeT _step) noexcept { step = _step; return *this; }
+        pgbar& set_step(SizeT _step) noexcept {
+            if (is_invoked) return *this;
+            step = _step; return *this;
+        }
         /* Set the number of tasks to be updated. */
-        pgbar& set_task(SizeT _total_tsk) noexcept { total_tsk = _total_tsk; return *this; }
+        pgbar& set_task(SizeT _total_tsk) noexcept {
+            if (is_invoked) return *this;
+            total_tsk = _total_tsk; return *this;
+        }
         /* Set the TODO characters in the progress bar. */
-        pgbar& set_done_char(StrT _done_ch) { done_ch = std::move(_done_ch); return *this; }
+        pgbar& set_done_char(StrT _done_ch) {
+            if (is_invoked) return *this;
+            done_ch = std::move(_done_ch);
+            return *this;
+        }
         /* Set the DONE characters in the progress bar. */
-        pgbar& set_todo_char(StrT _todo_ch) { todo_ch = std::move(_todo_ch); return *this; }
+        pgbar& set_todo_char(StrT _todo_ch) {
+            if (is_invoked) return *this;
+            todo_ch = std::move(_todo_ch);
+            return *this;
+        }
         /* Set the left bracket of the progress bar. */
-        pgbar& set_left_bracket(StrT _l_bracket) { l_bracket = std::move(_l_bracket); return *this; }
+        pgbar& set_left_bracket(StrT _l_bracket) {
+            if (is_invoked) return *this;
+            l_bracket = std::move(_l_bracket);
+            return *this;
+        }
         /* Set the right bracket of the progress bar. */
-        pgbar& set_right_bracket(StrT _r_bracket) { r_bracket = std::move(_r_bracket); return *this; }
+        pgbar& set_right_bracket(StrT _r_bracket) {
+            if (is_invoked) return *this;
+            r_bracket = std::move(_r_bracket);
+            return *this;
+        }
         /* Set the length of the progress bar. */
-        pgbar& set_bar_length(SizeT _length) { bar_length = _length; return *this; }
+        pgbar& set_bar_length(SizeT _length) {
+            if (is_invoked) return *this;
+            bar_length = _length; return *this;
+        }
         /* Select the display style by using bit operations. */
-        pgbar& set_style(style_opts::OptT _selection) noexcept { option = _selection; return *this; }
+        pgbar& set_style(style_opts::OptT _selection) noexcept {
+            if (is_invoked) return *this;
+            option = _selection; return *this;
+        }
         pgbar& operator=(const pgbar& _other) {
-            if (this == &_other) return *this;
+            if (this == &_other || is_invoked)
+                return *this;
             stream = _other.stream;
             todo_ch = _other.todo_ch;
             done_ch = _other.done_ch;

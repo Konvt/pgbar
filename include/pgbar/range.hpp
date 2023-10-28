@@ -118,6 +118,7 @@ namespace pgbar {
         BarT *bar;
         IterT start, terminus, current;
         SizeT extent;
+        bool is_reversed;
     public:
         using iterator_category = std::output_iterator_tag;
         using value_type = EleT;
@@ -126,12 +127,24 @@ namespace pgbar {
         using reference = EleT&;
 
         explicit range_iterator_iter(IterT _begin, IterT _end, BarT& _bar) {
-            extent = std::distance(start, terminus);
-            if (extent < 0)
-                throw bad_pgbar {"bad_pgbar: invalid iterator"};
+            static_assert(
+                !std::is_same<typename std::iterator_traits<IterT>::difference_type, void>::value,
+                "range_iterator_iter error: the difference_type of the iterator shouldn't be 'void'"
+            );
+            auto dist = std::distance(_begin, _end);
+            if (dist > 0) {
+                is_reversed = false;
+                extent = static_cast<SizeT>(dist);
+                start = _begin; terminus = _end;
+                current = start;
+            } else {
+                is_reversed = true;
+                extent = static_cast<SizeT>(-dist);;
+                start = _end; terminus = _begin;
+                current = start;
+            }
             bar = &_bar;
-            start = _begin; terminus = _end; current = start;
-            bar->set_task(extent).set_step(1); // Only constructor with arguments will invoke.
+            bar->set_task(extent).set_step(1);
         }
         range_iterator_iter(const range_iterator_iter& _other) {
             bar = _other.bar;
@@ -158,7 +171,7 @@ namespace pgbar {
         EleT& operator*() noexcept { return *current; }
         bool operator==(const range_iterator_iter& _other) const noexcept { return current == _other.current; }
         bool operator!=(const range_iterator_iter& _other) const noexcept { return !(operator==(_other)); }
-        range_iterator_iter& operator++() { ++current; bar->update(); return *this; }
+        range_iterator_iter& operator++() { if (is_reversed) --current; else ++current; bar->update(); return *this; }
         range_iterator_iter operator++(int) { range_iterator_iter before = *this; operator++(); return before; }
     };
 
