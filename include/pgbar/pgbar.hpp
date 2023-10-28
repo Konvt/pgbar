@@ -228,7 +228,7 @@ namespace pgbar {
                 return default_str;
             }
 
-            invoke_interval = (invoke_interval + (now-first_invoke)/done_cnt)/2; // each invoke interval
+            invoke_interval = (invoke_interval + (now-first_invoke)/(done_cnt/step))/2; // each invoke interval
             SizeT frequency = duration_cast<nanoseconds>(seconds(1)) / invoke_interval;
 
             auto splice = [](double val) -> std::string {
