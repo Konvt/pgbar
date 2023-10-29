@@ -479,7 +479,7 @@ namespace pgbar {
             return *this;
         }
         /* Set the length of the progress bar. */
-        pgbar& set_bar_length(SizeT _length) {
+        pgbar& set_bar_length(SizeT _length) noexcept {
             if (is_invoked) return *this;
             bar_length = _length; return *this;
         }

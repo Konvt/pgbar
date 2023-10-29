@@ -104,7 +104,7 @@ pgbar& set_left_bracket(std::string _l_bracket)
 pgbar& set_right_bracket(std::string _r_bracket)
 
 /* Setting the length of the progress bar. */
-pgbar& set_bar_length(std::size_t _length)
+pgbar& set_bar_length(std::size_t _length) noexcept
 
 /* Use bitwise operations to set the information to be displayed based on multiple predefined options. */
 pgbar& set_style(style_opts::OptT _selection) noexcept
@@ -236,7 +236,7 @@ pgbar& set_left_bracket(std::string _l_bracket)
 pgbar& set_right_bracket(std::string _r_bracket)
 
 /* 设置进度条的长度. */
-pgbar& set_bar_length(std::size_t _length)
+pgbar& set_bar_length(std::size_t _length) noexcept
 
 /* 根据多个预定选项，使用位操作设定需要显示的信息. */
 pgbar& set_style(style_opts::OptT _selection) noexcept
