@@ -228,7 +228,7 @@ namespace pgbar {
                 return default_str;
             }
 
-            invoke_interval = (invoke_interval + (now-first_invoke)/(done_cnt/step))/2; // each invoke interval
+            invoke_interval = (invoke_interval + (now-first_invoke)/done_cnt)/2; // each invoke interval
             SizeT frequency = duration_cast<nanoseconds>(seconds(1)) / invoke_interval;
 
             auto splice = [](double val) -> StrT {
@@ -243,7 +243,7 @@ namespace pgbar {
             else if (frequency < 1e6) // < 1 kHz => 999.99 kHz
                 rate.append(splice(frequency/1e3) + StrT(" kHz"));
             else if (frequency < 1e9) // < 1 MHz => 999.99 MHz
-                rate.append(splice(frequency/1e6) + StrT(" kHz"));
+                rate.append(splice(frequency/1e6) + StrT(" MHz"));
             else { // < 1 GHz => 999.99 GHz
                 double temp = frequency/1e9;
                 if (temp > 999.99) rate.append("999.99 GHz");
@@ -479,7 +479,7 @@ namespace pgbar {
             return *this;
         }
         /* Set the length of the progress bar. */
-        pgbar& set_bar_length(SizeT _length) {
+        pgbar& set_bar_length(SizeT _length) noexcept {
             if (is_invoked) return *this;
             bar_length = _length; return *this;
         }

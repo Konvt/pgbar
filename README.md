@@ -32,9 +32,10 @@ No third party dependencies required.
 
 ## Styles
 ```
-[###############                         ] [ 36.63%  |  36638968/100000000 |  21.27 kHz |   1s < 3s   ]
+[###############                         ] [ 36.63%  |  36638968/100000000 |  21.27 MHz |   1s < 3s   ]
 ```
 ![example-color](images/example_color.gif)
+> The "Hz" indicates how many tasks are performed per second.
 
 The status bar is colored using escape sequences by default.
 
@@ -103,7 +104,7 @@ pgbar& set_left_bracket(std::string _l_bracket)
 pgbar& set_right_bracket(std::string _r_bracket)
 
 /* Setting the length of the progress bar. */
-pgbar& set_bar_length(std::size_t _length)
+pgbar& set_bar_length(std::size_t _length) noexcept
 
 /* Use bitwise operations to set the information to be displayed based on multiple predefined options. */
 pgbar& set_style(style_opts::OptT _selection) noexcept
@@ -166,9 +167,10 @@ Purely for practice, that's how it is.
 
 ## 样式
 ```
-[###############                         ] [ 36.63%  |  36638968/100000000 |  21.27 kHz |   1s < 3s   ]
+[###############                         ] [ 36.63%  |  36638968/100000000 |  21.27 MHz |   1s < 3s   ]
 ```
 ![example-color](images/example_color.gif)
+> 这里的 'Hz' 表示每秒执行了多少任务.
 
 默认情况下会使用转义序列对状态栏进行染色，如果你的终端不支持、或者不想要着色效果，可以在程序最开头定义一个宏.
 ```cpp
@@ -234,7 +236,7 @@ pgbar& set_left_bracket(std::string _l_bracket)
 pgbar& set_right_bracket(std::string _r_bracket)
 
 /* 设置进度条的长度. */
-pgbar& set_bar_length(std::size_t _length)
+pgbar& set_bar_length(std::size_t _length) noexcept
 
 /* 根据多个预定选项，使用位操作设定需要显示的信息. */
 pgbar& set_style(style_opts::OptT _selection) noexcept
