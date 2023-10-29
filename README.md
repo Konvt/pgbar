@@ -32,7 +32,7 @@ No third party dependencies required.
 
 ## Styles
 ```
-[###############                         ] [ 36.63%  |  36638968/100000000 |  21.27 kHz |   1s < 3s   ]
+[###############                         ] [ 36.63%  |  36638968/100000000 |  21.27 MHz |   1s < 3s   ]
 ```
 ![example-color](images/example_color.gif)
 > The "Hz" indicates how many tasks are performed per second.
@@ -167,7 +167,7 @@ Purely for practice, that's how it is.
 
 ## 样式
 ```
-[###############                         ] [ 36.63%  |  36638968/100000000 |  21.27 kHz |   1s < 3s   ]
+[###############                         ] [ 36.63%  |  36638968/100000000 |  21.27 MHz |   1s < 3s   ]
 ```
 ![example-color](images/example_color.gif)
 > 这里的 'Hz' 表示每秒执行了多少任务.
