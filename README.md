@@ -35,6 +35,7 @@ No third party dependencies required.
 [###############                         ] [ 36.63%  |  36638968/100000000 |  21.27 kHz |   1s < 3s   ]
 ```
 ![example-color](images/example_color.gif)
+> The "Hz" indicates how many tasks are performed per second.
 
 The status bar is colored using escape sequences by default.
 
@@ -169,6 +170,7 @@ Purely for practice, that's how it is.
 [###############                         ] [ 36.63%  |  36638968/100000000 |  21.27 kHz |   1s < 3s   ]
 ```
 ![example-color](images/example_color.gif)
+> 这里的 'Hz' 表示每秒执行了多少任务.
 
 默认情况下会使用转义序列对状态栏进行染色，如果你的终端不支持、或者不想要着色效果，可以在程序最开头定义一个宏.
 ```cpp
