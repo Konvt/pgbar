@@ -171,6 +171,17 @@ namespace pgbar {
             else return false;
         }
 
+        __PGBAR_INLINE_FUNC__ bool skip_update(std::chrono::duration<SizeT, std::nano> interval) {
+            if (!in_terminal) return true;
+            static SizeT priod = 0, target_cnt = 0;
+            if (!is_invoked) {
+                priod = 0;
+                return true;
+            }
+            if (done_cnt % priod != 0) return true;
+
+            return false;
+        }
         __PGBAR_INLINE_FUNC__ StrT show_bar(double percent) {
             static double lately_perc = 0;
             //if (!is_invoked); // nothing
@@ -215,20 +226,18 @@ namespace pgbar {
                 StrT(1, '/') + std::move(total_str)
             );
         }
-        __PGBAR_INLINE_FUNC__ StrT show_rate(std::chrono::system_clock::time_point now) {
+        __PGBAR_INLINE_FUNC__ StrT show_rate(std::chrono::duration<SizeT, std::nano> interval) {
             using namespace std::chrono;
             static std::chrono::duration<SizeT, std::nano> invoke_interval {};
-            static system_clock::time_point first_invoke {};
 
             if (!is_invoked) {
                 invoke_interval = {};
-                first_invoke = now;
                 static const StrT default_str =
                     formatter<txt_layut::align_center>(rate_len, "0.00 Hz");
                 return default_str;
             }
 
-            invoke_interval = (invoke_interval + (now-first_invoke)/done_cnt)/2; // each invoke interval
+            invoke_interval = (invoke_interval + interval)/2; // each invoke interval
             SizeT frequency = duration_cast<nanoseconds>(seconds(1)) / invoke_interval;
 
             auto splice = [](double val) -> StrT {
@@ -252,22 +261,14 @@ namespace pgbar {
 
             return formatter<txt_layut::align_center>(rate_len, std::move(rate));
         }
-        __PGBAR_INLINE_FUNC__ StrT show_time(std::chrono::system_clock::time_point now) {
+        __PGBAR_INLINE_FUNC__ StrT show_time(std::chrono::duration<SizeT, std::nano> interval) {
             using namespace std::chrono;
-            static system_clock::time_point first_invoke {};
-            static duration<SizeT, std::nano> invoke_interval {};
 
             if (!is_invoked) {
-                first_invoke = now;
-                invoke_interval = {};
                 static const StrT default_str =
                     formatter<txt_layut::align_center>(time_len, "0s < 99h");
                 return default_str;
             }
-
-            auto time_differ = now-first_invoke;
-            invoke_interval = time_differ/done_cnt;
-            auto sec = duration_cast<seconds>(invoke_interval*(total_tsk-done_cnt)).count();
 
             auto splice = [](double val) -> StrT {
                 StrT str = std::to_string(val);
@@ -278,9 +279,9 @@ namespace pgbar {
                 if (sec < 60) // < 1 minute => 59s
                     return std::to_string(sec) + StrT(1, 's');
                 else if (sec < 60*9) // < 9 minutes => 9.9m
-                    return splice(static_cast<double>(sec)/60.0) + StrT(1, 'm');
+                    return splice(static_cast<double>(sec) / 60.0) + StrT(1, 'm');
                 else if (sec < 60*60) // >= 9 minutes => 59m
-                    return std::to_string(sec/60) + StrT(1, 'm');
+                    return std::to_string(sec / 60) + StrT(1, 'm');
                 else if (sec < 60*60*9) // < 9 hour => 9.9h
                     return splice(static_cast<double>(sec)/(60.0*60.0)) + StrT(1, 'h');
                 else { // >= 9 hour => 999h
@@ -290,8 +291,8 @@ namespace pgbar {
             };
 
             return formatter<txt_layut::align_center>(
-                time_len, to_time(duration_cast<seconds>(time_differ).count()) +
-                StrT(" < ") + to_time(sec)
+                time_len, to_time(duration_cast<seconds>(interval*done_cnt).count()) +
+                StrT(" < ") + to_time(duration_cast<seconds>(interval*(total_tsk-done_cnt)).count())
             );
         }
         /// @brief Based on the value of `option` and bitwise operations,
@@ -299,29 +300,24 @@ namespace pgbar {
         /// @param percent The percentage of the current task execution.
         /// @return The progress bar that has been assembled but is pending output.
         __PGBAR_INLINE_FUNC__ std::pair<StrT, StrT>
-        switch_feature(double percent, std::chrono::system_clock::time_point now) {
+        switch_feature(double percent, std::chrono::duration<SizeT, std::nano> interval) {
             StrT bar_str {};
             static const StrT division {" | "};
             StrT perc_str {}, tsk_cnt_str {}, rate_str{}, cntdwn_str {};
             SizeT divi_len = 0;
 
-            bool disp_bar = option & style_opts::bar,
-                disp_perc = option & style_opts::percentage,
-                disp_tsk_cnt = option & style_opts::task_counter,
-                disp_rate = option & style_opts::rate,
-                disp_cntdwn = option & style_opts::countdown;
+            bool disp_bar     = option & style_opts::bar,
+                 disp_perc    = option & style_opts::percentage,
+                 disp_tsk_cnt = option & style_opts::task_counter,
+                 disp_rate    = option & style_opts::rate,
+                 disp_cntdwn  = option & style_opts::countdown;
             /* Based on the bit vector indicating the switching of different sections,
              * the parts that are not turned on will be empty. */
-            if (disp_bar)
-                bar_str = show_bar(percent);
-            if (disp_perc)
-                perc_str = show_proportion(percent);
-            if (disp_tsk_cnt)
-                tsk_cnt_str = show_remain_task();
-            if (disp_rate)
-                rate_str = show_rate(now);
-            if (disp_cntdwn)
-                cntdwn_str = show_time(std::move(now));
+            if (disp_bar)     bar_str = show_bar(percent);
+            if (disp_perc)    perc_str = show_proportion(percent);
+            if (disp_tsk_cnt) tsk_cnt_str = show_remain_task();
+            if (disp_rate)    rate_str = show_rate(interval);
+            if (disp_cntdwn)  cntdwn_str = show_time(std::move(interval));
 
             /* Using the sections that are enabled in the bit vector
              * to insert separators between different status bars. */
@@ -346,10 +342,10 @@ namespace pgbar {
             SizeT backtrack_len = 0;
             if ((!disp_bar || bar_str.size() == 0) && is_invoked) {
                 // It doesn't make sense to concatenate backspaces when updating `bar_str`.
-                backtrack_len += disp_perc ? ratio_len : 0;
+                backtrack_len += disp_perc    ? ratio_len   : 0;
                 backtrack_len += disp_tsk_cnt ? tsk_cnt_len : 0;
-                backtrack_len += disp_rate ? rate_len : 0;
-                backtrack_len += disp_cntdwn ? time_len : 0;
+                backtrack_len += disp_rate    ? rate_len    : 0;
+                backtrack_len += disp_cntdwn  ? time_len    : 0;
                 backtrack_len += divi_len + l_status.size() + r_status.size();
             } else if (disp_bar && bar_str.size() != 0) // Updating `bar_str`, it will always back to the head of the line.
                 bar_str = StrT(1, reboot) + std::move(bar_str);
@@ -366,8 +362,8 @@ namespace pgbar {
 
             /* When some strings are empty,
              * use a string composed of escape sequences to move the cursor to the right. */
-            static const StrT skip_perc {bulk_copy(ratio_len, rightward)};
-            static const StrT skip_rate {bulk_copy(rate_len, rightward)};
+            static const StrT skip_perc   {bulk_copy(ratio_len, rightward)};
+            static const StrT skip_rate   {bulk_copy(rate_len, rightward)};
             static const StrT skip_cntdwn {bulk_copy(time_len, rightward)};
             static StrT skip_tsk_cnt {};
             static SizeT skp_tsk_cnt_len = 0;
@@ -385,9 +381,9 @@ namespace pgbar {
                 cntdwn_str = skip_cntdwn;
 
             /* Insert the strings that control cursor movement into the positions where they are needed. */
-            if (perc_divi) perc_str = std::move(perc_str) + division;
+            if (perc_divi)    perc_str    = std::move(perc_str) + division;
             if (tsk_cnt_divi) tsk_cnt_str = std::move(tsk_cnt_str) + division;
-            if (rate_divi) rate_str = std::move(rate_str) + division;
+            if (rate_divi)    rate_str    = std::move(rate_str) + division;
             /* If there is something to be displayed after the progress bar,
              * concatenate the brackets of the status bar. */
             if (disp_perc || disp_tsk_cnt || disp_rate || disp_cntdwn) {
@@ -408,8 +404,8 @@ namespace pgbar {
         pgbar& operator=(pgbar&&) = delete;
 
         pgbar(SizeT _total_tsk, std::ostream& _ostream) {
-            stream = &_ostream;
-            todo_ch = StrT(1, blank); done_ch = StrT(1, '#');
+            stream    = &_ostream;
+            todo_ch   = StrT(1, blank); done_ch = StrT(1, '#');
             l_bracket = StrT(1, '['); r_bracket = StrT(1, ']');
             step = 1; total_tsk = _total_tsk; done_cnt = 0;
             bar_length = 50; // default value
@@ -419,11 +415,11 @@ namespace pgbar {
         }
         pgbar(): pgbar(0, std::cerr) {} // default constructor
         pgbar(const pgbar& _other): pgbar() { // style copy
-            stream = _other.stream;
-            todo_ch = _other.todo_ch;
-            done_ch = _other.done_ch;
-            l_bracket = _other.l_bracket;
-            r_bracket = _other.r_bracket;
+            stream      = _other.stream;
+            todo_ch     = _other.todo_ch;
+            done_ch     = _other.done_ch;
+            l_bracket   = _other.l_bracket;
+            r_bracket   = _other.r_bracket;
             in_terminal = check_output_stream();
             option = _other.option;
         }
@@ -491,11 +487,11 @@ namespace pgbar {
         pgbar& operator=(const pgbar& _other) {
             if (this == &_other || is_invoked)
                 return *this;
-            stream = _other.stream;
-            todo_ch = _other.todo_ch;
-            done_ch = _other.done_ch;
-            l_bracket = _other.l_bracket;
-            r_bracket = _other.r_bracket;
+            stream      = _other.stream;
+            todo_ch     = _other.todo_ch;
+            done_ch     = _other.done_ch;
+            l_bracket   = _other.l_bracket;
+            r_bracket   = _other.r_bracket;
             in_terminal = check_output_stream();
             option = _other.option;
             return *this;
@@ -503,28 +499,31 @@ namespace pgbar {
 
         /* Update progress bar. */
         void update() {
-            static std::chrono::system_clock::time_point lately_called {};
+            static std::chrono::duration<SizeT, std::nano> invoke_interval {};
+            static std::chrono::system_clock::time_point first_invoked {}, lately_called {};
             static constexpr std::chrono::milliseconds refresh_rate {40}; // 25 Hz
             // TODO: empty cycle check
-            if (!in_terminal) return;
             if (is_done) throw bad_pgbar {"bad_pgbar: updating a full progress bar"};
             else if (total_tsk == 0) throw bad_pgbar {"bad_pgbar: the number of tasks is zero"};
             if (!is_invoked) {
                 if (step == 0) throw bad_pgbar {"bad_pgbar: zero step"};
-                lately_called = std::chrono::system_clock::now();
-                auto info = switch_feature(0, lately_called);
+                invoke_interval = {};
+                first_invoked = lately_called = std::chrono::system_clock::now();
+                auto info = switch_feature(0, {});
                 *stream << info.first << info.second;
                 is_invoked = true;
             }
-
             done_cnt += step;
+            if (skip_update(invoke_interval)) return;
+
             auto now = std::chrono::system_clock::now();
             if (done_cnt != total_tsk && now-lately_called < refresh_rate)
                 return; // The refresh rate is capped at 25 Hz.
-            lately_called = now;
+            invoke_interval = (now - first_invoked) / done_cnt;
+            lately_called = std::move(now);
 
             double perc = done_cnt / static_cast<double>(total_tsk);
-            auto info = switch_feature(perc, std::move(now));
+            auto info = switch_feature(perc, std::move(invoke_interval));
             *stream << info.first << info.second;
             if (done_cnt >= total_tsk) {
                 is_done = true;

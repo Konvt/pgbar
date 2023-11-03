@@ -18,7 +18,6 @@ int main()
     for (auto iter : pgbar::range(TOTAL, bar))
         continue; // You can specify a range using `range`
     // The iterator will automatically count the number of tasks
-    // NOTE: Only passing iterators that advance with the increment operator is allowed.
 
     std::vector<double> arr {};
     for (std::size_t i = 0; i < TOTAL; ++i)
