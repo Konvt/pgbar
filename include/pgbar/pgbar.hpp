@@ -15,10 +15,17 @@
 #include <iostream>    // std::cout, the output stream object used.
 
 #if defined(__GNUC__) || defined(__clang__)
+    #define __PGBAR_CMP_V__ __cplusplus
     #define __PGBAR_INLINE_FUNC__ __attribute__((always_inline))
 #elif defined(_MSC_VER)
+    #ifdef _MSVC_LANG
+        #define __PGBAR_CMP_V__ _MSVC_LANG
+    #else
+        #define __PGBAR_CMP_V__ __cplusplus
+    #endif
     #define __PGBAR_INLINE_FUNC__ __forceinline
 #else
+    #define __PGBAR_CMP_V__ __cplusplus
     #define __PGBAR_INLINE_FUNC__
 #endif
 
@@ -32,19 +39,19 @@
     #define __PGBAR_UNKNOW_PLATFORM__
 #endif
 
-#if __cplusplus >= 202002L
+#if __PGBAR_CMP_V__ >= 202002L
     #include <format>
     #include <concepts>
     #define __PGBAR_CXX20__
 #endif // __cplusplus >= 202002L
-#if __cplusplus >= 201703L
+#if __PGBAR_CMP_V__ >= 201703L
     #include <string_view>
     #define __PGBAR_CXX17__
     #define __PGBAR_IF_CONSTEXPR__ constexpr
 #else
     #define __PGBAR_IF_CONSTEXPR__
 #endif // __cplusplus >= 201703L
-#if __cplusplus >= 201402L
+#if __PGBAR_CMP_V__ >= 201402L
     #define __PGBAR_CXX14__
 #endif // __cplusplus >= 201402L
 
@@ -540,6 +547,7 @@ namespace pgbar {
 
 } // namespace pgbar
 
+#undef __PGBAR_CMP_V__
 #undef __PGBAR_WIN__
 #undef __PGBAR_UNIX__
 #undef __PGBAR_UNKNOW_PLATFORM__

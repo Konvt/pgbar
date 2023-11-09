@@ -10,16 +10,22 @@
 #include <iterator>  // marks iterator tags
 #include <algorithm> // std::distance
 
-#if __cplusplus >= 202002L
+#ifdef _MSVC_VER && defined(_MSVC_LANG)
+    #define __PGBAR_CMP_V__ _MSVC_LANG
+#else
+    #define __PGBAR_CMP_V__ __cplusplus
+#endif
+
+#if __PGBAR_CMP_V__ >= 202002L
     #define __PGBAR_CXX20__
 #endif // __cplusplus >= 202002L
-#if __cplusplus >= 201703L
+#if __PGBAR_CMP_V__ >= 201703L
     #define __PGBAR_CXX17__
     #define __PGBAR_IF_CONSTEXPR__ constexpr
 #else
     #define __PGBAR_IF_CONSTEXPR__
 #endif // __cplusplus >= 201703L
-#if __cplusplus >= 201402L
+#if __PGBAR_CMP_V__ >= 201402L
     #define __PGBAR_CXX14__
 #endif // __cplusplus >= 201402L
 
@@ -282,6 +288,7 @@ namespace pgbar {
 
 } // namespace pgbar
 
+#undef __PGBAR_CMP_V__
 #undef __PGBAR_CXX14__
 #undef __PGBAR_CXX17__
 #undef __PGBAR_CXX20__
