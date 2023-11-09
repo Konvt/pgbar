@@ -10,7 +10,7 @@
 #include <iterator>  // marks iterator tags
 #include <algorithm> // std::distance
 
-#ifdef _MSVC_VER && defined(_MSVC_LANG)
+#if defined(_MSVC_VER) && defined(_MSVC_LANG) // for msvc
     #define __PGBAR_CMP_V__ _MSVC_LANG
 #else
     #define __PGBAR_CMP_V__ __cplusplus

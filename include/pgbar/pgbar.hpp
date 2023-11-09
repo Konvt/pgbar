@@ -15,18 +15,17 @@
 #include <iostream>    // std::cout, the output stream object used.
 
 #if defined(__GNUC__) || defined(__clang__)
-    #define __PGBAR_CMP_V__ __cplusplus
     #define __PGBAR_INLINE_FUNC__ __attribute__((always_inline))
 #elif defined(_MSC_VER)
-    #ifdef _MSVC_LANG
-        #define __PGBAR_CMP_V__ _MSVC_LANG
-    #else
-        #define __PGBAR_CMP_V__ __cplusplus
-    #endif
     #define __PGBAR_INLINE_FUNC__ __forceinline
 #else
-    #define __PGBAR_CMP_V__ __cplusplus
     #define __PGBAR_INLINE_FUNC__
+#endif
+
+#if defined(_MSVC_VER) && defined(_MSVC_LANG) // for msvc
+    #define __PGBAR_CMP_V__ _MSVC_LANG
+#else
+    #define __PGBAR_CMP_V__ __cplusplus
 #endif
 
 #ifdef _WIN32
@@ -178,17 +177,6 @@ namespace pgbar {
             else return false;
         }
 
-        __PGBAR_INLINE_FUNC__ bool skip_update(std::chrono::duration<SizeT, std::nano> interval) {
-            if (!in_terminal) return true;
-            static SizeT priod = 0, target_cnt = 0;
-            if (!is_invoked) {
-                priod = 0;
-                return true;
-            }
-            if (done_cnt % priod != 0) return true;
-
-            return false;
-        }
         __PGBAR_INLINE_FUNC__ StrT show_bar(double percent) {
             static double lately_perc = 0;
             //if (!is_invoked); // nothing
@@ -521,7 +509,6 @@ namespace pgbar {
                 is_invoked = true;
             }
             done_cnt += step;
-            if (skip_update(invoke_interval)) return;
 
             auto now = std::chrono::system_clock::now();
             if (done_cnt != total_tsk && now-lately_called < refresh_rate)
@@ -547,7 +534,6 @@ namespace pgbar {
 
 } // namespace pgbar
 
-#undef __PGBAR_CMP_V__
 #undef __PGBAR_WIN__
 #undef __PGBAR_UNIX__
 #undef __PGBAR_UNKNOW_PLATFORM__
