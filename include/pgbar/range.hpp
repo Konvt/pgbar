@@ -10,7 +10,7 @@
 #include <iterator>  // marks iterator tags
 #include <algorithm> // std::distance
 
-#if defined(_MSVC_VER) && defined(_MSVC_LANG) // for msvc
+#if defined(_MSC_VER) && defined(_MSVC_LANG) // for msvc
     #define __PGBAR_CMP_V__ _MSVC_LANG
 #else
     #define __PGBAR_CMP_V__ __cplusplus
@@ -63,7 +63,7 @@ namespace pgbar {
                 };
             }
             bar = &_bar;
-            EleT diff = _end-_start > 0 ? _end-_start : _start-_end;
+            EleT diff = _end > _start ? _end-_start : _start-_end;
             EleT denom = _step > 0 ? _step : -_step;
             cnt = 0, extent = static_cast<size_t>(diff/denom);
             start_point = _start; end_point = _end;

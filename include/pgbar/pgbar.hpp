@@ -22,7 +22,7 @@
     #define __PGBAR_INLINE_FUNC__
 #endif
 
-#if defined(_MSVC_VER) && defined(_MSVC_LANG) // for msvc
+#if defined(_MSC_VER) && defined(_MSVC_LANG) // for msvc
     #define __PGBAR_CMP_V__ _MSVC_LANG
 #else
     #define __PGBAR_CMP_V__ __cplusplus
@@ -81,6 +81,7 @@ namespace pgbar {
         static constexpr OptT rate = 1 << 3;
         static constexpr OptT countdown = 1 << 4;
         static constexpr OptT entire = ~0;
+        style_opts() = delete;
     };
 
     class pgbar {
