@@ -17,6 +17,7 @@
 #endif
 
 #if __PGBAR_CMP_V__ >= 202002L
+    #include <concepts>
     #define __PGBAR_CXX20__
 #endif // __cplusplus >= 202002L
 #if __PGBAR_CMP_V__ >= 201703L
@@ -34,9 +35,10 @@ namespace pgbar {
     template< // Numeric type iterator.
         typename EleT, typename BarT
 #ifdef __PGBAR_CXX20__
-    > requires std::is_same_v<BarT, pgbar> && std::is_arithmetic_v<EleT>
-#elif defined(__PGBAR_CXX14__)
-        , typename = std::enable_if_t<std::is_same<BarT, pgbar>::value && std::is_arithmetic<EleT>::value>>
+    > requires (
+        std::same_as<BarT, pgbar> &&
+        std::is_arithmetic_v<EleT>
+    )
 #else
         , typename = typename std::enable_if<std::is_same<BarT, pgbar>::value && std::is_arithmetic<EleT>::value>::type>
 #endif
@@ -68,7 +70,7 @@ namespace pgbar {
             cnt = 0, extent = static_cast<size_t>(diff/denom);
             start_point = _start; end_point = _end;
             step = _step; current = _start;
-            bar->set_task(extent).set_step(step); // Only constructor with arguments will invoke.
+            bar->set_task(extent).set_step(step); // Only constructor with arguments will invoke these func.
         }
         explicit range_iterator_arith(EleT _start, EleT _end, BarT& _bar)
             :range_iterator_arith(_start, _end, 1, _bar) {}
@@ -93,27 +95,35 @@ namespace pgbar {
             _rhs.start_point = {}; _rhs.end_point = {};
             _rhs.step = {}; _rhs.current = {};
         }
-        ~range_iterator_arith() { bar = nullptr; }
-        range_iterator_arith begin() const { return *this; } // invokes copy constructor
+        ~range_iterator_arith()
+            { bar = nullptr; }
+        range_iterator_arith begin() const
+            { return *this; } // invokes copy constructor
         range_iterator_arith end() const { // invokes copy constructor and move constructor
             range_iterator_arith ed_pnt = *this;
             ed_pnt.current = ed_pnt.start_point = ed_pnt.end_point;
             ed_pnt.cnt = extent;
             return ed_pnt;
         }
-        EleT& operator*() noexcept { return current; }
-        bool operator==(const range_iterator_arith& _other) const noexcept { return cnt == _other.cnt; }
-        bool operator!=(const range_iterator_arith& _other) const noexcept { return !(operator==(_other)); }
-        range_iterator_arith& operator++() { ++cnt; current += step; bar->update(); return *this; }
-        range_iterator_arith operator++(int) { range_iterator_arith before = *this; operator++(); return before; }
+        EleT& operator*() noexcept
+            { return current; }
+        bool operator==(const range_iterator_arith& _other) const noexcept
+            { return cnt == _other.cnt; }
+        bool operator!=(const range_iterator_arith& _other) const noexcept
+            { return !(operator==(_other)); }
+        range_iterator_arith& operator++()
+            { ++cnt; current += step; bar->update(); return *this; }
+        range_iterator_arith operator++(int)
+            { range_iterator_arith before = *this; operator++(); return before; }
     };
 
     template< // Iterator type iterator.
         typename IterT, typename BarT // `IterT` means iterator type
 #ifdef __PGBAR_CXX20__
-    > requires std::is_same_v<BarT, pgbar>
-#elif defined(__PGBAR_CXX14__)
-        , typename = std::enable_if_t<std::is_same<BarT, pgbar>::value && !std::is_arithmetic<IterT>::value>>
+    > requires (
+        std::same_as<BarT, pgbar> &&
+        !std::is_arithmetic_v<IterT>
+    )
 #else
         , typename = typename std::enable_if<std::is_same<BarT, pgbar>::value && !std::is_arithmetic<IterT>::value>::type>
 #endif
@@ -141,44 +151,51 @@ namespace pgbar {
             if (dist > 0) {
                 is_reversed = false;
                 extent = static_cast<SizeT>(dist);
-                start = _begin; terminus = _end;
-                current = start;
             } else {
                 is_reversed = true;
-                extent = static_cast<SizeT>(-dist);;
-                start = _end; terminus = _begin;
-                current = start;
+                extent = static_cast<SizeT>(-dist);
             }
-            bar = &_bar;
+            start = _begin; terminus = _end;
+            current = start; bar = &_bar;
             bar->set_task(extent).set_step(1);
         }
         range_iterator_iter(const range_iterator_iter& _other) {
             bar = _other.bar;
             start = _other.start; terminus = _other.terminus;
             current = start; extent = _other.extent;
+            is_reversed = _other.is_reversed;
         }
         range_iterator_iter(range_iterator_iter&& _rhs) {
             bar = _rhs.bar; // same as copy constructor
             start = std::move(_rhs.start); terminus = std::move(_rhs.terminus);
             current = std::move(_rhs.current); extent = _rhs.extent;
+            is_reversed = _rhs.is_reversed;
             
             _rhs.bar = nullptr; // clear up
             _rhs.start = {}; _rhs.terminus = {};
             _rhs.terminus = {}; _rhs.extent = 0;
+            _rhs.is_reversed = false;
         }
-        ~range_iterator_iter() { bar = nullptr; }
-        range_iterator_iter begin() const { return *this; } // invokes copy constructor
+        ~range_iterator_iter()
+            { bar = nullptr; }
+        range_iterator_iter begin() const
+            { return range_iterator_iter(*this); } // invokes copy constructor
         range_iterator_iter end() const { // invokes copy constructor and move constructor
-            range_iterator_iter ed_pnt = *this;
+            auto ed_pnt = range_iterator_iter(*this);
             ed_pnt.start = terminus;
             ed_pnt.current = terminus;
             return ed_pnt;
         }
-        EleT& operator*() noexcept { return *current; }
-        bool operator==(const range_iterator_iter& _other) const noexcept { return current == _other.current; }
-        bool operator!=(const range_iterator_iter& _other) const noexcept { return !(operator==(_other)); }
-        range_iterator_iter& operator++() { if (is_reversed) --current; else ++current; bar->update(); return *this; }
-        range_iterator_iter operator++(int) { range_iterator_iter before = *this; operator++(); return before; }
+        EleT& operator*() noexcept
+            { return *current; }
+        bool operator==(const range_iterator_iter& _other) const noexcept
+            { return current == _other.current; }
+        bool operator!=(const range_iterator_iter& _other) const noexcept
+            { return !(operator==(_other)); }
+        range_iterator_iter& operator++()
+            { if (is_reversed) --current; else ++current; bar->update(); return *this; }
+        range_iterator_iter operator++(int)
+            { range_iterator_iter before = *this; operator++(); return before; }
     };
 
 #ifdef __PGBAR_CXX20__
@@ -192,7 +209,7 @@ namespace pgbar {
     /// @tparam BarT The type of the progress bar.
     /// @param _bar The progress bar that will be updated.
     /// @return Return an iterator that moves unidirectionally within the range `[_start, _end-1]`.
-    #ifdef __PGBAR_CXX20__
+#ifdef __PGBAR_CXX20__
     template<
         ValidEleT _EleT, typename BarT
         , typename EleT = std::decay_t<_EleT>
@@ -200,17 +217,10 @@ namespace pgbar {
 #else
     template<
         typename _EleT, typename BarT
-#ifdef __PGBAR_CXX14__
-        , typename EleT = std::decay_t<_EleT>
-    > std::enable_if_t<
-        std::is_arithmetic<EleT>::value
-        , range_iterator_arith<EleT, BarT>>
-#else
         , typename EleT = typename std::decay<_EleT>::type
     > typename std::enable_if<
         std::is_arithmetic<EleT>::value
         , range_iterator_arith<EleT, BarT>>::type
-#endif
 #endif
     inline range(_EleT&& _start, _EleT&& _end, _EleT&& _step, BarT& _bar)
         { return range_iterator_arith<EleT, BarT>(_start, _end, _step, _bar); }
@@ -223,17 +233,10 @@ namespace pgbar {
 #else
     template<
         typename _EleT, typename BarT
-#ifdef __PGBAR_CXX14__
-        , typename EleT = std::decay_t<_EleT>
-    > std::enable_if_t<
-        std::is_arithmetic<EleT>::value
-        , range_iterator_arith<EleT, BarT>>
-#else
         , typename EleT = typename std::decay<_EleT>::type
     > typename std::enable_if<
         std::is_arithmetic<EleT>::value
         , range_iterator_arith<EleT, BarT>>::type
-#endif
 #endif
     inline range(_EleT&& _start, _EleT&& _end, BarT& _bar)
         { return range_iterator_arith<EleT, BarT>(_start, _end, _bar); }
@@ -246,17 +249,10 @@ namespace pgbar {
 #else
     template<
         typename _EleT, typename BarT
-#ifdef __PGBAR_CXX14__
-        , typename EleT = std::decay_t<_EleT>
-    > std::enable_if_t<
-        std::is_arithmetic<EleT>::value
-        , range_iterator_arith<EleT, BarT>>
-#else
         , typename EleT = typename std::decay<_EleT>::type
     > typename std::enable_if<
         std::is_arithmetic<EleT>::value
         , range_iterator_arith<EleT, BarT>>::type
-#endif
 #endif
     inline range(_EleT&& _end, BarT& _bar)
         { return range_iterator_arith<EleT, BarT>(_end, _bar); }
@@ -266,18 +262,13 @@ namespace pgbar {
     /// @tparam IterT The type of the iterators.
     template<
         typename _BeginT, typename _EndT, typename BarT
-#ifdef __PGBAR_CXX14__
-        , typename IterT = std::decay_t<_BeginT>
-#ifdef __PGBAR_CXX20__
-    > requires std::is_same_v<IterT, std::decay_t<_EndT>>
-    range_iterator_iter<IterT, BarT> // return type
-#else
-    > std::enable_if_t<
-        std::is_same<IterT, std::decay_t<_EndT>>::value
-        , range_iterator_iter<IterT, BarT>>
-#endif
-#else
         , typename IterT = typename std::decay<_BeginT>::type
+#ifdef __PGBAR_CXX20__
+    > requires (
+        !std::is_arithmetic<IterT>::value &&
+        std::same_as<IterT, std::decay_t<_EndT>>
+    ) range_iterator_iter<IterT, BarT>
+#else
     > typename std::enable_if<
         !std::is_arithmetic<IterT>::value &&
         std::is_same<IterT, typename std::decay<_EndT>::type>::value
@@ -288,26 +279,47 @@ namespace pgbar {
 
     /// @brief Accepts a iterable container,
     /// @brief and updates the passed `_bar` based on the elements in the container.
-    /// @tparam ConT The type of the container.
+    /// @tparam _ConT The type of the container.
     template<
         typename _ConT, typename BarT
-#ifdef __PGBAR_CXX14__
-        , typename ConT = std::decay_t<_ConT>
-    >
-    std::enable_if_t<
-        std::is_lvalue_reference_v<_ConT>
-        , range_iterator_iter<typename ConT::iterator, BarT>
-    >
-#else
         , typename ConT = typename std::decay<_ConT>::type
     >
+#ifdef __PGBAR_CXX20__
+    requires (
+        std::is_lvalue_reference_v<_ConT> &&
+        !std::is_array_v<std::remove_reference_t<_ConT>>
+    ) range_iterator_iter<typename ConT::iterator, BarT>
+#else
     typename std::enable_if<
-        std::is_lvalue_reference<_ConT>::value
+        std::is_lvalue_reference<_ConT>::value &&
+        !std::is_array<typename std::remove_reference<_ConT>>::value
         , range_iterator_iter<typename ConT::iterator, BarT>
     >::type
 #endif
     inline range(_ConT&& container, BarT& _bar)
-        { return range(std::begin(container), std::end(container), _bar); }
+        { return range(std::begin(std::forward<_ConT>(container)), std::end(std::forward<_ConT>(container)), _bar); }
+
+    /// @brief Accepts a original array,
+    /// @brief and updates the passed `_bar` based on the elements in the container.
+    /// @tparam _ArrT The type of the array.
+    template<
+        typename _ArrT, typename BarT
+        , typename ArrT = typename std::decay<_ArrT>::type
+    >
+#ifdef __PGBAR_CXX20__
+    requires (
+        std::is_lvalue_reference_v<_ArrT> &&
+        std::is_array_v<std::remove_reference_t<_ArrT>>
+    ) range_iterator_iter<ArrT, BarT>
+#else
+    typename std::enable_if<
+        std::is_lvalue_reference<_ArrT>::value &&
+        std::is_array<typename std::remove_reference<_ArrT>::type>::value
+        , range_iterator_iter<ArrT, BarT>
+    >::type
+#endif
+    inline range(_ArrT&& container, BarT& _bar) // for original arrays
+        { return range(std::begin(std::forward<_ArrT>(container)), std::end(std::forward<_ArrT>(container)), _bar); }
 
 } // namespace pgbar
 
