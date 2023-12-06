@@ -24,7 +24,7 @@ int main()
         arr.push_back(i);
     bar.reset().set_style(pgbar::style_opts::entire & ~pgbar::style_opts::bar);
     for (auto iter : pgbar::range(arr, bar))
-        continue; // Using a container with elements as the range
+        continue; // Also can pass two iterators as the range.
 
     float *pointer_arr = new float[TOTAL] {0.0};
     bar.reset().set_style(pgbar::style_opts::task_counter);
