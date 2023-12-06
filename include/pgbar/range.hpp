@@ -286,6 +286,29 @@ namespace pgbar {
     inline range(_BeginT&& _start, _EndT&& _end, BarT& _bar)
         { return range_iterator_iter<IterT, BarT>(_start, _end, _bar); }
 
+    /// @brief Accepts a iterable container,
+    /// @brief and updates the passed `_bar` based on the elements in the container.
+    /// @tparam ConT The type of the container.
+    template<
+        typename _ConT, typename BarT
+#ifdef __PGBAR_CXX14__
+        , typename ConT = std::decay_t<_ConT>
+    >
+    std::enable_if_t<
+        std::is_lvalue_reference_v<_ConT>
+        , range_iterator_iter<typename ConT::iterator, BarT>
+    >
+#else
+        , typename ConT = typename std::decay<_ConT>::type
+    >
+    typename std::enable_if<
+        std::is_lvalue_reference<_ConT>::value
+        , range_iterator_iter<typename ConT::iterator, BarT>
+    >::type
+#endif
+    inline range(_ConT&& container, BarT& _bar)
+        { return range(std::begin(container), std::end(container), _bar); }
+
 } // namespace pgbar
 
 #undef __PGBAR_CMP_V__
