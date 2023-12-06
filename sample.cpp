@@ -23,7 +23,7 @@ int main()
     for (std::size_t i = 0; i < TOTAL; ++i)
         arr.push_back(i);
     bar.reset().set_style(pgbar::style_opts::entire & ~pgbar::style_opts::bar);
-    for (auto iter : pgbar::range(arr.begin(), arr.end(), bar))
+    for (auto iter : pgbar::range(arr, bar))
         continue; // Also can pass two iterators as the range.
 
     float *pointer_arr = new float[TOTAL] {0.0};
