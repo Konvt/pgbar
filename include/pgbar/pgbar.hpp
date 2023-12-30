@@ -22,7 +22,7 @@
     #define __PGBAR_INLINE_FUNC__
 #endif
 
-#if defined(_MSC_VER) && defined(_MSVC_LANG) // for msvc
+#if defined(_MSVC_VER) && defined(_MSVC_LANG) // for msvc
     #define __PGBAR_CMP_V__ _MSVC_LANG
 #else
     #define __PGBAR_CMP_V__ __cplusplus
@@ -92,7 +92,7 @@ namespace pgbar {
 #ifdef __PGBAR_CXX17__
         using ReadOnlyT = std::string_view;
 #else
-        using ReadOnlyT = const StrT;
+        using ReadOnlyT = const StrT&;
 #endif
         enum class txt_layut { align_left, align_right, align_center }; // text layout
 
@@ -138,18 +138,19 @@ namespace pgbar {
                 return std::format("{:>{}}", std::move(_str), _width);
             else if __PGBAR_IF_CONSTEXPR__ (_style == txt_layut::align_left)
                 return std::format("{:<{}}", std::move(_str), _width);
+            else return std::format("{:^{}}", std::move(_str), _width);
 #else
             SizeT str_size = _str.size();
             if __PGBAR_IF_CONSTEXPR__ (_style == txt_layut::align_right)
                 return StrT(_width-str_size, blank) + std::move(_str);
             else if __PGBAR_IF_CONSTEXPR__ (_style == txt_layut::align_left)
                 return std::move(_str) + StrT(_width-str_size, blank);
-#endif
             else {
                 _width -= _str.size();
                 SizeT r_blank = _width/2;
                 return StrT(_width-r_blank, blank) + std::move(_str) + StrT(r_blank, blank);
             }
+#endif
         }
         /// @brief Copy a string mutiple times and concatenate them together.
         /// @tparam S The type of the string.
@@ -178,20 +179,8 @@ namespace pgbar {
             else return false;
         }
 
-        __PGBAR_INLINE_FUNC__ bool skip_update(std::chrono::duration<SizeT, std::nano> interval) {
-            if (!in_terminal) return true;
-            static SizeT priod = 0, target_cnt = 0;
-            if (!is_invoked) {
-                priod = 0;
-                return true;
-            }
-            if (done_cnt % priod != 0) return true;
-
-            return false;
-        }
         __PGBAR_INLINE_FUNC__ StrT show_bar(double percent) {
             static double lately_perc = 0;
-            //if (!is_invoked); // nothing
             if (is_invoked && done_cnt != total_tsk && (percent-lately_perc)*100.0 < 1.0)
                 return {};
 
@@ -206,7 +195,7 @@ namespace pgbar {
         }
         __PGBAR_INLINE_FUNC__ StrT show_proportion(double percent) {
             static double lately_perc = 0;
-            if (!is_invoked){
+            if (!is_invoked) {
                 lately_perc = 0;
                 static const StrT default_str =
                     formatter<txt_layut::align_left>(ratio_len, "0.00%");
@@ -225,7 +214,6 @@ namespace pgbar {
             );
         }
         __PGBAR_INLINE_FUNC__ StrT show_remain_task() {
-            //if (!is_invoked); // nothing
             StrT total_str = std::to_string(total_tsk);
             SizeT size = total_str.size();
             return (
@@ -235,7 +223,7 @@ namespace pgbar {
         }
         __PGBAR_INLINE_FUNC__ StrT show_rate(std::chrono::duration<SizeT, std::nano> interval) {
             using namespace std::chrono;
-            static std::chrono::duration<SizeT, std::nano> invoke_interval {};
+            static duration<SizeT, std::nano> invoke_interval {};
 
             if (!is_invoked) {
                 invoke_interval = {};
@@ -432,8 +420,10 @@ namespace pgbar {
         }
         ~pgbar() {}
 
-        bool check_update() const noexcept { return is_invoked; }
-        bool check_full() const noexcept { return is_done; }
+        bool check_update() const noexcept
+            { return is_invoked; }
+        bool check_full() const noexcept
+            { return is_done; }
         /* Reset pgbar obj, EXCLUDING the total number of tasks */
         pgbar& reset() noexcept {
             done_cnt = 0;
@@ -547,7 +537,6 @@ namespace pgbar {
 
 } // namespace pgbar
 
-#undef __PGBAR_CMP_V__
 #undef __PGBAR_WIN__
 #undef __PGBAR_UNIX__
 #undef __PGBAR_UNKNOW_PLATFORM__

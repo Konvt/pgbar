@@ -10,7 +10,7 @@
 #include <iterator>  // marks iterator tags
 #include <algorithm> // std::distance
 
-#if defined(_MSC_VER) && defined(_MSVC_LANG) // for msvc
+#if defined(_MSVC_VER) && defined(_MSVC_LANG) // for msvc
     #define __PGBAR_CMP_V__ _MSVC_LANG
 #else
     #define __PGBAR_CMP_V__ __cplusplus
@@ -68,7 +68,7 @@ namespace pgbar {
             cnt = 0, extent = static_cast<size_t>(diff/denom);
             start_point = _start; end_point = _end;
             step = _step; current = _start;
-            bar->set_task(extent).set_step(step); // Only constructor with arguments will invoke.
+            bar->set_task(extent).set_step(step); // Only constructor with arguments will invoke these func.
         }
         explicit range_iterator_arith(EleT _start, EleT _end, BarT& _bar)
             :range_iterator_arith(_start, _end, 1, _bar) {}
@@ -93,19 +93,26 @@ namespace pgbar {
             _rhs.start_point = {}; _rhs.end_point = {};
             _rhs.step = {}; _rhs.current = {};
         }
-        ~range_iterator_arith() { bar = nullptr; }
-        range_iterator_arith begin() const { return *this; } // invokes copy constructor
+        ~range_iterator_arith()
+            { bar = nullptr; }
+        range_iterator_arith begin() const
+            { return *this; } // invokes copy constructor
         range_iterator_arith end() const { // invokes copy constructor and move constructor
             range_iterator_arith ed_pnt = *this;
             ed_pnt.current = ed_pnt.start_point = ed_pnt.end_point;
             ed_pnt.cnt = extent;
             return ed_pnt;
         }
-        EleT& operator*() noexcept { return current; }
-        bool operator==(const range_iterator_arith& _other) const noexcept { return cnt == _other.cnt; }
-        bool operator!=(const range_iterator_arith& _other) const noexcept { return !(operator==(_other)); }
-        range_iterator_arith& operator++() { ++cnt; current += step; bar->update(); return *this; }
-        range_iterator_arith operator++(int) { range_iterator_arith before = *this; operator++(); return before; }
+        EleT& operator*() noexcept
+            { return current; }
+        bool operator==(const range_iterator_arith& _other) const noexcept
+            { return cnt == _other.cnt; }
+        bool operator!=(const range_iterator_arith& _other) const noexcept
+            { return !(operator==(_other)); }
+        range_iterator_arith& operator++()
+            { ++cnt; current += step; bar->update(); return *this; }
+        range_iterator_arith operator++(int)
+            { range_iterator_arith before = *this; operator++(); return before; }
     };
 
     template< // Iterator type iterator.
@@ -166,19 +173,26 @@ namespace pgbar {
             _rhs.start = {}; _rhs.terminus = {};
             _rhs.terminus = {}; _rhs.extent = 0;
         }
-        ~range_iterator_iter() { bar = nullptr; }
-        range_iterator_iter begin() const { return *this; } // invokes copy constructor
+        ~range_iterator_iter()
+            { bar = nullptr; }
+        range_iterator_iter begin() const
+            { return *this; } // invokes copy constructor
         range_iterator_iter end() const { // invokes copy constructor and move constructor
             range_iterator_iter ed_pnt = *this;
             ed_pnt.start = terminus;
             ed_pnt.current = terminus;
             return ed_pnt;
         }
-        EleT& operator*() noexcept { return *current; }
-        bool operator==(const range_iterator_iter& _other) const noexcept { return current == _other.current; }
-        bool operator!=(const range_iterator_iter& _other) const noexcept { return !(operator==(_other)); }
-        range_iterator_iter& operator++() { if (is_reversed) --current; else ++current; bar->update(); return *this; }
-        range_iterator_iter operator++(int) { range_iterator_iter before = *this; operator++(); return before; }
+        EleT& operator*() noexcept
+            { return *current; }
+        bool operator==(const range_iterator_iter& _other) const noexcept
+            { return current == _other.current; }
+        bool operator!=(const range_iterator_iter& _other) const noexcept
+            { return !(operator==(_other)); }
+        range_iterator_iter& operator++()
+            { if (is_reversed) --current; else ++current; bar->update(); return *this; }
+        range_iterator_iter operator++(int)
+            { range_iterator_iter before = *this; operator++(); return before; }
     };
 
 #ifdef __PGBAR_CXX20__
