@@ -148,37 +148,37 @@ namespace pgbar {
             if (dist > 0) {
                 is_reversed = false;
                 extent = static_cast<SizeT>(dist);
-                start = _begin; terminus = _end;
-                current = start;
             } else {
                 is_reversed = true;
-                extent = static_cast<SizeT>(-dist);;
-                start = _end; terminus = _begin;
-                current = start;
+                extent = static_cast<SizeT>(-dist);
             }
-            bar = &_bar;
+            start = _begin; terminus = _end;
+            current = start; bar = &_bar;
             bar->set_task(extent).set_step(1);
         }
         range_iterator_iter(const range_iterator_iter& _other) {
             bar = _other.bar;
             start = _other.start; terminus = _other.terminus;
             current = start; extent = _other.extent;
+            is_reversed = _other.is_reversed;
         }
         range_iterator_iter(range_iterator_iter&& _rhs) {
             bar = _rhs.bar; // same as copy constructor
             start = std::move(_rhs.start); terminus = std::move(_rhs.terminus);
             current = std::move(_rhs.current); extent = _rhs.extent;
+            is_reversed = _rhs.is_reversed;
             
             _rhs.bar = nullptr; // clear up
             _rhs.start = {}; _rhs.terminus = {};
             _rhs.terminus = {}; _rhs.extent = 0;
+            _rhs.is_reversed = false;
         }
         ~range_iterator_iter()
             { bar = nullptr; }
         range_iterator_iter begin() const
-            { return *this; } // invokes copy constructor
+            { return range_iterator_iter(*this); } // invokes copy constructor
         range_iterator_iter end() const { // invokes copy constructor and move constructor
-            range_iterator_iter ed_pnt = *this;
+            auto ed_pnt = range_iterator_iter(*this);
             ed_pnt.start = terminus;
             ed_pnt.current = terminus;
             return ed_pnt;
@@ -321,7 +321,7 @@ namespace pgbar {
     >::type
 #endif
     inline range(_ConT&& container, BarT& _bar)
-        { return range(std::begin(container), std::end(container), _bar); }
+        { return range(std::begin(std::forward<_ConT>(container)), std::end(std::forward<_ConT>(container)), _bar); }
 
 } // namespace pgbar
 
