@@ -15,7 +15,7 @@ int main()
 
     bar.reset().set_style(pgbar::style_opts::percentage | pgbar::style_opts::task_counter | pgbar::style_opts::countdown);
     std::cout << "Task progress: "; // `range` needs a progress bar to show the progress situation
-    for (auto iter : pgbar::range(TOTAL, bar))
+    for (auto ele : pgbar::range(TOTAL, bar))
         continue; // You can specify a range using `range`
     // The iterator will automatically count the number of tasks
 
@@ -29,7 +29,7 @@ int main()
     float *pointer_arr = new float[TOTAL] {0.0};
     bar.reset().set_style(pgbar::style_opts::task_counter);
     std::cout << "Pointer arrays is okay: ";
-    for (auto iter : pgbar::range(pointer_arr+TOTAL-1, pointer_arr-1, bar))
+    for (auto ele : pgbar::range(pointer_arr+TOTAL-1, pointer_arr-1, bar))
         continue; // Also can pass a pointer array as the range
 
     delete[] pointer_arr; return 0;

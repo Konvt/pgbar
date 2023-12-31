@@ -309,7 +309,11 @@ namespace pgbar {
         , typename ConT = std::decay_t<_ConT>
     >
     std::enable_if_t<
+#ifdef __PGBAR_CXX17__
         std::is_lvalue_reference_v<_ConT>
+#else
+        std::is_lvalue_reference<_ConT>::value
+#endif
         , range_iterator_iter<typename ConT::iterator, BarT>
     >
 #else

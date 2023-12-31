@@ -181,7 +181,7 @@ namespace pgbar {
 
         __PGBAR_INLINE_FUNC__ StrT show_bar(double percent) {
             static double lately_perc = 0;
-            if (is_invoked && done_cnt != total_tsk && (percent-lately_perc)*100.0 < 1.0)
+            if (check_update() && done_cnt != total_tsk && (percent-lately_perc)*100.0 < 1.0)
                 return {};
 
             StrT buf {}; buf.reserve(l_bracket.size()+r_bracket.size()+bar_length+1);
@@ -195,13 +195,13 @@ namespace pgbar {
         }
         __PGBAR_INLINE_FUNC__ StrT show_proportion(double percent) {
             static double lately_perc = 0;
-            if (!is_invoked) {
+            if (!check_update()) {
                 lately_perc = 0;
                 static const StrT default_str =
                     formatter<txt_layut::align_left>(ratio_len, "0.00%");
                 return default_str;
             }
-            if (is_invoked && done_cnt != total_tsk && (percent-lately_perc)*100.0 < 0.08)
+            if (check_update() && done_cnt != total_tsk && (percent-lately_perc)*100.0 < 0.08)
                 return {};
             lately_perc = percent;
 
@@ -225,7 +225,7 @@ namespace pgbar {
             using namespace std::chrono;
             static duration<SizeT, std::nano> invoke_interval {};
 
-            if (!is_invoked) {
+            if (!check_update()) {
                 invoke_interval = {};
                 static const StrT default_str =
                     formatter<txt_layut::align_center>(rate_len, "0.00 Hz");
@@ -259,7 +259,7 @@ namespace pgbar {
         __PGBAR_INLINE_FUNC__ StrT show_time(std::chrono::duration<SizeT, std::nano> interval) {
             using namespace std::chrono;
 
-            if (!is_invoked) {
+            if (!check_update()) {
                 static const StrT default_str =
                     formatter<txt_layut::align_center>(time_len, "0s < 99h");
                 return default_str;
@@ -333,9 +333,9 @@ namespace pgbar {
             /* Using the sections that are enabled in the bit vector
              * to calculate the number of backspace characters. */
             static SizeT tsk_cnt_len = 0;
-            if (!is_invoked) tsk_cnt_len = std::to_string(total_tsk).size()*2+1;
+            if (!check_update()) tsk_cnt_len = std::to_string(total_tsk).size()*2+1;
             SizeT backtrack_len = 0;
-            if ((!disp_bar || bar_str.size() == 0) && is_invoked) {
+            if ((!disp_bar || bar_str.size() == 0) && check_update()) {
                 // It doesn't make sense to concatenate backspaces when updating `bar_str`.
                 backtrack_len += disp_perc    ? ratio_len   : 0;
                 backtrack_len += disp_tsk_cnt ? tsk_cnt_len : 0;
@@ -346,7 +346,7 @@ namespace pgbar {
                 bar_str = StrT(1, reboot) + std::move(bar_str);
             static StrT backtrack[2] {{}, {}}; // Provide an empty string to use when backspaces are not needed.
             static SizeT lately_bcktck_len = 0;
-            if (!is_invoked) {
+            if (!check_update()) {
                 backtrack[0] = {};
                 lately_bcktck_len = 0;
             }
@@ -432,57 +432,57 @@ namespace pgbar {
         }
         /* Set the output stream object. */
         pgbar& set_ostream(std::ostream& _ostream) noexcept {
-            if (is_invoked) return *this;
+            if (check_update()) return *this;
             stream = &_ostream;
             in_terminal = check_output_stream();
             return *this;
         }
         /* Set the number of steps the counter is updated each time `update()` is called. */
         pgbar& set_step(SizeT _step) noexcept {
-            if (is_invoked) return *this;
+            if (check_update()) return *this;
             step = _step; return *this;
         }
         /* Set the number of tasks to be updated. */
         pgbar& set_task(SizeT _total_tsk) noexcept {
-            if (is_invoked) return *this;
+            if (check_update()) return *this;
             total_tsk = _total_tsk; return *this;
         }
         /* Set the TODO characters in the progress bar. */
         pgbar& set_done_char(StrT _done_ch) {
-            if (is_invoked) return *this;
+            if (check_update()) return *this;
             done_ch = std::move(_done_ch);
             return *this;
         }
         /* Set the DONE characters in the progress bar. */
         pgbar& set_todo_char(StrT _todo_ch) {
-            if (is_invoked) return *this;
+            if (check_update()) return *this;
             todo_ch = std::move(_todo_ch);
             return *this;
         }
         /* Set the left bracket of the progress bar. */
         pgbar& set_left_bracket(StrT _l_bracket) {
-            if (is_invoked) return *this;
+            if (check_update()) return *this;
             l_bracket = std::move(_l_bracket);
             return *this;
         }
         /* Set the right bracket of the progress bar. */
         pgbar& set_right_bracket(StrT _r_bracket) {
-            if (is_invoked) return *this;
+            if (check_update()) return *this;
             r_bracket = std::move(_r_bracket);
             return *this;
         }
         /* Set the length of the progress bar. */
         pgbar& set_bar_length(SizeT _length) noexcept {
-            if (is_invoked) return *this;
+            if (check_update()) return *this;
             bar_length = _length; return *this;
         }
         /* Select the display style by using bit operations. */
         pgbar& set_style(style_opts::OptT _selection) noexcept {
-            if (is_invoked) return *this;
+            if (check_update()) return *this;
             option = _selection; return *this;
         }
         pgbar& operator=(const pgbar& _other) {
-            if (this == &_other || is_invoked)
+            if (this == &_other || check_update())
                 return *this;
             stream      = _other.stream;
             todo_ch     = _other.todo_ch;
@@ -499,10 +499,9 @@ namespace pgbar {
             static std::chrono::duration<SizeT, std::nano> invoke_interval {};
             static std::chrono::system_clock::time_point first_invoked {}, lately_called {};
             static constexpr std::chrono::milliseconds refresh_rate {40}; // 25 Hz
-            // TODO: empty cycle check
-            if (is_done) throw bad_pgbar {"bad_pgbar: updating a full progress bar"};
+            if (check_full()) throw bad_pgbar {"bad_pgbar: updating a full progress bar"};
             else if (total_tsk == 0) throw bad_pgbar {"bad_pgbar: the number of tasks is zero"};
-            if (!is_invoked) {
+            if (!check_update()) {
                 if (step == 0) throw bad_pgbar {"bad_pgbar: zero step"};
                 invoke_interval = {};
                 first_invoked = lately_called = std::chrono::system_clock::now();
@@ -511,7 +510,6 @@ namespace pgbar {
                 is_invoked = true;
             }
             done_cnt += step;
-            //if (skip_update(invoke_interval)) return;
 
             auto now = std::chrono::system_clock::now();
             if (done_cnt != total_tsk && now-lately_called < refresh_rate)
