@@ -34,9 +34,10 @@ namespace pgbar {
     template< // Numeric type iterator.
         typename EleT, typename BarT
 #ifdef __PGBAR_CXX20__
-    > requires std::is_same_v<BarT, pgbar> && std::is_arithmetic_v<EleT>
-#elif defined(__PGBAR_CXX14__)
-        , typename = std::enable_if_t<std::is_same<BarT, pgbar>::value && std::is_arithmetic<EleT>::value>>
+    > requires (
+        std::is_same_v<BarT, pgbar> &&
+        std::is_arithmetic_v<EleT>
+    )
 #else
         , typename = typename std::enable_if<std::is_same<BarT, pgbar>::value && std::is_arithmetic<EleT>::value>::type>
 #endif
@@ -118,9 +119,10 @@ namespace pgbar {
     template< // Iterator type iterator.
         typename IterT, typename BarT // `IterT` means iterator type
 #ifdef __PGBAR_CXX20__
-    > requires std::is_same_v<BarT, pgbar>
-#elif defined(__PGBAR_CXX14__)
-        , typename = std::enable_if_t<std::is_same<BarT, pgbar>::value && !std::is_arithmetic<IterT>::value>>
+    > requires (
+        std::is_same_v<BarT, pgbar> &&
+        !std::is_arithmetic_v<IterT>
+    )
 #else
         , typename = typename std::enable_if<std::is_same<BarT, pgbar>::value && !std::is_arithmetic<IterT>::value>::type>
 #endif
@@ -206,7 +208,7 @@ namespace pgbar {
     /// @tparam BarT The type of the progress bar.
     /// @param _bar The progress bar that will be updated.
     /// @return Return an iterator that moves unidirectionally within the range `[_start, _end-1]`.
-    #ifdef __PGBAR_CXX20__
+#ifdef __PGBAR_CXX20__
     template<
         ValidEleT _EleT, typename BarT
         , typename EleT = std::decay_t<_EleT>
@@ -214,17 +216,10 @@ namespace pgbar {
 #else
     template<
         typename _EleT, typename BarT
-#ifdef __PGBAR_CXX14__
-        , typename EleT = std::decay_t<_EleT>
-    > std::enable_if_t<
-        std::is_arithmetic<EleT>::value
-        , range_iterator_arith<EleT, BarT>>
-#else
         , typename EleT = typename std::decay<_EleT>::type
     > typename std::enable_if<
         std::is_arithmetic<EleT>::value
         , range_iterator_arith<EleT, BarT>>::type
-#endif
 #endif
     inline range(_EleT&& _start, _EleT&& _end, _EleT&& _step, BarT& _bar)
         { return range_iterator_arith<EleT, BarT>(_start, _end, _step, _bar); }
@@ -237,17 +232,10 @@ namespace pgbar {
 #else
     template<
         typename _EleT, typename BarT
-#ifdef __PGBAR_CXX14__
-        , typename EleT = std::decay_t<_EleT>
-    > std::enable_if_t<
-        std::is_arithmetic<EleT>::value
-        , range_iterator_arith<EleT, BarT>>
-#else
         , typename EleT = typename std::decay<_EleT>::type
     > typename std::enable_if<
         std::is_arithmetic<EleT>::value
         , range_iterator_arith<EleT, BarT>>::type
-#endif
 #endif
     inline range(_EleT&& _start, _EleT&& _end, BarT& _bar)
         { return range_iterator_arith<EleT, BarT>(_start, _end, _bar); }
@@ -260,17 +248,10 @@ namespace pgbar {
 #else
     template<
         typename _EleT, typename BarT
-#ifdef __PGBAR_CXX14__
-        , typename EleT = std::decay_t<_EleT>
-    > std::enable_if_t<
-        std::is_arithmetic<EleT>::value
-        , range_iterator_arith<EleT, BarT>>
-#else
         , typename EleT = typename std::decay<_EleT>::type
     > typename std::enable_if<
         std::is_arithmetic<EleT>::value
         , range_iterator_arith<EleT, BarT>>::type
-#endif
 #endif
     inline range(_EleT&& _end, BarT& _bar)
         { return range_iterator_arith<EleT, BarT>(_end, _bar); }
@@ -280,18 +261,13 @@ namespace pgbar {
     /// @tparam IterT The type of the iterators.
     template<
         typename _BeginT, typename _EndT, typename BarT
-#ifdef __PGBAR_CXX14__
-        , typename IterT = std::decay_t<_BeginT>
-#ifdef __PGBAR_CXX20__
-    > requires std::is_same_v<IterT, std::decay_t<_EndT>>
-    range_iterator_iter<IterT, BarT> // return type
-#else
-    > std::enable_if_t<
-        std::is_same<IterT, std::decay_t<_EndT>>::value
-        , range_iterator_iter<IterT, BarT>>
-#endif
-#else
         , typename IterT = typename std::decay<_BeginT>::type
+#ifdef __PGBAR_CXX20__
+    > requires (
+        !std::is_arithmetic<IterT>::value &&
+        std::is_same_v<IterT, std::decay_t<_EndT>>
+    ) range_iterator_iter<IterT, BarT>
+#else
     > typename std::enable_if<
         !std::is_arithmetic<IterT>::value &&
         std::is_same<IterT, typename std::decay<_EndT>::type>::value
@@ -302,30 +278,47 @@ namespace pgbar {
 
     /// @brief Accepts a iterable container,
     /// @brief and updates the passed `_bar` based on the elements in the container.
-    /// @tparam ConT The type of the container.
+    /// @tparam _ConT The type of the container.
     template<
         typename _ConT, typename BarT
-#ifdef __PGBAR_CXX14__
-        , typename ConT = std::decay_t<_ConT>
-    >
-    std::enable_if_t<
-#ifdef __PGBAR_CXX17__
-        std::is_lvalue_reference_v<_ConT>
-#else
-        std::is_lvalue_reference<_ConT>::value
-#endif
-        , range_iterator_iter<typename ConT::iterator, BarT>
-    >
-#else
         , typename ConT = typename std::decay<_ConT>::type
     >
+#ifdef __PGBAR_CXX20__
+    requires (
+        std::is_lvalue_reference_v<_ConT> &&
+        !std::is_array_v<std::remove_reference_t<_ConT>>
+    ) range_iterator_iter<typename ConT::iterator, BarT>
+#else
     typename std::enable_if<
-        std::is_lvalue_reference<_ConT>::value
+        std::is_lvalue_reference<_ConT>::value &&
+        !std::is_array<typename std::remove_reference<_ConT>>::value
         , range_iterator_iter<typename ConT::iterator, BarT>
     >::type
 #endif
     inline range(_ConT&& container, BarT& _bar)
         { return range(std::begin(std::forward<_ConT>(container)), std::end(std::forward<_ConT>(container)), _bar); }
+
+    /// @brief Accepts a original array,
+    /// @brief and updates the passed `_bar` based on the elements in the container.
+    /// @tparam _ArrT The type of the array.
+    template<
+        typename _ArrT, typename BarT
+        , typename ArrT = typename std::decay<_ArrT>::type
+    >
+#ifdef __PGBAR_CXX20__
+    requires (
+        std::is_lvalue_reference_v<_ArrT> &&
+        std::is_array_v<std::remove_reference_t<_ArrT>>
+    ) range_iterator_iter<ArrT, BarT>
+#else
+    typename std::enable_if<
+        std::is_lvalue_reference<_ArrT>::value &&
+        std::is_array<typename std::remove_reference<_ArrT>::type>::value
+        , range_iterator_iter<ArrT, BarT>
+    >::type
+#endif
+    inline range(_ArrT&& container, BarT& _bar) // for original arrays
+        { return range(std::begin(std::forward<_ArrT>(container)), std::end(std::forward<_ArrT>(container)), _bar); }
 
 } // namespace pgbar
 
