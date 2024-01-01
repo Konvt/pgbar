@@ -38,6 +38,6 @@ int main()
     bar.reset().set_style(pgbar::style_opts::entire);
     for (auto ele : pgbar::range(origin_arr, bar))
         continue;
-    
+
     return 0;
 }

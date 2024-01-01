@@ -17,6 +17,7 @@
 #endif
 
 #if __PGBAR_CMP_V__ >= 202002L
+    #include <concepts>
     #define __PGBAR_CXX20__
 #endif // __cplusplus >= 202002L
 #if __PGBAR_CMP_V__ >= 201703L
@@ -35,7 +36,7 @@ namespace pgbar {
         typename EleT, typename BarT
 #ifdef __PGBAR_CXX20__
     > requires (
-        std::is_same_v<BarT, pgbar> &&
+        std::same_as<BarT, pgbar> &&
         std::is_arithmetic_v<EleT>
     )
 #else
@@ -120,7 +121,7 @@ namespace pgbar {
         typename IterT, typename BarT // `IterT` means iterator type
 #ifdef __PGBAR_CXX20__
     > requires (
-        std::is_same_v<BarT, pgbar> &&
+        std::same_as<BarT, pgbar> &&
         !std::is_arithmetic_v<IterT>
     )
 #else
@@ -265,7 +266,7 @@ namespace pgbar {
 #ifdef __PGBAR_CXX20__
     > requires (
         !std::is_arithmetic<IterT>::value &&
-        std::is_same_v<IterT, std::decay_t<_EndT>>
+        std::same_as<IterT, std::decay_t<_EndT>>
     ) range_iterator_iter<IterT, BarT>
 #else
     > typename std::enable_if<

@@ -40,7 +40,6 @@
 
 #if __PGBAR_CMP_V__ >= 202002L
     #include <format>
-    #include <concepts>
     #define __PGBAR_CXX20__
 #endif // __cplusplus >= 202002L
 #if __PGBAR_CMP_V__ >= 201703L
