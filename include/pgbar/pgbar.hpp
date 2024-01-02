@@ -309,30 +309,19 @@ namespace pgbar {
                 /* The progress bar has a different number of tasks each time it is restarted,
                  * so the `cnt_length` needs to be updated dynamically. */
                 cnt_length = std::to_string(total_tsk).size()*2+1;
-                if (option & style_opts::percentage) {
-                    total_length += ratio_len;
+
+                auto update_dynamically = [&has_divi](SizeT len) {
+                    total_length += len;
                     has_status = true;
                     if (has_divi) ++divi_cnt;
                     else has_divi = true;
-                }
-                if (option & style_opts::task_counter) {
-                    total_length += cnt_length;
-                    has_status = true;
-                    if (has_divi) ++divi_cnt;
-                    else has_divi = true;
-                }
-                if (option & style_opts::rate) {
-                    total_length += rate_len;
-                    has_status = true;
-                    if (has_divi) ++divi_cnt;
-                    else has_divi = true;
-                }
-                if (option & style_opts::countdown) {
-                    total_length += time_len;
-                    has_status = true;
-                    if (has_divi) ++divi_cnt;
-                    else has_divi = true;
-                }
+                };
+
+                if (option & style_opts::percentage)   update_dynamically(ratio_len);
+                if (option & style_opts::task_counter) update_dynamically(cnt_length);
+                if (option & style_opts::rate)         update_dynamically(rate_len);
+                if (option & style_opts::countdown)    update_dynamically(time_len);
+
                 total_length += divi_cnt * division.size();
                 total_length += has_status ? l_status.size() + r_status.size() : 0;
                 backtrack = bulk_copy(total_length, StrT(1, backspace));
@@ -346,9 +335,9 @@ namespace pgbar {
             StrT status_str {};
             StrT bar_str {};
 
-            bool will_dis_bar = false, has_invoked = check_update(), flag = has_status;
+            bool will_dis_bar = false, has_invoked = check_update();
             auto goto_nxt = [
-                &status_str, &will_dis_bar, has_invoked, flag
+                &status_str, &will_dis_bar, has_invoked
                 ](status& now, status nxt) {
                 if ((now == status::start && nxt != status::dis_bar) || // has status bar.
                     (now == status::dis_bar && nxt != status::done)) // ditto.
@@ -356,7 +345,7 @@ namespace pgbar {
                     else status_str.append(backtrack + col_fmt + l_status);
                 else if (now != status::start && nxt != status::done)
                     status_str.append(division); // The `division` will be added during state machine jump.
-                else if (nxt == status::done && flag)
+                else if (nxt == status::done && has_status)
                     status_str.append(r_status + default_col);
                 now = nxt;
             };
