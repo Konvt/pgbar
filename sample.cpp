@@ -1,7 +1,7 @@
 #include <vector>
-#include "pgbar/range.hpp"
-constexpr std::size_t TOTAL = 100000000; // The maximum task load without seriously slowing down the program.
-double origin_arr[1000*2] {0.0};
+#include "./include/pgbar/range.hpp"
+constexpr std::size_t TOTAL = 100000000;
+double origin_arr[500] {0.0};
 
 int main()
 {
@@ -11,6 +11,7 @@ int main()
 
     for (std::size_t i = 0; i<(TOTAL/2); ++i) {
         bar.update(); // Normal update
+        if (i == (TOTAL/4)+100) std::this_thread::sleep_for(std::chrono::seconds(10));
         // Do anything you want here...
     }
 
@@ -21,13 +22,14 @@ int main()
     // The iterator will automatically count the number of tasks
 
     std::vector<double> arr {};
-    for (std::size_t i = 0; i < TOTAL/3; ++i)
+    for (std::size_t i = 0; i < 5000; ++i)
         arr.push_back(i);
     bar.reset().set_style(pgbar::style_opts::entire & ~pgbar::style_opts::bar);
     for (auto ele : pgbar::range(arr, bar))
         continue; // Using a container with elements as the range
+    arr.resize(0);
 
-    float *pointer_arr = new float[TOTAL/4] {0.0};
+    float *pointer_arr = new float[TOTAL] {0.0};
     bar.reset().set_style(pgbar::style_opts::task_counter);
     std::cout << "Pointer arrays is okay: ";
     for (auto ele : pgbar::range(pointer_arr+TOTAL-1, pointer_arr-1, bar))
