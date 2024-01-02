@@ -106,8 +106,9 @@ namespace pgbar {
         static const StrT rightward;          // ASCII Escape Sequence: moves the cursor right.
         static const StrT l_status;           // The left bracket of status bar.
         static const StrT r_status;           // The right bracket of status bar.
+        static const StrT division;           // The default division character.
         static const StrT col_fmt;            // The color and font style of status bar.
-        static const StrT defult_col;         // The default color and font style.
+        static const StrT default_col;        // The default color and font style.
 
         /* private data member */
 
@@ -141,7 +142,7 @@ namespace pgbar {
 #else
             SizeT str_size = _str.size();
             if __PGBAR_IF_CONSTEXPR__ (_style == txt_layut::align_right)
-                return StrT(_width-str_size, blank) + std::move(_str);
+                return StrT(_width - str_size, blank) + std::move(_str);
             else if __PGBAR_IF_CONSTEXPR__ (_style == txt_layut::align_left)
                 return std::move(_str) + StrT(_width-str_size, blank);
             else {
@@ -180,32 +181,34 @@ namespace pgbar {
 
         __PGBAR_INLINE_FUNC__ StrT show_bar(double percent) {
             static double lately_perc = 0;
-            if (check_update() && done_cnt != total_tsk && (percent-lately_perc)*100.0 < 1.0)
+
+            if (check_update() && done_cnt != total_tsk && (percent-lately_perc) * 100.0 < 1.0)
                 return {};
 
-            StrT buf {}; buf.reserve(l_bracket.size()+r_bracket.size()+bar_length+1);
+            StrT buf {}; buf.reserve(l_bracket.size() + r_bracket.size() + bar_length + 1);
             SizeT done_len = std::round(bar_length*percent);
             buf.append(
                 bulk_copy(1, l_bracket) + bulk_copy(done_len, done_ch) +
-                bulk_copy(bar_length-done_len, todo_ch) + bulk_copy(1, r_bracket) +
+                bulk_copy(bar_length - done_len, todo_ch) + bulk_copy(1, r_bracket) +
                 StrT(1, blank)
             );
             return buf;
         }
         __PGBAR_INLINE_FUNC__ StrT show_proportion(double percent) {
             static double lately_perc = 0;
+
             if (!check_update()) {
                 lately_perc = 0;
                 static const StrT default_str =
                     formatter<txt_layut::align_left>(ratio_len, "0.00%");
                 return default_str;
             }
-            if (check_update() && done_cnt != total_tsk && (percent-lately_perc)*100.0 < 0.08)
+            if (check_update() && done_cnt != total_tsk && (percent-lately_perc) * 100.0 < 0.08)
                 return {};
             lately_perc = percent;
 
-            StrT proportion = std::to_string(percent*100);
-            proportion.resize(proportion.find('.')+3);
+            StrT proportion = std::to_string(percent * 100);
+            proportion.resize(proportion.find('.') + 3);
 
             return formatter<txt_layut::align_left>(
                 ratio_len-proportion.size(),
@@ -231,12 +234,12 @@ namespace pgbar {
                 return default_str;
             }
 
-            invoke_interval = (invoke_interval + interval)/2; // each invoke interval
+            invoke_interval = (invoke_interval + interval) / 2; // each invoke interval
             SizeT frequency = duration_cast<nanoseconds>(seconds(1)) / invoke_interval;
 
             auto splice = [](double val) -> StrT {
                 StrT str = std::to_string(val);
-                str.resize(str.find('.')+3); // Keep two decimal places.
+                str.resize(str.find('.') + 3); // Keep two decimal places.
                 return str;
             };
 
@@ -244,9 +247,9 @@ namespace pgbar {
             if (frequency < 1e3) // < 1Hz => 999.99 Hz
                 rate.append(splice(frequency) + StrT(" Hz"));
             else if (frequency < 1e6) // < 1 kHz => 999.99 kHz
-                rate.append(splice(frequency/1e3) + StrT(" kHz"));
+                rate.append(splice(frequency / 1e3) + StrT(" kHz"));
             else if (frequency < 1e9) // < 1 MHz => 999.99 MHz
-                rate.append(splice(frequency/1e6) + StrT(" MHz"));
+                rate.append(splice(frequency / 1e6) + StrT(" MHz"));
             else { // < 1 GHz => 999.99 GHz
                 double temp = frequency/1e9;
                 if (temp > 999.99) rate.append("999.99 GHz");
@@ -295,103 +298,132 @@ namespace pgbar {
         /// @return The progress bar that has been assembled but is pending output.
         __PGBAR_INLINE_FUNC__ std::pair<StrT, StrT>
         switch_feature(double percent, std::chrono::duration<SizeT, std::nano> interval) {
-            StrT bar_str {};
-            static const StrT division {" | "};
-            StrT perc_str {}, tsk_cnt_str {}, rate_str{}, cntdwn_str {};
-            SizeT divi_len = 0;
-
-            bool disp_bar     = option & style_opts::bar,
-                 disp_perc    = option & style_opts::percentage,
-                 disp_tsk_cnt = option & style_opts::task_counter,
-                 disp_rate    = option & style_opts::rate,
-                 disp_cntdwn  = option & style_opts::countdown;
-            /* Based on the bit vector indicating the switching of different sections,
-             * the parts that are not turned on will be empty. */
-            if (disp_bar)     bar_str = show_bar(percent);
-            if (disp_perc)    perc_str = show_proportion(percent);
-            if (disp_tsk_cnt) tsk_cnt_str = show_remain_task();
-            if (disp_rate)    rate_str = show_rate(interval);
-            if (disp_cntdwn)  cntdwn_str = show_time(std::move(interval));
-
-            /* Using the sections that are enabled in the bit vector
-             * to insert separators between different status bars. */
-            bool perc_divi = false, tsk_cnt_divi = false, rate_divi = false;
-            if ((disp_perc) && (disp_tsk_cnt || disp_rate || disp_cntdwn)) {
-                perc_divi = true; // There are something behind the proportion.
-                divi_len += division.size();
-            }
-            if (disp_tsk_cnt && (disp_rate || disp_cntdwn)) {
-                tsk_cnt_divi = true; // There are something behind the task counter.
-                divi_len += division.size();
-            }
-            if (disp_rate && disp_cntdwn) {
-                rate_divi = true; // There are something behind the rate indicator.
-                divi_len += division.size();
-            }
-
-            /* Using the sections that are enabled in the bit vector
-             * to calculate the number of backspace characters. */
-            static SizeT tsk_cnt_len = 0;
-            if (!check_update()) tsk_cnt_len = std::to_string(total_tsk).size()*2+1;
-            SizeT backtrack_len = 0;
-            if ((!disp_bar || bar_str.size() == 0) && check_update()) {
-                // It doesn't make sense to concatenate backspaces when updating `bar_str`.
-                backtrack_len += disp_perc    ? ratio_len   : 0;
-                backtrack_len += disp_tsk_cnt ? tsk_cnt_len : 0;
-                backtrack_len += disp_rate    ? rate_len    : 0;
-                backtrack_len += disp_cntdwn  ? time_len    : 0;
-                backtrack_len += divi_len + l_status.size() + r_status.size();
-            } else if (disp_bar && bar_str.size() != 0) // Updating `bar_str`, it will always back to the head of the line.
-                bar_str = StrT(1, reboot) + std::move(bar_str);
-            static StrT backtrack[2] {{}, {}}; // Provide an empty string to use when backspaces are not needed.
-            static SizeT lately_bcktck_len = 0;
+            static StrT backtrack {};
+            static SizeT cnt_length = 0, total_length = 0, divi_cnt = 0;
+            static bool has_status = false;
             if (!check_update()) {
-                backtrack[0] = {};
-                lately_bcktck_len = 0;
-            }
-            if (backtrack_len != 0 && lately_bcktck_len != backtrack_len) {
-                backtrack[0] = bulk_copy(backtrack_len, StrT(1, backspace));
-                lately_bcktck_len = backtrack_len;
-            }
-
-            /* When some strings are empty,
-             * use a string composed of escape sequences to move the cursor to the right. */
-            static const StrT skip_perc   {bulk_copy(ratio_len, rightward)};
-            static const StrT skip_rate   {bulk_copy(rate_len, rightward)};
-            static const StrT skip_cntdwn {bulk_copy(time_len, rightward)};
-            static StrT skip_tsk_cnt {};
-            static SizeT skp_tsk_cnt_len = 0;
-            if (skp_tsk_cnt_len != tsk_cnt_len) {
-                skip_tsk_cnt = bulk_copy(tsk_cnt_len, rightward);
-                skp_tsk_cnt_len = tsk_cnt_len;
-            }
-            if (disp_perc && perc_str.size() == 0) // Skip updating the proportion.
-                perc_str = skip_perc;
-            if (disp_tsk_cnt && tsk_cnt_str.size() == 0) // Skip updating the task counter.
-                tsk_cnt_str = skip_tsk_cnt;
-            if (disp_rate && rate_str.size() == 0) // Skip updating the rate indicator.
-                rate_str = skip_rate;
-            if (disp_cntdwn && cntdwn_str.size() == 0) // Skip updating the countdown.
-                cntdwn_str = skip_cntdwn;
-
-            /* Insert the strings that control cursor movement into the positions where they are needed. */
-            if (perc_divi)    perc_str    = std::move(perc_str) + division;
-            if (tsk_cnt_divi) tsk_cnt_str = std::move(tsk_cnt_str) + division;
-            if (rate_divi)    rate_str    = std::move(rate_str) + division;
-            /* If there is something to be displayed after the progress bar,
-             * concatenate the brackets of the status bar. */
-            if (disp_perc || disp_tsk_cnt || disp_rate || disp_cntdwn) {
-                perc_str = col_fmt + l_status + std::move(perc_str);
-                cntdwn_str = std::move(cntdwn_str) + r_status + defult_col;
+                total_length = 0; divi_cnt = 0;
+                has_status = false; // To determine whether to insert the strings `l_status` and `r_status`
+                // Used to assist in calculating how many variable `division` need to be inserted.
+                bool has_divi = option & style_opts::bar; 
+                /* The progress bar has a different number of tasks each time it is restarted,
+                 * so the `cnt_length` needs to be updated dynamically. */
+                cnt_length = std::to_string(total_tsk).size()*2+1;
+                if (option & style_opts::percentage) {
+                    total_length += ratio_len;
+                    has_status = true;
+                    if (has_divi) ++divi_cnt;
+                    else has_divi = true;
+                }
+                if (option & style_opts::task_counter) {
+                    total_length += cnt_length;
+                    has_status = true;
+                    if (has_divi) ++divi_cnt;
+                    else has_divi = true;
+                }
+                if (option & style_opts::rate) {
+                    total_length += rate_len;
+                    has_status = true;
+                    if (has_divi) ++divi_cnt;
+                    else has_divi = true;
+                }
+                if (option & style_opts::countdown) {
+                    total_length += time_len;
+                    has_status = true;
+                    if (has_divi) ++divi_cnt;
+                    else has_divi = true;
+                }
+                total_length += divi_cnt * division.size();
+                total_length += has_status ? l_status.size() + r_status.size() : 0;
+                backtrack = bulk_copy(total_length, StrT(1, backspace));
             }
 
-            SizeT bcktck_offset = disp_bar && bar_str.size() != 0 ? 1 : 0;
-            return {
-                std::move(bar_str),
-                backtrack[bcktck_offset] +
-                std::move(perc_str) + std::move(tsk_cnt_str) +
-                std::move(rate_str) + std::move(cntdwn_str)
+            enum class status {
+                start, done,
+                dis_bar, dis_perc, dis_cnt, dis_rate, dis_cntdwn
+            } state = status::start;
+
+            StrT status_str {};
+            StrT bar_str {};
+
+            bool will_dis_bar = false, has_invoked = check_update(), flag = has_status;
+            auto goto_nxt = [
+                &status_str, &will_dis_bar, has_invoked, flag
+                ](status& now, status nxt) {
+                if ((now == status::start && nxt != status::dis_bar) || // has status bar.
+                    (now == status::dis_bar && nxt != status::done)) // ditto.
+                    if (will_dis_bar || !has_invoked) status_str.append(col_fmt + l_status);
+                    else status_str.append(backtrack + col_fmt + l_status);
+                else if (now != status::start && nxt != status::done)
+                    status_str.append(division); // The `division` will be added during state machine jump.
+                else if (nxt == status::done && flag)
+                    status_str.append(r_status + default_col);
+                now = nxt;
             };
+
+            style_opts::OptT opt = option;
+            auto get_nxt = [&opt]() -> status {
+                if (opt & style_opts::bar) { // it will be more simple if there is `co_yield`
+                    opt &= ~style_opts::bar;
+                    return status::dis_bar;
+                } else if (opt & style_opts::percentage) {
+                    opt &= ~style_opts::percentage;
+                    return status::dis_perc;
+                } else if (opt & style_opts::task_counter) {
+                    opt &= ~style_opts::task_counter;
+                    return status::dis_cnt;
+                } else if (opt & style_opts::rate) {
+                    opt &= ~style_opts::rate;
+                    return status::dis_rate;
+                } else if (opt & style_opts::countdown) {
+                    opt &= ~style_opts::countdown;
+                    return status::dis_cntdwn;
+                } else return status::done;
+            };
+
+            /* The operations are the same in most states.
+             * All diffcult operations are reflected in the state jump process. */
+            do {
+                StrT aped_str {};
+                switch (state) {
+                case status::start: {
+                }   break; // nothing here, just skip it.
+                case status::dis_bar: {
+                    static StrT skip_bar {};
+                    if (!check_update()) skip_bar = bulk_copy(bar_length, rightward);
+                    bar_str = show_bar(percent); will_dis_bar = !bar_str.empty();
+                    bar_str = bar_str.empty() ? bar_str : StrT(1, reboot) + std::move(bar_str);
+                }   break;
+                case status::dis_perc: {
+                    static const StrT skip_perc {bulk_copy(ratio_len, rightward)};
+                    aped_str = show_proportion(percent);
+                    aped_str = aped_str.empty() ? skip_perc : aped_str;
+                }   break;
+                case status::dis_cnt: {
+                    static StrT skip_cnt {};
+                    if (!check_update())
+                        skip_cnt = bulk_copy(cnt_length, rightward);
+                    aped_str = show_remain_task();
+                    aped_str = aped_str.empty() ? skip_cnt : aped_str;
+                }   break;
+                case status::dis_rate: {
+                    static const StrT skip_rate {bulk_copy(rate_len, rightward)};
+                    aped_str = show_rate(interval);
+                    aped_str = aped_str.empty() ? skip_rate : aped_str;
+                }   break;
+                case status::dis_cntdwn: {
+                    static const StrT skip_cntdwn {bulk_copy(time_len, rightward)};
+                    aped_str = show_time(std::move(interval));
+                    aped_str = aped_str.empty() ? skip_cntdwn : aped_str;
+                }   break;
+                case status::done:
+                default: break;
+                }
+                status_str.append(aped_str);
+                goto_nxt(state, get_nxt());
+            } while (state != status::done);
+
+            return {bar_str, status_str};
         }
     public:
         pgbar(pgbar&&) = delete;
@@ -498,6 +530,7 @@ namespace pgbar {
             static std::chrono::duration<SizeT, std::nano> invoke_interval {};
             static std::chrono::system_clock::time_point first_invoked {}, lately_called {};
             static constexpr std::chrono::milliseconds refresh_rate {40}; // 25 Hz
+
             if (check_full()) throw bad_pgbar {"bad_pgbar: updating a full progress bar"};
             else if (total_tsk == 0) throw bad_pgbar {"bad_pgbar: the number of tasks is zero"};
             if (!check_update()) {
@@ -518,6 +551,7 @@ namespace pgbar {
 
             double perc = done_cnt / static_cast<double>(total_tsk);
             auto info = switch_feature(perc, std::move(invoke_interval));
+
             *stream << info.first << info.second;
             if (done_cnt >= total_tsk) {
                 is_done = true;
@@ -529,8 +563,9 @@ namespace pgbar {
     const pgbar::StrT pgbar::rightward {"\033[C"};
     const pgbar::StrT pgbar::l_status {"[ "};
     const pgbar::StrT pgbar::r_status {" ]"};
+    const pgbar::StrT pgbar::division  {" | "};
     const pgbar::StrT pgbar::col_fmt {__PGBAR_COL__};
-    const pgbar::StrT pgbar::defult_col {__PGBAR_DEFAULT_COL__};
+    const pgbar::StrT pgbar::default_col {__PGBAR_DEFAULT_COL__};
 
 } // namespace pgbar
 
