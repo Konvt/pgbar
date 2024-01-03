@@ -340,7 +340,7 @@ namespace pgbar {
                 rate.append(splice(frequency / 1e3) + StrT(" kHz"));
             else if (frequency < 1e9) // < 1 MHz => '999.99 MHz'
                 rate.append(splice(frequency / 1e6) + StrT(" MHz"));
-            else { // < 1 GHz => > '1.00 GHz'
+            else { // < 1 GHz => '> 1.00 GHz'
                 double temp = frequency / 1e9;
                 if (temp > 999.99) rate.append("> 1.00 GHz");
                 else rate.append(splice(temp) + StrT(" GHz"));
