@@ -14,10 +14,10 @@
 #include <exception>   // bad_pgbar exception
 #include <iostream>    // std::cerr, the output stream object used.
 
-#include <atomic>
-#include <thread>
-#include <mutex>
-#include <condition_variable>
+#include <atomic>      // std::atomic<bool>
+#include <thread>      // std::thread
+#include <mutex>       // std::mutex & std::unique_lock std::lock_guard
+#include <condition_variable> // std::condition_variable
 
 #if defined(__GNUC__) || defined(__clang__)
     #define __PGBAR_INLINE_FUNC__ __attribute__((always_inline))
@@ -324,7 +324,8 @@ namespace pgbar {
             }
 
             invoke_interval = (invoke_interval + interval) / 2; // each invoke interval
-            SizeT frequency = duration_cast<nanoseconds>(seconds(1)) / invoke_interval;
+            SizeT frequency = invoke_interval.count() != 0 ? duration_cast<nanoseconds>(seconds(1)) / invoke_interval
+                : ~static_cast<SizeT>(0); // The invoking rate is too fast to calculate.
 
             auto splice = [](double val) -> StrT {
                 StrT str = std::to_string(val);
@@ -333,15 +334,15 @@ namespace pgbar {
             };
 
             StrT rate {}; rate.reserve(rate_len);
-            if (frequency < 1e3) // < 1Hz => 999.99 Hz
+            if (frequency < 1e3) // < 1Hz => '999.99 Hz'
                 rate.append(splice(frequency) + StrT(" Hz"));
-            else if (frequency < 1e6) // < 1 kHz => 999.99 kHz
+            else if (frequency < 1e6) // < 1 kHz => '999.99 kHz'
                 rate.append(splice(frequency / 1e3) + StrT(" kHz"));
-            else if (frequency < 1e9) // < 1 MHz => 999.99 MHz
+            else if (frequency < 1e9) // < 1 MHz => '999.99 MHz'
                 rate.append(splice(frequency / 1e6) + StrT(" MHz"));
-            else { // < 1 GHz => 999.99 GHz
-                double temp = frequency/1e9;
-                if (temp > 999.99) rate.append("999.99 GHz");
+            else { // < 1 GHz => > '1.00 GHz'
+                double temp = frequency / 1e9;
+                if (temp > 999.99) rate.append("> 1.00 GHz");
                 else rate.append(splice(temp) + StrT(" GHz"));
             }
 
@@ -527,6 +528,7 @@ namespace pgbar {
             auto info = switch_feature(perc, invoke_interval);
 
             *stream << info.first << info.second;
+
             if (check_full()) {
                 auto info = switch_feature(1, invoke_interval);
                 *stream << info.first << info.second << '\n';

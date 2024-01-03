@@ -7,10 +7,11 @@ int main()
 {
     std::cout << "Testing...\n";
     pgbar::pgbar bar; bar.set_task(TOTAL).set_left_bracket(" ").set_right_bracket("").set_todo_char("\033[31m━\033[0m").set_done_char("\033[32m━\033[0m");
-    bar.set_style(pgbar::style_opts::entire).set_step(2); // Set the step.
+    bar.set_style(pgbar::style_opts::entire).set_step(4); // Set the step.
 
-    for (std::size_t i = 0; i<(TOTAL/2); ++i) {
+    for (std::size_t i = 0; i<(TOTAL/4); ++i) {
         bar.update(); // Normal update
+        std::this_thread::sleep_for(std::chrono::microseconds(1));
         // Do anything you want here...
     }
 
