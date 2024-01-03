@@ -201,7 +201,7 @@ namespace pgbar {
         std::atomic<bool> is_invoked;
         std::atomic<bool> is_done;
         // The following are used to control the main thread to wait for the rendering thread.
-        std::atomic<bool> continue_signal;
+        bool continue_signal;
 
         /* private method member */
 
@@ -498,7 +498,7 @@ namespace pgbar {
 
             return {bar_str, status_str};
         }
-    
+
         void rendering() {
             static bool done_flag = false;
             static std::chrono::duration<SizeT, std::nano> invoke_interval {};
@@ -538,6 +538,35 @@ namespace pgbar {
                     continue_signal = true;
                 }
                 cond_var.notify_one();
+            }
+        }
+
+        template<typename F>
+        __PGBAR_INLINE_FUNC__ void do_update(F&& invokable) {
+            if (check_full())
+                throw bad_pgbar {"bad_pgbar: updating a full progress bar"};
+            else if (total_tsk == 0)
+                throw bad_pgbar {"bad_pgbar: the number of tasks is zero"};
+            if (!check_update()) {
+                rndrer.active();
+                { // wait for the rendering thread
+                    std::unique_lock<std::mutex> lock {mtx};
+                    continue_signal = false;
+                    cond_var.wait(lock, [this]()-> bool { return continue_signal; });
+                }
+            }
+            
+            invokable();
+            
+            if (done_cnt >= total_tsk) {
+                is_done = true;
+                 { // wait for the rendering thread
+                    std::unique_lock<std::mutex> lock {mtx};
+                    continue_signal = false;
+                    cond_var.wait(lock, [this]()-> bool { return continue_signal; });
+                }
+                continue_signal = false;
+                rndrer.suspend(); // wait for sub thread to finish
             }
         }
     public:
@@ -648,32 +677,18 @@ namespace pgbar {
         }
 
         /* Update progress bar. */
-        void update() {
-            if (check_full())
-                throw bad_pgbar {"bad_pgbar: updating a full progress bar"};
-            else if (total_tsk == 0)
-                throw bad_pgbar {"bad_pgbar: the number of tasks is zero"};
-            if (!check_update()) {
-                rndrer.active();
-                { // wait for the rendering thread
-                    std::unique_lock<std::mutex> lock {mtx};
-                    continue_signal = false;
-                    cond_var.wait(lock, [this]()-> bool { return continue_signal; });
-                }
-                continue_signal = false;
-            }
-            done_cnt += step;
+        void update()
+            { do_update([&]() { done_cnt += step; }); }
+        
 
-            if (done_cnt >= total_tsk) {
-                is_done = true;
-                { // wait for the rendering thread
-                    std::unique_lock<std::mutex> lock {mtx};
-                    continue_signal = false;
-                    cond_var.wait(lock, [this]()-> bool { return continue_signal; });
-                }
-                continue_signal = false;
-                rndrer.suspend(); // wait for sub thread to finish
-            }
+        /// @brief Ignore the effect of `set_step()`, increment forward several progresses, 
+        /// @brief and any `next_step` portions that exceed the total number of tasks are ignored.
+        /// @param next_step The number that will increment forward the progresses.
+        void update(SizeT next_step) {
+            do_update([&]() {
+                done_cnt += done_cnt + next_step <= total_tsk ? next_step :
+                    total_tsk - done_cnt;
+            });
         }
     };
 
