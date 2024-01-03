@@ -1,6 +1,6 @@
 // This code is licensed under the MIT License.
 // Please see the LICENSE file in the root of the repository for the full license text.
-// Copyright (c) 2023 Konvt
+// Copyright (c) 2023-2024 Konvt
 #pragma once
 
 #ifndef __PROGRESSBAR_HPP__
@@ -88,6 +88,58 @@ namespace pgbar {
         style_opts() = delete;
     };
 
+    /* renderer interface */
+    template<typename Derived>
+    class renderer {
+    public:
+        void active()
+            { static_cast<Derived*>(this)->active(); }
+        void suspend()
+            { static_cast<Derived*>(this)->suspend(); }
+    };
+
+    /* Separate the rendering of the progress bar from the main thread. */
+    class thread_renderer : public renderer<thread_renderer> {
+        static constexpr auto reflash_rate = std::chrono::microseconds(30);
+
+        std::atomic<bool> finish_signal;
+        std::atomic<bool> stop_signal;
+        std::condition_variable cond_var;
+        std::mutex mtx;
+        std::thread td;
+
+    public:
+        template<typename Callable>
+        thread_renderer(Callable&& task)
+            : finish_signal{false}, stop_signal{true}, cond_var{}, mtx{} {
+            td = std::thread([&, task]() {
+                while (!finish_signal) {
+                    {
+                        std::unique_lock<std::mutex> lock {mtx};
+                        cond_var.wait(lock, [this]()-> bool {
+                            return !stop_signal || finish_signal;
+                        });
+                    }
+                    task(); // The refresh rate is capped at about 25 Hz.
+                    std::this_thread::sleep_for(reflash_rate);
+                }
+            });
+        }
+        __PGBAR_INLINE_FUNC__ void active()
+            { stop_signal = false; cond_var.notify_one(); }
+        __PGBAR_INLINE_FUNC__ void suspend()
+            { stop_signal = true; }
+        ~thread_renderer() {
+            finish_signal = true;
+            stop_signal = false;
+            if (td.joinable()) {
+                cond_var.notify_one();
+                td.join();
+            }
+        }
+    };
+
+    template<typename RenderT = thread_renderer>
     class pgbar {
         /* auxiliary type definition */
 
@@ -117,38 +169,7 @@ namespace pgbar {
 
         /* private data member */
 
-        class renderer {
-            std::atomic<bool> finish_signal;
-            std::atomic<bool> stop_signal;
-            std::mutex mtx;
-            std::condition_variable cond;
-            std::thread td;
-
-        public:
-            template<typename Callable>
-            renderer(Callable&& task)
-                : finish_signal{false}, stop_signal{true}, mtx{}, cond{} {
-                td = std::thread([&, task]() {
-                    while (!finish_signal) {
-                        {
-                            std::unique_lock<std::mutex> lock {mtx};
-                            cond.wait(lock, [this]() -> bool { return !stop_signal || finish_signal; }); 
-                        }
-                        task();
-                    }
-                });
-            }
-            void active(){ stop_signal = false; cond.notify_one(); }
-            void suspend() { stop_signal = true; }
-            ~renderer() {
-                finish_signal = true;
-                stop_signal = false;
-                if (td.joinable()) {
-                    cond.notify_one();
-                    td.join();
-                }
-            }
-        } td_rndr;
+        RenderT td_rndr;
 
         std::ostream *stream;
         StrT todo_ch, done_ch;
@@ -158,6 +179,7 @@ namespace pgbar {
         SizeT bar_length; // The length of the progress bar.
         style_opts::OptT option;
         bool in_terminal;
+
         std::atomic<bool> is_invoked;
         std::atomic<bool> is_done;
         std::atomic<bool> continue_signal;
@@ -223,11 +245,11 @@ namespace pgbar {
         __PGBAR_INLINE_FUNC__ StrT show_bar(double percent) {
             static double lately_perc = 0;
 
-            if (check_update() && done_cnt != total_tsk && (percent-lately_perc) * 100.0 < 1.0)
+            if (check_update() && check_full() && (percent-lately_perc) * 100.0 < 1.0)
                 return {};
 
             StrT buf {}; buf.reserve(l_bracket.size() + r_bracket.size() + bar_length + 1);
-            SizeT done_len = std::round(bar_length*percent);
+            SizeT done_len = std::round(bar_length * percent);
             buf.append(
                 bulk_copy(1, l_bracket) + bulk_copy(done_len, done_ch) +
                 bulk_copy(bar_length - done_len, todo_ch) + bulk_copy(1, r_bracket) +
@@ -244,7 +266,7 @@ namespace pgbar {
                     formatter<txt_layut::align_left>(ratio_len, "0.00%");
                 return default_str;
             }
-            if (check_update() && done_cnt != total_tsk && (percent-lately_perc) * 100.0 < 0.08)
+            if (check_update() && check_full() && (percent-lately_perc) * 100.0 < 0.08)
                 return {};
             lately_perc = percent;
 
@@ -256,6 +278,7 @@ namespace pgbar {
                 std::move(proportion) + StrT(1, '%')
             );
         }
+        /* will never return an empty string */
         __PGBAR_INLINE_FUNC__ StrT show_remain_task() {
             StrT total_str = std::to_string(total_tsk);
             SizeT size = total_str.size();
@@ -264,6 +287,7 @@ namespace pgbar {
                 StrT(1, '/') + std::move(total_str)
             );
         }
+        /* will never return an empty string */
         __PGBAR_INLINE_FUNC__ StrT show_rate(std::chrono::duration<SizeT, std::nano> interval) {
             using namespace std::chrono;
             static duration<SizeT, std::nano> invoke_interval {};
@@ -299,6 +323,7 @@ namespace pgbar {
 
             return formatter<txt_layut::align_center>(rate_len, std::move(rate));
         }
+        /* will never return an empty string */
         __PGBAR_INLINE_FUNC__ StrT show_time(std::chrono::duration<SizeT, std::nano> interval) {
             using namespace std::chrono;
 
@@ -307,7 +332,6 @@ namespace pgbar {
                     formatter<txt_layut::align_center>(time_len, "0s < 99h");
                 return default_str;
             }
-
             auto splice = [](double val) -> StrT {
                 StrT str = std::to_string(val);
                 str.resize(str.find('.')+2); // Keep one decimal places.
@@ -346,7 +370,7 @@ namespace pgbar {
                 total_length = 0; divi_cnt = 0;
                 has_status = false; // To determine whether to insert the strings `l_status` and `r_status`
                 // Used to assist in calculating how many variable `division` need to be inserted.
-                bool has_divi = option & style_opts::bar; 
+                bool has_divi = false; 
                 /* The progress bar has a different number of tasks each time it is restarted,
                  * so the `cnt_length` needs to be updated dynamically. */
                 cnt_length = std::to_string(total_tsk).size() * 2 + 1;
@@ -430,21 +454,13 @@ namespace pgbar {
                     aped_str = aped_str.empty() ? skip_perc : aped_str;
                 }   break;
                 case status::dis_cnt: {
-                    static StrT skip_cnt {};
-                    if (!check_update())
-                        skip_cnt = bulk_copy(cnt_length, rightward);
                     aped_str = show_remain_task();
-                    aped_str = aped_str.empty() ? skip_cnt : aped_str;
                 }   break;
                 case status::dis_rate: {
-                    static const StrT skip_rate {bulk_copy(rate_len, rightward)};
                     aped_str = show_rate(interval);
-                    aped_str = aped_str.empty() ? skip_rate : aped_str;
                 }   break;
                 case status::dis_cntdwn: {
-                    static const StrT skip_cntdwn {bulk_copy(time_len, rightward)};
                     aped_str = show_time(std::move(interval));
-                    aped_str = aped_str.empty() ? skip_cntdwn : aped_str;
                 }   break;
                 case status::done:
                 default: break;
@@ -456,34 +472,34 @@ namespace pgbar {
             return {bar_str, status_str};
         }
     
-        void rendering() {
+        void rendering() { // 在 O3 时会出错
             static bool done_flag = false;
             static std::chrono::duration<SizeT, std::nano> invoke_interval {};
-            static std::chrono::system_clock::time_point first_invoked {}, lately_called {};
-            static constexpr std::chrono::milliseconds refresh_rate {40}; // 25 Hz
+            static std::chrono::system_clock::time_point first_invoked {};
 
             if (!check_update()) {
                 done_flag = false;
                 invoke_interval = {};
-                first_invoked = lately_called = std::chrono::system_clock::now();
+                first_invoked = std::chrono::system_clock::now();
                 auto info = switch_feature(0, {});
                 *stream << info.first << info.second;
                 is_invoked = true;
-                std::cout << "\nTTTTTT\n";
+                continue_signal = true;
             }
 
+            if (done_flag) return;
+
             auto now = std::chrono::system_clock::now();
-            if (done_flag || now-lately_called < refresh_rate)
-                return; // The refresh rate is capped at 25 Hz.
-            invoke_interval = (now - first_invoked) / done_cnt;
-            lately_called = std::move(now);
+            invoke_interval = done_cnt != 0 ? (now - first_invoked) / done_cnt
+                : (now - first_invoked) / static_cast<SizeT>(1);
 
             double perc = done_cnt / static_cast<double>(total_tsk);
-            auto info = switch_feature(perc, std::move(invoke_interval));
+            auto info = switch_feature(perc, invoke_interval);
 
             *stream << info.first << info.second;
-            if (done_cnt >= total_tsk) {
-                *stream << '\n';
+            if (check_full()) {
+                auto info = switch_feature(1, invoke_interval);
+                *stream << info.first << info.second << '\n';
                 done_flag = true;
                 continue_signal = true;
             }
@@ -522,8 +538,10 @@ namespace pgbar {
             { return is_done; }
         /* Reset pgbar obj, EXCLUDING the total number of tasks */
         pgbar& reset() noexcept {
-            done_cnt = 0;
-            is_done = is_invoked = false;
+            done_cnt = 0; is_done = false;
+            is_invoked = false;
+            continue_signal = false;
+            td_rndr.suspend();
             return *this;
         }
         /* Set the output stream object. */
@@ -599,26 +617,35 @@ namespace pgbar {
                 throw bad_pgbar {"bad_pgbar: updating a full progress bar"};
             else if (total_tsk == 0)
                 throw bad_pgbar {"bad_pgbar: the number of tasks is zero"};
-            if (!check_update())
-                td_rndr.active();
+            if (!check_update()) {
+                td_rndr.active(); // 动作太快了，需要等待子线程
+                while (!continue_signal); // spin lock
+                continue_signal = false;
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
             done_cnt += step;
 
             if (done_cnt >= total_tsk) {
-                while (!continue_signal);
                 is_done = true;
-                td_rndr.suspend();
+                while (!continue_signal); // spin lock
+                td_rndr.suspend(); // wait for sub thread to finish
                 continue_signal = false;
-                *stream << '\n';
             }
         }
     };
 
-    const pgbar::StrT pgbar::rightward {"\033[C"};
-    const pgbar::StrT pgbar::l_status {"[ "};
-    const pgbar::StrT pgbar::r_status {" ]"};
-    const pgbar::StrT pgbar::division  {" | "};
-    const pgbar::StrT pgbar::col_fmt {__PGBAR_COL__};
-    const pgbar::StrT pgbar::default_col {__PGBAR_DEFAULT_COL__};
+    template<typename RenderT>
+    const typename pgbar<RenderT>::StrT pgbar<RenderT>::rightward {"\033[C"};
+    template<typename RenderT>
+    const typename pgbar<RenderT>::StrT pgbar<RenderT>::l_status {"[ "};
+    template<typename RenderT>
+    const typename pgbar<RenderT>::StrT pgbar<RenderT>::r_status {" ]"};
+    template<typename RenderT>
+    const typename pgbar<RenderT>::StrT pgbar<RenderT>::division  {" | "};
+    template<typename RenderT>
+    const typename pgbar<RenderT>::StrT pgbar<RenderT>::col_fmt {__PGBAR_COL__};
+    template<typename RenderT>
+    const typename pgbar<RenderT>::StrT pgbar<RenderT>::default_col {__PGBAR_DEFAULT_COL__};
 
 } // namespace pgbar
 
