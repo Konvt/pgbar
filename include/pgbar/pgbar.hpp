@@ -182,7 +182,7 @@ namespace pgbar {
         __PGBAR_INLINE_FUNC__ StrT show_bar(double percent) {
             static double lately_perc = 0;
 
-            if (check_update() && done_cnt != total_tsk && (percent-lately_perc) * 100.0 < 1.0)
+            if (check_update() && check_full() && (percent-lately_perc) * 100.0 < 1.0)
                 return {};
 
             StrT buf {}; buf.reserve(l_bracket.size() + r_bracket.size() + bar_length + 1);
@@ -203,7 +203,7 @@ namespace pgbar {
                     formatter<txt_layut::align_left>(ratio_len, "0.00%");
                 return default_str;
             }
-            if (check_update() && done_cnt != total_tsk && (percent-lately_perc) * 100.0 < 0.08)
+            if (check_update() && check_full() && (percent-lately_perc) * 100.0 < 0.08)
                 return {};
             lately_perc = percent;
 
@@ -215,6 +215,7 @@ namespace pgbar {
                 std::move(proportion) + StrT(1, '%')
             );
         }
+        /* will never return an empty string */
         __PGBAR_INLINE_FUNC__ StrT show_remain_task() {
             StrT total_str = std::to_string(total_tsk);
             SizeT size = total_str.size();
@@ -223,6 +224,7 @@ namespace pgbar {
                 StrT(1, '/') + std::move(total_str)
             );
         }
+        /* will never return an empty string */
         __PGBAR_INLINE_FUNC__ StrT show_rate(std::chrono::duration<SizeT, std::nano> interval) {
             using namespace std::chrono;
             static duration<SizeT, std::nano> invoke_interval {};
@@ -258,6 +260,7 @@ namespace pgbar {
 
             return formatter<txt_layut::align_center>(rate_len, std::move(rate));
         }
+        /* will never return an empty string */
         __PGBAR_INLINE_FUNC__ StrT show_time(std::chrono::duration<SizeT, std::nano> interval) {
             using namespace std::chrono;
 
@@ -266,7 +269,6 @@ namespace pgbar {
                     formatter<txt_layut::align_center>(time_len, "0s < 99h");
                 return default_str;
             }
-
             auto splice = [](double val) -> StrT {
                 StrT str = std::to_string(val);
                 str.resize(str.find('.')+2); // Keep one decimal places.
@@ -305,7 +307,7 @@ namespace pgbar {
                 total_length = 0; divi_cnt = 0;
                 has_status = false; // To determine whether to insert the strings `l_status` and `r_status`
                 // Used to assist in calculating how many variable `division` need to be inserted.
-                bool has_divi = option & style_opts::bar; 
+                bool has_divi = false; 
                 /* The progress bar has a different number of tasks each time it is restarted,
                  * so the `cnt_length` needs to be updated dynamically. */
                 cnt_length = std::to_string(total_tsk).size()*2+1;
@@ -389,21 +391,13 @@ namespace pgbar {
                     aped_str = aped_str.empty() ? skip_perc : aped_str;
                 }   break;
                 case status::dis_cnt: {
-                    static StrT skip_cnt {};
-                    if (!check_update())
-                        skip_cnt = bulk_copy(cnt_length, rightward);
                     aped_str = show_remain_task();
-                    aped_str = aped_str.empty() ? skip_cnt : aped_str;
                 }   break;
                 case status::dis_rate: {
-                    static const StrT skip_rate {bulk_copy(rate_len, rightward)};
                     aped_str = show_rate(interval);
-                    aped_str = aped_str.empty() ? skip_rate : aped_str;
                 }   break;
                 case status::dis_cntdwn: {
-                    static const StrT skip_cntdwn {bulk_copy(time_len, rightward)};
                     aped_str = show_time(std::move(interval));
-                    aped_str = aped_str.empty() ? skip_cntdwn : aped_str;
                 }   break;
                 case status::done:
                 default: break;
@@ -541,7 +535,8 @@ namespace pgbar {
             double perc = done_cnt / static_cast<double>(total_tsk);
             auto info = switch_feature(perc, std::move(invoke_interval));
 
-            *stream << info.first << info.second;
+            *stream << info.first;
+            *stream << info.second;
             if (done_cnt >= total_tsk) {
                 is_done = true;
                 *stream << '\n';
