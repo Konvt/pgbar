@@ -36,7 +36,7 @@ namespace pgbar {
         typename EleT, typename BarT
 #ifdef __PGBAR_CXX20__
     > requires (
-        std::same_as<BarT, pgbar> &&
+        std::same_as<BarT, pgbar<>> &&
         std::is_arithmetic_v<EleT>
     )
 #else
@@ -121,7 +121,7 @@ namespace pgbar {
         typename IterT, typename BarT // `IterT` means iterator type
 #ifdef __PGBAR_CXX20__
     > requires (
-        std::same_as<BarT, pgbar> &&
+        std::same_as<BarT, pgbar<>> &&
         !std::is_arithmetic_v<IterT>
     )
 #else

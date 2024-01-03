@@ -12,7 +12,7 @@
 #include <string>      // std::string
 #include <chrono>      // as u know
 #include <exception>   // bad_pgbar exception
-#include <iostream>    // std::cout, the output stream object used.
+#include <iostream>    // std::cerr, the output stream object used.
 
 #include <atomic>
 #include <thread>
@@ -44,6 +44,7 @@
 #endif
 
 #if __PGBAR_CMP_V__ >= 202002L
+    #include <concepts>
     #include <format>
     #define __PGBAR_CXX20__
 #endif // __cplusplus >= 202002L
@@ -98,6 +99,13 @@ namespace pgbar {
             { static_cast<Derived*>(this)->suspend(); }
     };
 
+#ifdef __PGBAR_CXX20__
+    template<typename F>
+    concept ValidTaskT = requires(F tk) {
+        { tk() } -> std::same_as<void>;
+    };
+#endif
+
     /* Separate the rendering of the progress bar from the main thread. */
     class thread_renderer : public renderer<thread_renderer> {
         static constexpr auto reflash_rate = std::chrono::microseconds(30);
@@ -109,7 +117,11 @@ namespace pgbar {
         std::thread td;
 
     public:
+#ifdef __PGBAR_CXX20__
+        template<ValidTaskT Callable>
+#else
         template<typename Callable>
+#endif
         thread_renderer(Callable&& task)
             : finish_signal{false}, stop_signal{true}, cond_var{}, mtx{} {
             td = std::thread([&, task]() {
@@ -169,7 +181,9 @@ namespace pgbar {
 
         /* private data member */
 
-        RenderT td_rndr;
+        RenderT rndrer;
+
+        /* member datas */
 
         std::ostream *stream;
         StrT todo_ch, done_ch;
@@ -180,8 +194,13 @@ namespace pgbar {
         style_opts::OptT option;
         bool in_terminal;
 
+        /* thread communication and status datas */
+
+        std::mutex mtx;
+        std::condition_variable cond_var;
         std::atomic<bool> is_invoked;
         std::atomic<bool> is_done;
+        // The following are used to control the main thread to wait for the rendering thread.
         std::atomic<bool> continue_signal;
 
         /* private method member */
@@ -215,6 +234,7 @@ namespace pgbar {
             }
 #endif
         }
+        
         /// @brief Copy a string mutiple times and concatenate them together.
         /// @tparam S The type of the string.
         /// @param _time Copy times.
@@ -227,6 +247,7 @@ namespace pgbar {
                 ret.append(_src, 0);
             return ret;
         }
+        
         __PGBAR_INLINE_FUNC__ bool check_output_stream() {
             if (stream != &std::cout || stream != &std::cerr)
                 return true; // Custom object, the program does not block output.
@@ -257,6 +278,7 @@ namespace pgbar {
             );
             return buf;
         }
+        
         __PGBAR_INLINE_FUNC__ StrT show_proportion(double percent) {
             static double lately_perc = 0;
 
@@ -266,7 +288,7 @@ namespace pgbar {
                     formatter<txt_layut::align_left>(ratio_len, "0.00%");
                 return default_str;
             }
-            if (check_update() && check_full() && (percent-lately_perc) * 100.0 < 0.08)
+            if (check_update() && done_cnt != total_tsk && (percent-lately_perc) * 100.0 < 0.08)
                 return {};
             lately_perc = percent;
 
@@ -278,6 +300,7 @@ namespace pgbar {
                 std::move(proportion) + StrT(1, '%')
             );
         }
+        
         /* will never return an empty string */
         __PGBAR_INLINE_FUNC__ StrT show_remain_task() {
             StrT total_str = std::to_string(total_tsk);
@@ -287,6 +310,7 @@ namespace pgbar {
                 StrT(1, '/') + std::move(total_str)
             );
         }
+        
         /* will never return an empty string */
         __PGBAR_INLINE_FUNC__ StrT show_rate(std::chrono::duration<SizeT, std::nano> interval) {
             using namespace std::chrono;
@@ -323,6 +347,7 @@ namespace pgbar {
 
             return formatter<txt_layut::align_center>(rate_len, std::move(rate));
         }
+        
         /* will never return an empty string */
         __PGBAR_INLINE_FUNC__ StrT show_time(std::chrono::duration<SizeT, std::nano> interval) {
             using namespace std::chrono;
@@ -357,6 +382,7 @@ namespace pgbar {
                 StrT(" < ") + to_time(duration_cast<seconds>(interval*(total_tsk-done_cnt)).count())
             );
         }
+        
         /// @brief Based on the value of `option` and bitwise operations,
         /// @brief determine which part of the string needs to be concatenated.
         /// @param percent The percentage of the current task execution.
@@ -472,7 +498,7 @@ namespace pgbar {
             return {bar_str, status_str};
         }
     
-        void rendering() { // 在 O3 时会出错
+        void rendering() {
             static bool done_flag = false;
             static std::chrono::duration<SizeT, std::nano> invoke_interval {};
             static std::chrono::system_clock::time_point first_invoked {};
@@ -484,7 +510,11 @@ namespace pgbar {
                 auto info = switch_feature(0, {});
                 *stream << info.first << info.second;
                 is_invoked = true;
-                continue_signal = true;
+                { // wake up the main thread
+                    std::lock_guard<std::mutex> lock {mtx};
+                    continue_signal = true;
+                }
+                cond_var.notify_one();
             }
 
             if (done_flag) return;
@@ -501,7 +531,11 @@ namespace pgbar {
                 auto info = switch_feature(1, invoke_interval);
                 *stream << info.first << info.second << '\n';
                 done_flag = true;
-                continue_signal = true;
+                { // wake up the main thread
+                    std::lock_guard<std::mutex> lock {mtx};
+                    continue_signal = true;
+                }
+                cond_var.notify_one();
             }
         }
     public:
@@ -509,7 +543,7 @@ namespace pgbar {
         pgbar& operator=(pgbar&&) = delete;
 
         pgbar(SizeT _total_tsk, std::ostream& _ostream)
-            : td_rndr {[this]() { this->rendering(); } } {
+            : rndrer {[this]() { this->rendering(); } } {
             stream    = &_ostream;
             todo_ch   = StrT(1, blank); done_ch = StrT(1, '#');
             l_bracket = StrT(1, '['); r_bracket = StrT(1, ']');
@@ -541,7 +575,7 @@ namespace pgbar {
             done_cnt = 0; is_done = false;
             is_invoked = false;
             continue_signal = false;
-            td_rndr.suspend();
+            rndrer.suspend();
             return *this;
         }
         /* Set the output stream object. */
@@ -618,18 +652,25 @@ namespace pgbar {
             else if (total_tsk == 0)
                 throw bad_pgbar {"bad_pgbar: the number of tasks is zero"};
             if (!check_update()) {
-                td_rndr.active(); // 动作太快了，需要等待子线程
-                while (!continue_signal); // spin lock
+                rndrer.active();
+                { // wait for the rendering thread
+                    std::unique_lock<std::mutex> lock {mtx};
+                    continue_signal = false;
+                    cond_var.wait(lock, [this]()-> bool { return continue_signal; });
+                }
                 continue_signal = false;
-                std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }
             done_cnt += step;
 
             if (done_cnt >= total_tsk) {
                 is_done = true;
-                while (!continue_signal); // spin lock
-                td_rndr.suspend(); // wait for sub thread to finish
+                { // wait for the rendering thread
+                    std::unique_lock<std::mutex> lock {mtx};
+                    continue_signal = false;
+                    cond_var.wait(lock, [this]()-> bool { return continue_signal; });
+                }
                 continue_signal = false;
+                rndrer.suspend(); // wait for sub thread to finish
             }
         }
     };
