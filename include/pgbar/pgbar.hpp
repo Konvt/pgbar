@@ -14,6 +14,11 @@
 #include <exception>   // bad_pgbar exception
 #include <iostream>    // std::cout, the output stream object used.
 
+#include <atomic>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+
 #if defined(__GNUC__) || defined(__clang__)
     #define __PGBAR_INLINE_FUNC__ __attribute__((always_inline))
 #elif defined(_MSC_VER)
@@ -112,6 +117,39 @@ namespace pgbar {
 
         /* private data member */
 
+        class renderer {
+            std::atomic<bool> finish_signal;
+            std::atomic<bool> stop_signal;
+            std::mutex mtx;
+            std::condition_variable cond;
+            std::thread td;
+
+        public:
+            template<typename Callable>
+            renderer(Callable&& task)
+                : finish_signal{false}, stop_signal{true}, mtx{}, cond{} {
+                td = std::thread([&, task]() {
+                    while (!finish_signal) {
+                        {
+                            std::unique_lock<std::mutex> lock {mtx};
+                            cond.wait(lock, [this]() -> bool { return !stop_signal || finish_signal; }); 
+                        }
+                        task();
+                    }
+                });
+            }
+            void active(){ stop_signal = false; cond.notify_one(); }
+            void suspend() { stop_signal = true; }
+            ~renderer() {
+                finish_signal = true;
+                stop_signal = false;
+                if (td.joinable()) {
+                    cond.notify_one();
+                    td.join();
+                }
+            }
+        } td_rndr;
+
         std::ostream *stream;
         StrT todo_ch, done_ch;
         StrT l_bracket, r_bracket;
@@ -119,7 +157,10 @@ namespace pgbar {
         SizeT total_tsk, done_cnt;
         SizeT bar_length; // The length of the progress bar.
         style_opts::OptT option;
-        bool in_terminal, is_done, is_invoked;
+        bool in_terminal;
+        std::atomic<bool> is_invoked;
+        std::atomic<bool> is_done;
+        std::atomic<bool> continue_signal;
 
         /* private method member */
 
@@ -414,11 +455,45 @@ namespace pgbar {
 
             return {bar_str, status_str};
         }
+    
+        void rendering() {
+            static bool done_flag = false;
+            static std::chrono::duration<SizeT, std::nano> invoke_interval {};
+            static std::chrono::system_clock::time_point first_invoked {}, lately_called {};
+            static constexpr std::chrono::milliseconds refresh_rate {40}; // 25 Hz
+
+            if (!check_update()) {
+                done_flag = false;
+                invoke_interval = {};
+                first_invoked = lately_called = std::chrono::system_clock::now();
+                auto info = switch_feature(0, {});
+                *stream << info.first << info.second;
+                is_invoked = true;
+                std::cout << "\nTTTTTT\n";
+            }
+
+            auto now = std::chrono::system_clock::now();
+            if (done_flag || now-lately_called < refresh_rate)
+                return; // The refresh rate is capped at 25 Hz.
+            invoke_interval = (now - first_invoked) / done_cnt;
+            lately_called = std::move(now);
+
+            double perc = done_cnt / static_cast<double>(total_tsk);
+            auto info = switch_feature(perc, std::move(invoke_interval));
+
+            *stream << info.first << info.second;
+            if (done_cnt >= total_tsk) {
+                *stream << '\n';
+                done_flag = true;
+                continue_signal = true;
+            }
+        }
     public:
         pgbar(pgbar&&) = delete;
         pgbar& operator=(pgbar&&) = delete;
 
-        pgbar(SizeT _total_tsk, std::ostream& _ostream) {
+        pgbar(SizeT _total_tsk, std::ostream& _ostream)
+            : td_rndr {[this]() { this->rendering(); } } {
             stream    = &_ostream;
             todo_ch   = StrT(1, blank); done_ch = StrT(1, '#');
             l_bracket = StrT(1, '['); r_bracket = StrT(1, ']');
@@ -426,7 +501,8 @@ namespace pgbar {
             bar_length = 50; // default value
             option = style_opts::entire;
             in_terminal = check_output_stream();
-            is_done = is_invoked = false;
+            is_invoked = false; is_done = false;
+            continue_signal = false;
         }
         pgbar(): pgbar(0, std::cerr) {} // default constructor
         pgbar(const pgbar& _other): pgbar() { // style copy
@@ -458,13 +534,16 @@ namespace pgbar {
             return *this;
         }
         /* Set the number of steps the counter is updated each time `update()` is called. */
-        pgbar& set_step(SizeT _step) noexcept {
+        pgbar& set_step(SizeT _step) {
             if (check_update()) return *this;
+            else if (_step == 0) throw bad_pgbar {"bad_pgbar: zero step"};
             step = _step; return *this;
         }
         /* Set the number of tasks to be updated. */
-        pgbar& set_task(SizeT _total_tsk) noexcept {
+        pgbar& set_task(SizeT _total_tsk) {
             if (check_update()) return *this;
+            else if (_total_tsk == 0)
+                throw bad_pgbar {"bad_pgbar: the number of tasks is zero"};
             total_tsk = _total_tsk; return *this;
         }
         /* Set the TODO characters in the progress bar. */
@@ -516,34 +595,19 @@ namespace pgbar {
 
         /* Update progress bar. */
         void update() {
-            static std::chrono::duration<SizeT, std::nano> invoke_interval {};
-            static std::chrono::system_clock::time_point first_invoked {}, lately_called {};
-            static constexpr std::chrono::milliseconds refresh_rate {40}; // 25 Hz
-
-            if (check_full()) throw bad_pgbar {"bad_pgbar: updating a full progress bar"};
-            else if (total_tsk == 0) throw bad_pgbar {"bad_pgbar: the number of tasks is zero"};
-            if (!check_update()) {
-                if (step == 0) throw bad_pgbar {"bad_pgbar: zero step"};
-                invoke_interval = {};
-                first_invoked = lately_called = std::chrono::system_clock::now();
-                auto info = switch_feature(0, {});
-                *stream << info.first << info.second;
-                is_invoked = true;
-            }
+            if (check_full())
+                throw bad_pgbar {"bad_pgbar: updating a full progress bar"};
+            else if (total_tsk == 0)
+                throw bad_pgbar {"bad_pgbar: the number of tasks is zero"};
+            if (!check_update())
+                td_rndr.active();
             done_cnt += step;
 
-            auto now = std::chrono::system_clock::now();
-            if (done_cnt != total_tsk && now-lately_called < refresh_rate)
-                return; // The refresh rate is capped at 25 Hz.
-            invoke_interval = (now - first_invoked) / done_cnt;
-            lately_called = std::move(now);
-
-            double perc = done_cnt / static_cast<double>(total_tsk);
-            auto info = switch_feature(perc, std::move(invoke_interval));
-
-            *stream << info.first << info.second;
             if (done_cnt >= total_tsk) {
+                while (!continue_signal);
                 is_done = true;
+                td_rndr.suspend();
+                continue_signal = false;
                 *stream << '\n';
             }
         }

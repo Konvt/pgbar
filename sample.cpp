@@ -1,6 +1,6 @@
 #include <vector>
 #include "pgbar/range.hpp"
-constexpr std::size_t TOTAL = 100000000; // The maximum task load without seriously slowing down the program.
+constexpr std::size_t TOTAL = 100000000/4; // The maximum task load without seriously slowing down the program.
 double origin_arr[1000*2] {0.0};
 
 int main()
@@ -11,9 +11,11 @@ int main()
 
     for (std::size_t i = 0; i<(TOTAL/2); ++i) {
         bar.update(); // Normal update
+        //std::this_thread::sleep_for(std::chrono::microseconds(10));
         // Do anything you want here...
     }
-
+    std::cout << "\nCycle finished\n";
+/*
     bar.reset().set_style(pgbar::style_opts::percentage | pgbar::style_opts::task_counter | pgbar::style_opts::countdown);
     std::cout << "Task progress: "; // `range` needs a progress bar to show the progress situation
     for (auto ele : pgbar::range(TOTAL/2, bar))
@@ -37,6 +39,6 @@ int main()
     bar.reset().set_style(pgbar::style_opts::entire);
     for (auto ele : pgbar::range(origin_arr, bar))
         continue;
-
+*/
     return 0;
 }
