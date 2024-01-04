@@ -108,7 +108,7 @@ namespace pgbar {
 
     /* Separate the rendering of the progress bar from the main thread. */
     class thread_renderer : public renderer<thread_renderer> {
-        static constexpr auto reflash_rate = std::chrono::microseconds(35);
+        static const std::chrono::microseconds reflash_rate;
 
         std::atomic<bool> finish_signal;
         std::atomic<bool> stop_signal;
@@ -157,6 +157,8 @@ namespace pgbar {
             }
         }
     };
+
+    const std::chrono::microseconds thread_renderer::reflash_rate = std::chrono::microseconds(35);
 
     template<typename RenderT = thread_renderer>
     class pgbar {
@@ -256,7 +258,7 @@ namespace pgbar {
         }
         
         __PGBAR_INLINE_FUNC__ bool check_output_stream() {
-            if (stream != &std::cout || stream != &std::cerr)
+            if (stream != &std::cout && stream != &std::cerr)
                 return true; // Custom object, the program does not block output.
 #ifdef __PGBAR_WIN__
             if (_isatty(_fileno(stdout)))
@@ -514,10 +516,12 @@ namespace pgbar {
 
             if (!check_update()) {
                 done_flag = false;
-                invoke_interval = {};
-                first_invoked = std::chrono::system_clock::now();
-                auto info = switch_feature(0, {});
-                *stream << info.first << info.second;
+                if (in_terminal) {
+                    invoke_interval = {};
+                    first_invoked = std::chrono::system_clock::now();
+                    auto info = switch_feature(0, {});
+                    *stream << info.first << info.second;
+                }
                 is_invoked = true;
                 { // wake up the main thread
                     std::lock_guard<std::mutex> lock {mtx};
@@ -528,18 +532,22 @@ namespace pgbar {
 
             if (done_flag) return;
 
-            auto now = std::chrono::system_clock::now();
-            invoke_interval = done_cnt != 0 ? (now - first_invoked) / done_cnt
-                : (now - first_invoked) / static_cast<SizeT>(1);
+            if (in_terminal) {
+                auto now = std::chrono::system_clock::now();
+                invoke_interval = done_cnt != 0 ? (now - first_invoked) / done_cnt
+                    : (now - first_invoked) / static_cast<SizeT>(1);
 
-            double perc = done_cnt / static_cast<double>(total_tsk);
-            auto info = switch_feature(perc, invoke_interval);
+                double perc = done_cnt / static_cast<double>(total_tsk);
+                auto info = switch_feature(perc, invoke_interval);
 
-            *stream << info.first << info.second;
+                *stream << info.first << info.second;
+            }
 
             if (check_full()) {
-                auto info = switch_feature(1, invoke_interval);
-                *stream << info.first << info.second << '\n';
+                if (in_terminal) {
+                    auto info = switch_feature(1, invoke_interval);
+                    *stream << info.first << info.second << '\n';
+                }
                 done_flag = true;
                 { // wake up the main thread
                     std::lock_guard<std::mutex> lock {mtx};
@@ -588,6 +596,7 @@ namespace pgbar {
                 rndrer.suspend(); // wait for sub thread to finish
             }
         }
+
     public:
         pgbar(pgbar&&) = delete;
         pgbar& operator=(pgbar&&) = delete;

@@ -6,12 +6,11 @@ double origin_arr[500] {0.0};
 int main()
 {
     std::cout << "Testing...\n";
-    pgbar::pgbar bar; bar.set_task(TOTAL).set_left_bracket(" ").set_right_bracket("").set_todo_char("\033[31m━\033[0m").set_done_char("\033[32m━\033[0m");
+    pgbar::pgbar<> bar; bar.set_task(TOTAL).set_left_bracket(" ").set_right_bracket("").set_todo_char("\033[31m━\033[0m").set_done_char("\033[32m━\033[0m");
     bar.set_style(pgbar::style_opts::entire).set_step(2); // Set the step.
 
     for (std::size_t i = 0; i<(TOTAL/2); ++i) {
         bar.update(); // Normal update
-        if (i == (TOTAL/4)+100) std::this_thread::sleep_for(std::chrono::seconds(10));
         // Do anything you want here...
     }
 
