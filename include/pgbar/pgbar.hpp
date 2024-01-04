@@ -275,7 +275,7 @@ namespace pgbar {
         __PGBAR_INLINE_FUNC__ StrT show_bar(double percent) {
             static double lately_perc = 0;
 
-            if (check_update() && done_cnt != total_tsk && (percent-lately_perc) * 100.0 < 1.0)
+            if (check_update() && check_full() && (percent-lately_perc) * 100.0 < 1.0)
                 return {};
 
             StrT buf {}; buf.reserve(l_bracket.size() + r_bracket.size() + bar_length + 1);
@@ -297,7 +297,7 @@ namespace pgbar {
                     formatter<txt_layut::align_left>(ratio_len, "0.00%");
                 return default_str;
             }
-            if (check_update() && check_full() && (percent-lately_perc) * 100.0 < 0.08)
+            if (check_update() && done_cnt != total_tsk && (percent-lately_perc) * 100.0 < 0.08)
                 return {};
             lately_perc = percent;
 
@@ -438,7 +438,7 @@ namespace pgbar {
 
             bool will_dis_bar = false;
             auto goto_nxt = [
-                &status_str, &will_dis_bar, this,
+                &status_str, &will_dis_bar, this
                 ](status& now, status nxt) {
                 if ((now == status::start && nxt != status::dis_bar) || // has status bar.
                     (now == status::dis_bar && nxt != status::done)) // ditto.
