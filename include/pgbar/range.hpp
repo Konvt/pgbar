@@ -1,6 +1,6 @@
 // This code is licensed under the MIT License.
 // Please see the LICENSE file in the root of the repository for the full license text.
-// Copyright (c) 2023 Konvt
+// Copyright (c) 2023-2024 Konvt
 #pragma once
 
 #ifndef __PGBAR_RANGE_HPP__
@@ -36,11 +36,11 @@ namespace pgbar {
         typename EleT, typename BarT
 #ifdef __PGBAR_CXX20__
     > requires (
-        std::same_as<BarT, pgbar> &&
+        std::same_as<BarT, pgbar<>> &&
         std::is_arithmetic_v<EleT>
     )
 #else
-        , typename = typename std::enable_if<std::is_same<BarT, pgbar>::value && std::is_arithmetic<EleT>::value>::type>
+        , typename = typename std::enable_if<std::is_same<BarT, pgbar<>>::value && std::is_arithmetic<EleT>::value>::type>
 #endif
     class range_iterator_arith {
         using SizeT = std::size_t;
@@ -121,11 +121,11 @@ namespace pgbar {
         typename IterT, typename BarT // `IterT` means iterator type
 #ifdef __PGBAR_CXX20__
     > requires (
-        std::same_as<BarT, pgbar> &&
+        std::same_as<BarT, pgbar<>> &&
         !std::is_arithmetic_v<IterT>
     )
 #else
-        , typename = typename std::enable_if<std::is_same<BarT, pgbar>::value && !std::is_arithmetic<IterT>::value>::type>
+        , typename = typename std::enable_if<std::is_same<BarT, pgbar<>>::value && !std::is_arithmetic<IterT>::value>::type>
 #endif
     class range_iterator_iter {
         using SizeT = std::size_t;
