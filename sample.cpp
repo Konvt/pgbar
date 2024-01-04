@@ -11,7 +11,7 @@ int main()
 
     for (std::size_t i = 0; i<(TOTAL/2); ++i) {
         bar.update(); // Normal update
-        //std::this_thread::sleep_for(std::chrono::microseconds(1));
+        if (i == (TOTAL/4)+100) std::this_thread::sleep_for(std::chrono::seconds(10));
         // Do anything you want here...
     }
 
