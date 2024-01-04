@@ -81,6 +81,16 @@ int main()
 /* Notify the progress bar that it's time to update. */
 void update()
 
+/* The iterative progress of the progress bar will advance `next_step` steps at a time,
+ * and steps that exceed the total number of tasks will be ignored. */
+void update(std::size_t next_step)
+
+/* Check whether the progress bar object has been started. */
+bool check_update() const noexcept
+
+/* Check whether the progress bar object has been updated. */
+bool check_full() const noexcept
+
 /* Setting the stream object for progress bar output.
  * Does not guarantee visibility when output to a file. */
 pgbar& set_ostream(std::ostream& _ostream) noexcept
@@ -121,6 +131,10 @@ range(_end, BarT& _bar)
 
 /* Accept an iterator type as the range for `range`. */
 range(_start, _end, BarT& _bar) // Only iterators moved by increment/decrement operators are supported
+
+/* Accepts an iterable container type (including original arrays) as a range,
+ * requiring the container to use `iterator` as the iterator name. */
+range(container, BarT& _bar) // Original arrays have no iterator name requirement.
 ```
 
 ## NOTICE:
@@ -133,19 +147,19 @@ range(_start, _end, BarT& _bar) // Only iterators moved by increment/decrement o
 
 ## FAQ
 ### Will it slow down my program?
-The update rate of the progress bar is limited by the upper limit specified in `update()`, which is typically set to *25 Hz*.
+No. The program structure consists of a notification thread (main thread) and a rendering thread.
 
-Therefore, there won't be excessively frequent terminal outputs and string concatenation.
+During each update, the main thread handles the modification of the progress bar's internal iteration count (i.e., each call to `update()`), while the actual terminal display is managed by the background rendering thread.
 
-After testing, it was found that, on average, each `update()` call takes 41 ns[^1].
+The rendering thread's refresh rate is set to approximately 25Hz to ensure that progress bar updates do not impact the main thread's execution.
 
-[^1]: Test device specifications: CPU: AMD Ryzen 7 5800H, Memory: 16 GB. Compilation parameters: g++ -O3.
+Synchronization between the rendering thread and the main thread only blocks the main thread briefly at specific time points, usually not consuming a significant amount of time.
 ### Can it be used on Windows/Linux?
-Certainly, since the program primarily utilizes standard library functions, it boasts good cross-platform compatibility.
+The code implementation maintains excellent cross-platform compatibility as it exclusively relies on standard library functionalities.
 
-Additionally, the program checks whether its standard output is bound to a terminal.
+Certain components utilize C++20 compilation standards to enable `concepts`; please ensure your compiler supports this feature.
 
-The program will also determine whether its standard output is bound to the terminal, and it will not output strings to the outside if the output is not displayed in the terminal.
+The code also checks whether its standard output is bound to a terminal, refraining from external string output if not displayed in the terminal.
 
 **If a `std::ostream` output stream object is used other than `std::cout` or `std::cerr`, the program will not attempt to determine whether it is running in a terminal.**
 ### What C++ version is required?
@@ -154,6 +168,8 @@ As mentioned, it supports C++11 and later C++ standards.
 However, when using the range.hpp part, it may lead to longer compilation times due to extensive template matching operations.
 ### What's the difference from other C++ progress bars on Github?
 There doesn't seem to be much difference, except for the support for more customizable progress bar character settings.
+
+Github already has a [better progress bar library](https://github.com/p-ranav/indicators), if you want to use a more powerful progress bar, I'd recommend that one.
 
 I wrote this for the reason that [tqdm.cpp](https://github.com/tqdm/tqdm.cpp) can't run on my machine, [progressbar](https://github.com/gipert/progressbar) is too slow, and [cpptqdm](https://github.com/aminnj/cpptqdm) can't run on Windows.
 
@@ -211,8 +227,17 @@ int main()
 ### pgbar/pgbar.hpp
 ```cpp
 #include "pgbar/pgbar.hpp"
-/* 通知进度条该更新了 */
+/* 通知进度条该更新了. */
 void update()
+
+/* 要求进度条的迭代进度一次性前进 next_step 步，超出任务总数的步数会被忽略. */
+void update(std::size_t next_step)
+
+/* 确认进度条对象是否已经启动. */
+bool check_update() const noexcept
+
+/* 检查进度条对象是否更新完毕. */
+bool check_full() const noexcept
 
 /* 设置进度条输出的流对象，不保证输出到文件中依然有可视性. */
 pgbar& set_ostream(std::ostream& _ostream) noexcept
@@ -253,6 +278,9 @@ range(_end, BarT& _bar)
 
 /* 接受迭代器类型作为范围的 `range` */
 range(_start, _end, BarT& _bar) // 仅支持使用自增/自减运算符移动的迭代器
+
+/* 接受一个可迭代的容器类型（包括原始数组）作为范围，要求容器使用 `iterator` 作为迭代器名称 */
+range(container, BarT& _bar) // 原始数组没有 iterator 名称要求
 ```
 
 ## 注意事项
@@ -265,21 +293,25 @@ range(_start, _end, BarT& _bar) // 仅支持使用自增/自减运算符移动�
 
 ## FAQ
 ### 会拖慢程序吗？
-进度条更新速率受到 `update()` 中指定的上限限制，一般是 *25 Hz*，故不会有过于频繁的终端输出以及字符串拼接.
+不会. 程序结构分别由通知线程（即主线程）和一个渲染线程组成.
 
-经过测试，平均每次调用 `update()` 需要 41 ns[^2].
+每次更新时都由主线程负责改变进度条的内部迭代量（即每次调用 `update()` 的操作），实际的终端效果呈现是由后台的渲染线程负责的.
 
-[^2]: 测试设备参数：CPU: AMD Ryzen 7 5800H, Memory: 16 GB. 编译参数: g++ -O3.
+设计时渲染线程的刷新速率被设定为约 25Hz. 通过拆分线程，进度条的更新本身不会影响主线程的运行.
+
+只有到了特定时间点，渲染线程和主线程之间的同步确认才会阻塞主线程，不过这通常不会占用很长时间.
 ### 能在 Windows/Linux 上使用吗？
-可以的，由于程序主要功能只使用了标准库功能，因此具有很好的跨平台兼容性.
+可以的，由于代码实现只使用了标准库功能，因此具有很好的跨平台兼容性.
 
-并且程序还会判断自己的标准输出是否绑定在终端上，如果输出不在终端中显示则不会对外输出字符串.
+部分组件在开启 C++20 编译标准时会启用 `concepts` 功能，请确保你的编译器支持.
+
+代码还会判断自己的标准输出是否绑定在终端上，如果输出不在终端中显示则不会对外输出字符串.
 
 **但是如果使用除了 `std::cout` 或 `std::cerr` 之外的 `std::ostream` 输出流对象，程序将不会尝试判断自己是否运行在终端中.**
 ### 需要什么样的 C++ 版本？
-如题，支持 C++11 及以后的 C++ 标准. 由于 range.hpp 部分涉及大量模板匹配操作，所以使用这部分时可能会加长编译时间.
+如题，支持 C++11 及以后的 C++ 标准.
 ### 与 Github 上的其他 C++ 进度条有什么区别？
-嗯... 没有太大区别，除了支持更自由的进度条字符设定操作.
+嗯... 没有太大区别，除了支持更自由的进度条字符设定操作. Github 上已经有一个[更好的进度条库](https://github.com/p-ranav/indicators)了，想用功能更强大的进度条的话，我更推荐那个.
 
 写这个是因为 [tqdm.cpp](https://github.com/tqdm/tqdm.cpp) 没法在我自己的机器上运行，还有 [progressbar](https://github.com/gipert/progressbar) 太慢，以及 [cpptqdm](https://github.com/aminnj/cpptqdm) 没法在 windows 上运行.
 
