@@ -89,7 +89,7 @@ namespace pgbar {
         style_opts() = delete;
     };
 
-    /// @brief renderer interface
+    /* renderer interface */
     template<typename Derived>
     class renderer {
     public:
@@ -124,13 +124,6 @@ namespace pgbar {
 #endif
         thread_renderer(Callable&& task)
             : finish_signal{false}, stop_signal{true}, cond_var{}, mtx{} {
-#ifndef __PGBAR_CXX20__
-            static_assert(
-                std::is_same<typename std::result_of<Callable()>::type, void>::value,
-                "Callable must be a callable object of type `void()`"
-            );
-#endif
-
             td = std::thread([&, task]() {
                 while (!finish_signal) {
                     {
@@ -192,7 +185,7 @@ namespace pgbar {
 
         RenderT rndrer;
 
-        /* data members */
+        /* member datas */
 
         std::ostream *stream;
         StrT todo_ch, done_ch;
@@ -205,11 +198,11 @@ namespace pgbar {
 
         /* thread communication and status datas */
 
+        std::mutex mtx;
+        std::condition_variable cond_var;
         std::atomic<bool> is_invoked;
         std::atomic<bool> is_done;
         // The following are used to control the main thread to wait for the rendering thread.
-        std::mutex mtx;
-        std::condition_variable cond_var;
         bool continue_signal;
 
         /* private method member */
@@ -310,7 +303,7 @@ namespace pgbar {
             );
         }
         
-        /// @brief Will never return an empty string.
+        /* will never return an empty string */
         __PGBAR_INLINE_FUNC__ StrT show_remain_task() {
             StrT total_str = std::to_string(total_tsk);
             SizeT size = total_str.size();
@@ -320,7 +313,7 @@ namespace pgbar {
             );
         }
         
-        /// @brief Will never return an empty string.
+        /* will never return an empty string */
         __PGBAR_INLINE_FUNC__ StrT show_rate(std::chrono::duration<SizeT, std::nano> interval) {
             using namespace std::chrono;
             static duration<SizeT, std::nano> invoke_interval {};
@@ -436,13 +429,13 @@ namespace pgbar {
             StrT status_str {};
             StrT bar_str {};
 
-            bool will_dis_bar = false;
+            bool will_dis_bar = false, has_invoked = check_update();
             auto goto_nxt = [
-                &status_str, &will_dis_bar, this
+                &status_str, &will_dis_bar, has_invoked
                 ](status& now, status nxt) {
                 if ((now == status::start && nxt != status::dis_bar) || // has status bar.
                     (now == status::dis_bar && nxt != status::done)) // ditto.
-                    if (will_dis_bar || !check_update()) status_str.append(col_fmt + l_status);
+                    if (will_dis_bar || !has_invoked) status_str.append(col_fmt + l_status);
                     else status_str.append(backtrack + col_fmt + l_status);
                 else if (now != status::start && nxt != status::done)
                     status_str.append(division); // The `division` will be added during state machine jump.
@@ -508,7 +501,6 @@ namespace pgbar {
             return {bar_str, status_str};
         }
 
-        /// @brief This function only will be invoked by the rendering thread.
         void rendering() {
             static bool done_flag = false;
             static std::chrono::duration<SizeT, std::nano> invoke_interval {};
@@ -557,19 +549,8 @@ namespace pgbar {
             }
         }
 
-#ifdef __PGBAR_CXX20__
-        template<ValidTaskT F>
-#else
         template<typename F>
-#endif
         __PGBAR_INLINE_FUNC__ void do_update(F&& invokable) {
-#ifndef __PGBAR_CXX20__
-            static_assert(
-                std::is_same<typename std::result_of<F()>::type, void>::value,
-                "F must be a callable object of type `void()`"
-            );
-#endif
-
             if (check_full())
                 throw bad_pgbar {"bad_pgbar: updating a full progress bar"};
             else if (total_tsk == 0)
@@ -602,7 +583,7 @@ namespace pgbar {
         pgbar& operator=(pgbar&&) = delete;
 
         pgbar(SizeT _total_tsk, std::ostream& _ostream)
-            : rndrer { [this]()-> void { this->rendering(); } } {
+            : rndrer {[this]() { this->rendering(); } } {
             stream    = &_ostream;
             todo_ch   = StrT(1, blank); done_ch = StrT(1, '#');
             l_bracket = StrT(1, '['); r_bracket = StrT(1, ']');
@@ -629,72 +610,68 @@ namespace pgbar {
             { return is_invoked; }
         bool check_full() const noexcept
             { return is_done; }
-        /// @brief Reset pgbar obj, EXCLUDING the total number of tasks.
-        pgbar& reset() {
+        /* Reset pgbar obj, EXCLUDING the total number of tasks */
+        pgbar& reset() noexcept {
             done_cnt = 0; is_done = false;
             is_invoked = false;
             continue_signal = false;
             rndrer.suspend();
             return *this;
         }
-        /// @brief Set the output stream object.
+        /* Set the output stream object. */
         pgbar& set_ostream(std::ostream& _ostream) noexcept {
             if (check_update()) return *this;
             stream = &_ostream;
             in_terminal = check_output_stream();
             return *this;
         }
-        /// @brief Set the number of steps the counter is updated each time `update()` is called.
-        /// @throw If the `_step` is 0, it will throw an `bad_pgbar`.
+        /* Set the number of steps the counter is updated each time `update()` is called. */
         pgbar& set_step(SizeT _step) {
             if (check_update()) return *this;
             else if (_step == 0) throw bad_pgbar {"bad_pgbar: zero step"};
             step = _step; return *this;
         }
-        /// @brief Set the number of tasks to be updated.
-        /// @throw If the `_total_tsk` is 0, it will throw an `bad_pgbar`.
+        /* Set the number of tasks to be updated. */
         pgbar& set_task(SizeT _total_tsk) {
             if (check_update()) return *this;
             else if (_total_tsk == 0)
                 throw bad_pgbar {"bad_pgbar: the number of tasks is zero"};
             total_tsk = _total_tsk; return *this;
         }
-        /// @brief Set the TODO characters in the progress bar.
-        pgbar& set_done_char(StrT _done_ch) noexcept {
+        /* Set the TODO characters in the progress bar. */
+        pgbar& set_done_char(StrT _done_ch) {
             if (check_update()) return *this;
             done_ch = std::move(_done_ch);
             return *this;
         }
-        /// @brief Set the DONE characters in the progress bar.
-        pgbar& set_todo_char(StrT _todo_ch) noexcept {
+        /* Set the DONE characters in the progress bar. */
+        pgbar& set_todo_char(StrT _todo_ch) {
             if (check_update()) return *this;
             todo_ch = std::move(_todo_ch);
             return *this;
         }
-        /// @brief Set the left bracket of the progress bar.
-        pgbar& set_left_bracket(StrT _l_bracket) noexcept {
+        /* Set the left bracket of the progress bar. */
+        pgbar& set_left_bracket(StrT _l_bracket) {
             if (check_update()) return *this;
             l_bracket = std::move(_l_bracket);
             return *this;
         }
-        /// @brief Set the right bracket of the progress bar.
-        pgbar& set_right_bracket(StrT _r_bracket) noexcept {
+        /* Set the right bracket of the progress bar. */
+        pgbar& set_right_bracket(StrT _r_bracket) {
             if (check_update()) return *this;
             r_bracket = std::move(_r_bracket);
             return *this;
         }
-        /// @brief Set the length of the progress bar.
+        /* Set the length of the progress bar. */
         pgbar& set_bar_length(SizeT _length) noexcept {
             if (check_update()) return *this;
             bar_length = _length; return *this;
         }
-        /// @brief Select the display style by using bit operations.
+        /* Select the display style by using bit operations. */
         pgbar& set_style(style_opts::OptT _selection) noexcept {
             if (check_update()) return *this;
             option = _selection; return *this;
         }
-        /// @brief Copy the style options from the other bar object.
-        /// @param _other The other bar object.
         pgbar& operator=(const pgbar& _other) {
             if (this == &_other || check_update())
                 return *this;
@@ -708,15 +685,16 @@ namespace pgbar {
             return *this;
         }
 
-        /// @brief Update progress bar.
+        /* Update progress bar. */
         void update()
-            { do_update([&]()-> void { done_cnt += step; }); }
+            { do_update([&]() { done_cnt += step; }); }
+        
 
         /// @brief Ignore the effect of `set_step()`, increment forward several progresses, 
         /// @brief and any `next_step` portions that exceed the total number of tasks are ignored.
         /// @param next_step The number that will increment forward the progresses.
         void update(SizeT next_step) {
-            do_update([&]()-> void {
+            do_update([&]() {
                 done_cnt += done_cnt + next_step <= total_tsk ? next_step :
                     total_tsk - done_cnt;
             });
