@@ -258,9 +258,7 @@ namespace pgbar {
         }
         
         __PGBAR_INLINE_FUNC__ bool check_output_stream() {
-            if (stream != &std::cout && stream != &std::cerr &&
-                stream != &std::clog && stream != &std::wcout &&
-                stream != &std::wcerr && stream != &std::wclog)
+            if (stream != &std::cout && stream != &std::cerr)
                 return true; // Custom object, the program does not block output.
 #ifdef __PGBAR_WIN__
             if (_isatty(_fileno(stdout)))
