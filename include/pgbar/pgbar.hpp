@@ -397,7 +397,8 @@ namespace pgbar {
         /// @brief determine which part of the string needs to be concatenated.
         /// @param percent The percentage of the current task execution.
         /// @return The progress bar that has been assembled but is pending output.
-        std::pair<StrT, StrT> switch_feature(double percent, std::chrono::duration<SizeT, std::nano> interval) {
+        __PGBAR_INLINE_FUNC__ std::pair<StrT, StrT>
+        switch_feature(double percent, std::chrono::duration<SizeT, std::nano> interval) {
             static StrT backtrack {};
             static SizeT cnt_length = 0, total_length = 0, divi_cnt = 0;
             static bool has_status = false;
