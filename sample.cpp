@@ -1,5 +1,5 @@
 #include <vector>
-#include "./include/pgbar/range.hpp"
+#include "include/pgbar/range.hpp"
 constexpr std::size_t TOTAL = 100000000;
 double origin_arr[500] {0.0};
 

@@ -106,9 +106,9 @@ namespace pgbar {
             ed_pnt.cnt = extent;
             return ed_pnt;
         }
-        EleT& operator*() noexcept
+        reference operator*() noexcept
             { return current; }
-        EleT* operator->() noexcept
+        pointer operator->() noexcept
             { return std::addressof(current); }
         bool operator==(const range_iterator_arith& _other) const noexcept
             { return cnt == _other.cnt; }
@@ -190,9 +190,9 @@ namespace pgbar {
             ed_pnt.current = terminus;
             return ed_pnt;
         }
-        EleT& operator*() noexcept
+        reference operator*() noexcept
             { return *current; }
-        EleT* operator->() noexcept
+        pointer operator->() noexcept
             {  return std::addressof(current); }
         bool operator==(const range_iterator_iter& _other) const noexcept
             { return current == _other.current; }
@@ -303,7 +303,7 @@ namespace pgbar {
     >::type
 #endif
     inline range(_ConT&& container, BarT& _bar) {
-        using std::begin, std::end;
+        using std::begin; using std::end; // ADL
         return range(begin(std::forward<_ConT>(container)), end(std::forward<_ConT>(container)), _bar);
     }
 
@@ -327,7 +327,7 @@ namespace pgbar {
     >::type
 #endif
     inline range(_ArrT&& container, BarT& _bar) {// for original arrays
-        using std::begin, std::end;
+        using std::begin; using std::end; // ADL
         return range(begin(std::forward<_ArrT>(container)), end(std::forward<_ArrT>(container)), _bar);
     }
 

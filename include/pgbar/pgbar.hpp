@@ -33,10 +33,10 @@
     #define __PGBAR_CMP_V__ __cplusplus
 #endif
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(WIN32) 
     #include <io.h>
     #define __PGBAR_WIN__
-#elif defined(__unix__)
+#elif defined(__unix__) || defined(unix)
     #include <unistd.h>
     #define __PGBAR_UNIX__
 #else
@@ -78,16 +78,15 @@ namespace pgbar {
         virtual const char* what() const noexcept { return message.c_str(); }
     };
 
-    struct style_opts {
+    namespace style_opts {
         using OptT = uint8_t;
-        static constexpr OptT bar = 1 << 0;
-        static constexpr OptT percentage = 1 << 1;
-        static constexpr OptT task_counter = 1 << 2;
-        static constexpr OptT rate = 1 << 3;
-        static constexpr OptT countdown = 1 << 4;
-        static constexpr OptT entire = ~0;
-        style_opts() = delete;
-    };
+        constexpr OptT bar          = 1 << 0;
+        constexpr OptT percentage   = 1 << 1;
+        constexpr OptT task_counter = 1 << 2;
+        constexpr OptT rate         = 1 << 3;
+        constexpr OptT countdown    = 1 << 4;
+        constexpr OptT entire       = ~0;
+    }
 
     /// @brief renderer interface
     template<typename Derived>
@@ -221,9 +220,8 @@ namespace pgbar {
         /// @return Formatted string.
         template<txt_layut _style>
         __PGBAR_INLINE_FUNC__ static StrT formatter(SizeT _width, StrT _str) {
-            if (_width == 0) return {}; // `StrT` is only effective for the progress bar.
-            if (_str.size() >= _width) return _str; // The other are all `StrT` type.
-            // Thus the return type of `formatter` is `StrT`.
+            if (_width == 0) return {};
+            if (_str.size() >= _width) return _str;
 #ifdef __PGBAR_CXX20__
             if __PGBAR_IF_CONSTEXPR__ (_style == txt_layut::align_right)
                 return std::format("{:>{}}", std::move(_str), _width);
@@ -258,9 +256,9 @@ namespace pgbar {
         }
         
         __PGBAR_INLINE_FUNC__ bool check_output_stream() {
-            if (stream != &std::cout &&
-                stream != &std::cerr &&
-                stream != &std::clog)
+            if (stream != std::addressof(std::cout) &&
+                stream != std::addressof(std::cerr) &&
+                stream != std::addressof(std::clog))
                 return true; // Custom object, the program does not block output.
 #ifdef __PGBAR_WIN__
             if (_isatty(_fileno(stdout)))
