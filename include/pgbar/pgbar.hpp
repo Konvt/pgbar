@@ -33,7 +33,7 @@
     #define __PGBAR_CMP_V__ __cplusplus
 #endif
 
-#if defined(_WIN32) || defined(WIN32) 
+#if defined(_WIN32) || defined(WIN32)
     #include <io.h>
     #define __PGBAR_WIN__
 #elif defined(__unix__) || defined(unix)
@@ -241,7 +241,7 @@ namespace pgbar {
             }
 #endif
         }
-        
+
         /// @brief Copy a string mutiple times and concatenate them together.
         /// @tparam S The type of the string.
         /// @param _time Copy times.
@@ -254,11 +254,11 @@ namespace pgbar {
                 ret.append(_src, 0);
             return ret;
         }
-        
-        __PGBAR_INLINE_FUNC__ bool check_output_stream() {
-            if (stream != std::addressof(std::cout) &&
-                stream != std::addressof(std::cerr) &&
-                stream != std::addressof(std::clog))
+
+        __PGBAR_INLINE_FUNC__ static bool check_output_stream(const std::ostream* const os) {
+            if (os != std::addressof(std::cout) &&
+                os != std::addressof(std::cerr) &&
+                os != std::addressof(std::clog))
                 return true; // Custom object, the program does not block output.
 #ifdef __PGBAR_WIN__
             if (_isatty(_fileno(stdout)))
@@ -287,7 +287,7 @@ namespace pgbar {
             );
             return buf;
         }
-        
+
         __PGBAR_INLINE_FUNC__ StrT show_proportion(double percent) {
             static double lately_perc = 0;
 
@@ -309,7 +309,7 @@ namespace pgbar {
                 std::move(proportion) + StrT(1, '%')
             );
         }
-        
+
         /// @brief Will never return an empty string.
         __PGBAR_INLINE_FUNC__ StrT show_remain_task() {
             StrT total_str = std::to_string(total_tsk);
@@ -319,7 +319,7 @@ namespace pgbar {
                 StrT(1, '/') + std::move(total_str)
             );
         }
-        
+
         /// @brief Will never return an empty string.
         __PGBAR_INLINE_FUNC__ StrT show_rate(std::chrono::duration<SizeT, std::nano> interval) {
             static std::chrono::duration<SizeT, std::nano> invoke_interval {};
@@ -357,7 +357,7 @@ namespace pgbar {
 
             return formatter<txt_layut::align_center>(rate_len, std::move(rate));
         }
-        
+
         /* will never return an empty string */
         __PGBAR_INLINE_FUNC__ StrT show_time(std::chrono::duration<SizeT, std::nano> interval) {
             if (!check_update()) {
@@ -390,7 +390,7 @@ namespace pgbar {
                 StrT(" < ") + to_time(std::chrono::duration_cast<std::chrono::seconds>(interval*(total_tsk-done_cnt)).count())
             );
         }
-        
+
         /// @brief Based on the value of `option` and bitwise operations,
         /// @brief determine which part of the string needs to be concatenated.
         /// @param percent The percentage of the current task execution.
@@ -403,7 +403,7 @@ namespace pgbar {
                 total_length = 0; divi_cnt = 0;
                 has_status = false; // To determine whether to insert the strings `l_status` and `r_status`
                 // Used to assist in calculating how many variable `division` need to be inserted.
-                bool has_divi = false; 
+                bool has_divi = false;
                 /* The progress bar has a different number of tasks each time it is restarted,
                  * so the `cnt_length` needs to be updated dynamically. */
                 cnt_length = std::to_string(total_tsk).size() * 2 + 1;
@@ -579,9 +579,9 @@ namespace pgbar {
                     cond_var.wait(lock, [this]()-> bool { return continue_signal; });
                 }
             }
-            
+
             invokable();
-            
+
             if (done_cnt >= total_tsk) {
                 is_done = true;
                  { // wait for the rendering thread
@@ -606,7 +606,7 @@ namespace pgbar {
             step = 1; total_tsk = _total_tsk; done_cnt = 0;
             bar_length = 50; // default value
             option = style_opts::entire;
-            in_terminal = check_output_stream();
+            in_terminal = check_output_stream(stream);
             is_invoked = false; is_done = false;
             continue_signal = false;
         }
@@ -617,7 +617,7 @@ namespace pgbar {
             done_ch     = _other.done_ch;
             l_bracket   = _other.l_bracket;
             r_bracket   = _other.r_bracket;
-            in_terminal = check_output_stream();
+            in_terminal = check_output_stream(stream);
             option = _other.option;
         }
         ~pgbar() {}
@@ -638,7 +638,7 @@ namespace pgbar {
         pgbar& set_ostream(std::ostream& _ostream) noexcept {
             if (check_update()) return *this;
             stream = &_ostream;
-            in_terminal = check_output_stream();
+            in_terminal = check_output_stream(stream);
             return *this;
         }
         /// @brief Set the number of steps the counter is updated each time `update()` is called.
@@ -700,7 +700,7 @@ namespace pgbar {
             done_ch     = _other.done_ch;
             l_bracket   = _other.l_bracket;
             r_bracket   = _other.r_bracket;
-            in_terminal = check_output_stream();
+            in_terminal = check_output_stream(stream);
             option = _other.option;
             return *this;
         }
@@ -709,7 +709,7 @@ namespace pgbar {
         void update()
             { do_update([&]()-> void { done_cnt += step; }); }
 
-        /// @brief Ignore the effect of `set_step()`, increment forward several progresses, 
+        /// @brief Ignore the effect of `set_step()`, increment forward several progresses,
         /// @brief and any `next_step` portions that exceed the total number of tasks are ignored.
         /// @param next_step The number that will increment forward the progresses.
         void update(SizeT next_step) {

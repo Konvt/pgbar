@@ -174,7 +174,7 @@ namespace pgbar {
             start = std::move(_rhs.start); terminus = std::move(_rhs.terminus);
             current = std::move(_rhs.current); extent = _rhs.extent;
             is_reversed = _rhs.is_reversed;
-            
+
             _rhs.bar = nullptr; // clear up
             _rhs.start = {}; _rhs.terminus = {};
             _rhs.terminus = {}; _rhs.extent = 0;
@@ -206,7 +206,7 @@ namespace pgbar {
 
 #ifdef __PGBAR_CXX20__
     template<typename EleT>
-    concept ValidEleT = 
+    concept ValidEleT =
         std::is_arithmetic_v<std::decay_t<EleT>>;
 #endif
 
