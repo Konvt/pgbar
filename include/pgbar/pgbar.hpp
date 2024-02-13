@@ -324,8 +324,7 @@ namespace pgbar {
         
         /// @brief Will never return an empty string.
         __PGBAR_INLINE_FUNC__ StrT show_rate(std::chrono::duration<SizeT, std::nano> interval) {
-            using namespace std::chrono;
-            static duration<SizeT, std::nano> invoke_interval {};
+            static std::chrono::duration<SizeT, std::nano> invoke_interval {};
 
             if (!check_update()) {
                 invoke_interval = {};
@@ -335,7 +334,8 @@ namespace pgbar {
             }
 
             invoke_interval = (invoke_interval + interval) / 2; // each invoke interval
-            SizeT frequency = invoke_interval.count() != 0 ? duration_cast<nanoseconds>(seconds(1)) / invoke_interval
+            SizeT frequency = invoke_interval.count() != 0 ? std::chrono::duration_cast<
+                std::chrono::nanoseconds>(std::chrono::seconds(1)) / invoke_interval
                 : ~static_cast<SizeT>(0); // The invoking rate is too fast to calculate.
 
             auto splice = [](double val) -> StrT {
@@ -362,8 +362,6 @@ namespace pgbar {
         
         /* will never return an empty string */
         __PGBAR_INLINE_FUNC__ StrT show_time(std::chrono::duration<SizeT, std::nano> interval) {
-            using namespace std::chrono;
-
             if (!check_update()) {
                 static const StrT default_str =
                     formatter<txt_layut::align_center>(time_len, "0s < 99h");
@@ -390,8 +388,8 @@ namespace pgbar {
             };
 
             return formatter<txt_layut::align_center>(
-                time_len, to_time(duration_cast<seconds>(interval*done_cnt).count()) +
-                StrT(" < ") + to_time(duration_cast<seconds>(interval*(total_tsk-done_cnt)).count())
+                time_len, to_time(std::chrono::duration_cast<std::chrono::seconds>(interval*done_cnt).count()) +
+                StrT(" < ") + to_time(std::chrono::duration_cast<std::chrono::seconds>(interval*(total_tsk-done_cnt)).count())
             );
         }
         

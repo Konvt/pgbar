@@ -40,7 +40,8 @@ namespace pgbar {
         std::is_arithmetic_v<EleT>
     )
 #else
-        , typename = typename std::enable_if<std::is_same<BarT, pgbar<>>::value && std::is_arithmetic<EleT>::value>::type>
+        , typename = typename std::enable_if<std::is_same<BarT, pgbar<>>::value &&
+        std::is_arithmetic<EleT>::value>::type>
 #endif
     class range_iterator_arith {
         using SizeT = std::size_t;
@@ -107,6 +108,8 @@ namespace pgbar {
         }
         EleT& operator*() noexcept
             { return current; }
+        EleT* operator->() noexcept
+            { return std::addressof(current); }
         bool operator==(const range_iterator_arith& _other) const noexcept
             { return cnt == _other.cnt; }
         bool operator!=(const range_iterator_arith& _other) const noexcept
@@ -125,7 +128,8 @@ namespace pgbar {
         !std::is_arithmetic_v<IterT>
     )
 #else
-        , typename = typename std::enable_if<std::is_same<BarT, pgbar<>>::value && !std::is_arithmetic<IterT>::value>::type>
+        , typename = typename std::enable_if<std::is_same<BarT, pgbar<>>::value &&
+        !std::is_arithmetic<IterT>::value>::type>
 #endif
     class range_iterator_iter {
         using SizeT = std::size_t;
@@ -188,6 +192,8 @@ namespace pgbar {
         }
         EleT& operator*() noexcept
             { return *current; }
+        EleT* operator->() noexcept
+            {  return std::addressof(current); }
         bool operator==(const range_iterator_iter& _other) const noexcept
             { return current == _other.current; }
         bool operator!=(const range_iterator_iter& _other) const noexcept
@@ -296,8 +302,10 @@ namespace pgbar {
         , range_iterator_iter<typename ConT::iterator, BarT>
     >::type
 #endif
-    inline range(_ConT&& container, BarT& _bar)
-        { return range(std::begin(std::forward<_ConT>(container)), std::end(std::forward<_ConT>(container)), _bar); }
+    inline range(_ConT&& container, BarT& _bar) {
+        using std::begin, std::end;
+        return range(begin(std::forward<_ConT>(container)), end(std::forward<_ConT>(container)), _bar);
+    }
 
     /// @brief Accepts a original array,
     /// @brief and updates the passed `_bar` based on the elements in the container.
@@ -318,8 +326,10 @@ namespace pgbar {
         , range_iterator_iter<ArrT, BarT>
     >::type
 #endif
-    inline range(_ArrT&& container, BarT& _bar) // for original arrays
-        { return range(std::begin(std::forward<_ArrT>(container)), std::end(std::forward<_ArrT>(container)), _bar); }
+    inline range(_ArrT&& container, BarT& _bar) {// for original arrays
+        using std::begin, std::end;
+        return range(begin(std::forward<_ArrT>(container)), end(std::forward<_ArrT>(container)), _bar);
+    }
 
 } // namespace pgbar
 
