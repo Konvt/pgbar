@@ -52,8 +52,10 @@
   #include <string_view>
   #define __PGBAR_CXX17__
   #define __PGBAR_IF_CONSTEXPR__ constexpr
+  #define __PGBAR_FALLTHROUGH__ [[fallthrough]];
 #else
   #define __PGBAR_IF_CONSTEXPR__
+  #define __PGBAR_FALLTHROUGH__ break;
 #endif // __cplusplus >= 201703L
 #if __PGBAR_CMP_V__ >= 201402L
   #define __PGBAR_CXX14__
@@ -276,12 +278,8 @@ namespace pgbar {
       else return false;
     }
 
+    /// @brief Will never return an empty string.
     __PGBAR_INLINE_FUNC__ StrT show_bar(double percent) {
-      static double lately_perc = 0;
-
-      if (check_update() && check_full() && (percent - lately_perc) * 100.0 < 1.0)
-        return {};
-
       StrT buf {}; buf.reserve(l_bracket.size() + r_bracket.size() + bar_length + 1);
       SizeT done_len = std::round(bar_length * percent);
       buf.append(
@@ -292,18 +290,13 @@ namespace pgbar {
       return buf;
     }
 
+    /// @brief Will never return an empty string.
     __PGBAR_INLINE_FUNC__ StrT show_proportion(double percent) {
-      static double lately_perc = 0;
-
       if (!check_update()) {
-        lately_perc = 0;
         static const StrT default_str =
           formatter<txt_layut::align_left>(ratio_len, "0.00%");
         return default_str;
       }
-      if (check_update() && done_cnt != total_tsk && (percent - lately_perc) * 100.0 < 0.08)
-        return {};
-      lately_perc = percent;
 
       StrT proportion = std::to_string(percent * 100);
       proportion.resize(proportion.find('.') + 3);
@@ -477,29 +470,30 @@ namespace pgbar {
       do {
         StrT aped_str {};
         switch (state) {
-        case status::start: {
-        }   break; // nothing here, just skip it.
         case status::dis_bar: {
-          static StrT skip_bar {};
-          if (!check_update()) skip_bar = bulk_copy(bar_length, rightward);
-          bar_str = show_bar(percent); will_dis_bar = !bar_str.empty();
-          bar_str = bar_str.empty() ? bar_str : StrT(1, reboot) + std::move(bar_str);
-        }   break;
+          bar_str = show_bar(percent);
+          will_dis_bar = !bar_str.empty();
+          if (!bar_str.empty())
+            bar_str.insert(bar_str.begin(), reboot);
+        } break;
         case status::dis_perc: {
           static const StrT skip_perc {bulk_copy(ratio_len, rightward)};
           aped_str = show_proportion(percent);
           aped_str = aped_str.empty() ? skip_perc : aped_str;
-        }   break;
+        } break;
         case status::dis_cnt: {
           aped_str = show_remain_task();
-        }   break;
+        } break;
         case status::dis_rate: {
           aped_str = show_rate(interval);
-        }   break;
+        } break;
         case status::dis_cntdwn: {
           aped_str = show_time(std::move(interval));
-        }   break;
+        } break;
+        case status::start: // nothing here, just skip it.
+          __PGBAR_FALLTHROUGH__
         case status::done:
+          __PGBAR_FALLTHROUGH__
         default: break;
         }
         status_str.append(aped_str);
@@ -753,6 +747,7 @@ namespace pgbar {
 #undef __PGBAR_COL__
 #undef __PGBAR_DEFAULT_COL__
 #undef __PGBAR_IF_CONSTEXPR__
+#undef __PGBAR_FALLTHROUGH__
 #undef __PGBAR_INLINE_FUNC__
 
 #endif // __PROGRESSBAR_HPP__
