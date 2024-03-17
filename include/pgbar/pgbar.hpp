@@ -60,6 +60,9 @@
 #endif // __cplusplus >= 201703L
 #if __PGBAR_CMP_V__ >= 201402L
   #define __PGBAR_CXX14__
+  #define __PGBAR_RET_CONSTEXPR__ constexpr
+#else
+  #define __PGBAR_RET_CONSTEXPR__
 #endif // __cplusplus >= 201402L
 
 #ifndef PGBAR_NOT_COL
@@ -90,36 +93,36 @@ namespace pgbar {
     entire = UINT8_MAX
   };
 
-  style_opts operator|(style_opts lhs, style_opts rhs) {
+  __PGBAR_INLINE_FUNC__ constexpr style_opts operator|(style_opts lhs, style_opts rhs) noexcept {
     return static_cast<style_opts>(
       static_cast<typename std::underlying_type<style_opts>::type>(lhs)
       | static_cast<typename std::underlying_type<style_opts>::type>(rhs));
   }
 
-  style_opts operator&(style_opts lhs, style_opts rhs) {
+  __PGBAR_INLINE_FUNC__ constexpr style_opts operator&(style_opts lhs, style_opts rhs) noexcept {
     return static_cast<style_opts>(
       static_cast<typename std::underlying_type<style_opts>::type>(lhs)
       & static_cast<typename std::underlying_type<style_opts>::type>(rhs));
   }
 
-  style_opts operator~(style_opts lhs) {
+  __PGBAR_INLINE_FUNC__ constexpr style_opts operator~(style_opts lhs) noexcept {
     return static_cast<style_opts>(
       ~static_cast<typename std::underlying_type<style_opts>::type>(lhs));
   }
 
-  style_opts& operator&=(style_opts& lhs, style_opts rhs) {
+  __PGBAR_RET_CONSTEXPR__ style_opts& operator&=(style_opts& lhs, style_opts rhs) noexcept {
     lhs = lhs & rhs;
     return lhs;
   }
 
-  style_opts& operator|=(style_opts& lhs, style_opts rhs) {
+  __PGBAR_RET_CONSTEXPR__ style_opts& operator|=(style_opts& lhs, style_opts rhs) noexcept {
     lhs = lhs | rhs;
     return lhs;
   }
 
-  bool operator!(style_opts lhs) { // a helper function that to convert an enum to bool
+  __PGBAR_INLINE_FUNC__ constexpr bool operator!(style_opts lhs) noexcept {
     return !static_cast<typename std::underlying_type<style_opts>::type>(lhs);
-  }
+  } // a helper function that to convert an enum to bool
 
   /// @brief renderer interface
   template<typename Derived>
@@ -134,10 +137,12 @@ namespace pgbar {
   };
 
 #ifdef __PGBAR_CXX20__
-  template<typename F>
-  concept ValidTaskT = requires(F tk) {
-    { tk() } -> std::same_as<void>;
-  };
+  namespace __detail {
+    template<typename F>
+    concept ValidTaskT = requires(F tk) {
+      { tk() } -> std::same_as<void>;
+    };
+  }
 #endif
 
   /* Separate the rendering of the progress bar from the main thread. */
@@ -152,7 +157,7 @@ namespace pgbar {
 
   public:
 #ifdef __PGBAR_CXX20__
-    template<ValidTaskT Callable>
+    template<__detail::ValidTaskT Callable>
 #else
     template<typename Callable>
 #endif
@@ -227,9 +232,6 @@ namespace pgbar {
     /* private data member */
 
     RenderT rndrer;
-
-    /* data members */
-
     std::ostream *stream;
     StrT todo_ch, done_ch;
     StrT l_bracket, r_bracket;
@@ -443,6 +445,7 @@ namespace pgbar {
           else has_divi = true;
           };
 
+        // A double negative is a positive
         if (!!(option & style_opts::percentage))
           update_dynamically(ratio_len);
         if (!!(option & style_opts::task_counter))
@@ -457,7 +460,7 @@ namespace pgbar {
         backtrack = bulk_copy(total_length, StrT(1, backspace));
       }
 
-      enum class status {
+      enum class status { // state machine
         start, done,
         dis_bar, dis_perc, dis_cnt, dis_rate, dis_cntdwn
       } state = status::start;
@@ -468,7 +471,7 @@ namespace pgbar {
       bool will_dis_bar = false;
       auto goto_nxt = [
         &status_str, &will_dis_bar, this
-      ](status& now, status nxt) {
+        ](status& now, status nxt) {
         if ((now == status::start && nxt != status::dis_bar) || // has status bar.
             (now == status::dis_bar && nxt != status::done)) // ditto.
           if (will_dis_bar || !check_update()) status_str.append(col_fmt + l_status);
@@ -539,7 +542,7 @@ namespace pgbar {
     }
 
     /// @brief This function only will be invoked by the rendering thread.
-    void rendering() {
+    __PGBAR_INLINE_FUNC__ void rendering() {
       static bool done_flag = false;
       static std::chrono::duration<SizeT, std::nano> invoke_interval {};
       static std::chrono::system_clock::time_point first_invoked {};
@@ -588,7 +591,7 @@ namespace pgbar {
     }
 
 #ifdef __PGBAR_CXX20__
-    template<ValidTaskT F>
+    template<__detail::ValidTaskT F>
 #else
     template<typename F>
 #endif
@@ -781,6 +784,7 @@ namespace pgbar {
 
 #undef __PGBAR_COL__
 #undef __PGBAR_DEFAULT_COL__
+#undef __PGBAR_RET_CONSTEXPR__
 #undef __PGBAR_IF_CONSTEXPR__
 #undef __PGBAR_FALLTHROUGH__
 #undef __PGBAR_INLINE_FUNC__
