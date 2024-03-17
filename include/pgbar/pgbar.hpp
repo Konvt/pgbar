@@ -6,6 +6,7 @@
 #ifndef __PROGRESSBAR_HPP__
   #define __PROGRESSBAR_HPP__
 
+#include <cstdint>
 #include <cmath>       // std::round()
 #include <type_traits> // SFINAE
 #include <utility>     // std::pair
@@ -80,14 +81,44 @@ namespace pgbar {
     virtual const char* what() const noexcept { return message.c_str(); }
   };
 
-  namespace style_opts {
-    using OptT = uint8_t;
-    constexpr OptT bar = 1 << 0;
-    constexpr OptT percentage = 1 << 1;
-    constexpr OptT task_counter = 1 << 2;
-    constexpr OptT rate = 1 << 3;
-    constexpr OptT countdown = 1 << 4;
-    constexpr OptT entire = ~0;
+  enum class style_opts : uint8_t {
+    bar = 1 << 0,
+    percentage = 1 << 1,
+    task_counter = 1 << 2,
+    rate = 1 << 3,
+    countdown = 1 << 4,
+    entire = UINT8_MAX
+  };
+
+  style_opts operator|(style_opts lhs, style_opts rhs) {
+    return static_cast<style_opts>(
+      static_cast<typename std::underlying_type<style_opts>::type>(lhs)
+      | static_cast<typename std::underlying_type<style_opts>::type>(rhs));
+  }
+
+  style_opts operator&(style_opts lhs, style_opts rhs) {
+    return static_cast<style_opts>(
+      static_cast<typename std::underlying_type<style_opts>::type>(lhs)
+      & static_cast<typename std::underlying_type<style_opts>::type>(rhs));
+  }
+
+  style_opts operator~(style_opts lhs) {
+    return static_cast<style_opts>(
+      ~static_cast<typename std::underlying_type<style_opts>::type>(lhs));
+  }
+
+  style_opts& operator&=(style_opts& lhs, style_opts rhs) {
+    lhs = lhs & rhs;
+    return lhs;
+  }
+
+  style_opts& operator|=(style_opts& lhs, style_opts rhs) {
+    lhs = lhs | rhs;
+    return lhs;
+  }
+
+  bool operator!(style_opts lhs) { // a helper function that to convert an enum to bool
+    return !static_cast<typename std::underlying_type<style_opts>::type>(lhs);
   }
 
   /// @brief renderer interface
@@ -205,7 +236,7 @@ namespace pgbar {
     SizeT step; // The number of steps per invoke `update()`.
     SizeT total_tsk, done_cnt;
     SizeT bar_length; // The length of the progress bar.
-    style_opts::OptT option;
+    style_opts option;
     bool in_terminal;
 
     /* thread communication and status datas */
@@ -412,10 +443,14 @@ namespace pgbar {
           else has_divi = true;
           };
 
-        if (option & style_opts::percentage)   update_dynamically(ratio_len);
-        if (option & style_opts::task_counter) update_dynamically(cnt_length);
-        if (option & style_opts::rate)         update_dynamically(rate_len);
-        if (option & style_opts::countdown)    update_dynamically(time_len);
+        if (!!(option & style_opts::percentage))
+          update_dynamically(ratio_len);
+        if (!!(option & style_opts::task_counter))
+          update_dynamically(cnt_length);
+        if (!!(option & style_opts::rate))
+          update_dynamically(rate_len);
+        if (!!(option & style_opts::countdown))
+          update_dynamically(time_len);
 
         total_length += divi_cnt * division.size();
         total_length += has_status ? l_status.size() + r_status.size() : 0;
@@ -445,21 +480,21 @@ namespace pgbar {
         now = nxt;
       };
 
-      style_opts::OptT opt = option;
+      style_opts opt = option;
       auto get_nxt = [&opt]() -> status {
-        if (opt & style_opts::bar) { // it will be more simple if there is `co_yield`
+        if (!!(opt & style_opts::bar)) {
           opt &= ~style_opts::bar;
           return status::dis_bar;
-        } else if (opt & style_opts::percentage) {
+        } else if (!!(opt & style_opts::percentage)) {
           opt &= ~style_opts::percentage;
           return status::dis_perc;
-        } else if (opt & style_opts::task_counter) {
+        } else if (!!(opt & style_opts::task_counter)) {
           opt &= ~style_opts::task_counter;
           return status::dis_cnt;
-        } else if (opt & style_opts::rate) {
+        } else if (!!(opt & style_opts::rate)) {
           opt &= ~style_opts::rate;
           return status::dis_rate;
-        } else if (opt & style_opts::countdown) {
+        } else if (!!(opt & style_opts::countdown)) {
            opt &= ~style_opts::countdown;
            return status::dis_cntdwn;
          } else return status::done;
@@ -686,7 +721,7 @@ namespace pgbar {
       bar_length = _length; return *this;
     }
     /// @brief Select the display style by using bit operations.
-    pgbar& set_style(style_opts::OptT _selection) noexcept {
+    pgbar& set_style(style_opts _selection) noexcept {
       if (check_update()) return *this;
       option = _selection; return *this;
     }

@@ -3,7 +3,8 @@
 constexpr std::size_t TOTAL = 100000000;
 double origin_arr[500] {0.0};
 
-int main() {
+int main()
+{
   std::cout << "Testing...\n";
   pgbar::pgbar<> bar; bar.set_task(TOTAL).set_left_bracket(" ").set_right_bracket("").set_todo_char("\033[31m━\033[0m").set_done_char("\033[32m━\033[0m");
   bar.set_style(pgbar::style_opts::entire).set_step(2); // Set the step.
