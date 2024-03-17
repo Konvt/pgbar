@@ -117,7 +117,7 @@ pgbar& set_right_bracket(std::string _r_bracket)
 pgbar& set_bar_length(std::size_t _length) noexcept
 
 /* Use bitwise operations to set the information to be displayed based on multiple predefined options. */
-pgbar& set_style(style_opts::OptT _selection) noexcept
+pgbar& set_style(pgbar::style_opts _selection) noexcept
 ```
 ### pgbar/range.hpp
 ```cpp
@@ -264,7 +264,7 @@ pgbar& set_right_bracket(std::string _r_bracket)
 pgbar& set_bar_length(std::size_t _length) noexcept
 
 /* 根据多个预定选项，使用位操作设定需要显示的信息. */
-pgbar& set_style(style_opts::OptT _selection) noexcept
+pgbar& set_style(pgbar::style_opts _selection) noexcept
 ```
 ### pgbar/range.hpp
 ```cpp
