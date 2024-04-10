@@ -7,14 +7,13 @@ int main()
 {
   std::cout << "Testing...\n";
   pgbar::pgbar<> bar; bar.set_task(TOTAL).set_left_bracket(" ").set_right_bracket("").set_todo_char("\033[31m━\033[0m").set_done_char("\033[32m━\033[0m");
-  bar.set_style(pgbar::style_opts::entire).set_step(2); // Set the step.
-
-  for (std::size_t i = 0; i < (TOTAL / 2); ++i) {
+  bar.set_style(pgbar::style::entire).set_step(2); // Set the step.
+  for ( std::size_t i = 0; i < (TOTAL / 2); ++i ) {
     bar.update(); // Normal update
     // Do anything you want here...
   }
 
-  bar.reset().set_style(pgbar::style_opts::percentage | pgbar::style_opts::task_counter | pgbar::style_opts::countdown);
+  bar.reset().set_style( pgbar::style::percentage | pgbar::style::task_counter | pgbar::style::countdown );
   std::cout << "Task progress: "; // `range` needs a progress bar to show the progress situation
   for (auto ele : pgbar::range(TOTAL / 2, bar))
     continue; // You can specify a range using `range`
@@ -23,19 +22,19 @@ int main()
   std::vector<double> arr {};
   for (std::size_t i = 0; i < 5000; ++i)
     arr.push_back(i);
-  bar.reset().set_style(pgbar::style_opts::entire & ~pgbar::style_opts::bar);
+  bar.reset().set_style(pgbar::style::entire & ~pgbar::style::bar);
   for (auto ele : pgbar::range(arr, bar))
     continue; // Using a container with elements as the range
   arr.resize(0);
 
   float *pointer_arr = new float[TOTAL] {0.0};
-  bar.reset().set_style(pgbar::style_opts::task_counter);
+  bar.reset().set_style(pgbar::style::task_counter);
   std::cout << "Pointer arrays is okay: ";
   for (auto ele : pgbar::range(pointer_arr + TOTAL - 1, pointer_arr - 1, bar))
     continue; // Also can pass a pointer array as the range
   delete[] pointer_arr; pointer_arr = nullptr;
 
-  bar.reset().set_style(pgbar::style_opts::entire);
+  bar.reset().set_style(pgbar::style::entire);
   for (auto ele : pgbar::range(origin_arr, bar))
     continue;
 
