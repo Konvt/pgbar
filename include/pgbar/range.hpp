@@ -29,7 +29,8 @@ namespace pgbar {
     template<typename EleT, typename BarT>
     class numeric_iterator { // for number
       static_assert(std::is_same<BarT, pgbar<>>::value
-        && std::is_arithmetic<EleT>::value);
+        && std::is_arithmetic<EleT>::value
+        , "Only available for numeric types");
 
       using SizeT = size_t;
 
@@ -119,7 +120,8 @@ namespace pgbar {
     template<typename IterT, typename BarT>
     class container_iterator { // for container
       static_assert(std::is_same<BarT, pgbar<>>::value
-        && !std::is_arithmetic<IterT>::value); // `IterT` means iterator type
+        && !std::is_arithmetic<IterT>::value
+        , "Only available for container types"); // `IterT` means iterator type
 
       using SizeT = size_t;
       using EleT = typename std::iterator_traits<IterT>::value_type;
