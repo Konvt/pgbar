@@ -214,12 +214,12 @@ namespace pgbar {
 
     /* thread communication and status datas */
 
-    std::atomic<bool> is_invoked;
-    std::atomic<bool> is_done;
+    bool is_done;
+    mutable std::atomic<bool> is_launched;
     // The following are used to control the main thread to wait for the rendering thread.
-    std::mutex mtx;
-    std::condition_variable cond_var;
-    bool continue_signal;
+    mutable std::mutex mtx;
+    mutable std::condition_variable cond_var;
+    mutable bool continue_signal;
 
     /* private method member */
 
@@ -283,7 +283,7 @@ namespace pgbar {
     }
 
     /// @brief Will never return an empty string.
-    __PGBAR_INLINE_FUNC__ StrT show_bar(double percent) {
+    __PGBAR_INLINE_FUNC__ StrT show_bar(double percent) const {
       StrT buf {}; buf.reserve(l_bracket.size() + r_bracket.size() + bar_length + 1);
       SizeT done_len = std::round(bar_length * percent);
       buf.append(
@@ -295,7 +295,7 @@ namespace pgbar {
     }
 
     /// @brief Will never return an empty string.
-    __PGBAR_INLINE_FUNC__ StrT show_proportion(double percent) {
+    __PGBAR_INLINE_FUNC__ StrT show_proportion(double percent) const {
       if (!check_update()) {
         static const StrT default_str =
           formatter<txt_layut::align_left>(ratio_len, "0.00%");
@@ -312,7 +312,7 @@ namespace pgbar {
     }
 
     /// @brief Will never return an empty string.
-    __PGBAR_INLINE_FUNC__ StrT show_remain_task() {
+    __PGBAR_INLINE_FUNC__ StrT show_remain_task() const {
       StrT total_str = std::to_string(total_tsk);
       SizeT size = total_str.size();
       return (
@@ -322,7 +322,7 @@ namespace pgbar {
     }
 
     /// @brief Will never return an empty string.
-    __PGBAR_INLINE_FUNC__ StrT show_rate(std::chrono::duration<SizeT, std::nano> interval) {
+    __PGBAR_INLINE_FUNC__ StrT show_rate(std::chrono::duration<SizeT, std::nano> interval) const {
       static std::chrono::duration<SizeT, std::nano> invoke_interval {};
 
       if (!check_update()) {
@@ -360,7 +360,7 @@ namespace pgbar {
     }
 
     /* will never return an empty string */
-    __PGBAR_INLINE_FUNC__ StrT show_time(std::chrono::duration<SizeT, std::nano> interval) {
+    __PGBAR_INLINE_FUNC__ StrT show_time(std::chrono::duration<SizeT, std::nano> interval) const {
       if (!check_update()) {
         static const StrT default_str =
           formatter<txt_layut::align_center>(time_len, "0s < 99h");
@@ -396,7 +396,7 @@ namespace pgbar {
     /// @brief determine which part of the string needs to be concatenated.
     /// @param percent The percentage of the current task execution.
     /// @return The progress bar that has been assembled but is pending output.
-    std::pair<StrT, StrT> switch_feature(double percent, std::chrono::duration<SizeT, std::nano> interval) {
+    std::pair<StrT, StrT> switch_feature(double percent, std::chrono::duration<SizeT, std::nano> interval) const {
       static StrT backtrack {};
       static SizeT cnt_length = 0, total_length = 0, divi_cnt = 0;
       static bool has_status = false;
@@ -409,12 +409,12 @@ namespace pgbar {
          * so the `cnt_length` needs to be updated dynamically. */
         cnt_length = std::to_string(total_tsk).size() * 2 + 1;
 
-        auto update_dynamically = [&has_divi](SizeT len) {
+        auto update_dynamically = [&has_divi](SizeT len) -> void {
           total_length += len;
           has_status = true;
           if (has_divi) ++divi_cnt;
           else has_divi = true;
-          };
+        };
 
         // A double negative is a positive
         if (option & style::percentage)
@@ -513,7 +513,7 @@ namespace pgbar {
     }
 
     /// @brief This function only will be invoked by the rendering thread.
-    __PGBAR_INLINE_FUNC__ void rendering() {
+    __PGBAR_INLINE_FUNC__ void rendering() const {
       static bool done_flag = false;
       static std::chrono::duration<SizeT, std::nano> invoke_interval {};
       static std::chrono::system_clock::time_point first_invoked {};
@@ -523,10 +523,10 @@ namespace pgbar {
         if (in_terminal) {
           invoke_interval = {};
           first_invoked = std::chrono::system_clock::now();
-          auto info = switch_feature(0, {});
+          const auto info = switch_feature(0, {});
           *stream << info.first << info.second;
         }
-        is_invoked = true;
+        is_launched = true;
         { // wake up the main thread
           std::lock_guard<std::mutex> lock {mtx};
           continue_signal = true;
@@ -542,14 +542,14 @@ namespace pgbar {
           : (now - first_invoked) / static_cast<SizeT>(1);
 
         double perc = done_cnt / static_cast<double>(total_tsk);
-        auto info = switch_feature(perc, invoke_interval);
+        const auto info = switch_feature(perc, invoke_interval);
 
         *stream << info.first << info.second;
       }
 
       if (check_full()) {
         if (in_terminal) {
-          auto info = switch_feature(1, invoke_interval);
+          const auto info = switch_feature(1, invoke_interval);
           *stream << info.first << info.second << '\n';
         }
         done_flag = true;
@@ -614,7 +614,7 @@ namespace pgbar {
       bar_length = 50; // default value
       option = style::entire;
       in_terminal = check_output_stream(stream);
-      is_invoked = false; is_done = false;
+      is_launched = false; is_done = false;
       continue_signal = false;
     }
     pgbar() : pgbar(0, std::cerr) {} // default constructor
@@ -630,7 +630,7 @@ namespace pgbar {
     ~pgbar() {}
 
     bool check_update() const noexcept {
-      return is_invoked;
+      return is_launched;
     }
     bool check_full() const noexcept {
       return is_done;
@@ -638,7 +638,7 @@ namespace pgbar {
     /// @brief Reset pgbar obj, EXCLUDING the total number of tasks.
     pgbar& reset() {
       done_cnt = 0; is_done = false;
-      is_invoked = false;
+      is_launched = false;
       continue_signal = false;
       rndrer.suspend();
       return *this;
