@@ -1,0 +1,7 @@
+.vscode/*
+.vs/*
+
+build/*
+
+*.exe
+sample

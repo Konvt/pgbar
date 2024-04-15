@@ -54,11 +54,11 @@ If your terminal doesn't support this or don't want the coloring effect, define 
 
 int main()
 {
-    std::size_t TOTAL = 10000;
+    size_t TOTAL = 10000;
 
     pgbar::pgbar bar;
     bar.set_task(TOTAL).set_step(2); // You can change the number of steps advanced with each `update()` call.
-    for (std::size_t i = 0; i<(TOTAL/2); ++i) {
+    for (size_t i = 0; i<(TOTAL/2); ++i) {
         bar.update(); // Insert an `update()` within the loop or within other task execution points.
         // Do anything you want here...
     }
@@ -69,8 +69,6 @@ int main()
     // Then hand over the update operations and the number of tasks to the iterator.
 
     // For more usage examples, please refer to sample.cpp.
-
-    return 0;
 }
 ```
 
@@ -83,7 +81,7 @@ void update()
 
 /* The iterative progress of the progress bar will advance `next_step` steps at a time,
  * and steps that exceed the total number of tasks will be ignored. */
-void update(std::size_t next_step)
+void update(size_t next_step)
 
 /* Check whether the progress bar object has been started. */
 bool check_update() const noexcept
@@ -96,10 +94,10 @@ bool check_full() const noexcept
 pgbar& set_ostream(std::ostream& _ostream) noexcept
 
 /* Setting the number of tasks to be updated each time `update()` is called. */
-pgbar& set_step(std::size_t _step) noexcept
+pgbar& set_step(size_t _step) noexcept
 
 /* Setting the total number of tasks that the progress bar needs to handle. */
-pgbar& set_task(std::size_t _total_tsk) noexcept
+pgbar& set_task(size_t _total_tsk) noexcept
 
 /* Setting the character for the unfilled portion of the progress bar. */
 pgbar& set_done_char(std::string _done_ch)
@@ -114,10 +112,10 @@ pgbar& set_left_bracket(std::string _l_bracket)
 pgbar& set_right_bracket(std::string _r_bracket)
 
 /* Setting the length of the progress bar. */
-pgbar& set_bar_length(std::size_t _length) noexcept
+pgbar& set_bar_length(size_t _length) noexcept
 
 /* Use bitwise operations to set the information to be displayed based on multiple predefined options. */
-pgbar& set_style(style_opts::OptT _selection) noexcept
+pgbar& set_style(pgbar::style::OptT _selection) noexcept
 ```
 ### pgbar/range.hpp
 ```cpp
@@ -203,23 +201,21 @@ Purely for practice, that's how it is.
 
 int main()
 {
-    std::size_t TOTAL = 10000;
+    size_t TOTAL = 10000;
 
     pgbar::pgbar bar;
     bar.set_task(TOTAL).set_step(2); // 可以更改每次调用 `update()` 时前进的步数
-    for (std::size_t i = 0; i<(TOTAL/2); ++i) {
+    for (size_t i = 0; i<(TOTAL/2); ++i) {
         bar.update(); // 在循环或者是其他任务执行的地方插入一个 `update()`
         // Do anything you want here...
     }
 
     bar.reset(); // 重置进度条状态
-    for (auto iter : pgbar::range(TOTAL, bar)) // for (std::size_t i = 0; i < TOTAL; ++i) ...
+    for (auto iter : pgbar::range(TOTAL, bar)) // for (size_t i = 0; i < TOTAL; ++i) ...
         continue; // 不想调用 `update()` 时，可以使用 'pgbar/range.hpp' 中的 `range`
     // 把更新操作和任务数设置交给迭代器进行
 
     // 更多使用例详见 sample.cpp
-
-    return 0;
 }
 ```
 
@@ -231,7 +227,7 @@ int main()
 void update()
 
 /* 要求进度条的迭代进度一次性前进 next_step 步，超出任务总数的步数会被忽略. */
-void update(std::size_t next_step)
+void update(size_t next_step)
 
 /* 确认进度条对象是否已经启动. */
 bool check_update() const noexcept
@@ -243,10 +239,10 @@ bool check_full() const noexcept
 pgbar& set_ostream(std::ostream& _ostream) noexcept
 
 /* 设置每次调用 `update()` 时更新的任务数. */
-pgbar& set_step(std::size_t _step) noexcept
+pgbar& set_step(size_t _step) noexcept
 
 /* 设置进度条需要处理的总任务数. */
-pgbar& set_task(std::size_t _total_tsk) noexcept
+pgbar& set_task(size_t _total_tsk) noexcept
 
 /* 设置进度条中未填充部分的字符. */
 pgbar& set_done_char(std::string _done_ch)
@@ -261,10 +257,10 @@ pgbar& set_left_bracket(std::string _l_bracket)
 pgbar& set_right_bracket(std::string _r_bracket)
 
 /* 设置进度条的长度. */
-pgbar& set_bar_length(std::size_t _length) noexcept
+pgbar& set_bar_length(size_t _length) noexcept
 
 /* 根据多个预定选项，使用位操作设定需要显示的信息. */
-pgbar& set_style(style_opts::OptT _selection) noexcept
+pgbar& set_style(pgbar::style::OptT _selection) noexcept
 ```
 ### pgbar/range.hpp
 ```cpp
