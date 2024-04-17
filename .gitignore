@@ -2,6 +2,8 @@
 .vs/*
 
 build/*
+test/*
 
 *.exe
 sample
+commit_info.txt
