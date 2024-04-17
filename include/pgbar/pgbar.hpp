@@ -61,6 +61,7 @@
 #endif // __cplusplus >= 202002L
 #if __PGBAR_CMP_V__ >= 201703L
 # include <string_view>
+# include <optional>
 # define __PGBAR_CXX17__ 1
 # define __PGBAR_INLINE_VAR__ inline
 # define __PGBAR_ENHANCE_CONSTEXPR__ constexpr
@@ -97,17 +98,6 @@ namespace pgbar {
     bad_pgbar( const std::string& _mes ) : message { _mes } {}
     virtual ~bad_pgbar() {}
     virtual const char* what() const noexcept { return message.c_str(); }
-  };
-
-  struct style {
-    using Type = uint8_t;
-
-    static constexpr Type bar = 1 << 0;
-    static constexpr Type percentage = 1 << 1;
-    static constexpr Type task_counter = 1 << 2;
-    static constexpr Type rate = 1 << 3;
-    static constexpr Type countdown = 1 << 4;
-    static constexpr Type entire = UINT8_MAX;
   };
 
   namespace __detail {
@@ -155,7 +145,56 @@ namespace pgbar {
     template<typename S>
     struct is_stream<S, decltype((void)(std::declval<S&>() << std::declval<StrT>()), void())> : std::true_type {};
 #endif // __PGBAR_CXX20__
+    template<typename T>
+    class optional_field {
+      bool value_flag;
+      T data;
+    public:
+      optional_field(const optional_field& ) = delete;
+      optional_field& operator=( const optional_field& ) = delete;
+
+      optional_field()
+        : value_flag { false }, data {} {}
+      template<typename U,
+        typename = typename std::enable_if<
+          std::is_convertible<U, T>::value
+      >::type>
+      optional_field( U&& _data )
+        : value_flag { true } {
+        data = _data;
+      }
+      ~optional_field() {}
+      bool has_value() const noexcept { return value_flag; }
+      T& value() { return data; }
+      T& operator*() { return value(); }
+      optional_field& operator=( T _data ) {
+        value_flag = true;
+        data = _data;
+        return *this;
+      }
+      operator bool() const { return value_flag; }
+    };
   } // namespace __detail
+
+  struct style {
+    using Type = uint8_t;
+
+    static constexpr Type bar = 1 << 0;
+    static constexpr Type percentage = 1 << 1;
+    static constexpr Type task_counter = 1 << 2;
+    static constexpr Type rate = 1 << 3;
+    static constexpr Type countdown = 1 << 4;
+    static constexpr Type entire = UINT8_MAX;
+
+    __detail::optional_field<__detail::StrT> todo_char;
+    __detail::optional_field<__detail::StrT> done_char;
+    __detail::optional_field<__detail::StrT> left_bracket;
+    __detail::optional_field<__detail::StrT> right_bracket;
+    __detail::optional_field<__detail::SizeT> total_tasks;
+    __detail::optional_field<__detail::SizeT> each_setp;
+    __detail::optional_field<__detail::SizeT> bar_length;
+    __detail::optional_field<Type> option;
+  };
 
   template<typename R, typename = void>
   struct is_renderer : std::false_type {};
@@ -314,13 +353,15 @@ namespace pgbar {
 
     __detail::StrT todo_ch, done_ch;
     __detail::StrT l_bracket, r_bracket;
+    __detail::SizeT total_tsk;
     __detail::SizeT step; // The number of steps per invoke `update()`.
-    __detail::SizeT total_tsk, done_cnt;
     __detail::SizeT bar_length; // The length of the progress bar.
+    style::Type option;
+    __detail::SizeT done_cnt;
     __detail::SizeT counter_length; // The length of the task counter.
 
-    style::Type option;
     bool in_terminal;
+
 
     /// @brief Format the `_str`.
     /// @tparam _style Format mode.
@@ -489,7 +530,7 @@ namespace pgbar {
     /// @param percent The percentage of the current task execution.
     /// @return The progress bar that has been assembled but is pending output.
     std::pair<__detail::StrT, __detail::StrT>
-    switch_feature( double percent, std::chrono::duration<__detail::SizeT, std::nano> interval ) const {
+    generate_barcode( double percent, std::chrono::duration<__detail::SizeT, std::nano> interval ) const {
       enum bit_index : style::Type { _bar = 0, _per, _cnt, _rate, _timer, _terminus };
       static std::bitset<sizeof( style::Type ) * 8> control_bit;
       static size_t total_length;
@@ -498,8 +539,8 @@ namespace pgbar {
       if ( !is_updated() ) {
         control_bit = option;
         control_bit[_terminus] = // indicates whether a status bar exists
-          control_bit[_per] | control_bit[_cnt] |
-          control_bit[_rate] | control_bit[_timer];
+          control_bit[_per] || control_bit[_cnt] ||
+          control_bit[_rate] || control_bit[_timer];
         total_length = (
           (control_bit[_bar] ? bar_length + l_bracket.size() + r_bracket.size() + 1 : 0) +
           (control_bit[_per] ? ratio_len : 0) +
@@ -557,7 +598,7 @@ namespace pgbar {
         if ( in_terminal ) {
           invoke_interval = {};
           first_invoked = std::chrono::system_clock::now();
-          const auto info = switch_feature( 0, {} );
+          const auto info = generate_barcode( 0, {} );
           *stream << info.first << info.second;
         }
         update_flag = true;
@@ -571,14 +612,14 @@ namespace pgbar {
           : (now - first_invoked) / static_cast<__detail::SizeT>(1);
 
         double perc = done_cnt / static_cast<double>(total_tsk);
-        const auto info = switch_feature( perc, invoke_interval );
+        const auto info = generate_barcode( perc, invoke_interval );
 
         *stream << info.first << info.second;
       }
 
       if ( is_done() ) {
         if ( in_terminal ) {
-          const auto info = switch_feature( 1, invoke_interval );
+          const auto info = generate_barcode( 1, invoke_interval );
           *stream << info.first << info.second << '\n';
         }
         done_flag = true;
@@ -620,20 +661,36 @@ namespace pgbar {
     pgbar( pgbar&& ) = delete;
     pgbar& operator=( pgbar&& ) = delete;
 
-    pgbar( __detail::SizeT _total_tsk, StreamObj& _ostream )
+    pgbar( StreamObj& _ostream, style _initializer )
       : update_flag { false }, rndrer { [this]() -> void { this->rendering(); } } {
       stream = std::addressof( _ostream );
-      todo_ch = __detail::StrT( 1, blank ); done_ch = __detail::StrT( 1, '#' );
-      l_bracket = __detail::StrT( 1, '[' ); r_bracket = __detail::StrT( 1, ']' );
-      step = 1; total_tsk = _total_tsk; done_cnt = 0;
-      counter_length = std::to_string( total_tsk ).size() * 2 + 1;
+      todo_ch = _initializer.todo_char.has_value()
+        ? std::move( _initializer.todo_char.value() ) : __detail::StrT( 1, blank );
+      done_ch = _initializer.done_char.has_value()
+        ? std::move( _initializer.done_char.value() ) : __detail::StrT( 1, '-' );
+      l_bracket = _initializer.left_bracket.has_value()
+        ? std::move( _initializer.left_bracket.value() ) : __detail::StrT( 1, '[' );
+      r_bracket = _initializer.right_bracket.has_value()
+        ? std::move( _initializer.right_bracket.value() ) : __detail::StrT( 1, ']' );
+      total_tsk = _initializer.total_tasks.has_value()
+        ? _initializer.total_tasks.value() : 0;
+      step = _initializer.each_setp.has_value()
+        ? _initializer.each_setp.value() : 1;
+      bar_length = _initializer.bar_length.has_value()
+        ? _initializer.bar_length.value() : 50;
+      option = _initializer.option.has_value()
+        ? _initializer.option.value() : style::entire;
 
-      bar_length = 50; // default value
-      option = style::entire;
+      done_cnt = 0;
+      counter_length = std::to_string( total_tsk ).size() * 2 + 1;
       in_terminal = check_output_stream( stream );
     }
+    pgbar( StreamObj& _ostream, __detail::SizeT _total_tsk )
+      : pgbar( _ostream, style { .total_tasks = _total_tsk } ) {}
+    pgbar( StreamObj& _ostream, __detail::SizeT _total_tsk, __detail::SizeT _each_step )
+      : pgbar( _ostream, style { .total_tasks = _total_tsk, .each_setp = _each_step } ) {}
     pgbar( const pgbar& _other )
-      : pgbar( _other.total_tsk, (*_other.stream) ) { // style copy
+      : pgbar( (*_other.stream), _other.total_tsk ) { // style copy
       todo_ch = _other.todo_ch;
       done_ch = _other.done_ch;
       l_bracket = _other.l_bracket;

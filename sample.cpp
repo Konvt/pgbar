@@ -8,12 +8,17 @@ int main()
 #if defined(_WIN32) || defined(WIN32)
   system( "chcp 65001" ); // for Windows using GBK coding
 #endif
-
   {
     std::cout << "Testing...";
-    pgbar::pgbar<> bar { TOTAL, std::cerr };
-    bar.set_left_bracket( " " ).set_right_bracket( "" ).set_todo_char( "\033[31m━\033[0m" ).set_done_char( "\033[32m━\033[0m" );
-    bar.set_style( pgbar::style::entire ).set_step( 2 ); // Set the step.
+    pgbar::pgbar<> bar { std::cerr, pgbar::style {
+      .todo_char = "\033[31m━\033[0m",
+      .done_char = "\033[32m━\033[0m",
+      .left_bracket = " ",
+      .right_bracket = "",
+      .total_tasks = TOTAL,
+      .each_setp = 2,
+      .option = pgbar::style::entire
+    } };
     for ( std::size_t i = 0; i < (TOTAL / 2); ++i ) {
       bar.update(); // Normal update
       // Do anything you want here...
@@ -26,7 +31,12 @@ int main()
     // The iterator will automatically count the number of tasks
   }
   {
-    pgbar::pgbar<std::ostream, pgbar::singlethread> bar { TOTAL, std::cerr }; // single threading render
+    pgbar::pgbar<std::ostream, pgbar::singlethread> bar {
+      std::cerr, pgbar::style {
+        .left_bracket = " ",
+        .right_bracket = ""
+      }
+    }; // single threading render
     std::vector<double> arr {};
     for ( std::size_t i = 0; i < 30000; ++i )
       arr.push_back( i );
