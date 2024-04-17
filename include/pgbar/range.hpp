@@ -18,6 +18,7 @@
 
 #if __PGBAR_CMP_V__ >= 202002L
 # include <concepts>
+# include <ranges>
 # define __PGBAR_CXX20__ 1
 #else
 # define __PGBAR_CXX20__ 0
@@ -67,7 +68,7 @@ namespace pgbar {
         }
         bar = &_bar;
         EleT diff = _endpoint > _startpoint ? _endpoint - _startpoint : _startpoint - _endpoint;
-        EleT denom = std::abs(_step);
+        EleT denom = _step > 0 ? _step : -_step;
         cnt = 0, extent = static_cast<size_t>(diff / denom);
         start_point = _startpoint; end_point = _endpoint;
         step = _step; current = _startpoint;
@@ -348,8 +349,12 @@ namespace pgbar {
   >::type
 #endif // __PGBAR_CXX20__
     inline range( ConT&& container, BarT& _bar ) {
+#if __PGBAR_CXX20__
+    return range( std::ranges::begin( std::forward<ConT>( container ) ), std::ranges::end( std::forward<ConT>( container ) ), _bar );
+#else
     using std::begin; using std::end; // ADL
     return range( begin( std::forward<ConT>( container ) ), end( std::forward<ConT>( container ) ), _bar );
+#endif // __PGBAR_CXX20__
   }
 
   /// @brief Accepts a original array,
@@ -373,8 +378,12 @@ namespace pgbar {
   >::type
 #endif // __PGBAR_CXX20__
     inline range( ArrT&& container, BarT& _bar ) {// for original arrays
+#if __PGBAR_CXX20__
+    return range( std::ranges::begin( std::forward<ArrT>( container ) ), std::ranges::end( std::forward<ArrT>( container ) ), _bar );
+#else
     using std::begin; using std::end; // ADL
     return range( begin( std::forward<ArrT>( container ) ), end( std::forward<ArrT>( container ) ), _bar );
+#endif // __PGBAR_CXX20__
   }
 
 } // namespace pgbar

@@ -7,9 +7,10 @@
 # define __PROGRESSBAR_HPP__
 
 # include <cstdint>
-# include <cmath>       // std::round()
+# include <cmath>       // std::round(), std::abs
 # include <type_traits> // SFINAE
 # include <utility>     // std::pair
+# include <bitset>      // std::bitset
 # include <functional>  // std::function
 # include <string>      // std::string
 # include <chrono>      // as u know
@@ -62,12 +63,12 @@
 # include <string_view>
 # define __PGBAR_CXX17__ 1
 # define __PGBAR_INLINE_VAR__ inline
-# define __PGBAR_IF_CONSTEXPR__ constexpr
+# define __PGBAR_ENHANCE_CONSTEXPR__ constexpr
 # define __PGBAR_FALLTHROUGH__ [[fallthrough]];
 #else
 # define __PGBAR_CXX17__ 0
 # define __PGBAR_INLINE_VAR__
-# define __PGBAR_IF_CONSTEXPR__
+# define __PGBAR_ENHANCE_CONSTEXPR__
 # define __PGBAR_FALLTHROUGH__ break;
 #endif // __cplusplus >= 201703L
 #if __PGBAR_CMP_V__ >= 201402L
@@ -114,8 +115,10 @@ namespace pgbar {
     using StrT = std::string;
 #if __PGBAR_CXX17__
     using ReadOnlyT = std::string_view;
+    using ConstStrT = const std::string_view;
 #else
     using ReadOnlyT = const StrT&;
+    using ConstStrT = const StrT;
 #endif // __PGBAR_CXX17__
 
     // The refresh rate is capped at about 25 Hz.
@@ -123,6 +126,7 @@ namespace pgbar {
       = std::chrono::microseconds( 35 );
 
 #if __PGBAR_CXX20__
+    // these concepts are like duck types
     template<typename F>
     concept FunctorType = requires(F tk) {
       { tk() } -> std::same_as<void>;
@@ -239,21 +243,27 @@ namespace pgbar {
   };
 
   class singlethread final {
-    std::chrono::time_point<std::chrono::system_clock> last_invoke;
+    bool active_flag;
     std::function<void()> task;
+    std::chrono::time_point<std::chrono::system_clock> last_invoke;
 
   public:
     singlethread( const singlethread& ) = delete;
     singlethread& operator=( const singlethread& ) = delete;
 
     explicit singlethread( std::function<void()> tsk )
-      : task { std::move( tsk ) } {}
+      : active_flag { false }, task { std::move( tsk ) } {}
     ~singlethread() {}
     void active() {
       last_invoke = std::chrono::system_clock::now();
+      task();
+      active_flag = true;
     }
     void suspend() {
+      if ( !active_flag )
+        return;
       task();
+      active_flag = false;
     }
     void render() {
       auto current_time = std::chrono::system_clock::now();
@@ -288,25 +298,27 @@ namespace pgbar {
     enum class txt_layut { align_left, align_right, align_center }; // text layout
 
     static constexpr char blank = ' ';
-    static constexpr char reboot = '\r';
     static constexpr char backspace = '\b';
     static constexpr __detail::SizeT ratio_len = 7; // The length of `100.00%`.
     static constexpr __detail::SizeT time_len = 11; // The length of `9.9m < 9.9m`.
     static constexpr __detail::SizeT rate_len = 10; // The length of `999.99 kHz`.
-    static const __detail::StrT rightward;          // ASCII Escape Sequence: moves the cursor right.
-    static const __detail::StrT l_status;           // The left bracket of status bar.
-    static const __detail::StrT r_status;           // The right bracket of status bar.
-    static const __detail::StrT division;           // The default division character.
-    static const __detail::StrT col_fmt;            // The color and font style of status bar.
-    static const __detail::StrT default_col;        // The default color and font style.
+    static __detail::ConstStrT l_status;    // The left bracket of status bar.
+    static __detail::ConstStrT r_status;    // The right bracket of status bar.
+    static __detail::ConstStrT division;    // The default division character.
+    static __detail::ConstStrT col_fmt;     // The color and font style of status bar.
+    static __detail::ConstStrT default_col; // The default color and font style.
 
+    mutable std::atomic<bool> update_flag;
     RenderMode rndrer;
     StreamObj* stream;
+
     __detail::StrT todo_ch, done_ch;
     __detail::StrT l_bracket, r_bracket;
     __detail::SizeT step; // The number of steps per invoke `update()`.
     __detail::SizeT total_tsk, done_cnt;
     __detail::SizeT bar_length; // The length of the progress bar.
+    __detail::SizeT counter_length; // The length of the task counter.
+
     style::Type option;
     bool in_terminal;
 
@@ -320,16 +332,16 @@ namespace pgbar {
       if ( _width == 0 ) return {};
       if ( _str.size() >= _width ) return _str;
 #if __PGBAR_CXX20__
-      if __PGBAR_IF_CONSTEXPR__( _style == txt_layut::align_right )
+      if __PGBAR_ENHANCE_CONSTEXPR__( _style == txt_layut::align_right )
         return std::format( "{:>{}}", std::move( _str ), _width );
-      else if __PGBAR_IF_CONSTEXPR__( _style == txt_layut::align_left )
+      else if __PGBAR_ENHANCE_CONSTEXPR__( _style == txt_layut::align_left )
         return std::format( "{:<{}}", std::move( _str ), _width );
       else return std::format( "{:^{}}", std::move( _str ), _width );
 #else
       __detail::SizeT str_size = _str.size();
-      if __PGBAR_IF_CONSTEXPR__( _style == txt_layut::align_right )
+      if __PGBAR_ENHANCE_CONSTEXPR__( _style == txt_layut::align_right )
         return __detail::StrT( _width - str_size, blank ) + std::move( _str );
-      else if __PGBAR_IF_CONSTEXPR__( _style == txt_layut::align_left )
+      else if __PGBAR_ENHANCE_CONSTEXPR__( _style == txt_layut::align_left )
         return std::move( _str ) + __detail::StrT( _width - str_size, blank );
       else {
         _width -= _str.size();
@@ -353,7 +365,7 @@ namespace pgbar {
     }
 
     __PGBAR_INLINE_FUNC__ static bool check_output_stream( const StreamObj* const os ) {
-      if ( std::is_same<StreamObj, std::ostream>::value == false )
+      if __PGBAR_ENHANCE_CONSTEXPR__ ( std::is_same<StreamObj, std::ostream>::value == false )
         return true; // Custom object, the program does not block output.
 #if __PGBAR_WIN__
       if ( _isatty( _fileno( stdout ) ) )
@@ -367,21 +379,19 @@ namespace pgbar {
       else return false;
     }
 
-    /// @brief Will never return an empty string.
     __PGBAR_INLINE_FUNC__ __detail::StrT show_bar( double percent ) const {
       __detail::StrT buf; buf.reserve( l_bracket.size() + r_bracket.size() + bar_length + 1 );
       __detail::SizeT done_len = std::round( bar_length * percent );
       buf.append(
-        bulk_copy( 1, l_bracket ) + bulk_copy( done_len, done_ch ) +
-        bulk_copy( bar_length - done_len, todo_ch ) + bulk_copy( 1, r_bracket ) +
+        l_bracket + bulk_copy( done_len, done_ch ) +
+        bulk_copy( bar_length - done_len, todo_ch ) + r_bracket +
         __detail::StrT( 1, blank )
       );
       return buf;
     }
 
-    /// @brief Will never return an empty string.
-    __PGBAR_INLINE_FUNC__ __detail::StrT show_proportion( double percent ) const {
-      if ( !is_update() ) {
+    __PGBAR_INLINE_FUNC__ __detail::StrT show_percentage( double percent ) const {
+      if ( !is_updated() ) {
         static const __detail::StrT default_str =
           formatter<txt_layut::align_left>( ratio_len, "0.00%" );
         return default_str;
@@ -396,8 +406,7 @@ namespace pgbar {
       );
     }
 
-    /// @brief Will never return an empty string.
-    __PGBAR_INLINE_FUNC__ __detail::StrT show_remain_task() const {
+    __PGBAR_INLINE_FUNC__ __detail::StrT show_task_counter() const {
       __detail::StrT total_str = std::to_string( total_tsk );
       __detail::SizeT size = total_str.size();
       return (
@@ -406,11 +415,10 @@ namespace pgbar {
       );
     }
 
-    /// @brief Will never return an empty string.
     __PGBAR_INLINE_FUNC__ __detail::StrT show_rate( std::chrono::duration<__detail::SizeT, std::nano> interval ) const {
       static std::chrono::duration<__detail::SizeT, std::nano> invoke_interval;
 
-      if ( !is_update() ) {
+      if ( !is_updated() ) {
         invoke_interval = {};
         static const __detail::StrT default_str =
           formatter<txt_layut::align_center>( rate_len, "0.00 Hz" );
@@ -444,9 +452,8 @@ namespace pgbar {
       return formatter<txt_layut::align_center>( rate_len, std::move( rate ) );
     }
 
-    /* will never return an empty string */
-    __PGBAR_INLINE_FUNC__ __detail::StrT show_time( std::chrono::duration<__detail::SizeT, std::nano> interval ) const {
-      if ( !is_update() ) {
+    __PGBAR_INLINE_FUNC__ __detail::StrT show_countdown( std::chrono::duration<__detail::SizeT, std::nano> interval ) const {
+      if ( !is_updated() ) {
         static const __detail::StrT default_str =
           formatter<txt_layut::align_center>( time_len, "0s < 99h" );
         return default_str;
@@ -481,120 +488,62 @@ namespace pgbar {
     /// @brief determine which part of the string needs to be concatenated.
     /// @param percent The percentage of the current task execution.
     /// @return The progress bar that has been assembled but is pending output.
-    std::pair<__detail::StrT, __detail::StrT> switch_feature( double percent, std::chrono::duration<__detail::SizeT, std::nano> interval ) const {
-      static __detail::StrT backtrack;
-      static __detail::SizeT cnt_length = 0, total_length = 0, divi_cnt = 0;
-      static bool has_status = false;
-      if ( !is_update() ) {
-        total_length = 0; divi_cnt = 0;
-        has_status = false; // To determine whether to insert the strings `l_status` and `r_status`
-        // Used to assist in calculating how many variable `division` need to be inserted.
-        bool has_divi = false;
-        /* The progress bar has a different number of tasks each time it is restarted,
-         * so the `cnt_length` needs to be updated dynamically. */
-        cnt_length = std::to_string( total_tsk ).size() * 2 + 1;
+    std::pair<__detail::StrT, __detail::StrT>
+    switch_feature( double percent, std::chrono::duration<__detail::SizeT, std::nano> interval ) const {
+      enum bit_index : style::Type { _bar = 0, _per, _cnt, _rate, _timer, _terminus };
+      static std::bitset<sizeof( style::Type ) * 8> control_bit;
+      static size_t total_length;
 
-        auto update_dynamically = [&has_divi]( __detail::SizeT len ) -> void {
-          total_length += len;
-          has_status = true;
-          if ( has_divi ) ++divi_cnt;
-          else has_divi = true;
-          };
+      __detail::StrT rollback, progress_bar;
+      if ( !is_updated() ) {
+        control_bit = option;
+        control_bit[_terminus] = // indicates whether a status bar exists
+          control_bit[_per] | control_bit[_cnt] |
+          control_bit[_rate] | control_bit[_timer];
+        total_length = (
+          (control_bit[_bar] ? bar_length + l_bracket.size() + r_bracket.size() + 1 : 0) +
+          (control_bit[_per] ? ratio_len : 0) +
+          (control_bit[_cnt] ? counter_length : 0) +
+          (control_bit[_rate] ? rate_len : 0) +
+          (control_bit[_timer] ? time_len : 0) +
+          (control_bit[_terminus] ? l_status.size() + r_status.size() : 0)
+        );
+        const size_t status_info_num =
+          control_bit[_per] + control_bit[_cnt] + control_bit[_rate] + control_bit[_timer];
+        total_length += status_info_num > 1 ? (status_info_num - 1) * division.size() : 0;
+      } else rollback = __detail::StrT( total_length, backspace );
 
-        // A double negative is a positive
-        if ( option & style::percentage )
-          update_dynamically( ratio_len );
-        if ( option & style::task_counter )
-          update_dynamically( cnt_length );
-        if ( option & style::rate )
-          update_dynamically( rate_len );
-        if ( option & style::countdown )
-          update_dynamically( time_len );
-
-        total_length += divi_cnt * division.size();
-        total_length += has_status ? l_status.size() + r_status.size() : 0;
-        backtrack = bulk_copy( total_length, __detail::StrT( 1, backspace ) );
+      if ( control_bit[_bar] )
+        progress_bar.append( show_bar( percent ) );
+      if ( control_bit[_terminus] )
+        progress_bar.append( __detail::StrT( col_fmt ) + __detail::StrT( l_status ) );
+      if ( control_bit[_per] ) {
+        progress_bar.append(
+          control_bit[_cnt] || control_bit[_rate] || control_bit[_timer] ?
+            show_percentage( percent ) + __detail::StrT( division ) :
+            show_percentage( percent )
+        );
       }
+      if ( control_bit[_cnt] ) {
+        progress_bar.append(
+          control_bit[_rate] || control_bit[_timer] ?
+            show_task_counter() + __detail::StrT( division ) :
+            show_task_counter()
+        );
+      }
+      if ( control_bit[_rate] ) {
+        progress_bar.append(
+          control_bit[_timer] ?
+            show_rate( interval ) + __detail::StrT( division ) :
+            show_rate( interval )
+        );
+      }
+      if ( control_bit[_timer] )
+        progress_bar.append( show_countdown( std::move( interval ) ) );
+      if ( control_bit[_terminus] )
+        progress_bar.append( __detail::StrT( r_status ) + __detail::StrT( default_col ) );
 
-      enum class status { // state machine
-        start, done,
-        dis_bar, dis_perc, dis_cnt, dis_rate, dis_cntdwn
-      } state = status::start;
-
-      __detail::StrT status_str;
-      __detail::StrT bar_str;
-
-      bool will_dis_bar = false;
-      auto goto_nxt = [
-        &status_str, &will_dis_bar, this
-      ](status& now, status nxt) {
-        if ( (now == status::start && nxt != status::dis_bar) || // has status bar.
-            (now == status::dis_bar && nxt != status::done) ) // ditto.
-          if ( will_dis_bar || !is_update() ) status_str.append( col_fmt + l_status );
-          else status_str.append( backtrack + col_fmt + l_status );
-        else if ( now != status::start && nxt != status::done )
-          status_str.append( division ); // The `division` will be added during state machine jump.
-        else if ( nxt == status::done && has_status )
-          status_str.append( r_status + default_col );
-        now = nxt;
-        };
-
-        auto opt = option;
-        auto get_nxt = [&opt]() -> status {
-          if ( opt & style::bar ) {
-            opt &= ~style::bar;
-            return status::dis_bar;
-          } else if ( opt & style::percentage ) {
-            opt &= ~style::percentage;
-            return status::dis_perc;
-          } else if ( opt & style::task_counter ) {
-            opt &= ~style::task_counter;
-            return status::dis_cnt;
-          } else if ( opt & style::rate ) {
-            opt &= ~style::rate;
-            return status::dis_rate;
-          } else if ( opt & style::countdown ) {
-            opt &= ~style::countdown;
-            return status::dis_cntdwn;
-          } else return status::done;
-          };
-
-        /* The operations are the same in most states.
-         * All diffcult operations are reflected in the state jump process. */
-        do {
-          __detail::StrT aped_str;
-          switch ( state ) {
-          case status::dis_bar: {
-            bar_str = show_bar( percent );
-            will_dis_bar = !bar_str.empty();
-            if ( !bar_str.empty() )
-              bar_str.insert( bar_str.begin(), reboot );
-          } break;
-          case status::dis_perc: {
-            static const __detail::StrT skip_perc { bulk_copy( ratio_len, rightward ) };
-            aped_str = show_proportion( percent );
-            aped_str = aped_str.empty() ? skip_perc : aped_str;
-          } break;
-          case status::dis_cnt: {
-            aped_str = show_remain_task();
-          } break;
-          case status::dis_rate: {
-            aped_str = show_rate( interval );
-          } break;
-          case status::dis_cntdwn: {
-            aped_str = show_time( std::move( interval ) );
-          } break;
-          case status::start: // nothing here, just skip it.
-            __PGBAR_FALLTHROUGH__
-          case status::done:
-            __PGBAR_FALLTHROUGH__
-          default: break;
-          }
-          status_str.append( aped_str );
-          goto_nxt( state, get_nxt() );
-        } while ( state != status::done );
-
-        return { bar_str, status_str };
+      return { std::move( rollback ), std::move( progress_bar ) };
     }
 
     /// @brief This function only will be invoked by the rendering thread.
@@ -603,7 +552,7 @@ namespace pgbar {
       static std::chrono::duration<__detail::SizeT, std::nano> invoke_interval;
       static std::chrono::system_clock::time_point first_invoked;
 
-      if ( !is_update() ) {
+      if ( !is_updated() ) {
         done_flag = false;
         if ( in_terminal ) {
           invoke_interval = {};
@@ -611,6 +560,7 @@ namespace pgbar {
           const auto info = switch_feature( 0, {} );
           *stream << info.first << info.second;
         }
+        update_flag = true;
       }
 
       if ( done_flag ) return;
@@ -626,7 +576,7 @@ namespace pgbar {
         *stream << info.first << info.second;
       }
 
-      if ( is_full() ) {
+      if ( is_done() ) {
         if ( in_terminal ) {
           const auto info = switch_feature( 1, invoke_interval );
           *stream << info.first << info.second << '\n';
@@ -650,11 +600,11 @@ namespace pgbar {
       );
 #endif // __PGBAR_CXX20__
 
-      if ( is_full() )
+      if ( is_done() )
         throw bad_pgbar { "bad_pgbar: updating a full progress bar" };
       else if ( total_tsk == 0 )
         throw bad_pgbar { "bad_pgbar: the number of tasks is zero" };
-      if ( !is_update() )
+      if ( !is_updated() )
         rndrer.active();
 
       invokable();
@@ -671,11 +621,12 @@ namespace pgbar {
     pgbar& operator=( pgbar&& ) = delete;
 
     pgbar( __detail::SizeT _total_tsk, StreamObj& _ostream )
-      : rndrer { [this]() -> void { this->rendering(); } } {
+      : update_flag { false }, rndrer { [this]() -> void { this->rendering(); } } {
       stream = std::addressof( _ostream );
       todo_ch = __detail::StrT( 1, blank ); done_ch = __detail::StrT( 1, '#' );
       l_bracket = __detail::StrT( 1, '[' ); r_bracket = __detail::StrT( 1, ']' );
       step = 1; total_tsk = _total_tsk; done_cnt = 0;
+      counter_length = std::to_string( total_tsk ).size() * 2 + 1;
 
       bar_length = 50; // default value
       option = style::entire;
@@ -691,71 +642,74 @@ namespace pgbar {
     }
     ~pgbar() {}
 
-    bool is_update() const noexcept {
-      return done_cnt != 0;
+    bool is_updated() const noexcept {
+      return update_flag;
     }
-    bool is_full() const noexcept {
-      return is_update() && done_cnt == total_tsk;
+    bool is_done() const noexcept {
+      return is_updated() && done_cnt == total_tsk;
     }
     /// @brief Reset pgbar obj, EXCLUDING the total number of tasks.
     pgbar& reset() {
       done_cnt = 0;
       rndrer.suspend();
+      update_flag = false;
       return *this;
     }
     /// @brief Set the number of steps the counter is updated each time `update()` is called.
     /// @throw If the `_step` is 0, it will throw an `bad_pgbar`.
     pgbar& set_step( __detail::SizeT _step ) {
-      if ( is_update() ) return *this;
+      if ( is_updated() ) return *this;
       else if ( _step == 0 ) throw bad_pgbar { "bad_pgbar: zero step" };
       step = _step; return *this;
     }
     /// @brief Set the number of tasks to be updated.
     /// @throw If the `_total_tsk` is 0, it will throw an `bad_pgbar`.
     pgbar& set_task( __detail::SizeT _total_tsk ) {
-      if ( is_update() ) return *this;
+      if ( is_updated() ) return *this;
       else if ( _total_tsk == 0 )
         throw bad_pgbar { "bad_pgbar: the number of tasks is zero" };
-      total_tsk = _total_tsk; return *this;
+      total_tsk = _total_tsk;
+      counter_length = std::to_string( total_tsk ).size() * 2 + 1;
+      return *this;
     }
     /// @brief Set the TODO characters in the progress bar.
     pgbar& set_done_char( __detail::StrT _done_ch ) noexcept {
-      if ( is_update() ) return *this;
+      if ( is_updated() ) return *this;
       done_ch = std::move( _done_ch );
       return *this;
     }
     /// @brief Set the DONE characters in the progress bar.
     pgbar& set_todo_char( __detail::StrT _todo_ch ) noexcept {
-      if ( is_update() ) return *this;
+      if ( is_updated() ) return *this;
       todo_ch = std::move( _todo_ch );
       return *this;
     }
     /// @brief Set the left bracket of the progress bar.
     pgbar& set_left_bracket( __detail::StrT _l_bracket ) noexcept {
-      if ( is_update() ) return *this;
+      if ( is_updated() ) return *this;
       l_bracket = std::move( _l_bracket );
       return *this;
     }
     /// @brief Set the right bracket of the progress bar.
     pgbar& set_right_bracket( __detail::StrT _r_bracket ) noexcept {
-      if ( is_update() ) return *this;
+      if ( is_updated() ) return *this;
       r_bracket = std::move( _r_bracket );
       return *this;
     }
     /// @brief Set the length of the progress bar.
     pgbar& set_bar_length( __detail::SizeT _length ) noexcept {
-      if ( is_update() ) return *this;
+      if ( is_updated() ) return *this;
       bar_length = _length; return *this;
     }
     /// @brief Select the display style by using bit operations.
     pgbar& set_style( style::Type _selection ) noexcept {
-      if ( is_update() ) return *this;
+      if ( is_updated() ) return *this;
       option = _selection; return *this;
     }
     /// @brief Copy the style options from the other bar object.
     /// @param _other The other bar object.
     pgbar& operator=( const pgbar& _other ) {
-      if ( this == &_other || is_update() )
+      if ( this == &_other || is_updated() )
         return *this;
       stream = _other.stream;
       todo_ch = _other.todo_ch;
@@ -777,7 +731,7 @@ namespace pgbar {
     /// @param next_step The number that will increment forward the progresses.
     void update( __detail::SizeT next_step ) {
       do_update( [&]() -> void {
-        done_cnt += done_cnt + next_step <= total_tsk ? next_step :
+        done_cnt += ((done_cnt + next_step) <= total_tsk) ? next_step :
           total_tsk - done_cnt;
       } );
     }
@@ -786,15 +740,13 @@ namespace pgbar {
 #if __PGBAR_CXX20__
 # define __PGBAR_TEMPLATE_DECL__ \
   template<__detail::StreamType StreamObj, __detail::RenderType RenderMode> \
-    const __detail::StrT
+    __detail::ConstStrT
 #else
 # define __PGBAR_TEMPLATE_DECL__ \
   template<typename StreamObj, typename RenderMode> \
-    const __detail::StrT
+    __detail::ConstStrT
 #endif // __PGBAR_CXX20__
 
-  __PGBAR_TEMPLATE_DECL__
-    pgbar<StreamObj, RenderMode>::rightward { "\033[C" };
   __PGBAR_TEMPLATE_DECL__
     pgbar<StreamObj, RenderMode>::l_status { "[ " };
   __PGBAR_TEMPLATE_DECL__
@@ -831,7 +783,7 @@ namespace pgbar {
 #undef __PGBAR_COL__
 #undef __PGBAR_DEFAULT_COL__
 #undef __PGBAR_RET_CONSTEXPR__
-#undef __PGBAR_IF_CONSTEXPR__
+#undef __PGBAR_ENHANCE_CONSTEXPR__
 #undef __PGBAR_INLINE_VAR__
 #undef __PGBAR_FALLTHROUGH__
 #undef __PGBAR_INLINE_FUNC__
