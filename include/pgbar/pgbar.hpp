@@ -654,15 +654,15 @@ namespace pgbar {
       _to.cnt_length_ = _from.cnt_length_;
     }
     
-    pgbar( StreamObj& _ostream )
-      : update_flag_ { false }, rndrer_ { [this]() -> void { this->rendering(); } }, stream_ { _ostream } {
+    pgbar( StreamObj* _ostream )
+      : update_flag_ { false }, rndrer_ { [this]() -> void { this->rendering(); } }, stream_ { *_ostream } {
       num_tasks_ = 0;
       step_ = 0;
       bar_length_ = 50;
       option_ = style::entire;
       done_cnt_ = 0;
       cnt_length_ = 1;
-      in_tty_ = check_output_stream( std::addressof( stream_ ) );
+      in_tty_ = check_output_stream( _ostream );
     }
 
   public:
@@ -670,7 +670,7 @@ namespace pgbar {
     using RendererType = RenderMode;
 
     pgbar( __detail::SizeT _total_tsk, __detail::SizeT _each_step, StreamObj& _ostream = std::cerr )
-      : pgbar( _ostream ) {
+      : pgbar( std::addressof( _ostream ) ) {
       todo_ch_ = __detail::StrT( 1, blank );
       done_ch_ = __detail::StrT( 1, '-' );
       lbracket_ = __detail::StrT( 1, '[' );
@@ -680,11 +680,13 @@ namespace pgbar {
 
       cnt_length_ = std::to_string( num_tasks_ ).size() * 2 + 1;
     }
-    pgbar( __detail::SizeT _total_tsk = 0, StreamObj& _ostream = std::cerr )
-      : pgbar(_total_tsk, 1, _ostream) {} // = default constructor
+    pgbar( __detail::SizeT _total_tsk, StreamObj& _ostream = std::cerr )
+      : pgbar(_total_tsk, 1, _ostream) {}
+    pgbar( StreamObj& _ostream = std::cerr )
+      : pgbar( 0, 1, _ostream) {} // = default constructor
 #if __PGBAR_CXX20__
     pgbar( style _initializer, StreamObj& _ostream = std::cerr )
-      : pgbar( _ostream ) {
+      : pgbar( std::addressof( _ostream ) ) {
       todo_ch_ = _initializer.todo_char.has_value()
         ? std::move( _initializer.todo_char.value() ) : __detail::StrT( 1, blank );
       done_ch_ = _initializer.done_char.has_value()
@@ -706,7 +708,7 @@ namespace pgbar {
     }
 #endif // __PGBAR_CXX20__
     pgbar( const pgbar& _lhs )
-      : pgbar( _lhs.stream_ ) { // style copy
+      : pgbar( std::addressof( _lhs.stream_ ) ) { // style copy
       todo_ch_ = _lhs.todo_ch_;
       done_ch_ = _lhs.done_ch_;
       lbracket_ = _lhs.lbracket_;
@@ -714,7 +716,7 @@ namespace pgbar {
       copy( *this, _lhs );
     }
     pgbar( pgbar&& _rhs )
-      : pgbar( _rhs.stream_ ) {
+      : pgbar( std::addressof( _rhs.stream_ ) ) {
       todo_ch_ = std::move( _rhs.todo_ch_ );
       done_ch_ = std::move( _rhs.done_ch_ );
       lbracket_ = std::move( _rhs.lbracket_ );
