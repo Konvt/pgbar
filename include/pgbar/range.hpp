@@ -17,8 +17,7 @@
 #endif
 
 #if __PGBAR_CMP_V__ >= 202002L
-# include <concepts>
-# include <ranges>
+# include <ranges>   // std::ranges::begin、std::ranges::end
 # define __PGBAR_CXX20__ 1
 #else
 # define __PGBAR_CXX20__ 0
@@ -251,15 +250,16 @@ namespace pgbar {
   }
 
 #if __PGBAR_CXX20__
-  template<std::floating_point _EleT, __detail::PgbarType BarT
+  template<typename _EleT, __detail::PgbarType BarT
     , typename EleT = typename std::decay_t<_EleT>
-  > __detail::numeric_iterator<EleT, BarT> // return type
+  > requires std::is_arithmetic_v<EleT>
+  __detail::numeric_iterator<EleT, BarT> // return type
 #else
   template<
     typename _EleT, typename BarT
     , typename EleT = typename std::decay<_EleT>::type
   > typename std::enable_if<
-    std::is_floating_point<EleT>::value &&
+    std::is_arithmetic<EleT>::value &&
     is_pgbar<BarT>::value
     , __detail::numeric_iterator<EleT, BarT>
   >::type
@@ -269,9 +269,10 @@ namespace pgbar {
   }
 
 #if __PGBAR_CXX20__
-  template<std::integral _EleT, __detail::PgbarType BarT
+  template<typename _EleT, __detail::PgbarType BarT
     , typename EleT = typename std::decay_t<_EleT>
-  > __detail::numeric_iterator<EleT, BarT> // return type
+  > requires std::integral<EleT>
+  __detail::numeric_iterator<EleT, BarT> // return type
 #else
   template<
     typename _EleT, typename BarT
@@ -287,9 +288,10 @@ namespace pgbar {
   }
 
 #if __PGBAR_CXX20__
-  template<std::integral _EleT, __detail::PgbarType BarT
+  template<typename _EleT, __detail::PgbarType BarT
     , typename EleT = typename std::decay_t<_EleT>
-  > __detail::numeric_iterator<EleT, BarT> // return type
+  > requires std::integral<EleT>
+  __detail::numeric_iterator<EleT, BarT> // return type
 #else
   template<
     typename _EleT, typename BarT
