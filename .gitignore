@@ -1,8 +1,10 @@
-.vscode/*
-.vs/*
+.vscode/
+.vs/
 
-build/*
-test/*
+build/
+dev/
+demo/cxx11
+demo/cxx20
 
 *.exe
 sample
