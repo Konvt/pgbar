@@ -16,7 +16,7 @@
     - [What kind of C++ version is required?](#what-kind-of-c-version-is-required)
     - [What distinguishes it from other C++ progress bars on GitHub?](#what-distinguishes-it-from-other-c-progress-bars-on-github)
 - [pgbar - ProgressBar for C++11 - zh\_cn](#pgbar---progressbar-for-c11---zh_cn)
-  - [样式样式](#样式样式)
+  - [风格样式](#风格样式)
   - [使用例](#使用例)
     - [在 C++20 以前](#在-c20-以前)
     - [在 C++20 之后](#在-c20-之后)
@@ -252,7 +252,7 @@ Just for practice, that's all.
 
 不需要第三方依赖.
 
-## 样式样式
+## 风格样式
 ```
 [---------------                         ] [ 36.63%  |  36638968/100000000 |  21.27 MHz |   1s < 3s   ]
 ```
