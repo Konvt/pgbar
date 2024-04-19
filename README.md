@@ -123,12 +123,16 @@ The header file provides several methods related to the progress bar object `pgb
 using namespace pgbar; // Ignore namespace prefix
 
 /* Template type predicate, checks if the given type is a pgbar object */
-template<typename T>
+template<typename B>
 struct is_pgbar { constexpr bool value; };
 
 /* Template type predicate, checks if the given type is a renderer object accepted by pgbar */
-template<typename T>
+template<typename R>
 struct is_renderer { constexpr bool value; };
+
+/* Template type predicate, checks if the given type is acceptable by a pgbar object as an output stream object */
+template<typename S>
+struct is_stream { constexpr bool value; };
 
 /* Notify the progress bar that it needs updating. */
 void pgbar::update()
@@ -338,12 +342,16 @@ struct style {
 using namespace pgbar; // 忽略命名空间前缀
 
 /* 模板类型谓词，检查给定类型是否是 pgbar 对象 */
-template<typename T>
+template<typename B>
 struct is_pgbar { constexpr bool value; };
 
 /* 模板类型谓词，检查给定类型是否是 pgbar 能接受的渲染器对象 */
-template<typename T>
+template<typename R>
 struct is_renderer { constexpr bool value; };
+
+/* 模板类型谓词，检查给定类型是否是渲染器能接受的输出流对象 */
+template<typename S>
+struct is_stream { constexpr bool value; };
 
 /* 通知进度条该更新了. */
 void pgbar::update()

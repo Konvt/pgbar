@@ -130,30 +130,57 @@ namespace pgbar {
       { rndr.render() } -> std::same_as<void>;
     };
 
-    template<typename T>
-    concept StreamType = requires(T os) {
-      { os << StrT {} } -> std::same_as<T&>;
+    template<typename S>
+    concept StreamType = requires(S os) {
+      { os << StrT {} } -> std::same_as<S&>;
     };
 #else
-    template<typename T, typename = void>
+    template<typename F, typename = void>
     struct is_void_functor : std::false_type {};
-    template<typename T>
-    struct is_void_functor<T,
+    template<typename F>
+    struct is_void_functor<F,
       typename std::enable_if<
-        std::is_void<decltype(std::declval<T>()())>::value
-      >::type
-    > : std::true_type {};
-
-    template<typename S, typename = void>
-    struct is_stream : std::false_type {};
-    template<typename S>
-    struct is_stream<S,
-      typename std::enable_if<
-        std::is_same<decltype(std::declval<S&>() << std::declval<std::string>()), S&>::value
+        std::is_void<decltype(std::declval<F>()())>::value
       >::type
     > : std::true_type {};
 #endif // __PGBAR_CXX20__
   } // namespace __detail
+
+#if __PGBAR_CXX20__
+  template<typename S>
+  struct is_stream : std::bool_constant<__detail::StreamType<S>> {};
+
+  template<typename R>
+  struct is_renderer : std::bool_constant<__detail::RenderType<R>> {};
+#else
+  template<typename S, typename = void>
+  struct is_stream : std::false_type {};
+  template<typename S>
+  struct is_stream<S,
+    typename std::enable_if<
+      std::is_same<decltype(std::declval<S&>() << std::declval<std::string>()), S&>::value
+    >::type
+  > : std::true_type {};
+
+  template<typename R, typename = void>
+  struct is_renderer : std::false_type {};
+  template<typename R>
+  struct is_renderer<R,
+    typename std::enable_if<
+      std::is_void<decltype(std::declval<R&>().active())>::value &&
+      std::is_void<decltype(std::declval<R&>().suspend())>::value &&
+      std::is_void<decltype(std::declval<R&>().render())>::value
+    >::type
+  > : std::true_type {};
+#endif // __PGBAR_CXX20__
+
+#if __PGBAR_CXX14__
+  template<typename R>
+  __PGBAR_INLINE_VAR__ constexpr bool is_renderer_v = is_renderer<R>::value;
+
+  template<typename S>
+  __PGBAR_INLINE_VAR__ constexpr bool is_stream_v = is_stream<S>::value;
+#endif // __PGBAR_CXX14__
 
   struct style {
     using Type = uint8_t;
@@ -176,22 +203,6 @@ namespace pgbar {
     std::optional<Type> option;
 #endif // __PGBAR_CXX20__
   };
-
-  template<typename R, typename = void>
-  struct is_renderer : std::false_type {};
-  template<typename R>
-  struct is_renderer<R,
-    typename std::enable_if<
-      std::is_void<decltype(std::declval<R&>().active())>::value &&
-      std::is_void<decltype(std::declval<R&>().suspend())>::value &&
-      std::is_void<decltype(std::declval<R&>().render())>::value
-    >::type
-  > : std::true_type {};
-
-#if __PGBAR_CXX14__
-  template<typename R>
-  __PGBAR_INLINE_VAR__ constexpr bool is_renderer_v = is_renderer<R>::value;
-#endif // __PGBAR_CXX14__
 
   class multithread final {
     std::atomic<bool> active_flag_;
@@ -283,6 +294,8 @@ namespace pgbar {
       : active_flag_ { false }, task_ { std::move( tsk ) } {}
     ~singlethread() {}
     void active() {
+      if ( active_flag_ )
+        return;
       last_invoke_ = std::chrono::system_clock::now();
       task_();
       active_flag_ = true;
@@ -294,6 +307,8 @@ namespace pgbar {
       active_flag_ = false;
     }
     void render() {
+      if ( !active_flag_ )
+        return;
       auto current_time = std::chrono::system_clock::now();
       if ( current_time - last_invoke_ < __detail::reflash_rate )
         return;
@@ -310,7 +325,7 @@ namespace pgbar {
   class pgbar {
 #if !(__PGBAR_CXX20__)
     static_assert(
-      __detail::is_stream<StreamObj>::value,
+      is_stream<StreamObj>::value,
       __PGBAR_ASSERT_FAILURE__
       "The 'StreamObj' must be a type that supports 'operator<<' to insert '__detail::StrT'"
       __PGBAR_DEFAULT_COL__
@@ -653,7 +668,7 @@ namespace pgbar {
       _to.option_ = _from.option_;
       _to.cnt_length_ = _from.cnt_length_;
     }
-    
+
     pgbar( StreamObj* _ostream )
       : update_flag_ { false }, rndrer_ { [this]() -> void { this->rendering(); } }, stream_ { *_ostream } {
       num_tasks_ = 0;
@@ -814,7 +829,7 @@ namespace pgbar {
       cnt_length_ = std::to_string( num_tasks_ ).size() * 2 + 1;
       return *this;
     }
-#endif
+#endif // __PGBAR_CXX20__
     pgbar& operator=( const pgbar& _lhs ) {
       if ( this == &_lhs || is_updated() )
         return *this;
@@ -872,25 +887,25 @@ namespace pgbar {
     pgbar<StreamObj, RenderMode>::default_col { __PGBAR_DEFAULT_COL__ };
 
 #if __PGBAR_CXX20__
-  template<typename BarT>
+  template<typename B>
   struct is_pgbar : std::false_type {};
   template<typename StreamObj, typename RenderMode>
   struct is_pgbar<pgbar<StreamObj, RenderMode>> : std::true_type {};
 #else
-  template<typename BarT, typename = void>
+  template<typename B, typename = void>
   struct is_pgbar : std::false_type {};
-  template<typename BarT>
+  template<typename B>
   struct is_pgbar<
-    BarT, typename std::enable_if<
-      __detail::is_stream<typename BarT::StreamType>::value &&
-      is_renderer<typename BarT::RendererType>::value
+    B, typename std::enable_if<
+      is_stream<typename B::StreamType>::value &&
+      is_renderer<typename B::RendererType>::value
     >::type
   > : std::true_type {};
 #endif // __PGBAR_CXX20__
 
 #if __PGBAR_CXX14__
-  template<typename BarT>
-  __PGBAR_INLINE_VAR__ constexpr bool is_pgbar_v = is_pgbar<BarT>::value;
+  template<typename B>
+  __PGBAR_INLINE_VAR__ constexpr bool is_pgbar_v = is_pgbar<B>::value;
 #endif // __PGBAR_CXX14__
 } // namespace pgbar
 
