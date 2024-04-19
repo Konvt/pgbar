@@ -11,7 +11,6 @@
 # include <type_traits> // SFINAE
 # include <utility>     // std::pair
 # include <bitset>      // std::bitset
-# include <functional>  // std::function
 # include <string>      // std::string
 # include <chrono>      // as u know
 # include <exception>   // bad_pgbar exception
@@ -218,22 +217,19 @@ namespace pgbar {
     multithread( const multithread& ) = delete;
     multithread& operator=( const multithread& ) = delete;
 
+    template<
 #if __PGBAR_CXX20__
-    template<__detail::FunctorType F>
+      __detail::FunctorType F
 #else
-    template<typename F>
-#endif // __PGBAR_CXX20__
+      typename F,
+      typename = typename std::enable_if<
+        __detail::is_void_functor<F>::value
+      >::type
+#endif
+    >
     explicit multithread( F&& task )
       : active_flag_ { false }, suspend_flag_ { true }
       , finish_signal_ { false }, stop_signal_ { true } {
-#if !(__PGBAR_CXX20__)
-      static_assert(
-        __detail::is_void_functor<F>::value,
-        __PGBAR_ASSERT_FAILURE__
-        "The type 'F' must be a callable type of 'void()'"
-        __PGBAR_DEFAULT_COL__
-      );
-#endif // __PGBAR_CXX20__
       td_ = std::thread( [&, task]() -> void {
         do {
           {
@@ -282,28 +278,69 @@ namespace pgbar {
   };
 
   class singlethread final {
+    struct wrapper_base {
+      virtual ~wrapper_base() {}
+      virtual void run() = 0;
+    };
+    template<typename F>
+    class functor_wrapper final : public wrapper_base {
+      static_assert(
+#if __PGBAR_CXX20__
+        __detail::FunctorType<F>,
+#else
+        __detail::is_void_functor<F>::value,
+#endif // __PGBAR_CXX20__
+        __PGBAR_ASSERT_FAILURE__
+        "singlethread::functor_wrapper: template type error"
+        __PGBAR_DEFAULT_COL__
+      );
+
+      F func_;
+
+    public:
+      template<typename U>
+      functor_wrapper( U&& func )
+        : func_ { std::forward<U>( func ) } {}
+      void run() override final { func_(); }
+    };
+
+    wrapper_base* task_;
     bool active_flag_;
-    std::function<void()> task_;
     std::chrono::time_point<std::chrono::system_clock> last_invoke_;
 
   public:
     singlethread( const singlethread& ) = delete;
     singlethread& operator=( const singlethread& ) = delete;
 
-    explicit singlethread( std::function<void()> tsk )
-      : active_flag_ { false }, task_ { std::move( tsk ) } {}
-    ~singlethread() {}
+    template<
+#if __PGBAR_CXX20__
+      __detail::FunctorType F
+#else
+      typename F,
+      typename = typename std::enable_if<
+        __detail::is_void_functor<F>::value
+      >::type
+#endif
+    >
+    explicit singlethread( F&& tsk )
+      : task_ { nullptr }, active_flag_ { false } {
+      auto new_res = new functor_wrapper<typename std::decay<F>::type>( std::forward<F>( tsk ) );
+      task_ = new_res;
+    }
+    ~singlethread() {
+      delete task_;
+    }
     void active() {
       if ( active_flag_ )
         return;
       last_invoke_ = std::chrono::system_clock::now();
-      task_();
+      task_->run();
       active_flag_ = true;
     }
     void suspend() {
       if ( !active_flag_ )
         return;
-      task_();
+      task_->run();
       active_flag_ = false;
     }
     void render() {
@@ -313,17 +350,12 @@ namespace pgbar {
       if ( current_time - last_invoke_ < __detail::reflash_rate )
         return;
       last_invoke_ = std::move( current_time );
-      task_();
+      task_->run();
     }
   };
 
-#if __PGBAR_CXX20__
-  template<__detail::StreamType StreamObj = std::ostream, __detail::RenderType RenderMode = multithread>
-#else
   template<typename StreamObj = std::ostream, typename RenderMode = multithread>
-#endif // __PGBAR_CXX20__
   class pgbar {
-#if !(__PGBAR_CXX20__)
     static_assert(
       is_stream<StreamObj>::value,
       __PGBAR_ASSERT_FAILURE__
@@ -336,7 +368,6 @@ namespace pgbar {
       "The 'RenderMode' must satisfy the constraint of the type predicate 'is_renderer'"
       __PGBAR_DEFAULT_COL__
     );
-#endif // __PGBAR_CXX20__
 
     enum class txt_layut { align_left, align_right, align_center }; // text layout
 
@@ -632,20 +663,18 @@ namespace pgbar {
       }
     }
 
-#if __PGBAR_CXX20__
-    template<__detail::FunctorType F>
-#else
     template<typename F>
-#endif // __PGBAR_CXX20__
     __PGBAR_INLINE_FUNC__ void do_update( F&& invokable ) {
-#if !(__PGBAR_CXX20__)
       static_assert(
+#if __PGBAR_CXX20__
+        __detail::FunctorType<F>,
+#else
         __detail::is_void_functor<F>::value,
+#endif // __PGBAR_CXX20__
         __PGBAR_ASSERT_FAILURE__
-        "The type 'F' must be a callable type of 'void()'"
+        "pgbar::do_update: template type error"
         __PGBAR_DEFAULT_COL__
       );
-#endif // __PGBAR_CXX20__
 
       if ( is_done() )
         throw bad_pgbar { "bad_pgbar: updating a full progress bar" };
@@ -865,15 +894,9 @@ namespace pgbar {
     }
   };
 
-#if __PGBAR_CXX20__
-# define __PGBAR_TEMPLATE_DECL__ \
-  template<__detail::StreamType StreamObj, __detail::RenderType RenderMode> \
-    __detail::ConstStrT
-#else
-# define __PGBAR_TEMPLATE_DECL__ \
+#define __PGBAR_TEMPLATE_DECL__ \
   template<typename StreamObj, typename RenderMode> \
     __detail::ConstStrT
-#endif // __PGBAR_CXX20__
 
   __PGBAR_TEMPLATE_DECL__
     pgbar<StreamObj, RenderMode>::lstatus { "[ " };
@@ -887,10 +910,20 @@ namespace pgbar {
     pgbar<StreamObj, RenderMode>::default_col { __PGBAR_DEFAULT_COL__ };
 
 #if __PGBAR_CXX20__
+  namespace __detail {
+    template <typename B>
+    concept ProgressBar = requires {
+      typename B::StreamType;
+      typename B::RendererType;
+      requires (
+        is_stream_v<typename B::StreamType> &&
+        is_renderer_v<typename B::RendererType>
+      );
+    };
+  }
+
   template<typename B>
-  struct is_pgbar : std::false_type {};
-  template<typename StreamObj, typename RenderMode>
-  struct is_pgbar<pgbar<StreamObj, RenderMode>> : std::true_type {};
+  struct is_pgbar : std::bool_constant<__detail::ProgressBar<B>> {};
 #else
   template<typename B, typename = void>
   struct is_pgbar : std::false_type {};
