@@ -39,7 +39,7 @@ namespace pgbar {
         std::is_arithmetic<EleT>::value &&
         is_pgbar<BarT>::value,
         __PGBAR_ASSERT_FAILURE__
-        "Only available for numeric types"
+        "numeric_iterator: Only available for numeric types"
         __PGBAR_DEFAULT_COL__
       );
 
@@ -130,7 +130,7 @@ namespace pgbar {
         !std::is_arithmetic<IterT>::value &&
         is_pgbar<BarT>::value,
         __PGBAR_ASSERT_FAILURE__
-        "Only available for container types"
+        "container_iterator: Only available for container types"
         __PGBAR_DEFAULT_COL__
       );
 
@@ -153,7 +153,7 @@ namespace pgbar {
         static_assert(
           !std::is_same<typename std::iterator_traits<IterT>::difference_type, void>::value,
           __PGBAR_ASSERT_FAILURE__
-          "container_iterator error: the difference_type of the iterator shouldn't be 'void'"
+          "container_iterator: the difference_type of the iterator shouldn't be 'void'"
           __PGBAR_DEFAULT_COL__
         );
         auto dist = std::distance( _begin, _endpoint );
