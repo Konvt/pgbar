@@ -221,9 +221,6 @@ namespace pgbar {
     template<typename T>
     concept ArithmeticType =
       std::is_arithmetic_v<std::decay_t<T>>;
-
-    template<typename BarT>
-    concept PgbarType = is_pgbar_v<BarT>;
 #endif // __PGBAR_CXX20__
   } // namespace __detail
 
