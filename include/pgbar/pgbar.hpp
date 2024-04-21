@@ -917,7 +917,8 @@ namespace pgbar {
       typename B::RendererType;
       requires (
         is_stream_v<typename B::StreamType> &&
-        is_renderer_v<typename B::RendererType>
+        is_renderer_v<typename B::RendererType> &&
+        std::is_same_v<pgbar<typename B::StreamType, typename B::RendererType>, B>
       );
     };
   }
@@ -931,7 +932,8 @@ namespace pgbar {
   struct is_pgbar<
     B, typename std::enable_if<
       is_stream<typename B::StreamType>::value &&
-      is_renderer<typename B::RendererType>::value
+      is_renderer<typename B::RendererType>::value &&
+      std::is_same<pgbar<typename B::StreamType, typename B::RendererType>, B>::value
     >::type
   > : std::true_type {};
 #endif // __PGBAR_CXX20__
