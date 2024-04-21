@@ -912,7 +912,7 @@ namespace pgbar {
 #if __PGBAR_CXX20__
   namespace __detail {
     template <typename B>
-    concept ProgressBar = requires {
+    concept PgbarType = requires {
       typename B::StreamType;
       typename B::RendererType;
       requires (
@@ -924,7 +924,7 @@ namespace pgbar {
   }
 
   template<typename B>
-  struct is_pgbar : std::bool_constant<__detail::ProgressBar<B>> {};
+  struct is_pgbar : std::bool_constant<__detail::PgbarType<B>> {};
 #else
   template<typename B, typename = void>
   struct is_pgbar : std::false_type {};
