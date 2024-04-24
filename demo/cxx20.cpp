@@ -12,15 +12,17 @@ int main()
     std::cout << "Multithreaded rendering...\n";
     // If you are using the C++20 standard
     // You can initialize objects using pgbar::style and designated initializer
-    pgbar::pgbar bar { pgbar::style {
-      .todo_char = "\033[31m━\033[0m",
-      .done_char = "\033[32m━\033[0m",
-      .left_bracket = " ",
-      .right_bracket = "",
-      .total_tasks = TOTAL,
-      .each_setp = 2,
-      .option = pgbar::style::entire
-    } };
+    pgbar::pgbar bar {
+      pgbar::style {
+        .todo_char = "\033[31m━\033[0m",
+        .done_char = "\033[32m━\033[0m",
+        .left_bracket = " ",
+        .right_bracket = "",
+        .total_tasks = TOTAL,
+        .each_setp = 2,
+        .option = pgbar::style::entire
+      }
+    };
     for ( size_t i = 0; i < (TOTAL / 2); ++i ) {
       bar.update(); // Normal update
       // Do anything you want here...
@@ -37,14 +39,19 @@ int main()
     std::cout << "Single threaded rendering...\n";
     pgbar::pgbar<std::ostream, pgbar::singlethread> bar; // single threading render
     // `pgbar::set_style` also supports the use of a designated initializer
-    bar.set_style( pgbar::style {
-      .left_bracket = " ",
-      .right_bracket = "",
-      .bar_length = 20
-    } );
+    bar.set_style(
+      pgbar::style {
+        .left_bracket = " ",
+        .right_bracket = "",
+        .bar_length = 20,
+        .color = pgbar::style::dye::green
+      }
+    );
+
     std::vector<double> arr {};
     for ( size_t i = 0; i < 30000; ++i )
       arr.push_back( i );
+
     bar.set_style( pgbar::style::entire & ~pgbar::style::bar );
     // The total number of tasks will be automatically set by function `range`
     for ( auto ele : pgbar::range( arr, bar ) )
@@ -54,6 +61,7 @@ int main()
     float* pointer_arr = new float[30000] {0.0};
     bar.reset().set_style( pgbar::style::percentage );
     std::cout << "Pointer arrays is okay: ";
+
     // Also can pass a pointer array as the range
     for ( auto ele : pgbar::range( pointer_arr + 30000 - 1, pointer_arr - 1, bar ) )
       continue;

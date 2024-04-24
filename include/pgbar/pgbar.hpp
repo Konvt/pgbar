@@ -81,7 +81,7 @@
 
 #ifndef PGBAR_NOT_COL
   /* Specify the color and font style for the status bar. */
-# define __PGBAR_COL__ "\033[1;36m"
+# define __PGBAR_COL__ "\033[1m"
 # define __PGBAR_ASSERT_FAILURE__ "\033[1;31m"
 # define __PGBAR_DEFAULT_COL__ "\033[0m"
 #else
@@ -105,9 +105,11 @@ namespace pgbar {
 #if __PGBAR_CXX17__
     using ReadOnlyT = std::string_view;
     using ConstStrT = const std::string_view;
+    using LiteralStrT = std::string_view;
 #else
     using ReadOnlyT = const StrT&;
     using ConstStrT = const StrT;
+    using LiteralStrT = const char*;
 #endif // __PGBAR_CXX17__
 
     // The refresh rate is capped at about 25 Hz.
@@ -182,6 +184,25 @@ namespace pgbar {
 #endif // __PGBAR_CXX14__
 
   struct style {
+    struct dye {
+      static constexpr __detail::LiteralStrT none    = "";
+#ifdef PGBAR_NOT_COL
+      static constexpr __detail::LiteralStrT red     = "";
+      static constexpr __detail::LiteralStrT green   = "";
+      static constexpr __detail::LiteralStrT yellow  = "";
+      static constexpr __detail::LiteralStrT blue    = "";
+      static constexpr __detail::LiteralStrT magenta = "";
+      static constexpr __detail::LiteralStrT cyan    = "";
+#else
+      static constexpr __detail::LiteralStrT red     = "\033[31m";
+      static constexpr __detail::LiteralStrT green   = "\033[32m";
+      static constexpr __detail::LiteralStrT yellow  = "\033[33m";
+      static constexpr __detail::LiteralStrT blue    = "\033[34m";
+      static constexpr __detail::LiteralStrT magenta = "\033[35m";
+      static constexpr __detail::LiteralStrT cyan    = "\033[36m";
+#endif // PGBAR_NOT_COL
+    };
+
     using Type = uint8_t;
 
     static constexpr Type bar = 1 << 0;
@@ -199,6 +220,7 @@ namespace pgbar {
     std::optional<__detail::SizeT> total_tasks;
     std::optional<__detail::SizeT> each_setp;
     std::optional<__detail::SizeT> bar_length;
+    std::optional<__detail::LiteralStrT> color;
     std::optional<Type> option;
 #endif // __PGBAR_CXX20__
   };
@@ -378,11 +400,11 @@ namespace pgbar {
     static constexpr __detail::SizeT ratio_len = 7; // The length of `100.00%`.
     static constexpr __detail::SizeT time_len = 11; // The length of `9.9m < 9.9m`.
     static constexpr __detail::SizeT rate_len = 10; // The length of `999.99 kHz`.
-    static __detail::ConstStrT lstatus;    // The left bracket of status bar.
-    static __detail::ConstStrT rstatus;    // The right bracket of status bar.
-    static __detail::ConstStrT division;    // The default division character.
-    static __detail::ConstStrT col_fmt;     // The color and font style of status bar.
-    static __detail::ConstStrT default_col; // The default color and font style.
+    static __detail::ConstStrT lstatus;       // The left bracket of status bar.
+    static __detail::ConstStrT rstatus;       // The right bracket of status bar.
+    static __detail::ConstStrT division;      // The default division character.
+    static __detail::LiteralStrT font_fmt;    // The font style of status bar.
+    static __detail::LiteralStrT default_col; // The default color and font style.
 
     mutable std::atomic<bool> update_flag_;
     RenderMode rndrer_;
@@ -393,6 +415,7 @@ namespace pgbar {
     __detail::SizeT num_tasks_;
     __detail::SizeT step_; // The number of steps per invoke `update()`.
     __detail::SizeT bar_length_; // The length of the progress bar.
+    __detail::LiteralStrT color_;
     style::Type option_;
     __detail::SizeT done_cnt_;
     __detail::SizeT cnt_length_; // The length of the task counter.
@@ -594,7 +617,7 @@ namespace pgbar {
       if ( control_bit[_bar] )
         progress_bar.append( show_bar( percent ) );
       if ( control_bit[_terminus] )
-        progress_bar.append( __detail::StrT( col_fmt ) + __detail::StrT( lstatus ) );
+        progress_bar.append( __detail::StrT( font_fmt ) + __detail::StrT( color_ ) + __detail::StrT( lstatus ) );
       if ( control_bit[_per] ) {
         progress_bar.append(
           control_bit[_cnt] || control_bit[_rate] || control_bit[_timer] ?
@@ -692,7 +715,7 @@ namespace pgbar {
         rndrer_.suspend(); // wait for sub thread to finish
     }
 
-    static void copy( pgbar& _to, const pgbar& _from ) noexcept {
+    static void pod_copy( pgbar& _to, const pgbar& _from ) noexcept {
       _to.num_tasks_ = _from.num_tasks_;
       _to.step_ = _from.step_;
       _to.bar_length_ = _from.bar_length_;
@@ -721,6 +744,7 @@ namespace pgbar {
       done_ch_ = __detail::StrT( 1, '-' );
       lbracket_ = __detail::StrT( 1, '[' );
       rbracket_ = __detail::StrT( 1, ']' );
+      color_ = style::dye::cyan;
       num_tasks_ = _total_tsk;
       step_ = _each_step;
 
@@ -747,6 +771,8 @@ namespace pgbar {
         ? _initializer.each_setp.value() : step_;
       bar_length_ = _initializer.bar_length.has_value()
         ? _initializer.bar_length.value() : bar_length_;
+      color_ = _initializer.color.has_value()
+        ? std::move( _initializer.color.value() ) : style::dye::cyan;
       option_ = _initializer.option.has_value()
         ? _initializer.option.value() : option_;
 
@@ -759,7 +785,8 @@ namespace pgbar {
       done_ch_ = _lhs.done_ch_;
       lbracket_ = _lhs.lbracket_;
       rbracket_ = _lhs.rbracket_;
-      copy( *this, _lhs );
+      color_ = _lhs.color_;
+      pod_copy( *this, _lhs );
     }
     pgbar( pgbar&& _rhs )
       : pgbar( std::addressof( _rhs.stream_ ) ) {
@@ -767,7 +794,8 @@ namespace pgbar {
       done_ch_ = std::move( _rhs.done_ch_ );
       lbracket_ = std::move( _rhs.lbracket_ );
       rbracket_ = std::move( _rhs.rbracket );
-      copy( *this, _rhs );
+      color_ = std::move( _rhs.color_ );
+      pod_copy( *this, _rhs );
     }
     ~pgbar() {}
 
@@ -832,6 +860,10 @@ namespace pgbar {
       if ( is_updated() ) return *this;
       bar_length_ = _length; return *this;
     }
+    pgbar& set_color( __detail::LiteralStrT _dye ) noexcept {
+      if ( is_updated() ) return *this;
+      color_ = std::move( _dye ); return *this;
+    }
     /// @brief Select the display style by using bit operations.
     pgbar& set_style( style::Type _selection ) noexcept {
       if ( is_updated() ) return *this;
@@ -854,6 +886,8 @@ namespace pgbar {
         ? _selection.each_setp.value() : step_;
       bar_length_ = _selection.bar_length.has_value()
         ? _selection.bar_length.value() : bar_length_;
+      color_ = _selection.color.has_value()
+        ? std::move( _selection.color.value() ) : color_;
       option_ = _selection.option.has_value()
         ? _selection.option.value() : option_;
 
@@ -868,7 +902,8 @@ namespace pgbar {
       done_ch_ = _lhs.done_ch_;
       lbracket_ = _lhs.lbracket_;
       rbracket_ = _lhs.rbracket_;
-      copy( *this, _lhs );
+      color_ = _lhs.color_;
+      pod_copy( *this, _lhs );
       return *this;
     }
     pgbar& operator=( pgbar&& _rhs ) {
@@ -876,7 +911,8 @@ namespace pgbar {
       done_ch_ = std::move( _rhs.done_ch_ );
       lbracket_ = std::move( _rhs.lbracket_ );
       rbracket_ = std::move( _rhs.rbracket_ );
-      copy( *this, _rhs );
+      color_ = std::move( _rhs.color_ );
+      pod_copy( *this, _rhs );
       return *this;
     }
 
@@ -896,20 +932,19 @@ namespace pgbar {
     }
   };
 
-#define __PGBAR_TEMPLATE_DECL__ \
-  template<typename StreamObj, typename RenderMode> \
-    __detail::ConstStrT
+#define __PGBAR_DECL__ \
+  template<typename StreamObj, typename RenderMode>
 
-  __PGBAR_TEMPLATE_DECL__
-    pgbar<StreamObj, RenderMode>::lstatus { "[ " };
-  __PGBAR_TEMPLATE_DECL__
-    pgbar<StreamObj, RenderMode>::rstatus { " ]" };
-  __PGBAR_TEMPLATE_DECL__
-    pgbar<StreamObj, RenderMode>::division { " | " };
-  __PGBAR_TEMPLATE_DECL__
-    pgbar<StreamObj, RenderMode>::col_fmt { __PGBAR_COL__ };
-  __PGBAR_TEMPLATE_DECL__
-    pgbar<StreamObj, RenderMode>::default_col { __PGBAR_DEFAULT_COL__ };
+  __PGBAR_DECL__
+    __detail::ConstStrT pgbar<StreamObj, RenderMode>::lstatus { "[ " };
+  __PGBAR_DECL__
+    __detail::ConstStrT pgbar<StreamObj, RenderMode>::rstatus { " ]" };
+  __PGBAR_DECL__
+    __detail::ConstStrT pgbar<StreamObj, RenderMode>::division { " | " };
+  __PGBAR_DECL__
+    __detail::LiteralStrT pgbar<StreamObj, RenderMode>::font_fmt { __PGBAR_COL__ };
+  __PGBAR_DECL__
+    __detail::LiteralStrT pgbar<StreamObj, RenderMode>::default_col { __PGBAR_DEFAULT_COL__ };
 
 #if __PGBAR_CXX20__
   namespace __detail {
@@ -946,7 +981,7 @@ namespace pgbar {
 #endif // __PGBAR_CXX14__
 } // namespace pgbar
 
-#undef __PGBAR_TEMPLATE_DECL__
+#undef __PGBAR_DECL__
 
 #undef __PGBAR_DEFAULT_COL__
 #undef __PGBAR_ASSERT_FAILURE__
