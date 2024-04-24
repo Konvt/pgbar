@@ -44,6 +44,8 @@ No third party dependencies required.
 The status bar is colored using escape sequences by default.
 
 If your terminal doesn't support this or don't want the coloring effect, define a macro at the beginning of the program.
+
+You can also use multiple constants from pgbar::style::dye to customize the color of the status bar.
 ```cpp
 #define PGBAR_NOT_COL // This will cancel the character coloring of the status bar.
 #include "pgbar/pgbar.hpp"
@@ -111,6 +113,7 @@ struct style {
   std::optional<...> total_tasks;  // Total number of tasks
   std::optional<...> each_setp;    // Equivalent update count for each update
   std::optional<...> bar_length;   // Length of the progress bar to occupy in the terminal
+  std::optional<...> color;        // Color effect of the status information on the right side of the progress bar
   std::optional<...> option;       // Styling switches, a bit vector
 };
 ```
@@ -167,6 +170,10 @@ pgbar& pgbar::set_rbracket(std::string _r_bracket)
 
 /* Set the length of the progress bar, indicating how many characters the progress bar occupies after output. */
 pgbar& pgbar::set_bar_length(size_t _length) noexcept
+
+/* Set the color of the status information bar using the given constant values from pgbar::style::dye.
+ * This function has no actual effect when the macro PGBAR_NOT_COL is activated. */
+pgbar& pgbar::set_color(/* literal type */ _dye) noexcept
 
 /* Use bitwise operations to set the information to be displayed based on multiple predefined options. */
 pgbar& pgbar::set_style(pgbar::style::Type _selection) noexcept
@@ -249,6 +256,7 @@ There's already [a better progress bar library](https://github.com/p-ranav/indic
 I wrote this because [tqdm.cpp](https://github.com/tqdm/tqdm.cpp) couldn't run on my machine, [progressbar](https://github.com/gipert/progressbar) was too slow, and [cpptqdm](https://github.com/aminnj/cpptqdm) couldn't run on Windows.
 
 Just for practice, that's all.
+
 - - -
 
 # pgbar - ProgressBar for C++11 - zh_cn
@@ -264,6 +272,8 @@ Just for practice, that's all.
 > 这里的 'Hz' 表示每秒执行了多少次更新.
 
 默认情况下会使用 ASCII 转义序列对状态栏进行染色，如果你的终端不支持、或者不希望有着色效果，可以在程序最开头定义一个宏.
+
+也可以使用 `pgbar::style::dye` 中的多个常量自定义状态栏的颜色.
 ```cpp
 #define PGBAR_NOT_COL // 这会取消状态栏染色.
 #include "pgbar/pgbar.hpp"
@@ -330,6 +340,7 @@ struct style {
   std::optional<...> total_tasks;  // 任务总数
   std::optional<...> each_setp;    // 每次更新时等价的更新次数
   std::optional<...> bar_length;   // 进度条在终端中要占用的长度
+  std::optional<...> color;        // 进度条右侧状态信息的颜色效果
   std::optional<...> option;       // 样式化开关，一个位向量
 };
 ```
@@ -385,6 +396,10 @@ pgbar& pgbar::set_rbracket(std::string _r_bracket)
 
 /* 设置进度条的长度，表示进度条在输出后占多少字符长. */
 pgbar& pgbar::set_bar_length(size_t _length) noexcept
+
+/* 设置状态信息栏的颜色，使用 pgbar::style::dye 中的给定常量值来设置.
+ * 在宏 PGBAR_NOT_COL 激活时该函数没有实际效果. */
+pgbar& pgbar::set_color(/* literal type */ _dye) noexcept
 
 /* 根据多个预定选项，使用位操作设定需要显示的信息. */
 pgbar& pgbar::set_style(pgbar::style::Type _selection) noexcept

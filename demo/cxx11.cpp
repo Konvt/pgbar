@@ -27,11 +27,13 @@ int main()
 
   {
     std::cout << "Single threaded rendering...\n";
-    pgbar::pgbar<std::ostream, pgbar::singlethread> bar;
-    bar.set_lbracket( " " ).set_rbracket( "" ).set_bar_length( 20 );
+    pgbar::pgbar<std::ostream, pgbar::singlethread> bar; // change color here
+    bar.set_lbracket( " " ).set_rbracket( "" ).set_bar_length( 20 ).set_color( pgbar::style::dye::green );
+
     std::vector<double> arr {};
     for ( size_t i = 0; i < 30000; ++i )
       arr.push_back( i );
+
     bar.set_style( pgbar::style::entire & ~pgbar::style::bar );
     // The total number of tasks will be automatically set by function `range`
     for ( auto ele : pgbar::range( arr, bar ) )
@@ -41,6 +43,7 @@ int main()
     float* pointer_arr = new float[30000] {0.0};
     bar.reset().set_style( pgbar::style::percentage );
     std::cout << "Pointer arrays is okay: ";
+
     // Also can pass a pointer array as the range
     for ( auto ele : pgbar::range( pointer_arr + 30000 - 1, pointer_arr - 1, bar ) )
       continue;
