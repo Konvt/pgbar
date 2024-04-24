@@ -235,7 +235,7 @@ namespace pgbar {
           {
             std::unique_lock<std::mutex> lock { mtx_ };
             if ( stop_signal_ && !finish_signal_ ) {
-              if (active_flag_ == true) // it means subthread has been printed already
+              if ( active_flag_ || stop_signal_ ) // it means subthread has been printed already
                 task(); // so output the last progress bar before suspend
               suspend_flag_ = true;
               cond_var_.wait( lock );
@@ -253,8 +253,8 @@ namespace pgbar {
         std::unique_lock<std::mutex> lock { mtx_ };
         finish_signal_ = true;
         stop_signal_ = false;
-        cond_var_.notify_all();
       }
+      cond_var_.notify_all();
       if ( td_.joinable() )
         td_.join();
     }
@@ -270,9 +270,11 @@ namespace pgbar {
         std::unique_lock<std::mutex> lock { mtx_ };
         stop_signal_ = true;
       }
-      // spin lock
       while ( suspend_flag_ == false );
-      active_flag_ = false;
+      { // ensure that the thread has been suspended
+        std::unique_lock<std::mutex> lock { mtx_ };
+        active_flag_ = false;
+      }
     }
     void render() noexcept {}
   };
@@ -686,7 +688,7 @@ namespace pgbar {
       invokable();
       rndrer_.render();
 
-      if ( done_cnt_ >= num_tasks_ )
+      if ( (done_cnt_ / step_) == (num_tasks_ / step_) )
         rndrer_.suspend(); // wait for sub thread to finish
     }
 
@@ -773,7 +775,7 @@ namespace pgbar {
       return update_flag_;
     }
     bool is_done() const noexcept {
-      return is_updated() && done_cnt_ >= num_tasks_;
+      return is_updated() && ((done_cnt_ / step_) == (num_tasks_ / step_));
     }
     /// @brief Reset pgbar obj, EXCLUDING the total number of tasks.
     pgbar& reset() {
