@@ -1,6 +1,6 @@
 #include <vector>
 #include "pgbar/range.hpp"
-constexpr size_t TOTAL = 100000000;
+constexpr size_t TOTAL = INT32_MAX; // mersenne prime
 double origin_arr[10000] { 0.0 };
 
 int main()
