@@ -12,7 +12,13 @@ int main()
     std::cout << "Multithreaded rendering...\n";
     // It can only be initialized after creating when it's not C++20, for now.
     pgbar::pgbar<> bar { TOTAL, 2 };
-    bar.set_todo( "\033[31m━\033[0m" ).set_done( "\033[32m━\033[0m" ).set_lbracket( " " ).set_rbracket( "" );
+    bar.set_todo( "━" )
+       .set_done( "━" )
+       .set_startpoint( " " )
+       .set_endpoint( "" )
+       .set_lstatus( "=> " )
+       .set_todo_col( pgbar::style::dye::green )
+       .set_done_col( pgbar::style::dye::red );
     for ( size_t i = 0; i < (TOTAL / 2); ++i ) {
       bar.update(); // Normal update
       // Do anything you want here...
@@ -28,7 +34,10 @@ int main()
   {
     std::cout << "Single threaded rendering...\n";
     pgbar::pgbar<std::ostream, pgbar::singlethread> bar; // change color here
-    bar.set_lbracket( " " ).set_rbracket( "" ).set_bar_length( 20 ).set_color( pgbar::style::dye::green );
+    bar.set_startpoint( " " )
+       .set_endpoint( "" )
+       .set_bar_length( 20 )
+       .set_status_col( pgbar::style::dye::green );
 
     std::vector<double> arr {};
     for ( size_t i = 0; i < 30000; ++i )

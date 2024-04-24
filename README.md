@@ -36,6 +36,9 @@ No third party dependencies required.
 
 ## Styles
 ```
+{startpoint}{done char}{todo char}{endpoint} {left status}{percentage}{task counter}{rate}{countdown}{right status}
+^~~~~~~~~~~~~~~ Progress bar ~~~~~~~~~~~~~~^ ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Status bar ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+
 [---------------                         ] [ 36.63%  |  36638968/100000000 |  21.27 MHz |   1s < 3s   ]
 ```
 ![example-color](images/example_color.gif)
@@ -106,15 +109,19 @@ int main()
 The available optional fields in `pgbar::style`, along with their actual types, are as follows:
 ```cpp
 struct style {
-  std::optional<...> todo_char;    // Blank part of the progress bar
-  std::optional<...> done_char;    // Character to fill the progress bar
-  std::optional<...> left_bracket; // Left bracket enclosing the progress bar
-  std::optional<...> right_bracket;// Right bracket enclosing the progress bar
   std::optional<...> total_tasks;  // Total number of tasks
   std::optional<...> each_setp;    // Equivalent update count for each update
-  std::optional<...> bar_length;   // Length of the progress bar to occupy in the terminal
-  std::optional<...> color;        // Color effect of the status information on the right side of the progress bar
   std::optional<...> option;       // Styling switches, a bit vector
+  std::optional<...> todo_char;    // Blank part of the progress bar
+  std::optional<...> done_char;    // Character to fill the progress bar
+  std::optional<...> todo_color;   // Color for the blank part of the progress bar
+  std::optional<...> done_color;   // Color for the characters filling the progress bar
+  std::optional<...> startpoint;   // Left bracket enclosing the progress bar
+  std::optional<...> endpoint;     // Right bracket enclosing the progress bar
+  std::optional<...> left_status;  // Status bar left parenthesis
+  std::optional<...> right_status; // Status bar right parenthesis
+  std::optional<...> status_color; // Color effect of the status information on the right side of the progress bar
+  std::optional<...> bar_length;   // Length of the progress bar to occupy in the terminal
 };
 ```
 
@@ -163,17 +170,29 @@ pgbar& pgbar::set_done(std::string _done_ch)
 pgbar& pgbar::set_todo(std::string _todo_ch)
 
 /* Set the style of the left bracket of the progress bar, can be passed an empty string. */
-pgbar& pgbar::set_lbracket(std::string _l_bracket)
+pgbar& pgbar::set_startpoint(std::string _startpoint)
 
 /* Set the style of the right side of the progress bar. */
-pgbar& pgbar::set_rbracket(std::string _r_bracket)
+pgbar& pgbar::set_endpoint(std::string _endpoint)
+
+/* Set the style of the left parenthesis in the status bar, can be passd an empty string. */
+pgbar& pgbar::set_lstatus(std::string _lstatus)
+
+/* Set the style of the right side in the status bar. */
+pgbar& pgbar::set_rstatus(std::string _rstatus)
 
 /* Set the length of the progress bar, indicating how many characters the progress bar occupies after output. */
 pgbar& pgbar::set_bar_length(size_t _length) noexcept
 
-/* Set the color of the status information bar using the given constant values from pgbar::style::dye.
- * This function has no actual effect when the macro PGBAR_NOT_COL is activated. */
-pgbar& pgbar::set_color(/* literal type */ _dye) noexcept
+/* Set the color of unfilled characters in the progress bar, using the given constant value from pgbar::style::dye.
+ * This function has no effect when the macro PGBAR_NOT_COL is activated. */
+pgbar& pgbar::set_todo_col(/* literal type */ _dye) noexcept
+
+/* Similarly, set the color of filled characters in the progress bar. */
+pgbar& pgbar::set_done_col(/* literal type */ _dye) noexcept
+
+/* Also, set the color of the status information bar. */
+pgbar& pgbar::set_status_col(/* literal type */ _dye) noexcept
 
 /* Use bitwise operations to set the information to be displayed based on multiple predefined options. */
 pgbar& pgbar::set_style(pgbar::style::Type _selection) noexcept
@@ -266,6 +285,9 @@ Just for practice, that's all.
 
 ## 风格样式
 ```
+{startpoint}{done char}{todo char}{endpoint} {left status}{percentage}{task counter}{rate}{countdown}{right status}
+^~~~~~~~~~~~~~~ Progress bar ~~~~~~~~~~~~~~^ ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Status bar ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+
 [---------------                         ] [ 36.63%  |  36638968/100000000 |  21.27 MHz |   1s < 3s   ]
 ```
 ![example-color](images/example_color.gif)
@@ -333,15 +355,19 @@ int main()
 `pgbar::style` 中所有可用且*可选*的字段，以及这些字段的实际类型如下：
 ```cpp
 struct style {
-  std::optional<...> todo_char;    // 进度条的空白部分
-  std::optional<...> done_char;    // 填充进度条的字符
-  std::optional<...> left_bracket; // 括起进度条的左侧括号
-  std::optional<...> right_bracket;// 括起进度条的右侧括号
   std::optional<...> total_tasks;  // 任务总数
   std::optional<...> each_setp;    // 每次更新时等价的更新次数
-  std::optional<...> bar_length;   // 进度条在终端中要占用的长度
-  std::optional<...> color;        // 进度条右侧状态信息的颜色效果
   std::optional<...> option;       // 样式化开关，一个位向量
+  std::optional<...> todo_char;    // 进度条的空白部分
+  std::optional<...> done_char;    // 填充进度条的字符
+  std::optional<...> todo_color;   // 填充进度条空白部分的颜色
+  std::optional<...> done_color;   // 填充进度条的字符的颜色
+  std::optional<...> startpoint;   // 括起进度条的左侧起点
+  std::optional<...> endpoint;     // 括起进度条的右侧终点
+  std::optional<...> left_status;  // 状态栏左侧的括号
+  std::optional<...> right_status; // 状态栏右侧的括号
+  std::optional<...> status_color; // 进度条右侧状态信息的颜色效果
+  std::optional<...> bar_length;   // 进度条在终端中要占用的长度
 };
 ```
 
@@ -389,17 +415,29 @@ pgbar& pgbar::set_done(std::string _done_ch)
 pgbar& pgbar::set_todo(std::string _todo_ch)
 
 /* 设置进度条左侧的括号样式，可以传入一个空字符串. */
-pgbar& pgbar::set_lbracket(std::string _l_bracket)
+pgbar& pgbar::set_startpoint(std::string _startpoint)
 
 /* 设置进度条右侧样式. */
-pgbar& pgbar::set_rbracket(std::string _r_bracket)
+pgbar& pgbar::set_endpoint(std::string _endpoint)
+
+/* 设置状态栏左侧的括号样式，可以传入一个空字符串. */
+pgbar& pgbar::set_lstatus(std::string _lstatus)
+
+/* 设置状态栏右侧样式. */
+pgbar& pgbar::set_rstatus(std::string _rstatus)
 
 /* 设置进度条的长度，表示进度条在输出后占多少字符长. */
 pgbar& pgbar::set_bar_length(size_t _length) noexcept
 
-/* 设置状态信息栏的颜色，使用 pgbar::style::dye 中的给定常量值来设置.
+/* 设置进度条中未填充字符的颜色，使用 pgbar::style::dye 中的给定常量值来设置.
  * 在宏 PGBAR_NOT_COL 激活时该函数没有实际效果. */
-pgbar& pgbar::set_color(/* literal type */ _dye) noexcept
+pgbar& pgbar::set_todo_col(/* literal type */ _dye) noexcept
+
+/* 同上，设置进度条中已填充字符的颜色. */
+pgbar& pgbar::set_done_col(/* literal type */ _dye) noexcept
+
+/* 同上，设置状态信息栏的颜色. */
+pgbar& pgbar::set_status_col(/* literal type */ _dye) noexcept
 
 /* 根据多个预定选项，使用位操作设定需要显示的信息. */
 pgbar& pgbar::set_style(pgbar::style::Type _selection) noexcept

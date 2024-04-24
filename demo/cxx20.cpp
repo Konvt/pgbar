@@ -14,13 +14,16 @@ int main()
     // You can initialize objects using pgbar::style and designated initializer
     pgbar::pgbar bar {
       pgbar::style {
-        .todo_char = "\033[31m━\033[0m",
-        .done_char = "\033[32m━\033[0m",
-        .left_bracket = " ",
-        .right_bracket = "",
         .total_tasks = TOTAL,
         .each_setp = 2,
-        .option = pgbar::style::entire
+        .option = pgbar::style::entire,
+        .todo_char = "━",
+        .done_char = "━",
+        .todo_color = pgbar::style::dye::red,
+        .done_color = pgbar::style::dye::green,
+        .startpoint = " ",
+        .endpoint = "",
+        .left_status = "=> "
       }
     };
     for ( size_t i = 0; i < (TOTAL / 2); ++i ) {
@@ -41,10 +44,10 @@ int main()
     // `pgbar::set_style` also supports the use of a designated initializer
     bar.set_style(
       pgbar::style {
-        .left_bracket = " ",
-        .right_bracket = "",
-        .bar_length = 20,
-        .color = pgbar::style::dye::green
+        .startpoint = " ",
+        .endpoint = "",
+        .status_color = pgbar::style::dye::green,
+        .bar_length = 20
       }
     );
 
