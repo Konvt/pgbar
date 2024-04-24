@@ -210,7 +210,7 @@ namespace pgbar {
     static constexpr Type task_counter = 1 << 2;
     static constexpr Type rate = 1 << 3;
     static constexpr Type countdown = 1 << 4;
-    static constexpr Type entire = UINT8_MAX;
+    static constexpr Type entire = ~0;
 
 #if __PGBAR_CXX20__
     std::optional<__detail::StrT> todo_char;
@@ -397,14 +397,16 @@ namespace pgbar {
 
     static constexpr char blank = ' ';
     static constexpr char backspace = '\b';
-    static constexpr __detail::SizeT ratio_len = 7; // The length of `100.00%`.
-    static constexpr __detail::SizeT time_len = 11; // The length of `9.9m < 9.9m`.
-    static constexpr __detail::SizeT rate_len = 10; // The length of `999.99 kHz`.
-    static __detail::ConstStrT lstatus;       // The left bracket of status bar.
-    static __detail::ConstStrT rstatus;       // The right bracket of status bar.
-    static __detail::ConstStrT division;      // The default division character.
-    static __detail::LiteralStrT font_fmt;    // The font style of status bar.
-    static __detail::LiteralStrT default_col; // The default color and font style.
+    static constexpr __detail::SizeT ratio_len = sizeof("100.00%") - sizeof(char);
+    static constexpr __detail::SizeT time_len  = sizeof("9.9m < 9.9m") - sizeof(char);
+    static constexpr __detail::SizeT rate_len  = sizeof("999.99 kHz") - sizeof(char);
+    static __detail::ConstStrT lstatus;  // The left bracket of status bar.
+    static __detail::ConstStrT rstatus;  // The right bracket of status bar.
+    static __detail::ConstStrT division; // The default division character.
+    // The font style of status bar.
+    static constexpr __detail::LiteralStrT font_fmt = __PGBAR_COL__;
+    // The default color and font style.
+    static constexpr __detail::LiteralStrT default_col = __PGBAR_DEFAULT_COL__;
 
     mutable std::atomic<bool> update_flag_;
     RenderMode rndrer_;
@@ -416,9 +418,9 @@ namespace pgbar {
     __detail::SizeT step_; // The number of steps per invoke `update()`.
     __detail::SizeT bar_length_; // The length of the progress bar.
     __detail::LiteralStrT color_;
-    style::Type option_;
     __detail::SizeT done_cnt_;
     __detail::SizeT cnt_length_; // The length of the task counter.
+    std::bitset<sizeof( style::Type ) * 8> option_;
 
     bool in_tty_;
 
@@ -591,57 +593,56 @@ namespace pgbar {
     /// @return The progress bar that has been assembled but is pending output.
     std::pair<__detail::StrT, __detail::StrT>  generate_barcode( double percent, __detail::SizeT num_done,
                                                                  std::chrono::duration<__detail::SizeT, std::nano> interval ) const {
-      enum bit_index : style::Type { _bar = 0, _per, _cnt, _rate, _timer, _terminus };
-      static std::bitset<sizeof( style::Type ) * 8> control_bit;
+      enum bit_index : style::Type { _bar = 0, _per, _cnt, _rate, _timer };
+      static bool status_bar;
       static __detail::SizeT total_length;
 
       __detail::StrT rollback, progress_bar;
       if ( !is_updated() ) {
-        control_bit = option_;
-        control_bit[_terminus] = // indicates whether a status bar exists
-          control_bit[_per] || control_bit[_cnt] ||
-          control_bit[_rate] || control_bit[_timer];
+        status_bar = // indicates whether a status bar exists
+          option_[_per] || option_[_cnt] ||
+          option_[_rate] || option_[_timer];
         total_length = (
-          (control_bit[_bar] ? bar_length_ + lbracket_.size() + rbracket_.size() + 1 : 0) +
-          (control_bit[_per] ? ratio_len : 0) +
-          (control_bit[_cnt] ? cnt_length_ : 0) +
-          (control_bit[_rate] ? rate_len : 0) +
-          (control_bit[_timer] ? time_len : 0) +
-          (control_bit[_terminus] ? lstatus.size() + rstatus.size() : 0)
+          (option_[_bar] ? bar_length_ + lbracket_.size() + rbracket_.size() + 1 : 0) +
+          (option_[_per] ? ratio_len : 0) +
+          (option_[_cnt] ? cnt_length_ : 0) +
+          (option_[_rate] ? rate_len : 0) +
+          (option_[_timer] ? time_len : 0) +
+          (status_bar ? lstatus.size() + rstatus.size() : 0)
         );
         const __detail::SizeT status_info_num =
-          control_bit[_per] + control_bit[_cnt] + control_bit[_rate] + control_bit[_timer];
+          option_[_per] + option_[_cnt] + option_[_rate] + option_[_timer];
         total_length += status_info_num > 1 ? (status_info_num - 1) * division.size() : 0;
       } else rollback = __detail::StrT( total_length, backspace );
 
-      if ( control_bit[_bar] )
+      if ( option_[_bar] )
         progress_bar.append( show_bar( percent ) );
-      if ( control_bit[_terminus] )
+      if ( status_bar )
         progress_bar.append( __detail::StrT( font_fmt ) + __detail::StrT( color_ ) + __detail::StrT( lstatus ) );
-      if ( control_bit[_per] ) {
+      if ( option_[_per] ) {
         progress_bar.append(
-          control_bit[_cnt] || control_bit[_rate] || control_bit[_timer] ?
+          option_[_cnt] || option_[_rate] || option_[_timer] ?
             show_percentage( percent ) + __detail::StrT( division ) :
             show_percentage( percent )
         );
       }
-      if ( control_bit[_cnt] ) {
+      if ( option_[_cnt] ) {
         progress_bar.append(
-          control_bit[_rate] || control_bit[_timer] ?
+          option_[_rate] || option_[_timer] ?
             show_task_counter( num_done ) + __detail::StrT( division ) :
             show_task_counter( num_done )
         );
       }
-      if ( control_bit[_rate] ) {
+      if ( option_[_rate] ) {
         progress_bar.append(
-          control_bit[_timer] ?
+          option_[_timer] ?
             show_rate( interval ) + __detail::StrT( division ) :
             show_rate( interval )
         );
       }
-      if ( control_bit[_timer] )
+      if ( option_[_timer] )
         progress_bar.append( show_countdown( std::move( interval ), done_cnt_ ) );
-      if ( control_bit[_terminus] )
+      if ( status_bar )
         progress_bar.append( __detail::StrT( rstatus ) + __detail::StrT( default_col ) );
 
       return { std::move( rollback ), std::move( progress_bar ) };
@@ -719,7 +720,6 @@ namespace pgbar {
       _to.num_tasks_ = _from.num_tasks_;
       _to.step_ = _from.step_;
       _to.bar_length_ = _from.bar_length_;
-      _to.option_ = _from.option_;
       _to.cnt_length_ = _from.cnt_length_;
     }
 
@@ -727,7 +727,7 @@ namespace pgbar {
       : update_flag_ { false }, rndrer_ { [this]() -> void { this->rendering(); } }, stream_ { *_ostream } {
       num_tasks_ = 0;
       step_ = 0;
-      bar_length_ = 50;
+      bar_length_ = 30;
       option_ = style::entire;
       done_cnt_ = 0;
       cnt_length_ = 1;
@@ -786,6 +786,7 @@ namespace pgbar {
       lbracket_ = _lhs.lbracket_;
       rbracket_ = _lhs.rbracket_;
       color_ = _lhs.color_;
+      option_ = _lhs.option_;
       pod_copy( *this, _lhs );
     }
     pgbar( pgbar&& _rhs )
@@ -795,6 +796,7 @@ namespace pgbar {
       lbracket_ = std::move( _rhs.lbracket_ );
       rbracket_ = std::move( _rhs.rbracket );
       color_ = std::move( _rhs.color_ );
+      option_ = std::move( _rhs.option_ );
       pod_copy( *this, _rhs );
     }
     ~pgbar() {}
@@ -903,6 +905,7 @@ namespace pgbar {
       lbracket_ = _lhs.lbracket_;
       rbracket_ = _lhs.rbracket_;
       color_ = _lhs.color_;
+      option_ = _lhs.option_;
       pod_copy( *this, _lhs );
       return *this;
     }
@@ -912,6 +915,7 @@ namespace pgbar {
       lbracket_ = std::move( _rhs.lbracket_ );
       rbracket_ = std::move( _rhs.rbracket_ );
       color_ = std::move( _rhs.color_ );
+      option_ = _rhs.option_;
       pod_copy( *this, _rhs );
       return *this;
     }
@@ -933,18 +937,15 @@ namespace pgbar {
   };
 
 #define __PGBAR_DECL__ \
-  template<typename StreamObj, typename RenderMode>
+  template<typename StreamObj, typename RenderMode> \
+    __detail::ConstStrT
 
   __PGBAR_DECL__
-    __detail::ConstStrT pgbar<StreamObj, RenderMode>::lstatus { "[ " };
+    pgbar<StreamObj, RenderMode>::lstatus { "[ " };
   __PGBAR_DECL__
-    __detail::ConstStrT pgbar<StreamObj, RenderMode>::rstatus { " ]" };
+    pgbar<StreamObj, RenderMode>::rstatus { " ]" };
   __PGBAR_DECL__
-    __detail::ConstStrT pgbar<StreamObj, RenderMode>::division { " | " };
-  __PGBAR_DECL__
-    __detail::LiteralStrT pgbar<StreamObj, RenderMode>::font_fmt { __PGBAR_COL__ };
-  __PGBAR_DECL__
-    __detail::LiteralStrT pgbar<StreamObj, RenderMode>::default_col { __PGBAR_DEFAULT_COL__ };
+    pgbar<StreamObj, RenderMode>::division { " | " };
 
 #if __PGBAR_CXX20__
   namespace __detail {
