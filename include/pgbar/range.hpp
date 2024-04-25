@@ -7,7 +7,6 @@
 # define __PGBAR_RANGE_HPP__
 
 #include "pgbar.hpp" // Other required header files have been included in pgbar.hpp.
-#include <iterator>  // marks iterator tags
 #include <algorithm> // std::distance
 
 #if defined(_MSVC_VER) && defined(_MSVC_LANG) // for msvc

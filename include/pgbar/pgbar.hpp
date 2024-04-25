@@ -10,6 +10,7 @@
 # include <cmath>       // std::round
 # include <type_traits> // SFINAE
 # include <utility>     // std::pair
+# include <iterator>    // marks iterator tags
 # include <bitset>      // std::bitset
 # include <string>      // std::string
 # include <chrono>      // as u know
@@ -161,6 +162,67 @@ namespace pgbar {
       >::type
     > : std::true_type {};
 #endif // __PGBAR_CXX20__
+
+    class counter_iterator {
+      SizeT num_tasks_;
+      SizeT step_;
+      SizeT current_;
+
+    public:
+      using iterator_category = std::forward_iterator_tag;
+      using value_type = SizeT;
+      using difference_type = void;
+      using pointer = void;
+      using reference = value_type;
+
+      counter_iterator( value_type _tasks = 0, value_type _each_step = 0 ) noexcept
+        : num_tasks_ { _tasks }, step_ { _each_step }, current_ {} {}
+      counter_iterator begin() const noexcept { return *this; }
+      counter_iterator end() const noexcept {
+        auto endpoint = *this;
+        endpoint.current_ = num_tasks_;
+        return endpoint;
+      }
+      value_type operator*() const noexcept { return current_; }
+      bool operator==( const counter_iterator& _lhs ) const noexcept {
+        return (current_ / step_) == (_lhs.current_ / step_);
+      }
+      bool operator!=( const counter_iterator& _lhs ) const noexcept {
+        return !(*this == _lhs);
+      }
+      bool operator==( value_type _num ) const noexcept {
+        return current_ == _num;
+      }
+      bool operator!=( value_type _num ) const noexcept {
+        return !(*this == _num);
+      }
+      counter_iterator& operator++() noexcept {
+        current_ += step_; return *this;
+      }
+      counter_iterator operator++( int ) noexcept {
+        auto before = *this; current_ += step_;
+        return before;
+      }
+      counter_iterator& operator+=( value_type _increment ) noexcept {
+        current_ = (current_ + _increment) > num_tasks_ ? num_tasks_ : (current_ + _increment);
+        return *this;
+      }
+      counter_iterator& operator=( value_type _num ) noexcept {
+        current_ = _num; return *this;
+      }
+      counter_iterator& set_step( value_type _step ) noexcept {
+        step_ = _step; return *this;
+      }
+      counter_iterator& set_task( value_type _tasks ) noexcept {
+        num_tasks_ = _tasks; return *this;
+      }
+      counter_iterator& operator=( const counter_iterator& _lhs ) noexcept {
+        num_tasks_ = _lhs.num_tasks_;
+        step_ = _lhs.step_; current_ = 0;
+        return *this;
+      }
+    };
+
   } // namespace __detail
 
 #if __PGBAR_CXX20__
@@ -429,10 +491,8 @@ namespace pgbar {
     __detail::StrT todo_ch_, done_ch_;
     __detail::StrT startpoint_, endpoint_;
     __detail::StrT lstatus_, rstatus_;
-    __detail::SizeT num_tasks_;
-    __detail::SizeT step_; // The number of steps per invoke `update()`.
+    __detail::counter_iterator task_cnt_;
     __detail::SizeT bar_length_; // The length of the progress bar.
-    __detail::SizeT done_cnt_;
     __detail::SizeT cnt_length_; // The length of the task counter.
 
     bool in_tty_;
@@ -500,7 +560,7 @@ namespace pgbar {
         startpoint_ + __detail::StrT( __PGBAR_DEFAULT_COL__ ) +
         __detail::StrT( done_col_ ) + bulk_copy( done_len, done_ch_ ) +
         __detail::StrT( todo_col_ ) + bulk_copy( bar_length_ - done_len, todo_ch_ ) +
-        __detail::StrT( __PGBAR_DEFAULT_COL__ ) +endpoint_ +
+        __detail::StrT( __PGBAR_DEFAULT_COL__ ) + endpoint_ +
         __detail::StrT( 1, blank )
       );
     }
@@ -522,7 +582,7 @@ namespace pgbar {
     }
 
     __PGBAR_INLINE_FUNC__ __detail::StrT show_task_counter( __detail::SizeT num_done ) const {
-      __detail::StrT total_str = std::to_string( num_tasks_ );
+      __detail::StrT total_str = std::to_string( *task_cnt_.end() );
       __detail::SizeT size = total_str.size();
       return (
         formatter<txt_layut::align_right>( size, std::to_string( num_done ) ) +
@@ -531,7 +591,7 @@ namespace pgbar {
     }
 
     __detail::StrT show_rate( std::chrono::duration<__detail::SizeT, std::nano> interval ) const {
-      static std::chrono::duration<__detail::SizeT, std::nano> invoke_interval;
+      static decltype(interval) invoke_interval;
 
       if ( !is_updated() ) {
         invoke_interval = {};
@@ -596,10 +656,11 @@ namespace pgbar {
 
       return formatter<txt_layut::align_center>(
         time_len,
-        to_time(
-          std::chrono::duration_cast<std::chrono::seconds>(interval * num_done).count() ) +
-          __detail::StrT( " < " ) +
-          to_time( std::chrono::duration_cast<std::chrono::seconds>(interval * (num_tasks_ - num_done)).count()
+        to_time( std::chrono::duration_cast<
+          std::chrono::seconds>(interval * num_done).count() ) +
+        __detail::StrT( " < " ) +
+        to_time( std::chrono::duration_cast<
+          std::chrono::seconds>(interval * (*task_cnt_.end() - num_done)).count()
         )
       );
     }
@@ -658,7 +719,7 @@ namespace pgbar {
         );
       }
       if ( option_[_timer] )
-        progress_bar.append( show_countdown( std::move( interval ), done_cnt_ ) );
+        progress_bar.append( show_countdown( std::move( interval ), *task_cnt_ ) );
       if ( status_bar )
         progress_bar.append( rstatus_ + __detail::StrT( default_col ) );
 
@@ -686,19 +747,19 @@ namespace pgbar {
 
       if ( in_tty_ ) {
         auto now = std::chrono::system_clock::now();
-        invoke_interval = done_cnt_ != 0 ? (now - first_invoked) / done_cnt_
+        invoke_interval = task_cnt_ != 0 ? (now - first_invoked) / *task_cnt_
           : (now - first_invoked) / static_cast<__detail::SizeT>(1);
 
         const auto info =
-          generate_barcode( done_cnt_ / static_cast<double>(num_tasks_),
-                            done_cnt_, invoke_interval );
+          generate_barcode( *task_cnt_ / static_cast<double>(*task_cnt_.end()),
+                            *task_cnt_, invoke_interval );
 
         stream_ << info.first << info.second;
       }
 
       if ( is_done() ) {
         if ( in_tty_ ) {
-          auto info = generate_barcode( 1, num_tasks_, invoke_interval );
+          auto info = generate_barcode( 1, *task_cnt_.end(), invoke_interval );
           info.second.append( "\n" );
           stream_ << info.first << info.second;
         }
@@ -721,7 +782,7 @@ namespace pgbar {
 
       if ( is_done() )
         throw bad_pgbar { "bad_pgbar: updating a full progress bar" };
-      else if ( num_tasks_ == 0 )
+      else if ( task_cnt_.end() == 0 )
         throw bad_pgbar { "bad_pgbar: the number of tasks is zero" };
       if ( !is_updated() )
         rndrer_.active();
@@ -729,24 +790,22 @@ namespace pgbar {
       invokable();
       rndrer_.render();
 
-      if ( (done_cnt_ / step_) == (num_tasks_ / step_) )
+      if ( task_cnt_ == task_cnt_.end() )
         rndrer_.suspend(); // wait for sub thread to finish
     }
 
     static void pod_copy( pgbar& _to, const pgbar& _from ) noexcept {
-      _to.num_tasks_ = _from.num_tasks_;
-      _to.step_ = _from.step_;
+      _to.task_cnt_ = _from.task_cnt_;
       _to.bar_length_ = _from.bar_length_;
       _to.cnt_length_ = _from.cnt_length_;
     }
 
     pgbar( StreamObj* _ostream )
-      : update_flag_ { false }, rndrer_ { [this]() -> void { this->rendering(); } }, stream_ { *_ostream } {
+      : update_flag_ { false }, rndrer_ {
+        [this]() -> void { this->rendering(); }
+      }, stream_ { *_ostream } {
       option_ = style::entire;
-      num_tasks_ = 0;
-      step_ = 0;
       bar_length_ = 30;
-      done_cnt_ = 0;
       cnt_length_ = 1;
       in_tty_ = check_output_stream( _ostream );
     }
@@ -766,10 +825,9 @@ namespace pgbar {
       endpoint_ = __detail::StrT( 1, ']' );
       lstatus_ = __detail::StrT( "[ " );
       rstatus_ = __detail::StrT( " ]" );
-      num_tasks_ = _total_tsk;
-      step_ = _each_step;
+      task_cnt_ = __detail::counter_iterator(_total_tsk, _each_step);
 
-      cnt_length_ = std::to_string( num_tasks_ ).size() * 2 + 1;
+      cnt_length_ = std::to_string( *task_cnt_.end() ).size() * 2 + 1;
     }
     pgbar( __detail::SizeT _total_tsk, StreamObj& _ostream = std::cerr )
       : pgbar(_total_tsk, 1, _ostream) {}
@@ -798,18 +856,19 @@ namespace pgbar {
         ? std::move( _initializer.left_status.value() ) : __detail::StrT( "[ " );
       rstatus_ = _initializer.right_status.has_value()
         ? std::move( _initializer.right_status.value() ) : __detail::StrT( " ]" );
-      num_tasks_ = _initializer.total_tasks.has_value()
-        ? _initializer.total_tasks.value() : num_tasks_;
-      step_ = _initializer.each_setp.has_value()
-        ? _initializer.each_setp.value() : step_;
+
+      if ( _initializer.total_tasks.has_value() )
+        task_cnt_.set_task( _initializer.total_tasks.value() );
+      if ( _initializer.each_setp.has_value() )
+        task_cnt_.set_step( _initializer.each_setp.value() );
       bar_length_ = _initializer.bar_length.has_value()
         ? _initializer.bar_length.value() : bar_length_;
 
-      cnt_length_ = std::to_string( num_tasks_ ).size() * 2 + 1;
+      cnt_length_ = std::to_string( *task_cnt_.end() ).size() * 2 + 1;
     }
 #endif // __PGBAR_CXX20__
-    pgbar( const pgbar& _lhs )
-      : pgbar( std::addressof( _lhs.stream_ ) ) { // style copy
+    pgbar( const pgbar& _lhs ) // style copy
+      : pgbar( std::addressof( _lhs.stream_ ) ) {
       option_ = _lhs.option_;
       todo_col_ = _lhs.todo_col_;
       done_col_ = _lhs.done_col_;
@@ -842,13 +901,13 @@ namespace pgbar {
       return update_flag_;
     }
     bool is_done() const noexcept {
-      return is_updated() && ((done_cnt_ / step_) == (num_tasks_ / step_));
+      return is_updated() && task_cnt_ == task_cnt_.end();
     }
     /// @brief Reset pgbar obj, EXCLUDING the total number of tasks.
     pgbar& reset() {
       if ( !is_updated() )
         return *this;
-      done_cnt_ = 0;
+      task_cnt_ = 0;
       rndrer_.suspend();
       update_flag_ = false;
       return *this;
@@ -858,7 +917,7 @@ namespace pgbar {
     pgbar& set_step( __detail::SizeT _step ) {
       if ( is_updated() ) return *this;
       else if ( _step == 0 ) throw bad_pgbar { "bad_pgbar: zero step_" };
-      step_ = _step; return *this;
+      task_cnt_.set_step( _step ); return *this;
     }
     /// @brief Set the number of tasks to be updated.
     /// @throw If the `_total_tsk` is 0, it will throw an `bad_pgbar`.
@@ -866,8 +925,8 @@ namespace pgbar {
       if ( is_updated() ) return *this;
       else if ( _total_tsk == 0 )
         throw bad_pgbar { "bad_pgbar: the number of tasks is zero" };
-      num_tasks_ = _total_tsk;
-      cnt_length_ = std::to_string( num_tasks_ ).size() * 2 + 1;
+      task_cnt_.set_task( _total_tsk );
+      cnt_length_ = std::to_string( *task_cnt_.end() ).size() * 2 + 1;
       return *this;
     }
     /// @brief Set the TODO characters in the progress bar.
@@ -959,14 +1018,15 @@ namespace pgbar {
         ? std::move( _selection.left_status.value() ) : lstatus_;
       rstatus_ = _selection.right_status.has_value()
         ? std::move( _selection.right_status.value() ) : rstatus_;
-      num_tasks_ = _selection.total_tasks.has_value()
-        ? _selection.total_tasks.value() : num_tasks_;
-      step_ = _selection.each_setp.has_value()
-        ? _selection.each_setp.value() : step_;
+
+      if ( _selection.total_tasks.has_value() )
+        task_cnt_.set_task( _selection.total_tasks.value() );
+      if ( _selection.each_setp.has_value() )
+        task_cnt_.set_step( _selection.each_setp.value() );
       bar_length_ = _selection.bar_length.has_value()
         ? _selection.bar_length.value() : bar_length_;
 
-      cnt_length_ = std::to_string( num_tasks_ ).size() * 2 + 1;
+      cnt_length_ = std::to_string( *task_cnt_.end() ).size() * 2 + 1;
       return *this;
     }
 #endif // __PGBAR_CXX20__
@@ -1003,7 +1063,7 @@ namespace pgbar {
 
     /// @brief Update progress bar.
     void update() {
-      do_update( [&]() -> void { done_cnt_ += step_; } );
+      do_update( [&]() -> void { ++task_cnt_; } );
     }
 
     /// @brief Ignore the effect of `set_step()`, increment forward several progresses,
@@ -1011,8 +1071,7 @@ namespace pgbar {
     /// @param next_step The number that will increment forward the progresses.
     void update( __detail::SizeT next_step ) {
       do_update( [&]() -> void {
-        done_cnt_ += ((done_cnt_ + next_step) <= num_tasks_) ? next_step :
-          num_tasks_ - done_cnt_;
+        task_cnt_ += next_step;
       } );
     }
   };
