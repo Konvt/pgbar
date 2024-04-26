@@ -17,8 +17,8 @@ int main()
        .set_startpoint( " " )
        .set_endpoint( "" )
        .set_lstatus( "=> " )
-       .set_todo_col( pgbar::style::dye::green )
-       .set_done_col( pgbar::style::dye::red );
+       .set_todo_col( pgbar::style::dye::red )
+       .set_done_col( pgbar::style::dye::green );
     for ( size_t i = 0; i < (TOTAL / 2); ++i ) {
       bar.update(); // Normal update
       // Do anything you want here...
