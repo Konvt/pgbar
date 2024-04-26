@@ -163,6 +163,7 @@ namespace pgbar {
     > : std::true_type {};
 #endif // __PGBAR_CXX20__
 
+    /// @brief This iterator does not necessarily conform to the normal iterator definition.
     class counter_iterator {
       SizeT num_tasks_;
       SizeT step_;
@@ -175,7 +176,7 @@ namespace pgbar {
       using pointer = void;
       using reference = value_type;
 
-      counter_iterator( value_type _tasks = 0, value_type _each_step = 0 ) noexcept
+      explicit counter_iterator( value_type _tasks = 0, value_type _each_step = 0 ) noexcept
         : num_tasks_ { _tasks }, step_ { _each_step }, current_ {} {}
       counter_iterator begin() const noexcept { return *this; }
       counter_iterator end() const noexcept {
@@ -183,13 +184,11 @@ namespace pgbar {
         endpoint.current_ = num_tasks_;
         return endpoint;
       }
+      bool is_ended() const noexcept {
+        // Avoid performing integer division operations.
+        return current_ >= num_tasks_ || num_tasks_ - current_ < step_;
+      }
       value_type operator*() const noexcept { return current_; }
-      bool operator==( const counter_iterator& _lhs ) const noexcept {
-        return (current_ / step_) == (_lhs.current_ / step_);
-      }
-      bool operator!=( const counter_iterator& _lhs ) const noexcept {
-        return !(*this == _lhs);
-      }
       bool operator==( value_type _num ) const noexcept {
         return current_ == _num;
       }
@@ -199,13 +198,13 @@ namespace pgbar {
       counter_iterator& operator++() noexcept {
         current_ += step_; return *this;
       }
-      counter_iterator operator++( int ) noexcept {
-        auto before = *this; current_ += step_;
-        return before;
-      }
       counter_iterator& operator+=( value_type _increment ) noexcept {
         current_ = (current_ + _increment) > num_tasks_ ? num_tasks_ : (current_ + _increment);
         return *this;
+      }
+      counter_iterator& operator=( const counter_iterator& _lhs ) noexcept {
+        num_tasks_ = _lhs.num_tasks_; step_ = _lhs.step_;
+        current_ = 0; return *this;
       }
       counter_iterator& operator=( value_type _num ) noexcept {
         current_ = _num; return *this;
@@ -216,13 +215,7 @@ namespace pgbar {
       counter_iterator& set_task( value_type _tasks ) noexcept {
         num_tasks_ = _tasks; return *this;
       }
-      counter_iterator& operator=( const counter_iterator& _lhs ) noexcept {
-        num_tasks_ = _lhs.num_tasks_;
-        step_ = _lhs.step_; current_ = 0;
-        return *this;
-      }
     };
-
   } // namespace __detail
 
 #if __PGBAR_CXX20__
@@ -790,7 +783,7 @@ namespace pgbar {
       invokable();
       rndrer_.render();
 
-      if ( task_cnt_ == task_cnt_.end() )
+      if ( task_cnt_.is_ended() )
         rndrer_.suspend(); // wait for sub thread to finish
     }
 
@@ -901,7 +894,7 @@ namespace pgbar {
       return update_flag_;
     }
     bool is_done() const noexcept {
-      return is_updated() && task_cnt_ == task_cnt_.end();
+      return is_updated() && task_cnt_.is_ended();
     }
     /// @brief Reset pgbar obj, EXCLUDING the total number of tasks.
     pgbar& reset() {
