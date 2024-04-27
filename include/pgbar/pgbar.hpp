@@ -294,6 +294,7 @@ namespace pgbar {
   };
 
   class multithread final {
+    bool had_output_;
     std::atomic<bool> active_flag_;
     std::atomic<bool> suspend_flag_;
 
@@ -318,22 +319,25 @@ namespace pgbar {
 #endif
     >
     explicit multithread( F&& task )
-      : active_flag_ { false }, suspend_flag_ { true }
-      , finish_signal_ { false }, stop_signal_ { true } {
+      : had_output_ { false }, active_flag_ { false }
+      , suspend_flag_ { true }, finish_signal_ { false }
+      , stop_signal_ { true } {
       td_ = std::thread( [&, task]() -> void {
         do {
           {
             std::unique_lock<std::mutex> lock { mtx_ };
             if ( stop_signal_ && !finish_signal_ ) {
-              if ( active_flag_ || stop_signal_ ) // it means subthread has been printed already
+              if ( active_flag_ ) // it means subthread has been printed already
                 task(); // so output the last progress bar before suspend
               suspend_flag_ = true;
               cond_var_.wait( lock );
             }
           }
           active_flag_ = true;
-          task();
+          if ( had_output_ || !finish_signal_ )
+            task();
           if ( finish_signal_ ) break;
+          had_output_ = true;
           std::this_thread::sleep_for( __detail::reflash_rate );
         } while ( true );
       } );
@@ -462,7 +466,7 @@ namespace pgbar {
     );
 
     enum class txt_layout { align_left, align_right, align_center }; // text layout
-    enum bit_index : style::Type { __bar = 0, __per, __cnt, __rate, __timer };
+    enum bit_index : style::Type { bar = 0, per, cnt, rate, timer };
     using BitVector = std::bitset<sizeof( style::Type ) * 8>;
 
     static constexpr char blank = ' ';
@@ -669,7 +673,7 @@ namespace pgbar {
                         std::chrono::duration<__detail::SizeT, std::nano> interval ) const {
       __detail::SizeT total_length = 0;
       __detail::StrT progress_bar;
-      if ( ctrller[__bar] ) {
+      if ( ctrller[bit_index::bar] ) {
         total_length += bar_length_ + startpoint_.size() + endpoint_.size() + 1;
         progress_bar.append( show_bar( num_per ) );
       }
@@ -677,28 +681,28 @@ namespace pgbar {
         total_length += status_length_;
         progress_bar.append( __detail::StrT( font_fmt ) + __detail::StrT( status_col_ ) + lstatus_ );
       }
-      if ( ctrller[__per] ) {
+      if ( ctrller[bit_index::per] ) {
         progress_bar.append(
-          ctrller[__cnt] || ctrller[__rate] || ctrller[__timer] ?
+          ctrller[bit_index::cnt] || ctrller[bit_index::rate] || ctrller[bit_index::timer] ?
             show_percentage( num_per ) + __detail::StrT( division ) :
             show_percentage( num_per )
         );
       }
-      if ( ctrller[__cnt] ) {
+      if ( ctrller[bit_index::cnt] ) {
         progress_bar.append(
-          ctrller[__rate] || ctrller[__timer] ?
+          ctrller[bit_index::rate] || ctrller[bit_index::timer] ?
             show_task_counter( num_done ) + __detail::StrT( division ) :
             show_task_counter( num_done )
         );
       }
-      if ( ctrller[__rate] ) {
+      if ( ctrller[bit_index::rate] ) {
         progress_bar.append(
-          ctrller[__timer] ?
+          ctrller[bit_index::timer] ?
             show_rate( interval ) + __detail::StrT( division ) :
             show_rate( interval )
         );
       }
-      if ( ctrller[__timer] )
+      if ( ctrller[bit_index::timer] )
         progress_bar.append( show_countdown( std::move( interval ), *task_cnt_ ) );
       if ( status_length_ != 0 )
         progress_bar.append( rstatus_ + __detail::StrT( default_col ) );
@@ -739,7 +743,7 @@ namespace pgbar {
 
         auto controller = option_;
         if ( num_percent - last_bar_progress_ < 0.01 )
-          controller.reset( __bar );
+          controller.reset( bit_index::bar );
         else last_bar_progress_ = num_percent;
 
         const auto info = generate_barcode(
@@ -810,7 +814,7 @@ namespace pgbar {
       _to.todo_ch_ = std::move( _from.todo_ch_ );
       _to.done_ch_ = std::move( _from.done_ch_ );
       _to.startpoint_ = std::move( _from.startpoint_ );
-      _to.endpoint_ = std::move( _from.rbracket );
+      _to.endpoint_ = std::move( _from.endpoint_ );
       _to.lstatus_ = std::move( _from.lstatus_ );
       _to.rstatus_ = std::move( _from.rstatus_ );
     }
@@ -820,15 +824,15 @@ namespace pgbar {
           std::log10( *_self.task_cnt_.end() ) + 1) * 2 + 1;
 
       _self.status_length_ = (
-        (_self.option_[__per] ? _self.ratio_len : 0) +
-        (_self.option_[__cnt] ? _self.cnt_length_ : 0) +
-        (_self.option_[__rate] ? _self.rate_len : 0) +
-        (_self.option_[__timer] ? _self.time_len : 0)
+        (_self.option_[bit_index::per] ? _self.ratio_len : 0) +
+        (_self.option_[bit_index::cnt] ? _self.cnt_length_ : 0) +
+        (_self.option_[bit_index::rate] ? _self.rate_len : 0) +
+        (_self.option_[bit_index::timer] ? _self.time_len : 0)
       );
       if ( _self.status_length_ != 0 ) {
         _self.status_length_ += _self.lstatus_.size() + _self.rstatus_.size();
         const __detail::SizeT status_num =
-          _self.option_[__per] + _self.option_[__cnt] + _self.option_[__rate] + _self.option_[__timer];
+          _self.option_[bit_index::per] + _self.option_[bit_index::cnt] + _self.option_[bit_index::rate] + _self.option_[bit_index::timer];
         _self.status_length_ += status_num > 1 ? (status_num - 1) * division.size() : 0;
       }
     }
