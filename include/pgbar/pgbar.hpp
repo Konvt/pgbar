@@ -391,7 +391,7 @@ namespace pgbar {
 #define __PGBAR_MOVE__(val) std::move( val )
 #define __PGBAR_EXPAN_FUNC__(OptionName, MethodName, ValPassingMode) \
     template<typename B, typename ...Args> \
-    void pipeline_expan( B& b, initr::OptionName val, Args&&... args ) { \
+    inline void pipeline_expan( B& b, initr::OptionName val, Args&&... args ) { \
       b.MethodName( ValPassingMode( val.value() ) ); \
       pipeline_expan( b, std::forward<Args>( args )... ); \
     }
@@ -654,7 +654,7 @@ namespace pgbar {
       if ( _time == 0 || _src.size() == 0 ) return {};
       __detail::StrT ret; ret.reserve( _src.size() * _time );
       for ( __detail::SizeT _ = 0; _ < _time; ++_ )
-        ret.append( _src, 0 );
+        ret.append( _src );
       return ret;
     }
 
