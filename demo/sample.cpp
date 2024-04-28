@@ -10,15 +10,17 @@ int main()
 #endif
   {
     std::cout << "Multithreaded rendering...\n";
-    // It can only be initialized after creating when it's not C++20, for now.
-    pgbar::pgbar<> bar { TOTAL, 2 };
-    bar.set_todo( "━" )
+    // It can be initialized after creating.
+    pgbar::pgbar<> bar;
+    bar.set_task( TOTAL )
+       .set_step(2)
+       .set_todo( "━" )
        .set_done( "━" )
        .set_startpoint( " " )
        .set_endpoint( "" )
        .set_lstatus( "=> " )
-       .set_todo_col( pgbar::style::dye::red )
-       .set_done_col( pgbar::style::dye::green );
+       .set_todo_col( pgbar::dye::red )
+       .set_done_col( pgbar::dye::green );
     for ( size_t i = 0; i < (TOTAL / 2); ++i ) {
       bar.update(); // Normal update
       // Do anything you want here...
@@ -33,17 +35,24 @@ int main()
 
   {
     std::cout << "Single threaded rendering...\n";
-    pgbar::pgbar<std::ostream, pgbar::singlethread> bar; // change color here
-    bar.set_startpoint( " " )
-       .set_endpoint( "" )
-       .set_bar_length( 20 )
-       .set_status_col( pgbar::style::dye::green );
+    // Also it can be initialized while creating.
+    pgbar::pgbar<std::ostream, pgbar::singlethread> bar {
+      std::cerr,
+      pgbar::initr::startpoint( " " ),
+      pgbar::initr::endpoint( "" ),
+      pgbar::initr::bar_length( 20 ),
+      pgbar::initr::status_color( pgbar::dye::green )
+    }; // change color here
 
     std::vector<double> arr {};
     for ( size_t i = 0; i < 30000; ++i )
       arr.push_back( i );
 
-    bar.set_style( pgbar::style::entire & ~pgbar::style::bar );
+    bar.set_style( // Function `set_style` also supports that.
+      pgbar::initr::option( pgbar::style::entire & ~pgbar::style::bar ),
+      pgbar::initr::left_status( "" ),
+      pgbar::initr::right_status( "" )
+    );
     // The total number of tasks will be automatically set by function `range`
     for ( auto ele : pgbar::range( arr, bar ) )
       continue; // Using a container with elements as the range
