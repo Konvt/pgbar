@@ -55,7 +55,6 @@
 #if __PGBAR_CMP_V__ >= 202002L
 # include <concepts> // std::same_as
 # include <format>   // std::format
-# include <optional> // std::optional
 # define __PGBAR_CXX20__ 1
 #else
 # define __PGBAR_CXX20__ 0
@@ -133,35 +132,14 @@ namespace pgbar {
     __PGBAR_INLINE_VAR__ constexpr std::chrono::microseconds reflash_rate
       = std::chrono::microseconds( 35 );
 
-#if __PGBAR_CXX20__
-    // these concepts are like duck types
-    template<typename F>
-    concept FunctorType = requires(F tk) {
-      { tk() } -> std::same_as<void>;
-    };
-
-    template<typename R>
-    concept RenderType = requires(R rndr) {
-      requires requires { R( std::declval<void()>() ); };
-      { rndr.active() } -> std::same_as<void>;
-      { rndr.suspend() } -> std::same_as<void>;
-      { rndr.render() } -> std::same_as<void>;
-    };
-
-    template<typename S>
-    concept StreamType = requires(S os) {
-      { os << StrT {} } -> std::same_as<S&>;
-    };
-#else
-    template<typename F, typename = void>
-    struct is_void_functor : std::false_type {};
-    template<typename F>
-    struct is_void_functor<F,
-      typename std::enable_if<
-        std::is_void<decltype(std::declval<F>()())>::value
-      >::type
-    > : std::true_type {};
-#endif // __PGBAR_CXX20__
+    template<typename T>
+    __PGBAR_INLINE_FUNC__ inline
+    typename std::enable_if<
+      std::is_arithmetic<typename std::decay<T>::type>::value,
+      StrT
+    >::type ToString( T&& value ) {
+      return std::to_string( value );
+    }
 
     /// @brief This iterator does not necessarily conform to the normal iterator definition.
     class counter_iterator {
@@ -216,6 +194,79 @@ namespace pgbar {
         num_tasks_ = _tasks; return *this;
       }
     };
+
+    struct wrapper_base { virtual ~wrapper_base() = 0; };
+    wrapper_base::~wrapper_base() {};
+    template<typename N>
+    class numeric_wrapper : public wrapper_base {
+      N data;
+    public:
+      constexpr explicit numeric_wrapper( N _data ) noexcept : data { _data } {}
+      N value() const noexcept { return data; }
+      virtual ~numeric_wrapper() noexcept {}
+    };
+    class string_wrapper : public wrapper_base {
+      StrT data;
+    public:
+      explicit string_wrapper( StrT _data ) : data { std::move( _data ) } {}
+      StrT& value() noexcept { return data; }
+      virtual ~string_wrapper() {}
+    };
+    class literal_wrapper : public wrapper_base {
+      LiteralStrT data;
+    public:
+      constexpr explicit literal_wrapper( LiteralStrT _data ) : data { _data } {}
+      LiteralStrT& value() noexcept { return data; }
+      virtual ~literal_wrapper() {}
+    };
+
+    template<typename T, typename = void>
+    struct is_initr : std::false_type {};
+    template<typename T>
+    struct is_initr<T,
+      typename std::enable_if<
+        std::is_base_of<wrapper_base, T>::value
+      >::type
+    > : std::true_type {};
+
+    template<typename T = wrapper_base, typename ...Args>
+    struct all_of_initr {
+      static constexpr bool value = is_initr<T>::value && all_of_initr<Args...>::value;
+    };
+    template<typename T>
+    struct all_of_initr<T> {
+      static constexpr bool value = is_initr<T>::value;
+    };
+
+#if __PGBAR_CXX20__
+    // these concepts are like duck types
+    template<typename F>
+    concept FunctorType = requires(F tk) {
+      { tk() } -> std::same_as<void>;
+    };
+
+    template<typename R>
+    concept RenderType = requires(R rndr) {
+      requires requires { R( std::declval<void()>() ); };
+      { rndr.active() } -> std::same_as<void>;
+      { rndr.suspend() } -> std::same_as<void>;
+      { rndr.render() } -> std::same_as<void>;
+    };
+
+    template<typename S>
+    concept StreamType = requires(S os) {
+      { os << StrT {} } -> std::same_as<S&>;
+    };
+#else
+    template<typename F, typename = void>
+    struct is_void_functor : std::false_type {};
+    template<typename F>
+    struct is_void_functor<F,
+      typename std::enable_if<
+        std::is_void<decltype(std::declval<F>()())>::value
+      >::type
+    > : std::true_type {};
+#endif // __PGBAR_CXX20__
   } // namespace __detail
 
 #if __PGBAR_CXX20__
@@ -230,7 +281,7 @@ namespace pgbar {
   template<typename S>
   struct is_stream<S,
     typename std::enable_if<
-      std::is_same<decltype(std::declval<S&>() << std::declval<std::string>()), S&>::value
+      std::is_same<decltype(std::declval<S&>() << std::declval<__detail::StrT>()), S&>::value
     >::type
   > : std::true_type {};
 
@@ -255,18 +306,6 @@ namespace pgbar {
 #endif // __PGBAR_CXX14__
 
   struct style {
-    struct dye {
-      static constexpr __detail::LiteralStrT none    = "";
-      static constexpr __detail::LiteralStrT black   = __PGBAR_BLACK__;
-      static constexpr __detail::LiteralStrT red     = __PGBAR_RED__;
-      static constexpr __detail::LiteralStrT green   = __PGBAR_GREEN__;
-      static constexpr __detail::LiteralStrT yellow  = __PGBAR_YELLOW__;
-      static constexpr __detail::LiteralStrT blue    = __PGBAR_BLUE__;
-      static constexpr __detail::LiteralStrT magenta = __PGBAR_MAGENTA__;
-      static constexpr __detail::LiteralStrT cyan    = __PGBAR_CYAN__;
-      static constexpr __detail::LiteralStrT white   = __PGBAR_WHITE__;
-    };
-
     using Type = uint8_t;
 
     static constexpr Type bar          = 1 << 0;
@@ -275,26 +314,108 @@ namespace pgbar {
     static constexpr Type rate         = 1 << 3;
     static constexpr Type countdown    = 1 << 4;
     static constexpr Type entire       = ~0;
-
-#if __PGBAR_CXX20__
-    std::optional<__detail::SizeT> total_tasks;
-    std::optional<__detail::SizeT> each_setp;
-    std::optional<Type> option;
-    std::optional<__detail::StrT> todo_char;
-    std::optional<__detail::StrT> done_char;
-    std::optional<__detail::LiteralStrT> todo_color;
-    std::optional<__detail::LiteralStrT> done_color;
-    std::optional<__detail::StrT> startpoint;
-    std::optional<__detail::StrT> endpoint;
-    std::optional<__detail::StrT> left_status;
-    std::optional<__detail::StrT> right_status;
-    std::optional<__detail::LiteralStrT> status_color;
-    std::optional<__detail::SizeT> bar_length;
-#endif // __PGBAR_CXX20__
   };
 
+  struct dye {
+    static constexpr __detail::LiteralStrT none    = "";
+    static constexpr __detail::LiteralStrT black   = __PGBAR_BLACK__;
+    static constexpr __detail::LiteralStrT red     = __PGBAR_RED__;
+    static constexpr __detail::LiteralStrT green   = __PGBAR_GREEN__;
+    static constexpr __detail::LiteralStrT yellow  = __PGBAR_YELLOW__;
+    static constexpr __detail::LiteralStrT blue    = __PGBAR_BLUE__;
+    static constexpr __detail::LiteralStrT magenta = __PGBAR_MAGENTA__;
+    static constexpr __detail::LiteralStrT cyan    = __PGBAR_CYAN__;
+    static constexpr __detail::LiteralStrT white   = __PGBAR_WHITE__;
+  };
+
+  namespace initr {
+    struct option final : public __detail::numeric_wrapper<style::Type> {
+      constexpr explicit option( style::Type _data ) noexcept
+        : __detail::numeric_wrapper<style::Type>(_data) {}
+    };
+    struct todo_color final : public __detail::literal_wrapper {
+      constexpr explicit todo_color( __detail::LiteralStrT _data )
+        : __detail::literal_wrapper( std::move( _data ) ) {}
+    };
+    struct done_color final : public __detail::literal_wrapper {
+      constexpr explicit done_color( __detail::LiteralStrT _data )
+        : __detail::literal_wrapper( std::move( _data ) ) {}
+    };
+    struct status_color final : public __detail::literal_wrapper {
+      constexpr explicit status_color( __detail::LiteralStrT _data )
+        : __detail::literal_wrapper( std::move( _data ) ) {}
+    };
+    struct todo_char final : public __detail::string_wrapper {
+      explicit todo_char( __detail::StrT _data )
+        : __detail::string_wrapper( std::move( _data ) ) {}
+    };
+    struct done_char final : public __detail::string_wrapper {
+      explicit done_char( __detail::StrT _data )
+        : __detail::string_wrapper( std::move( _data ) ) {}
+    };
+    struct startpoint final : public __detail::string_wrapper {
+      explicit startpoint( __detail::StrT _data )
+        : __detail::string_wrapper( std::move( _data ) ) {}
+    };
+    struct endpoint final : public __detail::string_wrapper {
+      explicit endpoint( __detail::StrT _data )
+        : __detail::string_wrapper( std::move( _data ) ) {}
+    };
+    struct left_status final : public __detail::string_wrapper {
+      explicit left_status( __detail::StrT _data )
+        : __detail::string_wrapper( std::move( _data ) ) {}
+    };
+    struct right_status final : public __detail::string_wrapper {
+      explicit right_status( __detail::StrT _data )
+        : __detail::string_wrapper( std::move( _data ) ) {}
+    };
+    struct total_tasks final : public __detail::numeric_wrapper<__detail::SizeT> {
+      constexpr explicit total_tasks( __detail::SizeT _data ) noexcept
+        : __detail::numeric_wrapper<__detail::SizeT>( _data ) {}
+    };
+    struct each_setp final : public __detail::numeric_wrapper<__detail::SizeT> {
+      constexpr explicit each_setp( __detail::SizeT _data ) noexcept
+        : __detail::numeric_wrapper<__detail::SizeT>( _data ) {}
+    };
+    struct bar_length final : public __detail::numeric_wrapper<__detail::SizeT> {
+      constexpr explicit bar_length( __detail::SizeT _data ) noexcept
+        : __detail::numeric_wrapper<__detail::SizeT>( _data ) {}
+    };
+  } // namespace initr
+
+  namespace __detail {
+    template<typename B> // end point
+    __PGBAR_INLINE_FUNC__ inline void pipeline_expan( B& b ) {}
+
+#define __PGBAR_COPY__(val) val
+#define __PGBAR_MOVE__(val) std::move( val )
+#define __PGBAR_EXPAN_FUNC__(OptionName, MethodName, ValPassingMode) \
+    template<typename B, typename ...Args> \
+    void pipeline_expan( B& b, initr::OptionName val, Args&&... args ) { \
+      b.MethodName( ValPassingMode( val.value() ) ); \
+      pipeline_expan( b, std::forward<Args>( args )... ); \
+    }
+
+    __PGBAR_EXPAN_FUNC__(option, set_style, __PGBAR_COPY__)
+    __PGBAR_EXPAN_FUNC__(todo_color, set_todo_col, __PGBAR_MOVE__)
+    __PGBAR_EXPAN_FUNC__(done_color, set_done_col, __PGBAR_MOVE__)
+    __PGBAR_EXPAN_FUNC__(status_color, set_status_col, __PGBAR_MOVE__)
+    __PGBAR_EXPAN_FUNC__(todo_char, set_todo, __PGBAR_MOVE__)
+    __PGBAR_EXPAN_FUNC__(done_char, set_done, __PGBAR_MOVE__)
+    __PGBAR_EXPAN_FUNC__(startpoint, set_startpoint, __PGBAR_MOVE__)
+    __PGBAR_EXPAN_FUNC__(endpoint, set_endpoint, __PGBAR_MOVE__)
+    __PGBAR_EXPAN_FUNC__(left_status, set_lstatus, __PGBAR_MOVE__)
+    __PGBAR_EXPAN_FUNC__(right_status, set_rstatus, __PGBAR_MOVE__)
+    __PGBAR_EXPAN_FUNC__(total_tasks, set_task, __PGBAR_COPY__)
+    __PGBAR_EXPAN_FUNC__(each_setp, set_step, __PGBAR_COPY__)
+    __PGBAR_EXPAN_FUNC__(bar_length, set_bar_length, __PGBAR_COPY__)
+
+#undef __PGBAR_EXPAN_FUNC__
+#undef __PGBAR_MOVE__
+#undef __PGBAR_COPY__
+  } // namespace __detail
+
   class multithread final {
-    bool had_output_;
     std::atomic<bool> active_flag_;
     std::atomic<bool> suspend_flag_;
 
@@ -306,7 +427,7 @@ namespace pgbar {
 
   public:
     multithread( const multithread& ) = delete;
-    multithread& operator=( const multithread& ) = delete;
+    multithread& operator=( multithread&& ) = delete;
 
     template<
 #if __PGBAR_CXX20__
@@ -319,9 +440,8 @@ namespace pgbar {
 #endif
     >
     explicit multithread( F&& task )
-      : had_output_ { false }, active_flag_ { false }
-      , suspend_flag_ { true }, finish_signal_ { false }
-      , stop_signal_ { true } {
+      : active_flag_ { false }, suspend_flag_ { true }
+      , finish_signal_ { false }, stop_signal_ { true } {
       td_ = std::thread( [&, task]() -> void {
         do {
           {
@@ -333,11 +453,10 @@ namespace pgbar {
               cond_var_.wait( lock );
             }
           }
+          if ( finish_signal_ )
+            break;
           active_flag_ = true;
-          if ( had_output_ || !finish_signal_ )
-            task();
-          if ( finish_signal_ ) break;
-          had_output_ = true;
+          task();
           std::this_thread::sleep_for( __detail::reflash_rate );
         } while ( true );
       } );
@@ -406,7 +525,7 @@ namespace pgbar {
 
   public:
     singlethread( const singlethread& ) = delete;
-    singlethread& operator=( const singlethread& ) = delete;
+    singlethread& operator=( singlethread&& ) = delete;
 
     template<
 #if __PGBAR_CXX20__
@@ -572,7 +691,7 @@ namespace pgbar {
         return default_str;
       }
 
-      __detail::StrT proportion = std::to_string( num_per * 100 );
+      __detail::StrT proportion = __detail::ToString( num_per * 100 );
       proportion.resize( proportion.find( '.' ) + 3 );
 
       return formatter<txt_layout::align_right>(
@@ -582,10 +701,10 @@ namespace pgbar {
     }
 
     __PGBAR_INLINE_FUNC__ __detail::StrT show_task_counter( __detail::SizeT num_done ) const {
-      __detail::StrT total_str = std::to_string( *task_cnt_.end() );
+      __detail::StrT total_str = __detail::ToString( *task_cnt_.end() );
       __detail::SizeT size = total_str.size();
       return (
-        formatter<txt_layout::align_right>( size, std::to_string( num_done ) ) +
+        formatter<txt_layout::align_right>( size, __detail::ToString( num_done ) ) +
         __detail::StrT( 1, '/' ) + std::move( total_str )
       );
     }
@@ -606,7 +725,7 @@ namespace pgbar {
         : ~static_cast<__detail::SizeT>(0); // The invoking rate is too fast to calculate.
 
       auto splice = []( double val ) -> __detail::StrT {
-        __detail::StrT str = std::to_string( val );
+        __detail::StrT str = __detail::ToString( val );
         str.resize( str.find( '.' ) + 3 ); // Keep two decimal places.
         return str;
       };
@@ -635,22 +754,22 @@ namespace pgbar {
         return default_str;
       }
       auto splice = []( double val ) -> __detail::StrT {
-        __detail::StrT str = std::to_string( val );
+        __detail::StrT str = __detail::ToString( val );
         str.resize( str.find( '.' ) + 2 ); // Keep one decimal places.
         return str;
       };
       auto to_time = [&splice]( int64_t sec ) -> __detail::StrT {
         if ( sec < 60 ) // < 1 minute => 59s
-          return std::to_string( sec ) + __detail::StrT( 1, 's' );
+          return __detail::ToString( sec ) + __detail::StrT( 1, 's' );
         else if ( sec < 60 * 9 ) // < 9 minutes => 9.9m
           return splice( static_cast<double>(sec) / 60.0 ) + __detail::StrT( 1, 'm' );
         else if ( sec < 60 * 60 ) // >= 9 minutes => 59m
-          return std::to_string( sec / 60 ) + __detail::StrT( 1, 'm' );
+          return __detail::ToString( sec / 60 ) + __detail::StrT( 1, 'm' );
         else if ( sec < 60 * 60 * 9 ) // < 9 hour => 9.9h
           return splice( static_cast<double>(sec) / (60.0 * 60.0) ) + __detail::StrT( 1, 'h' );
         else { // >= 9 hour => 999h
           if ( sec > 60 * 60 * 99 ) return "99h";
-          else return std::to_string( sec / (60 * 60) ) + __detail::StrT( 1, 'h' );
+          else return __detail::ToString( sec / (60 * 60) ) + __detail::StrT( 1, 'h' );
         }
       };
 
@@ -788,52 +907,52 @@ namespace pgbar {
         rndrer_.suspend(); // wait for sub thread to finish
     }
 
-    __PGBAR_INLINE_FUNC__ static void pod_copy( pgbar& _to, const pgbar& _from ) noexcept {
-      _to.task_cnt_ = _from.task_cnt_;
-      _to.bar_length_ = _from.bar_length_;
-      _to.cnt_length_ = _from.cnt_length_;
-      _to.status_length_ = _from.status_length_;
+    __PGBAR_INLINE_FUNC__ void pod_copy( const pgbar& _from ) noexcept {
+      task_cnt_ = _from.task_cnt_;
+      bar_length_ = _from.bar_length_;
+      cnt_length_ = _from.cnt_length_;
+      status_length_ = _from.status_length_;
     }
-    __PGBAR_INLINE_FUNC__ static void npod_copy( pgbar& _to, const pgbar& _from ) {
-      _to.option_ = _from.option_;
-      _to.todo_col_ = _from.todo_col_;
-      _to.done_col_ = _from.done_col_;
-      _to.status_col_ = _from.status_col_;
-      _to.todo_ch_ = _from.todo_ch_;
-      _to.done_ch_ = _from.done_ch_;
-      _to.startpoint_ = _from.startpoint_;
-      _to.endpoint_ = _from.endpoint_;
-      _to.lstatus_ = _from.lstatus_;
-      _to.rstatus_ = _from.rstatus_;
+    __PGBAR_INLINE_FUNC__ void npod_copy( const pgbar& _from ) {
+      option_ = _from.option_;
+      todo_col_ = _from.todo_col_;
+      done_col_ = _from.done_col_;
+      status_col_ = _from.status_col_;
+      todo_ch_ = _from.todo_ch_;
+      done_ch_ = _from.done_ch_;
+      startpoint_ = _from.startpoint_;
+      endpoint_ = _from.endpoint_;
+      lstatus_ = _from.lstatus_;
+      rstatus_ = _from.rstatus_;
     }
-    __PGBAR_INLINE_FUNC__ static void npod_move( pgbar& _to, pgbar& _from ) {
-      _to.option_ = std::move( _from.option_ );
-      _to.todo_col_ = std::move( _from.todo_col_ );
-      _to.done_col_ = std::move( _from.done_col_ );
-      _to.status_col_ = std::move( _from.status_col_ );
-      _to.todo_ch_ = std::move( _from.todo_ch_ );
-      _to.done_ch_ = std::move( _from.done_ch_ );
-      _to.startpoint_ = std::move( _from.startpoint_ );
-      _to.endpoint_ = std::move( _from.endpoint_ );
-      _to.lstatus_ = std::move( _from.lstatus_ );
-      _to.rstatus_ = std::move( _from.rstatus_ );
+    __PGBAR_INLINE_FUNC__ void npod_move( pgbar& _from ) {
+      option_ = std::move( _from.option_ );
+      todo_col_ = std::move( _from.todo_col_ );
+      done_col_ = std::move( _from.done_col_ );
+      status_col_ = std::move( _from.status_col_ );
+      todo_ch_ = std::move( _from.todo_ch_ );
+      done_ch_ = std::move( _from.done_ch_ );
+      startpoint_ = std::move( _from.startpoint_ );
+      endpoint_ = std::move( _from.endpoint_ );
+      lstatus_ = std::move( _from.lstatus_ );
+      rstatus_ = std::move( _from.rstatus_ );
     }
-    __PGBAR_INLINE_FUNC__ static void init_length( pgbar& _self, bool update_cnt_len = true ) {
+    __PGBAR_INLINE_FUNC__ void init_length( bool update_cnt_len = true ) {
       if ( update_cnt_len )
-        _self.cnt_length_ = static_cast<__detail::SizeT>(
-          std::log10( *_self.task_cnt_.end() ) + 1) * 2 + 1;
+        cnt_length_ = static_cast<__detail::SizeT>(
+          std::log10( *task_cnt_.end() ) + 1) * 2 + 1;
 
-      _self.status_length_ = (
-        (_self.option_[bit_index::per] ? _self.ratio_len : 0) +
-        (_self.option_[bit_index::cnt] ? _self.cnt_length_ : 0) +
-        (_self.option_[bit_index::rate] ? _self.rate_len : 0) +
-        (_self.option_[bit_index::timer] ? _self.time_len : 0)
+      status_length_ = (
+        (option_[bit_index::per] ? ratio_len : 0) +
+        (option_[bit_index::cnt] ? cnt_length_ : 0) +
+        (option_[bit_index::rate] ? rate_len : 0) +
+        (option_[bit_index::timer] ? time_len : 0)
       );
-      if ( _self.status_length_ != 0 ) {
-        _self.status_length_ += _self.lstatus_.size() + _self.rstatus_.size();
+      if ( status_length_ != 0 ) {
+        status_length_ += lstatus_.size() + rstatus_.size();
         const __detail::SizeT status_num =
-          _self.option_[bit_index::per] + _self.option_[bit_index::cnt] + _self.option_[bit_index::rate] + _self.option_[bit_index::timer];
-        _self.status_length_ += status_num > 1 ? (status_num - 1) * division.size() : 0;
+          option_[bit_index::per] + option_[bit_index::cnt] + option_[bit_index::rate] + option_[bit_index::timer];
+        status_length_ += status_num > 1 ? (status_num - 1) * division.size() : 0;
       }
     }
 
@@ -842,10 +961,13 @@ namespace pgbar {
         [this]() -> void { this->rendering(); }
       }, stream_ { *_ostream } {
       option_ = style::entire;
+      todo_col_ = dye::none;
+      done_col_ = dye::none;
+      status_col_ = dye::cyan;
       bar_length_ = 30;
       cnt_length_ = 1;
       status_length_ = 0;
-      in_tty_ = check_output_stream( _ostream );
+      in_tty_ = check_output_stream( std::addressof( stream_ ) );
     }
 
   public:
@@ -854,9 +976,6 @@ namespace pgbar {
 
     pgbar( __detail::SizeT _total_tsk, __detail::SizeT _each_step, StreamObj& _ostream = std::cerr )
       : pgbar( std::addressof( _ostream ) ) {
-      todo_col_ = style::dye::none;
-      done_col_ = style::dye::none;
-      status_col_ = style::dye::cyan;
       todo_ch_ = __detail::StrT( 1, blank );
       done_ch_ = __detail::StrT( 1, '-' );
       startpoint_ = __detail::StrT( 1, '[' );
@@ -865,55 +984,28 @@ namespace pgbar {
       rstatus_ = __detail::StrT( " ]" );
       task_cnt_ = __detail::counter_iterator(_total_tsk, _each_step);
 
-      init_length( *this );
+      init_length();
     }
     pgbar( __detail::SizeT _total_tsk, StreamObj& _ostream = std::cerr )
-      : pgbar(_total_tsk, 1, _ostream) {}
-    pgbar( StreamObj& _ostream = std::cerr )
-      : pgbar( 0, 1, _ostream) {} // = default constructor
-#if __PGBAR_CXX20__
-    pgbar( style _initializer, StreamObj& _ostream = std::cerr )
-      : pgbar( std::addressof( _ostream ) ) {
-      option_ = _initializer.option.has_value()
-        ? std::move( _initializer.option.value() ) : option_;
-      todo_col_ = _initializer.todo_color.has_value()
-        ? std::move( _initializer.todo_color.value() ) : style::dye::none;
-      done_col_ = _initializer.done_color.has_value()
-        ? std::move( _initializer.done_color.value() ) : style::dye::none;
-      status_col_ = _initializer.status_color.has_value()
-        ? std::move( _initializer.status_color.value() ) : style::dye::cyan;
-      todo_ch_ = _initializer.todo_char.has_value()
-        ? std::move( _initializer.todo_char.value() ) : __detail::StrT( 1, blank );
-      done_ch_ = _initializer.done_char.has_value()
-        ? std::move( _initializer.done_char.value() ) : __detail::StrT( 1, '-' );
-      startpoint_ = _initializer.startpoint.has_value()
-        ? std::move( _initializer.startpoint.value() ) : __detail::StrT( 1, '[' );
-      endpoint_ = _initializer.endpoint.has_value()
-        ? std::move( _initializer.endpoint.value() ) : __detail::StrT( 1, ']' );
-      lstatus_ = _initializer.left_status.has_value()
-        ? std::move( _initializer.left_status.value() ) : __detail::StrT( "[ " );
-      rstatus_ = _initializer.right_status.has_value()
-        ? std::move( _initializer.right_status.value() ) : __detail::StrT( " ]" );
-
-      if ( _initializer.total_tasks.has_value() )
-        task_cnt_.set_task( _initializer.total_tasks.value() );
-      if ( _initializer.each_setp.has_value() )
-        task_cnt_.set_step( _initializer.each_setp.value() );
-      bar_length_ = _initializer.bar_length.has_value()
-        ? _initializer.bar_length.value() : bar_length_;
-
-      init_length( *this );
+      : pgbar( _total_tsk, 1, _ostream ) {}
+    template<typename ...Args, typename =
+      typename std::enable_if<
+        __detail::all_of_initr<Args...>::value
+      >::type
+    > pgbar( StreamObj& _ostream = std::cerr, Args&&... args )
+      : pgbar( 0, _ostream ) { // = default constructor
+      __detail::pipeline_expan( *this, std::forward<Args>( args )... );
+      init_length();
     }
-#endif // __PGBAR_CXX20__
-    pgbar( const pgbar& _lhs ) // style copy
+    pgbar( const pgbar& _lhs )
       : pgbar( std::addressof( _lhs.stream_ ) ) {
-      npod_copy( *this, _lhs );
-      pod_copy( *this, _lhs );
+      npod_copy( _lhs );
+      pod_copy( _lhs );
     }
     pgbar( pgbar&& _rhs )
       : pgbar( std::addressof( _rhs.stream_ ) ) {
-      npod_move( *this, _rhs );
-      pod_copy( *this, _rhs );
+      npod_move( _rhs );
+      pod_copy( _rhs );
     }
     ~pgbar() {}
 
@@ -946,7 +1038,7 @@ namespace pgbar {
       else if ( _total_tsk == 0 )
         throw bad_pgbar { "bad_pgbar: the number of tasks is zero" };
       task_cnt_.set_task( _total_tsk );
-      init_length( *this );
+      init_length();
       return *this;
     }
     /// @brief Set the TODO characters in the progress bar.
@@ -977,14 +1069,14 @@ namespace pgbar {
     pgbar& set_lstatus( __detail::StrT _lstatus ) noexcept {
       if ( !is_updated() )
         lstatus_ = std::move( _lstatus );
-      init_length( *this, false );
+      init_length( false );
       return *this;
     }
     /// @brief Set the right bracket of the status bar.
     pgbar& set_rstatus( __detail::StrT _rstatus ) noexcept {
       if ( !is_updated() )
         rstatus_ = std::move( _rstatus );
-      init_length( *this, false );
+      init_length( false );
       return *this;
     }
     /// @brief Set the character length of the whole progress bar
@@ -1015,44 +1107,18 @@ namespace pgbar {
     pgbar& set_style( style::Type _selection ) noexcept {
       if ( !is_updated() )
         option_ = _selection;
-      init_length( *this, false );
+      init_length( false );
       return *this;
     }
-#if __PGBAR_CXX20__
-    pgbar& set_style( style _selection ) {
-      if ( is_updated() ) return *this;
-      option_ = _selection.option.has_value()
-        ? std::move( _selection.option.value() ) : option_;
-      todo_col_ = _selection.todo_color.has_value()
-        ? std::move( _selection.todo_color.value() ) : todo_col_;
-      done_col_ = _selection.done_color.has_value()
-        ? std::move( _selection.done_color.value() ) : done_col_;
-      status_col_ = _selection.status_color.has_value()
-        ? std::move( _selection.status_color.value() ) : status_col_;
-      todo_ch_ = _selection.todo_char.has_value()
-        ? std::move( _selection.todo_char.value() ) : todo_ch_;
-      done_ch_ = _selection.done_char.has_value()
-        ? std::move( _selection.done_char.value() ) : done_ch_;
-      startpoint_ = _selection.startpoint.has_value()
-        ? std::move( _selection.startpoint.value() ) : startpoint_;
-      endpoint_ = _selection.endpoint.has_value()
-        ? std::move( _selection.endpoint.value() ) : endpoint_;
-      lstatus_ = _selection.left_status.has_value()
-        ? std::move( _selection.left_status.value() ) : lstatus_;
-      rstatus_ = _selection.right_status.has_value()
-        ? std::move( _selection.right_status.value() ) : rstatus_;
-
-      if ( _selection.total_tasks.has_value() )
-        task_cnt_.set_task( _selection.total_tasks.value() );
-      if ( _selection.each_setp.has_value() )
-        task_cnt_.set_step( _selection.each_setp.value() );
-      bar_length_ = _selection.bar_length.has_value()
-        ? _selection.bar_length.value() : bar_length_;
-
-      init_length( *this );
+    template<typename ...Args>
+    typename std::enable_if<
+      __detail::all_of_initr<Args...>::value,
+      pgbar&
+    >::type set_style( Args&&... args ) {
+      __detail::pipeline_expan( *this, std::forward<Args>( args )... );
+      init_length();
       return *this;
     }
-#endif // __PGBAR_CXX20__
     pgbar& operator=( const pgbar& _lhs ) {
       if ( this == &_lhs || is_updated() )
         return *this;
@@ -1061,6 +1127,8 @@ namespace pgbar {
       return *this;
     }
     pgbar& operator=( pgbar&& _rhs ) {
+      if ( this == &_rhs || is_updated() )
+        return *this;
       npod_move( *this, _rhs );
       pod_copy( *this, _rhs );
       return *this;
@@ -1068,16 +1136,18 @@ namespace pgbar {
 
     /// @brief Update progress bar.
     void update() {
-      do_update( [&]() -> void { ++task_cnt_; } );
+      do_update( [this]() -> void { ++task_cnt_; } );
     }
 
     /// @brief Ignore the effect of `set_step()`, increment forward several progresses,
     /// @brief and any `next_step` portions that exceed the total number of tasks are ignored.
     /// @param next_step The number that will increment forward the progresses.
     void update( __detail::SizeT next_step ) {
-      do_update( [&]() -> void {
-        task_cnt_ += next_step;
-      } );
+      do_update(
+        [this, &next_step]() -> void {
+          task_cnt_ += next_step;
+        }
+      );
     }
   };
 
@@ -1091,9 +1161,11 @@ namespace pgbar {
       typename B::StreamType;
       typename B::RendererType;
       requires (
-        is_stream_v<typename B::StreamType> &&
-        is_renderer_v<typename B::RendererType> &&
-        std::is_same_v<pgbar<typename B::StreamType, typename B::RendererType>, B>
+        std::conjunction_v<
+          is_stream<typename B::StreamType>,
+          is_renderer<typename B::RendererType>,
+          std::is_same<pgbar<typename B::StreamType, typename B::RendererType>, B>
+        >
       );
     };
   }
@@ -1104,8 +1176,8 @@ namespace pgbar {
   template<typename B, typename = void>
   struct is_pgbar : std::false_type {};
   template<typename B>
-  struct is_pgbar<
-    B, typename std::enable_if<
+  struct is_pgbar<B,
+    typename std::enable_if<
       is_stream<typename B::StreamType>::value &&
       is_renderer<typename B::RendererType>::value &&
       std::is_same<pgbar<typename B::StreamType, typename B::RendererType>, B>::value
@@ -1117,6 +1189,27 @@ namespace pgbar {
   template<typename B>
   __PGBAR_INLINE_VAR__ constexpr bool is_pgbar_v = is_pgbar<B>::value;
 #endif // __PGBAR_CXX14__
+
+  template<typename R = multithread, typename S, typename ...Args>
+#if __PGBAR_CXX20__
+  requires std::conjunction_v<
+    is_stream<S>,
+    is_renderer<R>,
+    __detail::all_of_initr<Args...>
+  > pgbar<S, R>
+#else
+  typename std::enable_if <
+    is_stream<S>::value &&
+    is_renderer<R>::value &&
+    __detail::all_of_initr<Args...>::value,
+    pgbar<S, R>
+  >::type
+#endif // __PGBAR_CXX20__
+  make_pgbar( S& stream_obj, Args&&... args ) {
+    pgbar<S, R> bar { stream_obj };
+    __detail::pipeline_expan( bar, std::forward<Args>( args )... );
+    return bar;
+  }
 } // namespace pgbar
 
 #undef __PGBAR_DEFAULT_COL__

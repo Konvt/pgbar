@@ -1,5 +1,5 @@
 all:
-	g++ -Og -std=c++11 -Wpedantic -I ../include cxx11.cpp -o cxx11
-	g++ -Og -std=c++20 -Wpedantic -I ../include cxx20.cpp -o cxx20
+	g++ -Og -std=c++11 -Wpedantic -I ../include sample.cpp -o sample
+	g++ -Og -std=c++11 -Wpedantic -I ../include how-to-use.cpp -o how-to-use
 clean:
-	rm -f cxx11 cxx20
+	rm -f sample

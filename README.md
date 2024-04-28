@@ -4,8 +4,8 @@
 - [pgbar - ProgressBar for C++11](#pgbar---progressbar-for-c11)
   - [Styles](#styles)
   - [How to use](#how-to-use)
-    - [Before C++20](#before-c20)
-    - [After C++20](#after-c20)
+    - [Construct](#construct)
+    - [Use](#use)
   - [Public Functions](#public-functions)
     - [pgbar/pgbar.hpp](#pgbarpgbarhpp)
     - [pgbar/range.hpp](#pgbarrangehpp)
@@ -18,8 +18,8 @@
 - [pgbar - ProgressBar for C++11 - zh\_cn](#pgbar---progressbar-for-c11---zh_cn)
   - [风格样式](#风格样式)
   - [使用例](#使用例)
-    - [在 C++20 以前](#在-c20-以前)
-    - [在 C++20 之后](#在-c20-之后)
+    - [构造](#构造)
+    - [使用](#使用)
   - [公有方法](#公有方法)
     - [pgbar/pgbar.hpp](#pgbarpgbarhpp-1)
     - [pgbar/range.hpp](#pgbarrangehpp-1)
@@ -48,7 +48,7 @@ The status bar is colored using escape sequences by default.
 
 If your terminal doesn't support this or don't want the coloring effect, define a macro at the beginning of the program.
 
-You can also use multiple constants from pgbar::style::dye to customize the color of the status bar.
+You can also use multiple constants from pgbar::dye to customize the color of the status bar.
 ```cpp
 #define PGBAR_NOT_COL // This will cancel the character coloring of the status bar.
 #include "pgbar/pgbar.hpp"
@@ -57,71 +57,123 @@ You can also use multiple constants from pgbar::style::dye to customize the colo
 ![example-text](images/example_text.gif)
 
 ## How to use
-### Before C++20
-```cpp
-#include "pgbar/range.hpp"
+### Construct
 
-int main()
-{
-  size_t TOTAL = 10000;
-
-  pgbar::pgbar<> bar { TOTAL, 2 }; // Object must be created first, then set the output style of the progress bar
-  bar.set_todo( " " ).set_done( "#" );
-  for ( size_t i = 0; i < (TOTAL / 2); ++i ) {
-    bar.update(); // Normal update
-    // Do anything you want here...
-  }
-
-  bar.reset(); // Reset the progress bar state and change the output style
-  for (auto iter : pgbar::range(TOTAL, bar)) // Equivalent to `for (size_t i = 0; i < TOTAL; ++i)`...
-    continue; // If you don't want to call `update()`, you can use `range` from 'pgbar/range.hpp'
-  // Delegates updating and task setting to the iterator
-
-  // See demo/cxx11.cpp for details
-}
-```
-### After C++20
-If C++20 is enabled, the pgbar object can accept a pgbar::style object as an initialization parameter.
-
-It is relying on the designated initializer syntax.
 ```cpp
 #include "pgbar/pgbar.hpp"
-
 int main()
 {
-  size_t TOTAL = 10000;
-
-  pgbar::pgbar bar { pgbar::style {
-    .todo_char = " ",
-    .done_char = "#",
-    .total_tasks = TOTAL,
-    .each_setp = 2,
-    .option = pgbar::style::bar | pgbar::style::rate
-  } };
-  for ( size_t i = 0; i < (TOTAL / 2); ++i ) {
-    bar.update(); // Normal update
-    // Do anything you want here...
+  { // Set everything to default, including the number of tasks and each step.
+    pgbar::pgbar<> bar;
   }
-  // Similarly, the pgbar's set_style method also accepts a pgbar::style object to set the object style
-  // See demo/cxx20.cpp for details
+  { // Using another stream object which satisfies the predicate `pgbar::is_stream`.
+    using Stream = std::ostream; // The default stream type is `std::ostream`.
+    static_assert(pgbar::is_stream<Stream>::value == true, "");
+    pgbar::pgbar<Stream> bar { std::clog };
+  }
+  { // Using another rendering mode which satisfies the predicate `pgbar::is_renderer`.
+    using Renderer = pgbar::singlethread; // The default renderer is `pgbar::multithread`.
+    static_assert(pgbar::is_renderer<Renderer>::value == true, "");
+    pgbar::pgbar<std::ostream, Renderer> bar;
+  }
+  { // Set the number of tasks and step while creating a pgbar object.
+    constexpr size_t num_tasks = 0x7fffffff;
+    pgbar::pgbar<> bar { num_tasks, 2 }; // The default step is 1.
+  }
+  { // Set the style **after** creating a pgbar object.
+    pgbar::pgbar<> bar;
+    bar.set_style( pgbar::style::bar )
+       .set_todo( "-" )
+       .set_done( "=" )
+       .set_status_col( pgbar::dye::yellow ); // and so on...
+  }
+  { // Set the style **while** creating a pgbar object.
+    pgbar::pgbar<> bar {
+      std::cerr, // The stream object must be provided.
+      pgbar::initr::option( pgbar::style::percentage ),
+      pgbar::initr::todo_char( "-" ),
+      pgbar::initr::done_char( "=" ),
+      pgbar::initr::left_status( "" ),
+      pgbar::initr::right_status( "" ) /// and so on...
+    };
+    // Member method `set_style` also supports this.
+    bar.set_style(
+      pgbar::initr::total_tasks( 300 ),
+      pgbar::initr::status_color( pgbar::dye::green )
+    );
+  }
+  { // Using the factory function to create a pgbar object.
+    auto bar = pgbar::make_pgbar<pgbar::singlethread>(
+      std::cerr, // ditto
+      pgbar::initr::option( pgbar::style::percentage ),
+      pgbar::initr::todo_char( "-" ),
+      pgbar::initr::done_char( "=" ),
+      pgbar::initr::left_status( "" ),
+      pgbar::initr::right_status( "" ) /// and so on...
+    );
+  }
 }
 ```
-The available optional fields in `pgbar::style`, along with their actual types, are as follows:
+For more infomation, see `demo/how-to-use.cpp`.
+### Use
 ```cpp
-struct style {
-  std::optional<...> total_tasks;  // Total number of tasks
-  std::optional<...> each_setp;    // Equivalent update count for each update
-  std::optional<...> option;       // Styling switches, a bit vector
-  std::optional<...> todo_char;    // Blank part of the progress bar
-  std::optional<...> done_char;    // Character to fill the progress bar
-  std::optional<...> todo_color;   // Color for the blank part of the progress bar
-  std::optional<...> done_color;   // Color for the characters filling the progress bar
-  std::optional<...> startpoint;   // Left bracket enclosing the progress bar
-  std::optional<...> endpoint;     // Right bracket enclosing the progress bar
-  std::optional<...> left_status;  // Status bar left parenthesis
-  std::optional<...> right_status; // Status bar right parenthesis
-  std::optional<...> status_color; // Color effect of the status information on the right side of the progress bar
-  std::optional<...> bar_length;   // Length of the progress bar to occupy in the terminal
+#include "pgbar/range.hpp" // it will automatically include pgbar/pgbar.hpp
+int main()
+{
+  { // Using the pgbar object by calling method `update()`
+    pgbar::pgbar<> bar;
+    bar.set_task( 500 ).set_step( 2 );
+    // Modify the progress bar presentation using predefined values in pgbar::style
+    // It is a typically bit vector.
+    bar.set_style( pgbar::style::percentage | pgbar::style::rate );
+    for ( auto _ = 0; _ < 250; ++_ ) {
+      bar.update();
+      std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
+    }
+    bar.reset(); // If you want to use the pgbar object later again, you must invoke the method `reset()`.
+  }
+  { // Using the pgbar object by calling function `range()` which is in pgbar/range.hpp
+    static int arr[200] {}; // Supports raw arrays, or containers with `begin()` and `end()` methods.
+    pgbar::pgbar<> bar;
+    for ( auto ele : pgbar::range( arr, bar ) )
+      continue; // `range()` will return references to elements within the container.
+    bar.reset(); // ditto
+  }
+  { // Using numeric types to define iteration intervals with `range()`.
+    pgbar::pgbar<> bar;
+    for ( auto ele : pgbar::range( 100, bar ) ) // The progress bar iterates within the range [0, 100).
+      continue; // `range()` will return the numerical value of the current iteration progress.
+    bar.reset(); // ditto
+  }
+}
+```
+For more infomation, see `demo/how-to-use.cpp` and `demo/sample.cpp`.
+
+The progress bar information switches provided in `pgbar::style` are as follows:
+```cpp
+style {
+  bar;
+  percentage;
+  task_counter;
+  rate;
+  countdown;
+  entire;
+};
+```
+Additionally, you can use the given constants in `pgbar::dye` along with the member methods `set_todo_col()`, `set_done_col()`, and `set_status_col()` to set the color effects of the progress bar characters and the status information bar.
+
+The color options provided in `pgbar::dye` are as follows:
+```cpp
+dye {
+  none;
+  black;
+  red;
+  green;
+  yellow;
+  blue;
+  magenta;
+  cyan;
+  white;
 };
 ```
 
@@ -184,7 +236,7 @@ pgbar& pgbar::set_rstatus(std::string _rstatus)
 /* Set the length of the progress bar, indicating how many characters the progress bar occupies after output. */
 pgbar& pgbar::set_bar_length(size_t _length) noexcept
 
-/* Set the color of unfilled characters in the progress bar, using the given constant value from pgbar::style::dye.
+/* Set the color of unfilled characters in the progress bar, using the given constant value from pgbar::dye.
  * This function has no effect when the macro PGBAR_NOT_COL is activated. */
 pgbar& pgbar::set_todo_col(/* literal type */ _dye) noexcept
 
@@ -197,10 +249,8 @@ pgbar& pgbar::set_status_col(/* literal type */ _dye) noexcept
 /* Use bitwise operations to set the information to be displayed based on multiple predefined options. */
 pgbar& pgbar::set_style(pgbar::style::Type _selection) noexcept
 
-/* This function is only available under the C++20 standard.
- * Set the style of the progress bar object based on the field values of style.
- * See demo/cxx20.cpp for details. */
-pgbar& pgbar::set_style(style _selection)
+/* Use the types in pgbar::initr to configure different options. */
+pgbar& pgbar::set_style( Args&&... args )
 ```
 ### pgbar/range.hpp
 ```cpp
@@ -295,7 +345,7 @@ Just for practice, that's all.
 
 默认情况下会使用 ASCII 转义序列对状态栏进行染色，如果你的终端不支持、或者不希望有着色效果，可以在程序最开头定义一个宏.
 
-也可以使用 `pgbar::style::dye` 中的多个常量自定义状态栏的颜色.
+也可以使用 `pgbar::dye` 中的多个常量自定义状态栏的颜色.
 ```cpp
 #define PGBAR_NOT_COL // 这会取消状态栏染色.
 #include "pgbar/pgbar.hpp"
@@ -304,70 +354,121 @@ Just for practice, that's all.
 ![example-text](images/example_text.gif)
 
 ## 使用例
-### 在 C++20 以前
-```cpp
-#include "pgbar/range.hpp"
-
-int main()
-{
-  size_t TOTAL = 10000;
-
-  pgbar::pgbar<> bar { TOTAL, 2 }; // 必须先创建对象，再设置进度条的输出样式
-  for ( size_t i = 0; i < (TOTAL / 2); ++i ) {
-    bar.update(); // Normal update
-    // Do anything you want here...
-  }
-
-  bar.reset().set_todo( " " ).set_done( "#" ); // 重置进度条状态，并更改输出样式
-  for (auto iter : pgbar::range(TOTAL, bar)) // 等于 for (size_t i = 0; i < TOTAL; ++i) ...
-    continue; // 不想调用 `update()` 时，可以使用 'pgbar/range.hpp' 中的 `range`
-  // 把更新操作和任务数设置交给迭代器进行
-
-  // 详见 demo/cxx11.cpp
-}
-```
-### 在 C++20 之后
-如果启用了 C++20，那么 `pgbar` 对象可以接受一个 `pgbar::style` 对象作为初始化进度条样式.
-
-这依赖于 C++20 的指定初始化器语法.
+### 构造
 ```cpp
 #include "pgbar/pgbar.hpp"
-
 int main()
 {
-  size_t TOTAL = 10000;
-
-  pgbar::pgbar bar { pgbar::style {
-    .todo_char = " ",
-    .done_char = "#",
-    .total_tasks = TOTAL,
-    .each_setp = 2,
-    .option = pgbar::style::bar | pgbar::style::rate
-  } };
-  for ( size_t i = 0; i < (TOTAL / 2); ++i ) {
-    bar.update(); // Normal update
-    // Do anything you want here...
+  { // 将包括任务数和步长在内的所有内容设置为默认值.
+    pgbar::pgbar<> bar;
   }
-  // 同样的，pgbar 的 set_style 方法也支持接受一个 pgbar::style 对象设置对象样式
-  // 详见 demo/cxx20.cpp
+  { // 使用一个满足谓词 `pgbar::is_stream` 约束的流对象构造对象.
+    using Stream = std::ostream; // 默认情况下的流对象会被绑定在 `std::cerr` 上.
+    static_assert(pgbar::is_stream<Stream>::value == true, "");
+    pgbar::pgbar<Stream> bar { std::clog };
+  }
+  { // 使用一个满足谓词 `pgbar::is_renderer` 约束的渲染器类型构造对象.
+    using Renderer = pgbar::singlethread; // 默认情况使用 `pgbar::multithread` 多线程渲染器
+    static_assert(pgbar::is_renderer<Renderer>::value == true, "");
+    pgbar::pgbar<std::ostream, Renderer> bar;
+  }
+  { // 构造时指定进度条的任务数和每次迭代的步长.
+    constexpr size_t num_tasks = 0x7fffffff;
+    pgbar::pgbar<> bar { num_tasks, 2 }; // 默认情况下步长是 1.
+  }
+  { // **构造后**再修改进度条的各项参数.
+    pgbar::pgbar<> bar;
+    bar.set_style( pgbar::style::bar )
+       .set_todo( "-" )
+       .set_done( "=" )
+       .set_status_col( pgbar::dye::yellow ); // and so on...
+  }
+  { // **构造时**修改进度条的各项参数.
+    pgbar::pgbar<> bar {
+      std::cerr, // 必须指定流对象
+      pgbar::initr::option( pgbar::style::percentage ),
+      pgbar::initr::todo_char( "-" ),
+      pgbar::initr::done_char( "=" ),
+      pgbar::initr::left_status( "" ),
+      pgbar::initr::right_status( "" ) /// and so on...
+    };
+    // 成员方法 `set_style` 也支持这种方式.
+    bar.set_style(
+      pgbar::initr::total_tasks( 300 ),
+      pgbar::initr::status_color( pgbar::dye::green )
+    );
+  }
+  { // 使用一个工厂函数构造进度条对象.
+    auto bar = pgbar::make_pgbar<pgbar::singlethread>(
+      std::cerr, // 必须指定流对象
+      pgbar::initr::option( pgbar::style::percentage ),
+      pgbar::initr::todo_char( "-" ),
+      pgbar::initr::done_char( "=" ),
+      pgbar::initr::left_status( "" ),
+      pgbar::initr::right_status( "" ) /// and so on...
+    );
+  }
 }
 ```
-`pgbar::style` 中所有可用且*可选*的字段，以及这些字段的实际类型如下：
+详细可见 `demo/how-to-use.cpp`.
+### 使用
 ```cpp
-struct style {
-  std::optional<...> total_tasks;  // 任务总数
-  std::optional<...> each_setp;    // 每次更新时等价的更新次数
-  std::optional<...> option;       // 样式化开关，一个位向量
-  std::optional<...> todo_char;    // 进度条的空白部分
-  std::optional<...> done_char;    // 填充进度条的字符
-  std::optional<...> todo_color;   // 填充进度条空白部分的颜色
-  std::optional<...> done_color;   // 填充进度条的字符的颜色
-  std::optional<...> startpoint;   // 括起进度条的左侧起点
-  std::optional<...> endpoint;     // 括起进度条的右侧终点
-  std::optional<...> left_status;  // 状态栏左侧的括号
-  std::optional<...> right_status; // 状态栏右侧的括号
-  std::optional<...> status_color; // 进度条右侧状态信息的颜色效果
-  std::optional<...> bar_length;   // 进度条在终端中要占用的长度
+#include "pgbar/range.hpp" // 该头文件会自动包含 pgbar/pgbar.hpp
+int main()
+{
+  { // 构造对象并正确设置好参数后，调用方法 `update()` 开始推动进度条迭代
+    pgbar::pgbar<> bar;
+    bar.set_task( 500 ).set_step( 2 );
+    // 可以使用 pgbar::style 中的预定值修改进度条呈现的信息，开关方式可以视作是使用一个位向量
+    bar.set_style( pgbar::style::percentage | pgbar::style::rate );
+    for ( auto _ = 0; _ < 250; ++_ ) {
+      bar.update();
+      std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
+    }
+    bar.reset(); // 如果对应的进度条对象在后续还需要复用，则必须调用 `reset()` 方法重置.
+  }
+  { // 配合 pgbar/range.hpp 中的 `range()` 函数输出进度条信息.
+    static int arr[200] {}; // 支持原始数组或含有 `begin()`、`end()` 方法的容器
+    pgbar::pgbar<> bar;
+    for ( auto ele : pgbar::range( arr, bar ) )
+      continue; // `range()` 函数会返回容器内的元素引用
+    bar.reset(); // 此处同上
+  }
+  { // `range()` 函数也支持使用数值类型在某一区间内迭代.
+    pgbar::pgbar<> bar;
+    for ( auto ele : pgbar::range( 100, bar ) ) // 进度条会在区间 [0, 100) 内迭代
+      continue; // `range()` 函数会返回当前迭代进度的数值
+    bar.reset(); // 此处同上
+  }
+}
+```
+详细可见 `demo/how-to-use.cpp` 及 `demo/sample.cpp`.
+
+`pgbar::style` 中给定的进度条信息开关如下：
+```cpp
+style {
+  bar;
+  percentage;
+  task_counter;
+  rate;
+  countdown;
+  entire;
+};
+```
+此外，可以使用 `pgbar::dye` 中的给定常量与成员方法 `set_todo_col`, `set_done_col` 和 `set_status_col` 设置进度条的字符以及状态信息栏的颜色效果.
+
+`pgbar::dye` 中给定的颜色选项如下：
+```cpp
+dye {
+  none;
+  black;
+  red;
+  green;
+  yellow;
+  blue;
+  magenta;
+  cyan;
+  white;
 };
 ```
 
@@ -376,7 +477,7 @@ struct style {
 头文件中提供了多个与进度条对象 `pgbar` 有关的方法，包括模板类型谓词及对象本身的成员方法.
 ```cpp
 #include "pgbar/pgbar.hpp"
-using namespace pgbar; // 忽略命名空间前缀
+using namespace pgbar; // 忽略名称空间前缀
 
 /* 模板类型谓词，检查给定类型是否是 pgbar 对象 */
 template<typename B>
@@ -429,7 +530,7 @@ pgbar& pgbar::set_rstatus(std::string _rstatus)
 /* 设置进度条的长度，表示进度条在输出后占多少字符长. */
 pgbar& pgbar::set_bar_length(size_t _length) noexcept
 
-/* 设置进度条中未填充字符的颜色，使用 pgbar::style::dye 中的给定常量值来设置.
+/* 设置进度条中未填充字符的颜色，使用 pgbar::dye 中的给定常量值来设置.
  * 在宏 PGBAR_NOT_COL 激活时该函数没有实际效果. */
 pgbar& pgbar::set_todo_col(/* literal type */ _dye) noexcept
 
@@ -442,13 +543,13 @@ pgbar& pgbar::set_status_col(/* literal type */ _dye) noexcept
 /* 根据多个预定选项，使用位操作设定需要显示的信息. */
 pgbar& pgbar::set_style(pgbar::style::Type _selection) noexcept
 
-/* 该函数仅限 C++20 标准下可用，根据 style 的字段值设置进度条对象的风格，详见 demo/cxx20.cpp */
-pgbar& pgbar::set_style( style _selection )
+/* 使用 pgbar::initr 中的类型设置不同选项 */
+pgbar& pgbar::set_style( Args&&... args )
 ```
 ### pgbar/range.hpp
 ```cpp
 #include "pgbar/range.hpp"
-using namespace pgbar; // 忽略命名空间前缀
+using namespace pgbar; // 忽略名称空间前缀
 // 以下函数签名会隐藏不必要的模板参数
 
 /* 只接受整型和浮点型 */
