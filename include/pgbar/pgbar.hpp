@@ -990,7 +990,7 @@ namespace pgbar {
       : pgbar( _total_tsk, 1, _ostream ) {}
     template<typename ...Args, typename =
       typename std::enable_if<
-        __detail::all_of_initr<Args...>::value
+        __detail::all_of_initr<typename std::remove_cv<Args>::type...>::value
       >::type
     > pgbar( StreamObj& _ostream = std::cerr, Args&&... args )
       : pgbar( 0, _ostream ) { // = default constructor
@@ -1112,7 +1112,7 @@ namespace pgbar {
     }
     template<typename ...Args>
     typename std::enable_if<
-      __detail::all_of_initr<Args...>::value,
+      __detail::all_of_initr<typename std::remove_cv<Args>::type...>::value,
       pgbar&
     >::type set_style( Args&&... args ) {
       __detail::pipeline_expan( *this, std::forward<Args>( args )... );
