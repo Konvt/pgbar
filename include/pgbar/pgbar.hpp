@@ -195,44 +195,32 @@ namespace pgbar {
       }
     };
 
-    struct wrapper_base { virtual ~wrapper_base() = 0; };
-    wrapper_base::~wrapper_base() {}
-    template<typename N>
-    class numeric_wrapper : public wrapper_base {
-      N data;
-    public:
-      constexpr explicit numeric_wrapper( N _data ) noexcept
-        : data { _data } {}
-      N value() const noexcept { return data; }
-      virtual ~numeric_wrapper() noexcept {}
-    };
-    class string_wrapper : public wrapper_base {
-      StrT data;
-    public:
-      explicit string_wrapper( StrT _data )
-        : data { std::move( _data ) } {}
-      StrT& value() noexcept { return data; }
-      virtual ~string_wrapper() {}
-    };
-    class literal_wrapper : public wrapper_base {
-      LiteralStrT data;
-    public:
-      constexpr explicit literal_wrapper( LiteralStrT _data )
-        : data { std::move( _data ) } {}
-      LiteralStrT& value() noexcept { return data; }
-      virtual ~literal_wrapper() {}
-    };
-
-    template<typename T, typename = void>
-    struct is_initr : std::false_type {};
     template<typename T>
-    struct is_initr<T,
-      typename std::enable_if<
-        std::is_base_of<wrapper_base, T>::value
-      >::type
-    > : std::true_type {};
+    class generic_wrapper {
+      T data;
 
-    template<typename T = wrapper_base, typename ...Args>
+    public:
+      constexpr explicit generic_wrapper( T _data )
+        : data { std::move( _data ) } {}
+      virtual ~generic_wrapper() = 0;
+      __PGBAR_INLINE_FUNC__ T& value() noexcept { return data; }
+    };
+    template<typename T>
+    generic_wrapper<T>::~generic_wrapper() {}
+
+    template<typename W>
+    struct is_initr {
+    private:
+      template<typename U>
+      static std::true_type check(const generic_wrapper<U>&);
+      static std::false_type check(...);
+    public:
+      static constexpr bool value = decltype(check(std::declval<W>()))::value;
+    };
+
+    // The default template parameter is used to handle the case where `sizeof...(Args) == 0`.
+    // `generic_wrapper` requires a template parameter, so here we fill in an impossible-to-use type `std::nullptr_t`.
+    template<typename T = generic_wrapper<std::nullptr_t>, typename ...Args>
     struct all_of_initr {
       static constexpr bool value = is_initr<T>::value && all_of_initr<Args...>::value;
     };
@@ -332,57 +320,57 @@ namespace pgbar {
   };
 
   namespace initr {
-    struct option final : public __detail::numeric_wrapper<style::Type> {
+    struct option final : public __detail::generic_wrapper<style::Type> {
       constexpr explicit option( style::Type _data ) noexcept
-        : __detail::numeric_wrapper<style::Type>(_data) {}
+        : __detail::generic_wrapper<style::Type>( _data ) {}
     };
-    struct todo_color final : public __detail::literal_wrapper {
+    struct todo_color final : public __detail::generic_wrapper<__detail::LiteralStrT> {
       constexpr explicit todo_color( __detail::LiteralStrT _data )
-        : __detail::literal_wrapper( std::move( _data ) ) {}
+        : __detail::generic_wrapper<__detail::LiteralStrT>( std::move( _data ) ) {}
     };
-    struct done_color final : public __detail::literal_wrapper {
+    struct done_color final : public __detail::generic_wrapper<__detail::LiteralStrT> {
       constexpr explicit done_color( __detail::LiteralStrT _data )
-        : __detail::literal_wrapper( std::move( _data ) ) {}
+        : __detail::generic_wrapper<__detail::LiteralStrT>( std::move( _data ) ) {}
     };
-    struct status_color final : public __detail::literal_wrapper {
+    struct status_color final : public __detail::generic_wrapper<__detail::LiteralStrT> {
       constexpr explicit status_color( __detail::LiteralStrT _data )
-        : __detail::literal_wrapper( std::move( _data ) ) {}
+        : __detail::generic_wrapper<__detail::LiteralStrT>( std::move( _data ) ) {}
     };
-    struct todo_char final : public __detail::string_wrapper {
+    struct todo_char final : public __detail::generic_wrapper<__detail::StrT> {
       explicit todo_char( __detail::StrT _data )
-        : __detail::string_wrapper( std::move( _data ) ) {}
+        : __detail::generic_wrapper<__detail::StrT>( std::move( _data ) ) {}
     };
-    struct done_char final : public __detail::string_wrapper {
+    struct done_char final : public __detail::generic_wrapper<__detail::StrT> {
       explicit done_char( __detail::StrT _data )
-        : __detail::string_wrapper( std::move( _data ) ) {}
+        : __detail::generic_wrapper<__detail::StrT>( std::move( _data ) ) {}
     };
-    struct startpoint final : public __detail::string_wrapper {
+    struct startpoint final : public __detail::generic_wrapper<__detail::StrT> {
       explicit startpoint( __detail::StrT _data )
-        : __detail::string_wrapper( std::move( _data ) ) {}
+        : __detail::generic_wrapper<__detail::StrT>( std::move( _data ) ) {}
     };
-    struct endpoint final : public __detail::string_wrapper {
+    struct endpoint final : public __detail::generic_wrapper<__detail::StrT> {
       explicit endpoint( __detail::StrT _data )
-        : __detail::string_wrapper( std::move( _data ) ) {}
+        : __detail::generic_wrapper<__detail::StrT>( std::move( _data ) ) {}
     };
-    struct left_status final : public __detail::string_wrapper {
+    struct left_status final : public __detail::generic_wrapper<__detail::StrT> {
       explicit left_status( __detail::StrT _data )
-        : __detail::string_wrapper( std::move( _data ) ) {}
+        : __detail::generic_wrapper<__detail::StrT>( std::move( _data ) ) {}
     };
-    struct right_status final : public __detail::string_wrapper {
+    struct right_status final : public __detail::generic_wrapper<__detail::StrT> {
       explicit right_status( __detail::StrT _data )
-        : __detail::string_wrapper( std::move( _data ) ) {}
+        : __detail::generic_wrapper<__detail::StrT>( std::move( _data ) ) {}
     };
-    struct total_tasks final : public __detail::numeric_wrapper<__detail::SizeT> {
+    struct total_tasks final : public __detail::generic_wrapper<__detail::SizeT> {
       constexpr explicit total_tasks( __detail::SizeT _data ) noexcept
-        : __detail::numeric_wrapper<__detail::SizeT>( _data ) {}
+        : __detail::generic_wrapper<__detail::SizeT>( _data ) {}
     };
-    struct each_setp final : public __detail::numeric_wrapper<__detail::SizeT> {
+    struct each_setp final : public __detail::generic_wrapper<__detail::SizeT> {
       constexpr explicit each_setp( __detail::SizeT _data ) noexcept
-        : __detail::numeric_wrapper<__detail::SizeT>( _data ) {}
+        : __detail::generic_wrapper<__detail::SizeT>( _data ) {}
     };
-    struct bar_length final : public __detail::numeric_wrapper<__detail::SizeT> {
+    struct bar_length final : public __detail::generic_wrapper<__detail::SizeT> {
       constexpr explicit bar_length( __detail::SizeT _data ) noexcept
-        : __detail::numeric_wrapper<__detail::SizeT>( _data ) {}
+        : __detail::generic_wrapper<__detail::SizeT>( _data ) {}
     };
   } // namespace initr
 
@@ -994,7 +982,7 @@ namespace pgbar {
       : pgbar( _total_tsk, 1, _ostream ) {}
     template<typename ...Args, typename =
       typename std::enable_if<
-        __detail::all_of_initr<typename std::remove_cv<Args>::type...>::value
+        __detail::all_of_initr<typename std::decay<Args>::type...>::value
       >::type
     > pgbar( StreamObj& _ostream = std::cerr, Args&&... args )
       : pgbar( 0, _ostream ) { // = default constructor
@@ -1116,7 +1104,7 @@ namespace pgbar {
     }
     template<typename ...Args>
     typename std::enable_if<
-      __detail::all_of_initr<typename std::remove_cv<Args>::type...>::value,
+      __detail::all_of_initr<typename std::decay<Args>::type...>::value,
       pgbar&
     >::type set_style( Args&&... args ) {
       __detail::pipeline_expan( *this, std::forward<Args>( args )... );
