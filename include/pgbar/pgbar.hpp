@@ -196,26 +196,29 @@ namespace pgbar {
     };
 
     struct wrapper_base { virtual ~wrapper_base() = 0; };
-    wrapper_base::~wrapper_base() {};
+    wrapper_base::~wrapper_base() {}
     template<typename N>
     class numeric_wrapper : public wrapper_base {
       N data;
     public:
-      constexpr explicit numeric_wrapper( N _data ) noexcept : data { _data } {}
+      constexpr explicit numeric_wrapper( N _data ) noexcept
+        : data { _data } {}
       N value() const noexcept { return data; }
       virtual ~numeric_wrapper() noexcept {}
     };
     class string_wrapper : public wrapper_base {
       StrT data;
     public:
-      explicit string_wrapper( StrT _data ) : data { std::move( _data ) } {}
+      explicit string_wrapper( StrT _data )
+        : data { std::move( _data ) } {}
       StrT& value() noexcept { return data; }
       virtual ~string_wrapper() {}
     };
     class literal_wrapper : public wrapper_base {
       LiteralStrT data;
     public:
-      constexpr explicit literal_wrapper( LiteralStrT _data ) : data { _data } {}
+      constexpr explicit literal_wrapper( LiteralStrT _data )
+        : data { std::move( _data ) } {}
       LiteralStrT& value() noexcept { return data; }
       virtual ~literal_wrapper() {}
     };
@@ -776,8 +779,8 @@ namespace pgbar {
       return formatter<txt_layout::align_center>(
         time_len,
         to_time( std::chrono::duration_cast<
-          std::chrono::seconds>(interval * num_done).count() ) +
-        __detail::StrT( " < " ) +
+          std::chrono::seconds>(interval * num_done).count()
+        ) + __detail::StrT( " < " ) +
         to_time( std::chrono::duration_cast<
           std::chrono::seconds>(interval * (*task_cnt_.end() - num_done)).count()
         )
@@ -792,6 +795,7 @@ namespace pgbar {
                         std::chrono::duration<__detail::SizeT, std::nano> interval ) const {
       __detail::SizeT total_length = 0;
       __detail::StrT progress_bar;
+      progress_bar.reserve( (ctrller[bit_index::bar] ? bar_length_ : 0) + status_length_ );
       if ( ctrller[bit_index::bar] ) {
         total_length += bar_length_ + startpoint_.size() + endpoint_.size() + 1;
         progress_bar.append( show_bar( num_per ) );
