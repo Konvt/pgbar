@@ -196,61 +196,74 @@ struct is_renderer { constexpr bool value; };
 template<typename S>
 struct is_stream { constexpr bool value; };
 
-/* Notify the progress bar that it needs updating. */
-void pgbar::update()
+/* Notify the progress bar that it needs updating, return value is the current iteration progress. */
+void pgbar::update();
 
 /* Requests the progress bar to advance its iteration progress by next_step steps,
- * steps beyond the total number of tasks will be ignored. */
-void pgbar::update(size_t next_step)
+ * steps beyond the total number of tasks will be ignored; return value ditto. */
+void pgbar::update(size_t next_step);
+
+/* Set the iteration progress of the progress bar to the specified percentage, with parameter range [0, 100];
+ * values outside this range will be treated as 100%; return value ditto. */
+size_t update_to( size_t percentage );
+
+/* Get the total number of tasks. */
+size_t get_tasks() const noexcept;
+
+/* Get the number of steps the iteration advances. */
+size_t get_step() const noexcept;
+
+/* Get the number of tasks that have been updated. */
+size_t get_current();
 
 /* Check if the progress bar object has been started. */
-bool pgbar::is_updated() const noexcept
+bool pgbar::is_updated() const noexcept;
 
 /* Check if the progress bar object has finished updating. */
-bool pgbar::is_done() const noexcept
+bool pgbar::is_done() const noexcept;
 
 /* Set the number of tasks to be updated each time `update()` is called. */
-pgbar& pgbar::set_step(size_t _step) noexcept
+pgbar& pgbar::set_step(size_t _step) noexcept;
 
 /* Set the total number of tasks the progress bar needs to handle. */
-pgbar& pgbar::set_task(size_t _total_tsk) noexcept
+pgbar& pgbar::set_task(size_t _total_tsk) noexcept;
 
 /* Set the character for the unfilled part of the progress bar. */
-pgbar& pgbar::set_done(std::string _done_ch)
+pgbar& pgbar::set_done(std::string _done_ch);
 
 /* Set the character used to fill the progress bar. */
-pgbar& pgbar::set_todo(std::string _todo_ch)
+pgbar& pgbar::set_todo(std::string _todo_ch);
 
 /* Set the style of the left bracket of the progress bar, can be passed an empty string. */
-pgbar& pgbar::set_startpoint(std::string _startpoint)
+pgbar& pgbar::set_startpoint(std::string _startpoint);
 
 /* Set the style of the right side of the progress bar. */
-pgbar& pgbar::set_endpoint(std::string _endpoint)
+pgbar& pgbar::set_endpoint(std::string _endpoint);
 
 /* Set the style of the left parenthesis in the status bar, can be passd an empty string. */
-pgbar& pgbar::set_lstatus(std::string _lstatus)
+pgbar& pgbar::set_lstatus(std::string _lstatus);
 
 /* Set the style of the right side in the status bar. */
-pgbar& pgbar::set_rstatus(std::string _rstatus)
+pgbar& pgbar::set_rstatus(std::string _rstatus);
 
 /* Set the length of the progress bar, indicating how many characters the progress bar occupies after output. */
-pgbar& pgbar::set_bar_length(size_t _length) noexcept
+pgbar& pgbar::set_bar_length(size_t _length) noexcept;
 
 /* Set the color of unfilled characters in the progress bar, using the given constant value from pgbar::dye.
  * This function has no effect when the macro PGBAR_NOT_COL is activated. */
-pgbar& pgbar::set_todo_col(/* literal type */ _dye) noexcept
+pgbar& pgbar::set_todo_col(/* literal type */ _dye) noexcept;
 
 /* Similarly, set the color of filled characters in the progress bar. */
-pgbar& pgbar::set_done_col(/* literal type */ _dye) noexcept
+pgbar& pgbar::set_done_col(/* literal type */ _dye) noexcept;
 
 /* Also, set the color of the status information bar. */
-pgbar& pgbar::set_status_col(/* literal type */ _dye) noexcept
+pgbar& pgbar::set_status_col(/* literal type */ _dye) noexcept;
 
 /* Use bitwise operations to set the information to be displayed based on multiple predefined options. */
-pgbar& pgbar::set_style(pgbar::style::Type _selection) noexcept
+pgbar& pgbar::set_style(pgbar::style::Type _selection) noexcept;
 
 /* Use the types in pgbar::initr to configure different options. */
-pgbar& pgbar::set_style( Args&&... args )
+pgbar& pgbar::set_style( Args&&... args );
 ```
 ### pgbar/range.hpp
 ```cpp
@@ -491,60 +504,72 @@ struct is_renderer { constexpr bool value; };
 template<typename S>
 struct is_stream { constexpr bool value; };
 
-/* 通知进度条该更新了. */
-void pgbar::update()
+/* 通知进度条该更新了，返回值为当前迭代进度，下同. */
+size_t pgbar::update();
 
 /* 要求进度条的迭代进度一次性前进 next_step 步，超出任务总数的步数会被忽略. */
-void pgbar::update(size_t next_step)
+size_t pgbar::update(size_t next_step);
+
+/* 将进度条的迭代进度设置到指定的百分比，参数范围为 [0, 100]；超出范围的数值会被视作 100%. */
+size_t update_to( size_t percentage );
+
+/* 获取当前进度条对象的任务总数. */
+size_t get_tasks() const noexcept;
+
+/* 获取当前进度条对象的迭代步长. */
+size_t get_step() const noexcept;
+
+/* 获取当前进度条对象已被迭代的任务数. */
+size_t get_current();
 
 /* 检查进度条对象是否已经启动. */
-bool pgbar::is_updated() const noexcept
+bool pgbar::is_updated() const noexcept;
 
 /* 检查进度条对象是否更新完毕. */
-bool pgbar::is_done() const noexcept
+bool pgbar::is_done() const noexcept;
 
 /* 设置每次调用 `update()` 时更新的任务数. */
-pgbar& pgbar::set_step(size_t _step) noexcept
+pgbar& pgbar::set_step(size_t _step) noexcept;
 
 /* 设置进度条需要处理的总任务数. */
-pgbar& pgbar::set_task(size_t _total_tsk) noexcept
+pgbar& pgbar::set_task(size_t _total_tsk) noexcept;
 
 /* 设置进度条中未被填充部分的字符. */
-pgbar& pgbar::set_done(std::string _done_ch)
+pgbar& pgbar::set_done(std::string _done_ch);
 
 /* 设置用于填充进度条的字符. */
-pgbar& pgbar::set_todo(std::string _todo_ch)
+pgbar& pgbar::set_todo(std::string _todo_ch);
 
 /* 设置进度条左侧的括号样式，可以传入一个空字符串. */
-pgbar& pgbar::set_startpoint(std::string _startpoint)
+pgbar& pgbar::set_startpoint(std::string _startpoint);
 
 /* 设置进度条右侧样式. */
-pgbar& pgbar::set_endpoint(std::string _endpoint)
+pgbar& pgbar::set_endpoint(std::string _endpoint);
 
 /* 设置状态栏左侧的括号样式，可以传入一个空字符串. */
-pgbar& pgbar::set_lstatus(std::string _lstatus)
+pgbar& pgbar::set_lstatus(std::string _lstatus);
 
 /* 设置状态栏右侧样式. */
-pgbar& pgbar::set_rstatus(std::string _rstatus)
+pgbar& pgbar::set_rstatus(std::string _rstatus);
 
 /* 设置进度条的长度，表示进度条在输出后占多少字符长. */
-pgbar& pgbar::set_bar_length(size_t _length) noexcept
+pgbar& pgbar::set_bar_length(size_t _length) noexcept;
 
 /* 设置进度条中未填充字符的颜色，使用 pgbar::dye 中的给定常量值来设置.
  * 在宏 PGBAR_NOT_COL 激活时该函数没有实际效果. */
-pgbar& pgbar::set_todo_col(/* literal type */ _dye) noexcept
+pgbar& pgbar::set_todo_col(/* literal type */ _dye) noexcept;
 
 /* 同上，设置进度条中已填充字符的颜色. */
-pgbar& pgbar::set_done_col(/* literal type */ _dye) noexcept
+pgbar& pgbar::set_done_col(/* literal type */ _dye) noexcept;
 
 /* 同上，设置状态信息栏的颜色. */
-pgbar& pgbar::set_status_col(/* literal type */ _dye) noexcept
+pgbar& pgbar::set_status_col(/* literal type */ _dye) noexcept;
 
 /* 根据多个预定选项，使用位操作设定需要显示的信息. */
-pgbar& pgbar::set_style(pgbar::style::Type _selection) noexcept
+pgbar& pgbar::set_style(pgbar::style::Type _selection) noexcept;
 
 /* 使用 pgbar::initr 中的类型设置不同选项 */
-pgbar& pgbar::set_style( Args&&... args )
+pgbar& pgbar::set_style( Args&&... args );
 ```
 ### pgbar/range.hpp
 ```cpp

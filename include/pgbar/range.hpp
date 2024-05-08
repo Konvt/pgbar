@@ -59,7 +59,7 @@ namespace pgbar {
       explicit numeric_iterator( EleT _startpoint, EleT _endpoint, EleT _step, BarT& _bar ) {
         if ( _startpoint > _endpoint ) {
           throw bad_pgbar {
-            std::string( "bad_pgbar: invalid iteration range, '_startpoint = " ) +
+            std::string( "numeric_iterator: invalid iteration range, '_startpoint = " ) +
             std::to_string( _endpoint ) + std::string( "' while '_endpoint = " ) +
             std::to_string( _startpoint ) + std::string( 1, '\'' )
           };
