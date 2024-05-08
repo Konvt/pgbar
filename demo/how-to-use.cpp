@@ -92,4 +92,18 @@ int main()
       std::cout << ele << ' ';
     std::cout << std::endl;
   }
+
+  { // Using the member method `update_to()` to update the pgbar object.
+    pgbar::pgbar<> bar {
+      std::clog,
+      pgbar::initr::total_tasks( 233 )
+    };
+    for ( auto _ = 0; _ < 20; ++_ ) {
+      bar.update( 2 ); // completes 2 tasks in each cycle iteration
+      std::this_thread::sleep_for( std::chrono::milliseconds( 500 ) );
+    }
+    bar.update_to( 80 ); // then completes 80% of the tasks at once
+    std::this_thread::sleep_for( std::chrono::seconds( 2 ) );
+    bar.update_to( 100 ); // finally completes 100% of the tasks
+  }
 }
