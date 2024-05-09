@@ -306,12 +306,12 @@ namespace pgbar {
   struct style {
     using Type = uint8_t;
 
-    static constexpr Type bar          = 1 << 0;
-    static constexpr Type percentage   = 1 << 1;
-    static constexpr Type task_counter = 1 << 2;
-    static constexpr Type rate         = 1 << 3;
-    static constexpr Type countdown    = 1 << 4;
-    static constexpr Type entire       = ~0;
+    static constexpr Type bar      = 1 << 0;
+    static constexpr Type ratio    = 1 << 1;
+    static constexpr Type task_cnt = 1 << 2;
+    static constexpr Type rate     = 1 << 3;
+    static constexpr Type timer    = 1 << 4;
+    static constexpr Type entire   = ~0;
   };
 
   struct dye {
@@ -582,11 +582,15 @@ namespace pgbar {
     enum bit_index : style::Type { bar = 0, per, cnt, rate, timer };
     using BitVector = std::bitset<sizeof( style::Type ) * 8>;
 
+#define __PGBAR_DEFAULT_RATIO__ " 0.00% "
+#define __PGBAR_DEFAULT_TIMER__ "00:00:00 < 99:60:60"
+#define __PGBAR_DEFAULT_RATE__ "  0.00 Hz "
+
     static constexpr char blank = ' ';
     static constexpr char backspace = '\b';
-    static constexpr __detail::SizeT ratio_len = sizeof("100.00%") - sizeof(char);
-    static constexpr __detail::SizeT time_len  = sizeof("9.9m < 9.9m") - sizeof(char);
-    static constexpr __detail::SizeT rate_len  = sizeof("999.99 kHz") - sizeof(char);
+    static constexpr __detail::SizeT ratio_len = sizeof( __PGBAR_DEFAULT_RATIO__ ) - sizeof( char );
+    static constexpr __detail::SizeT timer_len = sizeof( __PGBAR_DEFAULT_TIMER__ ) - sizeof( char );
+    static constexpr __detail::SizeT rate_len = sizeof( __PGBAR_DEFAULT_RATE__ ) - sizeof( char );
     static __detail::ConstStrT division; // The default division character.
     // The font style of status bar.
     static constexpr __detail::LiteralStrT font_fmt = __PGBAR_BOLD__;
@@ -678,14 +682,11 @@ namespace pgbar {
       );
     }
 
-    __PGBAR_INLINE_FUNC__ __detail::StrT show_percentage( double num_per ) const {
-      if ( !is_updated() ) {
-        static const __detail::StrT default_str =
-          formatter<txt_layout::align_left>( ratio_len, "0.00%" );
-        return default_str;
-      }
+    __PGBAR_INLINE_FUNC__ __detail::StrT show_ratio( double num_per ) const {
+      if ( !is_updated() )
+        return { __PGBAR_DEFAULT_RATIO__ };
 
-      __detail::StrT proportion = __detail::ToString( num_per * 100 );
+      __detail::StrT proportion = __detail::ToString( num_per * 100.0 );
       proportion.resize( proportion.find( '.' ) + 3 );
 
       return formatter<txt_layout::align_right>(
@@ -708,9 +709,7 @@ namespace pgbar {
 
       if ( !is_updated() ) {
         invoke_interval = interval;
-        static const __detail::StrT default_str =
-          formatter<txt_layout::align_center>( rate_len, "0.00 Hz" );
-        return default_str;
+        return { __PGBAR_DEFAULT_RATE__ };
       }
 
       invoke_interval = (invoke_interval + interval) / 2; // each invoke interval
@@ -718,57 +717,52 @@ namespace pgbar {
         std::chrono::nanoseconds>(std::chrono::seconds( 1 )) / invoke_interval
         : ~static_cast<__detail::SizeT>(0); // The invoking rate is too fast to calculate.
 
-      auto splice = []( double val ) -> __detail::StrT {
+      auto rate2str = []( double val ) -> __detail::StrT {
         __detail::StrT str = __detail::ToString( val );
         str.resize( str.find( '.' ) + 3 ); // Keep two decimal places.
         return str;
       };
 
-      __detail::StrT rate;
+      __detail::StrT rate_str;
       if ( frequency < 1e3 ) // < 1Hz => '999.99 Hz'
-        rate = splice( frequency ) + __detail::StrT( " Hz" );
+        rate_str = rate2str( frequency ) + __detail::StrT( " Hz" );
       else if ( frequency < 1e6 ) // < 1 kHz => '999.99 kHz'
-        rate = splice( frequency / 1e3 ) + __detail::StrT( " kHz" );
+        rate_str = rate2str( frequency / 1e3 ) + __detail::StrT( " kHz" );
       else if ( frequency < 1e9 ) // < 1 MHz => '999.99 MHz'
-        rate = splice( frequency / 1e6 ) + __detail::StrT( " MHz" );
+        rate_str = rate2str( frequency / 1e6 ) + __detail::StrT( " MHz" );
       else { // < 1 GHz => '> 1.00 GHz'
-        double temp = frequency / 1e9;
-        if ( temp > 999.99 ) rate = "> 1.00 GHz" ;
-        else rate = splice( temp ) + __detail::StrT( " GHz" );
+        const double temp = frequency / 1e9;
+        if ( temp > 999.99 ) rate_str = "> 1.00 GHz" ;
+        else rate_str = rate2str( temp ) + __detail::StrT( " GHz" );
       }
 
-      return formatter<txt_layout::align_center>( rate_len, std::move( rate ) );
+      return formatter<txt_layout::align_center>( rate_len, std::move( rate_str ) );
     }
 
-    __detail::StrT show_countdown( std::chrono::duration<__detail::SizeT, std::nano> interval,
+    __detail::StrT show_timer( std::chrono::duration<__detail::SizeT, std::nano> interval,
                                    __detail::SizeT num_done ) const {
       if ( !is_updated() ) {
-        static const __detail::StrT default_str =
-          formatter<txt_layout::align_center>( time_len, "0s < 99h" );
-        return default_str;
+        return { __PGBAR_DEFAULT_TIMER__ };
       }
-      auto splice = []( double val ) -> __detail::StrT {
-        __detail::StrT str = __detail::ToString( val );
-        str.resize( str.find( '.' ) + 2 ); // Keep one decimal places.
-        return str;
+
+      const auto time2str = []( int64_t num_time ) -> __detail::StrT {
+        __detail::StrT ret = __detail::ToString( num_time );
+        if ( ret.size() < 2 ) return "0" + ret;
+        return ret;
       };
-      auto to_time = [&splice]( int64_t sec ) -> __detail::StrT {
-        if ( sec < 60 ) // < 1 minute => 59s
-          return __detail::ToString( sec ) + __detail::StrT( 1, 's' );
-        else if ( sec < 60 * 9 ) // < 9 minutes => 9.9m
-          return splice( static_cast<double>(sec) / 60.0 ) + __detail::StrT( 1, 'm' );
-        else if ( sec < 60 * 60 ) // >= 9 minutes => 59m
-          return __detail::ToString( sec / 60 ) + __detail::StrT( 1, 'm' );
-        else if ( sec < 60 * 60 * 9 ) // < 9 hour => 9.9h
-          return splice( static_cast<double>(sec) / (60.0 * 60.0) ) + __detail::StrT( 1, 'h' );
-        else { // >= 9 hour => 999h
-          if ( sec > 60 * 60 * 99 ) return "99h";
-          else return __detail::ToString( sec / (60 * 60) ) + __detail::StrT( 1, 'h' );
-        }
+      static const auto to_time = [&time2str]( int64_t seconds ) -> __detail::StrT {
+        const int64_t hours = seconds / 3600.0;
+        const int64_t minutes = (seconds - (3600 * hours)) / 60.0;
+        seconds -= 60 * minutes;
+        return (
+          ((hours > 99 ? __detail::StrT( "99" ) : time2str( hours )) + ":") +
+          (time2str( minutes ) + ":") +
+          time2str( seconds )
+        );
       };
 
       return formatter<txt_layout::align_center>(
-        time_len,
+        timer_len,
         to_time( std::chrono::duration_cast<
           std::chrono::seconds>(interval * num_done).count()
         ) + __detail::StrT( " < " ) +
@@ -798,8 +792,8 @@ namespace pgbar {
       if ( ctrller[bit_index::per] ) {
         progress_bar.append(
           ctrller[bit_index::cnt] || ctrller[bit_index::rate] || ctrller[bit_index::timer] ?
-            show_percentage( num_per ) + __detail::StrT( division ) :
-            show_percentage( num_per )
+            show_ratio( num_per ) + __detail::StrT( division ) :
+            show_ratio( num_per )
         );
       }
       if ( ctrller[bit_index::cnt] ) {
@@ -817,7 +811,7 @@ namespace pgbar {
         );
       }
       if ( ctrller[bit_index::timer] )
-        progress_bar.append( show_countdown( std::move( interval ), get_current() ) );
+        progress_bar.append( show_timer( std::move( interval ), get_current() ) );
       if ( status_length_ != 0 )
         progress_bar.append( rstatus_ + __detail::StrT( default_col ) );
 
@@ -947,7 +941,7 @@ namespace pgbar {
         (option_[bit_index::per] ? ratio_len : 0) +
         (option_[bit_index::cnt] ? cnt_length_ : 0) +
         (option_[bit_index::rate] ? rate_len : 0) +
-        (option_[bit_index::timer] ? time_len : 0)
+        (option_[bit_index::timer] ? timer_len : 0)
       );
       if ( status_length_ != 0 ) {
         status_length_ += lstatus_.size() + rstatus_.size();
@@ -1242,6 +1236,10 @@ namespace pgbar {
     return bar;
   }
 } // namespace pgbar
+
+#undef __PGBAR_DEFAULT_RATIO__
+#undef __PGBAR_DEFAULT_TIMER__
+#undef __PGBAR_DEFAULT_RATE__
 
 #undef __PGBAR_DEFAULT_COL__
 #undef __PGBAR_ASSERT_FAILURE__

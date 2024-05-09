@@ -26,7 +26,7 @@ int main()
       // Do anything you want here...
     }
 
-    bar.reset().set_style( pgbar::style::percentage | pgbar::style::task_counter | pgbar::style::countdown );
+    bar.reset().set_style( pgbar::style::ratio | pgbar::style::task_cnt | pgbar::style::timer );
     std::cout << "Task progress: "; // `range` needs a progress bar to show the progress situation
     for ( auto ele : pgbar::range( TOTAL / 2, bar ) )
       continue; // You can specify a range using `range`
@@ -59,7 +59,7 @@ int main()
     arr.resize( 0 );
 
     float* pointer_arr = new float[30000] {0.0};
-    bar.reset().set_style( pgbar::style::percentage );
+    bar.reset().set_style( pgbar::style::ratio );
     std::cout << "Pointer arrays is okay: ";
 
     // Also can pass a pointer array as the range
