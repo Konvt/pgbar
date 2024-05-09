@@ -36,10 +36,10 @@ No third party dependencies required.
 
 ## Styles
 ```
-{startpoint}{done char}{todo char}{endpoint} {left status}{percentage}{task counter}{rate}{countdown}{right status}
+{startpoint}{done char}{todo char}{endpoint} {left status}{percentage}{task counter}{rate}{timer}{right status}
 ^~~~~~~~~~~~~~~ Progress bar ~~~~~~~~~~~~~~^ ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Status bar ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
 
-[---------------                         ] [ 36.63%  |  36638968/100000000 |  21.27 MHz |   1s < 3s   ]
+[-------                       ] [  24.00% |  48/200 |  31.00 Hz  | 00:00:01 < 00:00:04 ]
 ```
 ![example-color](images/example_color.gif)
 > The "Hz" indicates how many tasks are performed per second.
@@ -156,7 +156,7 @@ style {
   percentage;
   task_counter;
   rate;
-  countdown;
+  timer;
   entire;
 };
 ```
@@ -348,10 +348,10 @@ Just for practice, that's all.
 
 ## 风格样式
 ```
-{startpoint}{done char}{todo char}{endpoint} {left status}{percentage}{task counter}{rate}{countdown}{right status}
+{startpoint}{done char}{todo char}{endpoint} {left status}{percentage}{task counter}{rate}{timer}{right status}
 ^~~~~~~~~~~~~~~ Progress bar ~~~~~~~~~~~~~~^ ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Status bar ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
 
-[---------------                         ] [ 36.63%  |  36638968/100000000 |  21.27 MHz |   1s < 3s   ]
+[-------                       ] [  24.00% |  48/200 |  31.00 Hz  | 00:00:01 < 00:00:04 ]
 ```
 ![example-color](images/example_color.gif)
 > 这里的 'Hz' 表示每秒执行了多少次更新.
@@ -464,7 +464,7 @@ style {
   percentage;
   task_counter;
   rate;
-  countdown;
+  timer;
   entire;
 };
 ```

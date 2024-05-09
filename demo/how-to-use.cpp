@@ -37,7 +37,7 @@ int main()
   { // Set the style **while** creating a pgbar object.
     pgbar::pgbar<> bar {
       std::cerr, // The stream object must be provided
-      pgbar::initr::option( pgbar::style::percentage ),
+      pgbar::initr::option( pgbar::style::ratio ),
       pgbar::initr::todo_char( "-" ),
       pgbar::initr::done_char( "=" ),
       pgbar::initr::left_status( "" ),
@@ -53,7 +53,7 @@ int main()
   { // Using the factory function to create a pgbar object.
     auto bar = pgbar::make_pgbar<pgbar::singlethread>(
       std::cerr, // ditto
-      pgbar::initr::option( pgbar::style::percentage ),
+      pgbar::initr::option( pgbar::style::ratio ),
       pgbar::initr::todo_char( "-" ),
       pgbar::initr::done_char( "=" ),
       pgbar::initr::left_status( "" ),
@@ -104,6 +104,6 @@ int main()
     }
     bar.update_to( 80 ); // then completes 80% of the tasks at once
     std::this_thread::sleep_for( std::chrono::seconds( 2 ) );
-    bar.update_to( 100 ); // finally completes 100% of the tasks
+    bar.update_to( 100 ); // finally completes 100% of the tasks, and quit.
   }
 }

@@ -8,4 +8,4 @@ demo/cxx20
 
 *.exe
 sample
-commit_info.txt
+commit_info.*
