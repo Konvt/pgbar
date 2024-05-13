@@ -75,7 +75,7 @@
 # define __PGBAR_CXX17__ 0
 # define __PGBAR_INLINE_VAR__
 # define __PGBAR_ENHANCE_CONSTEXPR__
-# define __PGBAR_FALLTHROUGH__ break;
+# define __PGBAR_FALLTHROUGH__
 #endif // __cplusplus >= 201703L
 #if __PGBAR_CMP_V__ >= 201402L
 # define __PGBAR_CXX14__ 1
@@ -691,7 +691,7 @@ namespace pgbar {
     }
 
     __PGBAR_INLINE_FUNC__ static bool check_output_stream( const StreamObj* const os ) {
-      if __PGBAR_ENHANCE_CONSTEXPR__ ( std::is_same<StreamObj, std::ostream>::value == false )
+      if __PGBAR_ENHANCE_CONSTEXPR__( std::is_same<StreamObj, std::ostream>::value == false )
         return true; // Custom object, the program does not block output.
 #if __PGBAR_WIN__
       if ( _isatty( _fileno( stdout ) ) )
@@ -852,56 +852,65 @@ namespace pgbar {
 
     /// @brief This function only will be invoked by the rendering thread.
     __PGBAR_INLINE_FUNC__ void rendering() const {
-      static struct {
-        bool done_flag {};
-        double last_bar_progress {};
-        std::chrono::duration<__detail::SizeT, std::nano> invoke_interval {};
-        std::chrono::system_clock::time_point first_invoked {};
+      static enum class render_state {
+        beginning, refreshing, ending, stopped
+      } cur_state = render_state::stopped;
+      static double last_bar_progress {};
+      static std::chrono::duration<__detail::SizeT, std::nano> invoke_interval {};
+      static std::chrono::system_clock::time_point first_invoked {};
 
-        void reset( bool will_reset_timer ) {
-          done_flag = {}; last_bar_progress = {};
-          if ( will_reset_timer ) {
-            invoke_interval = {};
-            first_invoked = std::chrono::system_clock::now();
-          }
+      auto transition = [this]( render_state current_state ) -> render_state {
+        if ( in_tty_ == false ) return render_state::stopped;
+        switch ( current_state ) {
+        case render_state::beginning: // fallthrough
+          __PGBAR_FALLTHROUGH__
+        case render_state::refreshing:
+          return is_done() ? render_state::ending : render_state::refreshing;
+        case render_state::ending: // fallthrough
+          __PGBAR_FALLTHROUGH__
+        case render_state::stopped:
+          return is_done() ? render_state::stopped : render_state::beginning;
+        default: break;
         }
-      } _state;
+        return render_state::stopped;
+      };
 
-      if ( !is_updated() ) {
-        _state.reset( in_tty_ );
-        if ( in_tty_ ) { // For visual purposes, output the full progress bar at the beginning.
-          generate_barcode( option_, 0.0, 0, {} );
-          stream_ << buffer;
-        }
+      switch ( cur_state = transition( cur_state ) ) {
+      case render_state::beginning: {
+        last_bar_progress = {}; invoke_interval = {};
+        first_invoked = std::chrono::system_clock::now();
+
+        generate_barcode( option_, 0.0, 0, {} );
+        stream_ << buffer; // For visual purposes, output the full progress bar at the beginning.
         update_flag_ = true;
-      }
+      } break;
 
-      if ( _state.done_flag ) return;
-
-      if ( in_tty_ ) {
+      case render_state::refreshing: {
         auto now = std::chrono::system_clock::now();
-        _state.invoke_interval = task_cnt_ != 0 ? (now - _state.first_invoked) / get_current()
-          : (now - _state.first_invoked) / static_cast<__detail::SizeT>(1);
+        invoke_interval = task_cnt_ != 0 ? (now - first_invoked) / get_current()
+          : (now - first_invoked) / static_cast<__detail::SizeT>(1);
         double num_percent = get_current() / static_cast<double>(get_tasks());
 
         auto controller = option_;
-        if ( num_percent - _state.last_bar_progress < 0.01 )
+        if ( num_percent - last_bar_progress < 0.01 )
           controller.reset( bit_index::bar );
-        else _state.last_bar_progress = num_percent;
+        else last_bar_progress = num_percent;
 
         // Then normally output the progress bar.
-        generate_barcode( std::move( controller ), num_percent, get_current(), _state.invoke_interval );
+        generate_barcode( std::move( controller ), num_percent, get_current(), invoke_interval );
         stream_ << buffer;
-      }
+      } break;
 
-      if ( is_done() ) {
-        if ( in_tty_ ) { // Same, for visual purposes.
-          generate_barcode( option_, 1, get_tasks(), _state.invoke_interval );
-          buffer.append( 1, '\n' );
-          stream_ << buffer;
-          buffer.release(); // releases the buffer
-        }
-        _state.done_flag = true;
+      case render_state::ending: {
+        generate_barcode( option_, 1, get_tasks(), invoke_interval );
+        buffer.append( 1, '\n' );
+        stream_ << buffer; // Same, for visual purposes.
+        buffer.release(); // releases the buffer
+      } break;
+
+      case render_state::stopped: // fallthrough
+        __PGBAR_FALLTHROUGH__
+      default: return;
       }
     }
 
