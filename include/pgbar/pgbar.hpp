@@ -810,9 +810,8 @@ namespace pgbar {
     void generate_barcode( BitVector ctrller, double num_per, __detail::SizeT num_done,
                            std::chrono::duration<__detail::SizeT, std::nano> interval ) const {
       const __detail::SizeT total_length = (
-        (ctrller[bit_index::bar]
-          ? (bar_length_ + startpoint_.size() + endpoint_.size() + 1)
-          : 0)
+        (ctrller[bit_index::bar] ?
+          (bar_length_ + startpoint_.size() + endpoint_.size() + 1) : 0)
         + status_length_);
       buffer.reserve( total_length * 2 + 1); // The extra 1 is for '\n'.
 
@@ -822,32 +821,26 @@ namespace pgbar {
       if ( ctrller[bit_index::bar] )
         buffer << show_bar( num_per );
       if ( status_length_ != 0 )
-        buffer << (__detail::StrT( font_fmt ) + __detail::StrT( status_col_ ) + lstatus_);
+        buffer << __detail::StrT( font_fmt ) << __detail::StrT( status_col_ ) << lstatus_;
       if ( ctrller[bit_index::per] ) {
-        buffer << (
-          ctrller[bit_index::cnt] || ctrller[bit_index::rate] || ctrller[bit_index::timer] ?
-          show_ratio( num_per ) + __detail::StrT( division ) :
-          show_ratio( num_per )
-        );
+        buffer << show_ratio( num_per )
+          << (ctrller[bit_index::cnt] || ctrller[bit_index::rate] || ctrller[bit_index::timer] ?
+            __detail::StrT( division ) : __detail::StrT());
       }
       if ( ctrller[bit_index::cnt] ) {
-        buffer << (
-          ctrller[bit_index::rate] || ctrller[bit_index::timer] ?
-            show_task_counter( num_done ) + __detail::StrT( division ) :
-            show_task_counter( num_done )
-        );
+        buffer << show_task_counter( num_done )
+          << (ctrller[bit_index::rate] || ctrller[bit_index::timer] ?
+            __detail::StrT( division ) : __detail::StrT());
       }
       if ( ctrller[bit_index::rate] ) {
-        buffer << (
-          ctrller[bit_index::timer] ?
-            show_rate( interval ) + __detail::StrT( division ) :
-            show_rate( interval )
-        );
+        buffer << show_rate( interval )
+          << (ctrller[bit_index::timer] ?
+            __detail::StrT( division ) : __detail::StrT());
       }
       if ( ctrller[bit_index::timer] )
         buffer << show_timer( std::move( interval ), get_current() );
       if ( status_length_ != 0 )
-        buffer << (rstatus_ + __detail::StrT( default_col ));
+        buffer << rstatus_ << __detail::StrT( default_col );
     }
 
     /// @brief This function only will be invoked by the rendering thread.
