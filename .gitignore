@@ -8,4 +8,5 @@ demo/cxx20
 
 *.exe
 sample
+how-to-use
 commit_info.*

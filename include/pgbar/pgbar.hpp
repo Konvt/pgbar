@@ -124,12 +124,13 @@ namespace pgbar {
   namespace __detail {
     using SizeT = size_t;
     using StrT = std::string;
+    using CharT = char;
 #if __PGBAR_CXX17__
-    using ReadOnlyT = std::string_view;
+    using ROStrT = std::string_view; // read only string
     using ConstStrT = const std::string_view;
     using LiteralStrT = std::string_view;
 #else
-    using ReadOnlyT = const StrT&;
+    using ROStrT = const StrT&;
     using ConstStrT = const StrT;
     using LiteralStrT = const char*;
 #endif // __PGBAR_CXX17__
@@ -202,38 +203,27 @@ namespace pgbar {
       value_type get_step() const noexcept { return step_; }
     };
 
-    template<typename T>
-    class generic_wrapper {
-      T data;
+    /// @brief A dynamic character buffer is provided for string concatenation to reduce heap allocations.
+    /// @brief The core thoughts is based on `std::string::clear` does not clear the allocated memory block.
+    class streambuf {
+      StrT buffer;
 
     public:
-      constexpr explicit generic_wrapper( T _data )
-        : data { std::move( _data ) } {}
-      virtual ~generic_wrapper() = 0;
-      __PGBAR_INLINE_FUNC__ T& value() noexcept { return data; }
-    };
-    template<typename T>
-    generic_wrapper<T>::~generic_wrapper() {}
+      /// @brief Append several characters to the buffer.
+      __PGBAR_INLINE_FUNC__ void append( SizeT _num, CharT _ch ) { buffer.append( _num, _ch ); }
+      __PGBAR_INLINE_FUNC__ void reserve( SizeT _size ) { buffer.reserve( _size ); }
+      __PGBAR_INLINE_FUNC__ void clear() { buffer.clear(); }
+      __PGBAR_INLINE_FUNC__ void free() { clear(); buffer.shrink_to_fit(); }
+      __PGBAR_INLINE_FUNC__ StrT& data() noexcept { return buffer; }
 
-    template<typename W>
-    struct is_initr {
-    private:
-      template<typename U>
-      static std::true_type check(const generic_wrapper<U>&);
-      static std::false_type check(...);
-    public:
-      static constexpr bool value = decltype(check( std::declval<W>() ))::value;
-    };
-
-    // The default template parameter is used to handle the case where `sizeof...(Args) == 0`.
-    // `generic_wrapper` requires a template parameter, so here we fill in an impossible-to-use type `std::nullptr_t`.
-    template<typename T = generic_wrapper<std::nullptr_t>, typename ...Args>
-    struct all_of_initr {
-      static constexpr bool value = is_initr<T>::value && all_of_initr<Args...>::value;
-    };
-    template<typename T>
-    struct all_of_initr<T> {
-      static constexpr bool value = is_initr<T>::value;
+      __PGBAR_INLINE_FUNC__ friend streambuf& operator<<( streambuf& buf, ROStrT info ) { // hidden friend
+        buf.buffer.append( info );
+        return buf;
+      }
+      __PGBAR_INLINE_FUNC__ friend streambuf& operator<<( streambuf& buf, char character ) {
+        buf.buffer.push_back( character );
+        return buf;
+      }
     };
 
 #if __PGBAR_CXX20__
@@ -265,6 +255,40 @@ namespace pgbar {
       >::type
     > : std::true_type {};
 #endif // __PGBAR_CXX20__
+
+    template<typename T>
+    class generic_wrapper { // for `initr`
+      T data;
+
+    public:
+      constexpr explicit generic_wrapper( T _data )
+        : data { std::move( _data ) } {}
+      virtual ~generic_wrapper() = 0;
+      __PGBAR_INLINE_FUNC__ T& value() noexcept { return data; }
+    };
+    template<typename T>
+    generic_wrapper<T>::~generic_wrapper() {}
+
+    template<typename W>
+    struct is_initr {
+    private:
+      template<typename U>
+      static std::true_type check(const generic_wrapper<U>&);
+      static std::false_type check(...);
+    public:
+      static constexpr bool value = decltype(check( std::declval<W>() ))::value;
+    };
+
+    // The default template parameter is used to handle the case where `sizeof...(Args) == 0`.
+    // `generic_wrapper` requires a template parameter, so here we fill in an impossible-to-use type `std::nullptr_t`.
+    template<typename T = generic_wrapper<std::nullptr_t>, typename ...Args>
+    struct all_of_initr {
+      static constexpr bool value = is_initr<T>::value && all_of_initr<Args...>::value;
+    };
+    template<typename T>
+    struct all_of_initr<T> {
+      static constexpr bool value = is_initr<T>::value;
+    };
   } // namespace __detail
 
 #if __PGBAR_CXX20__
@@ -500,7 +524,7 @@ namespace pgbar {
         __detail::is_void_functor<F>::value,
 #endif // __PGBAR_CXX20__
         __PGBAR_ASSERT_FAILURE__
-        "singlethread::functor_wrapper: template type error"
+        "pgbar::singlethread::functor_wrapper: template type error"
         __PGBAR_DEFAULT_COL__
       );
 
@@ -568,13 +592,13 @@ namespace pgbar {
     static_assert(
       is_stream<StreamObj>::value,
       __PGBAR_ASSERT_FAILURE__
-      "The 'StreamObj' must be a type that supports 'operator<<' to insert '__detail::StrT'"
+      "pgbar::pgbar: The 'StreamObj' must be a type that supports 'operator<<' to insert 'pgbar::__detail::StrT'"
       __PGBAR_DEFAULT_COL__
     );
     static_assert(
       is_renderer<RenderMode>::value,
       __PGBAR_ASSERT_FAILURE__
-      "The 'RenderMode' must satisfy the constraint of the type predicate 'is_renderer'"
+      "pgbar::pgbar: The 'RenderMode' must satisfy the constraint of the type predicate 'pgbar::is_renderer'"
       __PGBAR_DEFAULT_COL__
     );
 
@@ -600,6 +624,7 @@ namespace pgbar {
     mutable std::atomic<bool> update_flag_;
     RenderMode rndrer_;
     StreamObj& stream_;
+    mutable __detail::streambuf buffer;
 
     BitVector option_;
     __detail::LiteralStrT todo_col_, done_col_;
@@ -620,7 +645,7 @@ namespace pgbar {
     /// @param _str The string will be formatted.
     /// @return Formatted string.
     template<txt_layout _style>
-    __PGBAR_INLINE_FUNC__ static __detail::StrT formatter( __detail::SizeT _width, __detail::ReadOnlyT _str ) {
+    __PGBAR_INLINE_FUNC__ static __detail::StrT formatter( __detail::SizeT _width, __detail::ROStrT _str ) {
       if ( _width == 0 ) return {};
       if ( _str.size() >= _width ) return __detail::StrT( _str );
 #if __PGBAR_CXX20__
@@ -648,7 +673,7 @@ namespace pgbar {
     /// @param _time Copy times.
     /// @param _src The string to be copied.
     /// @return The string copied mutiple times.
-    static __detail::StrT bulk_copy( __detail::SizeT _time, __detail::ReadOnlyT _src ) {
+    static __detail::StrT bulk_copy( __detail::SizeT _time, __detail::ROStrT _src ) {
       if ( _time == 0 || _src.size() == 0 ) return {};
       __detail::StrT ret; ret.reserve( _src.size() * _time );
       for ( __detail::SizeT _ = 0; _ < _time; ++_ )
@@ -741,9 +766,8 @@ namespace pgbar {
 
     __detail::StrT show_timer( std::chrono::duration<__detail::SizeT, std::nano> interval,
                                    __detail::SizeT num_done ) const {
-      if ( !is_updated() ) {
+      if ( !is_updated() )
         return { __PGBAR_DEFAULT_TIMER__ };
-      }
 
       const auto time2str = []( int64_t num_time ) -> __detail::StrT {
         __detail::StrT ret = __detail::ToString( num_time );
@@ -752,7 +776,7 @@ namespace pgbar {
       };
       static const auto to_time = [&time2str]( int64_t seconds ) -> __detail::StrT {
         const int64_t hours = seconds / 3600.0;
-        const int64_t minutes = (seconds - (3600 * hours)) / 60.0;
+        const int64_t minutes = (seconds - (3600.0 * hours)) / 60.0;
         seconds -= 60 * minutes;
         return (
           ((hours > 99 ? __detail::StrT( "99" ) : time2str( hours )) + ":") +
@@ -774,51 +798,47 @@ namespace pgbar {
 
     /// @brief Based on the value of `option` and bitwise operations,
     /// @brief determine which part of the string needs to be concatenated.
-    /// @return The progress bar that has been assembled but is pending output.
-    std::pair<__detail::StrT, __detail::StrT>
-      generate_barcode( BitVector ctrller, double num_per, __detail::SizeT num_done,
-                        std::chrono::duration<__detail::SizeT, std::nano> interval ) const {
-      __detail::SizeT total_length = 0;
-      __detail::StrT progress_bar;
-      progress_bar.reserve( (ctrller[bit_index::bar] ? bar_length_ : 0) + status_length_ );
-      if ( ctrller[bit_index::bar] ) {
-        total_length += bar_length_ + startpoint_.size() + endpoint_.size() + 1;
-        progress_bar.append( show_bar( num_per ) );
-      }
-      if ( status_length_ != 0 ) {
-        total_length += status_length_;
-        progress_bar.append( __detail::StrT( font_fmt ) + __detail::StrT( status_col_ ) + lstatus_ );
-      }
+    void generate_barcode( BitVector ctrller, double num_per, __detail::SizeT num_done,
+                           std::chrono::duration<__detail::SizeT, std::nano> interval ) const {
+      const __detail::SizeT total_length = (
+        (ctrller[bit_index::bar]
+          ? (bar_length_ + startpoint_.size() + endpoint_.size() + 1)
+          : 0)
+        + status_length_);
+      buffer.reserve( total_length * 2 );
+
+      if ( is_updated() )
+        buffer.append( total_length, backspace );
+
+      if ( ctrller[bit_index::bar] )
+        buffer << show_bar( num_per );
+      if ( status_length_ != 0 )
+        buffer << (__detail::StrT( font_fmt ) + __detail::StrT( status_col_ ) + lstatus_);
       if ( ctrller[bit_index::per] ) {
-        progress_bar.append(
+        buffer << (
           ctrller[bit_index::cnt] || ctrller[bit_index::rate] || ctrller[bit_index::timer] ?
-            show_ratio( num_per ) + __detail::StrT( division ) :
-            show_ratio( num_per )
+          show_ratio( num_per ) + __detail::StrT( division ) :
+          show_ratio( num_per )
         );
       }
       if ( ctrller[bit_index::cnt] ) {
-        progress_bar.append(
+        buffer << (
           ctrller[bit_index::rate] || ctrller[bit_index::timer] ?
             show_task_counter( num_done ) + __detail::StrT( division ) :
             show_task_counter( num_done )
         );
       }
       if ( ctrller[bit_index::rate] ) {
-        progress_bar.append(
+        buffer << (
           ctrller[bit_index::timer] ?
             show_rate( interval ) + __detail::StrT( division ) :
             show_rate( interval )
         );
       }
       if ( ctrller[bit_index::timer] )
-        progress_bar.append( show_timer( std::move( interval ), get_current() ) );
+        buffer << show_timer( std::move( interval ), get_current() );
       if ( status_length_ != 0 )
-        progress_bar.append( rstatus_ + __detail::StrT( default_col ) );
-
-      return {
-        is_updated() ? __detail::StrT( total_length, backspace ) : __detail::StrT(),
-        std::move( progress_bar )
-      };
+        buffer << (rstatus_ + __detail::StrT( default_col ));
     }
 
     /// @brief This function only will be invoked by the rendering thread.
@@ -841,8 +861,9 @@ namespace pgbar {
       if ( !is_updated() ) {
         _state.reset( in_tty_ );
         if ( in_tty_ ) {
-          const auto info = generate_barcode( option_, 0.0, 0, {} );
-          stream_ << info.first << info.second;
+          generate_barcode( option_, 0.0, 0, {} );
+          stream_ << buffer.data();
+          buffer.clear();
         }
         update_flag_ = true;
       }
@@ -860,16 +881,16 @@ namespace pgbar {
           controller.reset( bit_index::bar );
         else _state.last_bar_progress = num_percent;
 
-        const auto info = generate_barcode(
-          std::move( controller ), num_percent, get_current(), _state.invoke_interval );
-        stream_ << info.first << info.second;
+        generate_barcode( std::move( controller ), num_percent, get_current(), _state.invoke_interval );
+        stream_ << buffer.data();
+        buffer.clear();
       }
 
       if ( is_done() ) {
         if ( in_tty_ ) {
-          auto info = generate_barcode( option_, 1,
-            get_tasks(), _state.invoke_interval );
-          stream_ << info.first << (info.second.append( "\n" ));
+          generate_barcode( option_, 1, get_tasks(), _state.invoke_interval );
+          stream_ << (buffer << '\n').data();
+          buffer.free();
         }
         _state.done_flag = true;
       }
@@ -884,14 +905,14 @@ namespace pgbar {
         __detail::is_void_functor<F>::value,
 #endif // __PGBAR_CXX20__
         __PGBAR_ASSERT_FAILURE__
-        "pgbar::do_update: template type error"
+        "pgbar::pgbar::do_update: template type error"
         __PGBAR_DEFAULT_COL__
       );
 
       if ( is_done() )
-        throw bad_pgbar { "do_update: updating a full progress bar" };
+        throw bad_pgbar { "pgbar::do_update: updating a full progress bar" };
       else if ( task_cnt_.end() == 0 )
-        throw bad_pgbar { "do_update: the number of tasks is zero" };
+        throw bad_pgbar { "pgbar::do_update: the number of tasks is zero" };
       if ( !is_updated() )
         rndrer_.active();
 
@@ -1037,7 +1058,7 @@ namespace pgbar {
     /// @throw If the `_step` is 0, it will throw an `bad_pgbar`.
     pgbar& set_step( __detail::SizeT _step ) {
       if ( is_updated() ) return *this;
-      else if ( _step == 0 ) throw bad_pgbar { "set_step: zero step_" };
+      else if ( _step == 0 ) throw bad_pgbar { "pgbar::set_step: zero step_" };
       task_cnt_.set_step( _step ); return *this;
     }
     /// @brief Set the number of tasks to be updated.
@@ -1045,7 +1066,7 @@ namespace pgbar {
     pgbar& set_task( __detail::SizeT _total_tsk ) {
       if ( is_updated() ) return *this;
       else if ( _total_tsk == 0 )
-        throw bad_pgbar { "set_task: the number of tasks is zero" };
+        throw bad_pgbar { "pgbar::set_task: the number of tasks is zero" };
       task_cnt_.set_task( _total_tsk );
       init_length();
       return *this;
