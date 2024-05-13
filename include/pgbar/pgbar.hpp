@@ -220,10 +220,6 @@ namespace pgbar {
         buf.buffer.append( info );
         return buf;
       }
-      __PGBAR_INLINE_FUNC__ friend streambuf& operator<<( streambuf& buf, char character ) {
-        buf.buffer.push_back( character );
-        return buf;
-      }
     };
 
 #if __PGBAR_CXX20__
@@ -805,7 +801,7 @@ namespace pgbar {
           ? (bar_length_ + startpoint_.size() + endpoint_.size() + 1)
           : 0)
         + status_length_);
-      buffer.reserve( total_length * 2 );
+      buffer.reserve( total_length * 2 + 1); // The extra 1 is for '\n'.
 
       if ( is_updated() )
         buffer.append( total_length, backspace );
@@ -889,7 +885,8 @@ namespace pgbar {
       if ( is_done() ) {
         if ( in_tty_ ) {
           generate_barcode( option_, 1, get_tasks(), _state.invoke_interval );
-          stream_ << (buffer << '\n').data();
+          buffer.append( 1, '\n' );
+          stream_ << buffer.data();
           buffer.free();
         }
         _state.done_flag = true;
