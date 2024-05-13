@@ -132,7 +132,7 @@ namespace pgbar {
 #else
     using ROStrT = const StrT&;
     using ConstStrT = const StrT;
-    using LiteralStrT = const char*;
+    using LiteralStrT = const CharT*;
 #endif // __PGBAR_CXX17__
 
     // The refresh rate is capped at about 25 Hz.
@@ -148,6 +148,74 @@ namespace pgbar {
       return std::to_string( value );
     }
 
+#if __PGBAR_CXX20__
+    // these concepts are like duck types
+    template<typename F>
+    concept FunctorType = requires(F tk) {
+      { tk() } -> std::same_as<void>;
+    };
+
+    template<typename R>
+    concept RenderType = requires(R rndr) {
+      requires requires { R( std::declval<void()>() ); };
+      { rndr.active() } -> std::same_as<void>;
+      { rndr.suspend() } -> std::same_as<void>;
+      { rndr.render() } -> std::same_as<void>;
+    };
+
+    template<typename S>
+    concept StreamType = requires(S os) {
+      { os << StrT {} } -> std::same_as<S&>;
+    };
+#else
+    template<typename F, typename = void>
+    struct is_void_functor : std::false_type {};
+    template<typename F>
+    struct is_void_functor<F,
+      typename std::enable_if<
+        std::is_void<decltype(std::declval<F>()())>::value
+      >::type
+    > : std::true_type {};
+#endif // __PGBAR_CXX20__
+  } // namespace __detail
+
+#if __PGBAR_CXX20__
+  template<typename S>
+  struct is_stream : std::bool_constant<__detail::StreamType<S>> {};
+
+  template<typename R>
+  struct is_renderer : std::bool_constant<__detail::RenderType<R>> {};
+#else
+  template<typename S, typename = void>
+  struct is_stream : std::false_type {};
+  template<typename S>
+  struct is_stream<S,
+    typename std::enable_if<
+      std::is_same<decltype(std::declval<S&>() << std::declval<__detail::StrT>()), S&>::value
+    >::type
+  > : std::true_type {};
+
+  template<typename R, typename = void>
+  struct is_renderer : std::false_type {};
+  template<typename R>
+  struct is_renderer<R,
+    typename std::enable_if<
+      std::is_void<decltype(std::declval<R&>().active())>::value &&
+      std::is_void<decltype(std::declval<R&>().suspend())>::value &&
+      std::is_void<decltype(std::declval<R&>().render())>::value
+    >::type
+  > : std::true_type {};
+#endif // __PGBAR_CXX20__
+
+#if __PGBAR_CXX14__
+  template<typename R>
+  __PGBAR_INLINE_VAR__ constexpr bool is_renderer_v = is_renderer<R>::value;
+
+  template<typename S>
+  __PGBAR_INLINE_VAR__ constexpr bool is_stream_v = is_stream<S>::value;
+#endif // __PGBAR_CXX14__
+
+  namespace __detail {
     /// @brief This iterator does not necessarily conform to the normal iterator definition.
     class counter_iterator {
       SizeT num_tasks_;
@@ -213,44 +281,25 @@ namespace pgbar {
       __PGBAR_INLINE_FUNC__ void append( SizeT _num, CharT _ch ) { buffer.append( _num, _ch ); }
       __PGBAR_INLINE_FUNC__ void reserve( SizeT _size ) { buffer.reserve( _size ); }
       __PGBAR_INLINE_FUNC__ void clear() { buffer.clear(); }
-      __PGBAR_INLINE_FUNC__ void free() { clear(); buffer.shrink_to_fit(); }
+      __PGBAR_INLINE_FUNC__ void release() { clear(); buffer.shrink_to_fit(); }
       __PGBAR_INLINE_FUNC__ StrT& data() noexcept { return buffer; }
 
       __PGBAR_INLINE_FUNC__ friend streambuf& operator<<( streambuf& buf, ROStrT info ) { // hidden friend
         buf.buffer.append( info );
         return buf;
       }
+      template<typename S>
+      __PGBAR_INLINE_FUNC__ friend S& operator<<( S& stream, streambuf& buf ) {
+        static_assert(
+          is_stream<S>::value,
+          __PGBAR_ASSERT_FAILURE__
+          "pgbar::__detail::streambuf: 'S' must be a type that supports 'operator<<' to insert 'pgbar::__detail::StrT'"
+          __PGBAR_DEFAULT_COL__
+        );
+        stream << buf.data();
+        buf.clear(); return stream;
+      }
     };
-
-#if __PGBAR_CXX20__
-    // these concepts are like duck types
-    template<typename F>
-    concept FunctorType = requires(F tk) {
-      { tk() } -> std::same_as<void>;
-    };
-
-    template<typename R>
-    concept RenderType = requires(R rndr) {
-      requires requires { R( std::declval<void()>() ); };
-      { rndr.active() } -> std::same_as<void>;
-      { rndr.suspend() } -> std::same_as<void>;
-      { rndr.render() } -> std::same_as<void>;
-    };
-
-    template<typename S>
-    concept StreamType = requires(S os) {
-      { os << StrT {} } -> std::same_as<S&>;
-    };
-#else
-    template<typename F, typename = void>
-    struct is_void_functor : std::false_type {};
-    template<typename F>
-    struct is_void_functor<F,
-      typename std::enable_if<
-        std::is_void<decltype(std::declval<F>()())>::value
-      >::type
-    > : std::true_type {};
-#endif // __PGBAR_CXX20__
 
     template<typename T>
     class generic_wrapper { // for `initr`
@@ -286,42 +335,6 @@ namespace pgbar {
       static constexpr bool value = is_initr<T>::value;
     };
   } // namespace __detail
-
-#if __PGBAR_CXX20__
-  template<typename S>
-  struct is_stream : std::bool_constant<__detail::StreamType<S>> {};
-
-  template<typename R>
-  struct is_renderer : std::bool_constant<__detail::RenderType<R>> {};
-#else
-  template<typename S, typename = void>
-  struct is_stream : std::false_type {};
-  template<typename S>
-  struct is_stream<S,
-    typename std::enable_if<
-      std::is_same<decltype(std::declval<S&>() << std::declval<__detail::StrT>()), S&>::value
-    >::type
-  > : std::true_type {};
-
-  template<typename R, typename = void>
-  struct is_renderer : std::false_type {};
-  template<typename R>
-  struct is_renderer<R,
-    typename std::enable_if<
-      std::is_void<decltype(std::declval<R&>().active())>::value &&
-      std::is_void<decltype(std::declval<R&>().suspend())>::value &&
-      std::is_void<decltype(std::declval<R&>().render())>::value
-    >::type
-  > : std::true_type {};
-#endif // __PGBAR_CXX20__
-
-#if __PGBAR_CXX14__
-  template<typename R>
-  __PGBAR_INLINE_VAR__ constexpr bool is_renderer_v = is_renderer<R>::value;
-
-  template<typename S>
-  __PGBAR_INLINE_VAR__ constexpr bool is_stream_v = is_stream<S>::value;
-#endif // __PGBAR_CXX14__
 
   struct style {
     using Type = uint8_t;
@@ -606,11 +619,11 @@ namespace pgbar {
 #define __PGBAR_DEFAULT_TIMER__ "00:00:00 < 99:60:60"
 #define __PGBAR_DEFAULT_RATE__ "  0.00 Hz "
 
-    static constexpr char blank = ' ';
-    static constexpr char backspace = '\b';
-    static constexpr __detail::SizeT ratio_len = sizeof( __PGBAR_DEFAULT_RATIO__ ) - sizeof( char );
-    static constexpr __detail::SizeT timer_len = sizeof( __PGBAR_DEFAULT_TIMER__ ) - sizeof( char );
-    static constexpr __detail::SizeT rate_len = sizeof( __PGBAR_DEFAULT_RATE__ ) - sizeof( char );
+    static constexpr __detail::CharT blank = ' ';
+    static constexpr __detail::CharT backspace = '\b';
+    static constexpr __detail::SizeT ratio_len = sizeof( __PGBAR_DEFAULT_RATIO__ ) - sizeof( __detail::CharT );
+    static constexpr __detail::SizeT timer_len = sizeof( __PGBAR_DEFAULT_TIMER__ ) - sizeof( __detail::CharT );
+    static constexpr __detail::SizeT rate_len = sizeof( __PGBAR_DEFAULT_RATE__ ) - sizeof( __detail::CharT );
     static __detail::ConstStrT division; // The default division character.
     // The font style of status bar.
     static constexpr __detail::LiteralStrT font_fmt = __PGBAR_BOLD__;
@@ -856,10 +869,9 @@ namespace pgbar {
 
       if ( !is_updated() ) {
         _state.reset( in_tty_ );
-        if ( in_tty_ ) {
+        if ( in_tty_ ) { // For visual purposes, output the full progress bar at the beginning.
           generate_barcode( option_, 0.0, 0, {} );
-          stream_ << buffer.data();
-          buffer.clear();
+          stream_ << buffer;
         }
         update_flag_ = true;
       }
@@ -877,17 +889,17 @@ namespace pgbar {
           controller.reset( bit_index::bar );
         else _state.last_bar_progress = num_percent;
 
+        // Then normally output the progress bar.
         generate_barcode( std::move( controller ), num_percent, get_current(), _state.invoke_interval );
-        stream_ << buffer.data();
-        buffer.clear();
+        stream_ << buffer;
       }
 
       if ( is_done() ) {
-        if ( in_tty_ ) {
+        if ( in_tty_ ) { // Same, for visual purposes.
           generate_barcode( option_, 1, get_tasks(), _state.invoke_interval );
           buffer.append( 1, '\n' );
-          stream_ << buffer.data();
-          buffer.free();
+          stream_ << buffer;
+          buffer.release(); // releases the buffer
         }
         _state.done_flag = true;
       }
