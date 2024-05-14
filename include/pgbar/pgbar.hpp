@@ -97,8 +97,6 @@
 # define __PGBAR_CYAN__ "\x1B[36m"
 # define __PGBAR_WHITE__ "\x1B[37m"
 # define __PGBAR_DEFAULT_COL__ "\x1B[0m"
-# define __PGBAR_STATI_CASSERT__(Pred, Info) \
-  static_assert(Pred, "\x1B[1;31m" Info __PGBAR_DEFAULT_COL__)
 #else
 # define __PGBAR_BOLD__ ""
 # define __PGBAR_BLACK__ ""
@@ -110,8 +108,6 @@
 # define __PGBAR_CYAN__ ""
 # define __PGBAR_WHITE__ ""
 # define __PGBAR_DEFAULT_COL__ ""
-# define __PGBAR_STATI_CASSERT__(Pred, Info) \
-  static_assert(Pred, Info)
 #endif // PGBAR_NOT_COL
 
 namespace pgbar {
@@ -284,15 +280,16 @@ namespace pgbar {
       __PGBAR_INLINE_FUNC__ void reserve( SizeT _size ) { buffer.reserve( _size ); }
       __PGBAR_INLINE_FUNC__ void clear() { buffer.clear(); }
       __PGBAR_INLINE_FUNC__ void release() { clear(); buffer.shrink_to_fit(); }
-      __PGBAR_INLINE_FUNC__ __PGBAR_NODISCARD__ StrT& data() noexcept { return buffer; }
+      __PGBAR_NODISCARD__ __PGBAR_INLINE_FUNC__ StrT& data() noexcept { return buffer; }
 
-      template<typename _T, typename T = typename std::decay<_T>::type>
+      template<typename _T>
       __PGBAR_INLINE_FUNC__ streambuf& operator<<( _T&& info ) {
-        __PGBAR_STATI_CASSERT__(
-          (std::is_same<T, StrT>::value ||
-           std::is_same<T, ROStrT>::value ||
-           std::is_same<T, ConstStrT>::value ||
-           std::is_same<T, LiteralStrT>::value),
+        using T = typename std::decay<_T>::type;
+        static_assert(
+          std::is_same<T, StrT>::value ||
+          std::is_same<T, ROStrT>::value ||
+          std::is_same<T, ConstStrT>::value ||
+          std::is_same<T, LiteralStrT>::value,
           "pgbar::__detail::streambuf: 'T' must be a type that can be appended to 'pgbar::__detail::StrT'"
         );
         buffer.append( info );
@@ -300,7 +297,7 @@ namespace pgbar {
       }
       template<typename S>
       __PGBAR_INLINE_FUNC__ friend S& operator<<( S& stream, streambuf& buf ) { // hidden friend
-        __PGBAR_STATI_CASSERT__(
+        static_assert(
           is_stream<S>::value,
           "pgbar::__detail::streambuf: 'S' must be a type that supports 'operator<<' to insert 'pgbar::__detail::StrT'"
         );
@@ -534,17 +531,14 @@ namespace pgbar {
     };
     template<typename F>
     class functor_wrapper final : public wrapper_base {
+      static_assert(
 #if __PGBAR_CXX20__
-      __PGBAR_STATI_CASSERT__(
         __detail::FunctorType<F>,
-          "pgbar::singlethread::functor_wrapper: template type error"
-      );
 #else
-      __PGBAR_STATI_CASSERT__(
         __detail::is_void_functor<F>::value,
-          "pgbar::singlethread::functor_wrapper: template type error"
-      );
 #endif // __PGBAR_CXX20__
+        "pgbar::singlethread::functor_wrapper: template type error"
+      );
 
       F func_;
 
@@ -607,11 +601,11 @@ namespace pgbar {
 
   template<typename StreamObj = std::ostream, typename RenderMode = multithread>
   class pgbar {
-    __PGBAR_STATI_CASSERT__(
+    static_assert(
       is_stream<StreamObj>::value,
       "pgbar::pgbar: The 'StreamObj' must be a type that supports 'operator<<' to insert 'pgbar::__detail::StrT'"
     );
-    __PGBAR_STATI_CASSERT__(
+    static_assert(
       is_renderer<RenderMode>::value,
       "pgbar::pgbar: The 'RenderMode' must satisfy the constraint of the type predicate 'pgbar::is_renderer'"
     );
@@ -914,17 +908,14 @@ namespace pgbar {
 
     template<typename F>
     __PGBAR_INLINE_FUNC__ void do_update( F&& updating_task ) {
+      static_assert(
 #if __PGBAR_CXX20__
-      __PGBAR_STATI_CASSERT__(
         __detail::FunctorType<F>,
-        "pgbar::pgbar::do_update: template type error"
-      );
 #else
-      __PGBAR_STATI_CASSERT__(
         __detail::is_void_functor<F>::value,
+#endif // __PGBAR_CXX20__
         "pgbar::pgbar::do_update: template type error"
       );
-#endif // __PGBAR_CXX20__
 
       if ( is_done() )
         throw bad_pgbar { "pgbar::do_update: updating a full progress bar" };
@@ -1259,7 +1250,7 @@ namespace pgbar {
     is_stream<S>,
     is_renderer<R>,
     __detail::all_of_initr<Args...>
-  > __PGBAR_NODISCARD__ pgbar<S, R>
+  > __PGBAR_NODISCARD__ inline pgbar<S, R>
 #else
   __PGBAR_NODISCARD__ typename std::enable_if <
     is_stream<S>::value &&
@@ -1279,7 +1270,6 @@ namespace pgbar {
 #undef __PGBAR_DEFAULT_TIMER__
 #undef __PGBAR_DEFAULT_RATE__
 
-#undef __PGBAR_STATI_CASSERT__
 #undef __PGBAR_DEFAULT_COL__
 #undef __PGBAR_WHITE__
 #undef __PGBAR_CYAN__
