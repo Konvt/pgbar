@@ -95,7 +95,7 @@ namespace pgbar {
         return ed_pnt;
       }
       reference operator*() noexcept {
-        return cnt * step;
+        return cnt * step + start_point;
       }
       bool operator==( const numeric_iterator& _other ) const noexcept {
         return cnt == _other.cnt;

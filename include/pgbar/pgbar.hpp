@@ -1252,7 +1252,7 @@ namespace pgbar {
     __detail::all_of_initr<Args...>
   > __PGBAR_NODISCARD__ inline pgbar<S, R>
 #else
-  __PGBAR_NODISCARD__ typename std::enable_if <
+  __PGBAR_NODISCARD__ inline typename std::enable_if <
     is_stream<S>::value &&
     is_renderer<R>::value &&
     __detail::all_of_initr<Args...>::value,
