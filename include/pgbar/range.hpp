@@ -23,23 +23,23 @@
 #endif // __cplusplus >= 202002L
 
 #ifndef PGBAR_NOT_COL
-# define __PGBAR_ASSERT_FAILURE__ "\033[1;31m"
-# define __PGBAR_DEFAULT_COL__ "\033[0m"
+# define __PGBAR_DEFAULT_COL__ "\x1B[0m"
+# define __PGBAR_STATI_CASSERT__(Pred, Info) \
+  static_assert(Pred, "\x1B[1;31m" Info __PGBAR_DEFAULT_COL__)
 #else
-# define __PGBAR_ASSERT_FAILURE__ ""
 # define __PGBAR_DEFAULT_COL__ ""
+# define __PGBAR_STATI_CASSERT__(Pred, Info) \
+  static_assert(Pred, Info)
 #endif // PGBAR_NOT_COL
 
 namespace pgbar {
   namespace __detail {
     template<typename EleT, typename BarT>
     class numeric_iterator { // for number
-      static_assert(
+      __PGBAR_STATI_CASSERT__(
         std::is_arithmetic<EleT>::value &&
         is_pgbar<BarT>::value,
-        __PGBAR_ASSERT_FAILURE__
         "pgbar::__detail::numeric_iterator: Only available for numeric types"
-        __PGBAR_DEFAULT_COL__
       );
 
       using SizeT = size_t;
@@ -47,13 +47,12 @@ namespace pgbar {
       BarT* bar;
       SizeT cnt, extent; // type-independent iteration
       EleT start_point, end_point, step;
-      EleT current;
 
     public:
       using iterator_category = std::output_iterator_tag;
       using value_type = EleT;
       using difference_type = void;
-      using pointer = EleT*;
+      using pointer = void;
       using reference = EleT;
 
       explicit numeric_iterator( EleT _startpoint, EleT _endpoint, EleT _step, BarT& _bar ) {
@@ -68,8 +67,9 @@ namespace pgbar {
         EleT diff = _endpoint > _startpoint ? _endpoint - _startpoint : _startpoint - _endpoint;
         EleT denom = _step > 0 ? _step : -_step;
         cnt = 0, extent = static_cast<size_t>(diff / denom);
-        start_point = _startpoint; end_point = _endpoint;
-        step = _step; current = _startpoint;
+        start_point = _startpoint;
+        end_point = _endpoint;
+        step = _step;
         bar->set_task( extent ).set_step( 1 ); // Only constructor with arguments will invoke these func.
       }
       numeric_iterator( const numeric_iterator& _other ) {
@@ -77,19 +77,20 @@ namespace pgbar {
         cnt = _other.cnt; extent = _other.extent;
         start_point = _other.start_point;
         end_point = _other.end_point;
-        step = _other.step; current = _other.current;
+        step = _other.step;
       }
       numeric_iterator( numeric_iterator&& _rhs ) {
         bar = _rhs.bar; // same as copy constructor
         cnt = _rhs.cnt; extent = _rhs.extent;
         start_point = _rhs.start_point;
         end_point = _rhs.end_point;
-        step = _rhs.step; current = _rhs.current;
+        step = _rhs.step;
 
         _rhs.bar = nullptr; // clear up
         _rhs.cnt = _rhs.extent = 0;
-        _rhs.start_point = {}; _rhs.end_point = {};
-        _rhs.step = {}; _rhs.current = {};
+        _rhs.start_point = {};
+        _rhs.end_point = {};
+        _rhs.step = {};
       }
       ~numeric_iterator() {
         bar = nullptr;
@@ -99,15 +100,12 @@ namespace pgbar {
       } // invokes copy constructor
       numeric_iterator end() const { // invokes copy constructor and move constructor
         numeric_iterator ed_pnt = *this;
-        ed_pnt.current = ed_pnt.start_point = ed_pnt.end_point;
+        ed_pnt.start_point = ed_pnt.end_point;
         ed_pnt.cnt = extent;
         return ed_pnt;
       }
       reference operator*() noexcept {
-        return current;
-      }
-      pointer operator->() noexcept {
-        return std::addressof( current );
+        return cnt * step;
       }
       bool operator==( const numeric_iterator& _other ) const noexcept {
         return cnt == _other.cnt;
@@ -116,7 +114,7 @@ namespace pgbar {
         return !(operator==( _other ));
       }
       numeric_iterator& operator++() {
-        ++cnt; current += step; bar->update(); return *this;
+        ++cnt; bar->update(); return *this;
       }
       numeric_iterator operator++( int ) {
         numeric_iterator before = *this; operator++(); return before;
@@ -125,12 +123,10 @@ namespace pgbar {
 
     template<typename IterT, typename BarT>
     class container_iterator { // for container
-      static_assert( // `IterT` means iterator type
+      __PGBAR_STATI_CASSERT__( // `IterT` means iterator type
         !std::is_arithmetic<IterT>::value &&
         is_pgbar<BarT>::value,
-        __PGBAR_ASSERT_FAILURE__
         "pgbar::__detail::container_iterator: Only available for container types"
-        __PGBAR_DEFAULT_COL__
       );
 
       using SizeT = size_t;
@@ -149,11 +145,9 @@ namespace pgbar {
       using reference = EleT&;
 
       explicit container_iterator( IterT _begin, IterT _endpoint, BarT& _bar ) {
-        static_assert(
-          !std::is_same<typename std::iterator_traits<IterT>::difference_type, void>::value,
-          __PGBAR_ASSERT_FAILURE__
+        __PGBAR_STATI_CASSERT__(
+          (!std::is_same<typename std::iterator_traits<IterT>::difference_type, void>::value),
           "pgbar::__detail::container_iterator: the difference_type of the iterator shouldn't be 'void'"
-          __PGBAR_DEFAULT_COL__
         );
         auto dist = std::distance( _begin, _endpoint );
         if ( dist > 0 ) {
@@ -386,7 +380,7 @@ namespace pgbar {
 
 } // namespace pgbar
 
-#undef __PGBAR_ASSERT_FAILURE__
+#undef __PGBAR_STATI_CASSERT__
 #undef __PGBAR_DEFAULT_COL__
 
 #undef __PGBAR_CMP_V__

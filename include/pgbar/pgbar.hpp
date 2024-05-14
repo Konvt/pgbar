@@ -87,17 +87,18 @@
 
 #ifndef PGBAR_NOT_COL
   /* Specify the color and font style for the status bar. */
-# define __PGBAR_BOLD__ "\033[1m"
-# define __PGBAR_BLACK__ "\033[30m"
-# define __PGBAR_RED__ "\033[31m"
-# define __PGBAR_GREEN__ "\033[32m"
-# define __PGBAR_YELLOW__ "\033[33m"
-# define __PGBAR_BLUE__ "\033[34m"
-# define __PGBAR_MAGENTA__ "\033[35m"
-# define __PGBAR_CYAN__ "\033[36m"
-# define __PGBAR_WHITE__ "\033[37m"
-# define __PGBAR_ASSERT_FAILURE__ "\033[1;31m"
-# define __PGBAR_DEFAULT_COL__ "\033[0m"
+# define __PGBAR_BOLD__ "\x1B[1m"
+# define __PGBAR_BLACK__ "\x1B[30m"
+# define __PGBAR_RED__ "\x1B[31m"
+# define __PGBAR_GREEN__ "\x1B[32m"
+# define __PGBAR_YELLOW__ "\x1B[33m"
+# define __PGBAR_BLUE__ "\x1B[34m"
+# define __PGBAR_MAGENTA__ "\x1B[35m"
+# define __PGBAR_CYAN__ "\x1B[36m"
+# define __PGBAR_WHITE__ "\x1B[37m"
+# define __PGBAR_DEFAULT_COL__ "\x1B[0m"
+# define __PGBAR_STATI_CASSERT__(Pred, Info) \
+  static_assert(Pred, "\x1B[1;31m" Info __PGBAR_DEFAULT_COL__)
 #else
 # define __PGBAR_BOLD__ ""
 # define __PGBAR_BLACK__ ""
@@ -108,8 +109,9 @@
 # define __PGBAR_MAGENTA__ ""
 # define __PGBAR_CYAN__ ""
 # define __PGBAR_WHITE__ ""
-# define __PGBAR_ASSERT_FAILURE__ ""
 # define __PGBAR_DEFAULT_COL__ ""
+# define __PGBAR_STATI_CASSERT__(Pred, Info) \
+  static_assert(Pred, Info)
 #endif // PGBAR_NOT_COL
 
 namespace pgbar {
@@ -282,19 +284,25 @@ namespace pgbar {
       __PGBAR_INLINE_FUNC__ void reserve( SizeT _size ) { buffer.reserve( _size ); }
       __PGBAR_INLINE_FUNC__ void clear() { buffer.clear(); }
       __PGBAR_INLINE_FUNC__ void release() { clear(); buffer.shrink_to_fit(); }
-      __PGBAR_INLINE_FUNC__ StrT& data() noexcept { return buffer; }
+      __PGBAR_INLINE_FUNC__ __PGBAR_NODISCARD__ StrT& data() noexcept { return buffer; }
 
-      __PGBAR_INLINE_FUNC__ friend streambuf& operator<<( streambuf& buf, ROStrT info ) { // hidden friend
-        buf.buffer.append( info );
-        return buf;
+      template<typename _T, typename T = typename std::decay<_T>::type>
+      __PGBAR_INLINE_FUNC__ streambuf& operator<<( _T&& info ) {
+        __PGBAR_STATI_CASSERT__(
+          (std::is_same<T, StrT>::value ||
+           std::is_same<T, ROStrT>::value ||
+           std::is_same<T, ConstStrT>::value ||
+           std::is_same<T, LiteralStrT>::value),
+          "pgbar::__detail::streambuf: 'T' must be a type that can be appended to 'pgbar::__detail::StrT'"
+        );
+        buffer.append( info );
+        return *this;
       }
       template<typename S>
-      __PGBAR_INLINE_FUNC__ friend S& operator<<( S& stream, streambuf& buf ) {
-        static_assert(
+      __PGBAR_INLINE_FUNC__ friend S& operator<<( S& stream, streambuf& buf ) { // hidden friend
+        __PGBAR_STATI_CASSERT__(
           is_stream<S>::value,
-          __PGBAR_ASSERT_FAILURE__
           "pgbar::__detail::streambuf: 'S' must be a type that supports 'operator<<' to insert 'pgbar::__detail::StrT'"
-          __PGBAR_DEFAULT_COL__
         );
         stream << buf.data();
         buf.clear(); return stream;
@@ -526,16 +534,17 @@ namespace pgbar {
     };
     template<typename F>
     class functor_wrapper final : public wrapper_base {
-      static_assert(
 #if __PGBAR_CXX20__
+      __PGBAR_STATI_CASSERT__(
         __detail::FunctorType<F>,
-#else
-        __detail::is_void_functor<F>::value,
-#endif // __PGBAR_CXX20__
-        __PGBAR_ASSERT_FAILURE__
-        "pgbar::singlethread::functor_wrapper: template type error"
-        __PGBAR_DEFAULT_COL__
+          "pgbar::singlethread::functor_wrapper: template type error"
       );
+#else
+      __PGBAR_STATI_CASSERT__(
+        __detail::is_void_functor<F>::value,
+          "pgbar::singlethread::functor_wrapper: template type error"
+      );
+#endif // __PGBAR_CXX20__
 
       F func_;
 
@@ -598,17 +607,13 @@ namespace pgbar {
 
   template<typename StreamObj = std::ostream, typename RenderMode = multithread>
   class pgbar {
-    static_assert(
+    __PGBAR_STATI_CASSERT__(
       is_stream<StreamObj>::value,
-      __PGBAR_ASSERT_FAILURE__
       "pgbar::pgbar: The 'StreamObj' must be a type that supports 'operator<<' to insert 'pgbar::__detail::StrT'"
-      __PGBAR_DEFAULT_COL__
     );
-    static_assert(
+    __PGBAR_STATI_CASSERT__(
       is_renderer<RenderMode>::value,
-      __PGBAR_ASSERT_FAILURE__
       "pgbar::pgbar: The 'RenderMode' must satisfy the constraint of the type predicate 'pgbar::is_renderer'"
-      __PGBAR_DEFAULT_COL__
     );
 
     enum class txt_layout { align_left, align_right, align_center }; // text layout
@@ -821,31 +826,31 @@ namespace pgbar {
       if ( ctrller[bit_index::bar] )
         buffer << show_bar( num_per );
       if ( status_length_ != 0 )
-        buffer << __detail::StrT( font_fmt ) << __detail::StrT( status_col_ ) << lstatus_;
+        buffer << font_fmt << status_col_ << lstatus_;
       if ( ctrller[bit_index::per] ) {
-        buffer << show_ratio( num_per )
-          << (ctrller[bit_index::cnt] || ctrller[bit_index::rate] || ctrller[bit_index::timer] ?
-            __detail::StrT( division ) : __detail::StrT());
+        buffer << show_ratio( num_per );
+        if ( ctrller[bit_index::cnt] || ctrller[bit_index::rate] || ctrller[bit_index::timer] )
+          buffer << division;
       }
       if ( ctrller[bit_index::cnt] ) {
-        buffer << show_task_counter( num_done )
-          << (ctrller[bit_index::rate] || ctrller[bit_index::timer] ?
-            __detail::StrT( division ) : __detail::StrT());
+        buffer << show_task_counter( num_done );
+        if ( ctrller[bit_index::rate] || ctrller[bit_index::timer] )
+          buffer << division;
       }
       if ( ctrller[bit_index::rate] ) {
-        buffer << show_rate( interval )
-          << (ctrller[bit_index::timer] ?
-            __detail::StrT( division ) : __detail::StrT());
+        buffer << show_rate( interval );
+        if ( ctrller[bit_index::timer] )
+          buffer << division;
       }
       if ( ctrller[bit_index::timer] )
         buffer << show_timer( std::move( interval ), get_current() );
       if ( status_length_ != 0 )
-        buffer << rstatus_ << __detail::StrT( default_col );
+        buffer << rstatus_ << default_col;
     }
 
     /// @brief This function only will be invoked by the rendering thread.
     __PGBAR_INLINE_FUNC__ void rendering() const {
-      static enum class render_state {
+      static enum class render_state { // a state machine
         beginning, refreshing, ending, stopped
       } cur_state = render_state::stopped;
       static double last_bar_progress {};
@@ -908,17 +913,18 @@ namespace pgbar {
     }
 
     template<typename F>
-    __PGBAR_INLINE_FUNC__ void do_update( F&& invokable ) {
-      static_assert(
+    __PGBAR_INLINE_FUNC__ void do_update( F&& updating_task ) {
 #if __PGBAR_CXX20__
+      __PGBAR_STATI_CASSERT__(
         __detail::FunctorType<F>,
-#else
-        __detail::is_void_functor<F>::value,
-#endif // __PGBAR_CXX20__
-        __PGBAR_ASSERT_FAILURE__
         "pgbar::pgbar::do_update: template type error"
-        __PGBAR_DEFAULT_COL__
       );
+#else
+      __PGBAR_STATI_CASSERT__(
+        __detail::is_void_functor<F>::value,
+        "pgbar::pgbar::do_update: template type error"
+      );
+#endif // __PGBAR_CXX20__
 
       if ( is_done() )
         throw bad_pgbar { "pgbar::do_update: updating a full progress bar" };
@@ -927,7 +933,7 @@ namespace pgbar {
       if ( !is_updated() )
         rndrer_.active();
 
-      invokable();
+      updating_task();
       rndrer_.render();
 
       if ( task_cnt_.is_ended() )
@@ -1273,8 +1279,8 @@ namespace pgbar {
 #undef __PGBAR_DEFAULT_TIMER__
 #undef __PGBAR_DEFAULT_RATE__
 
+#undef __PGBAR_STATI_CASSERT__
 #undef __PGBAR_DEFAULT_COL__
-#undef __PGBAR_ASSERT_FAILURE__
 #undef __PGBAR_WHITE__
 #undef __PGBAR_CYAN__
 #undef __PGBAR_MAGENTA__
