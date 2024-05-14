@@ -616,7 +616,7 @@ namespace pgbar {
 
 #define __PGBAR_DEFAULT_RATIO__ " 0.00% "
 #define __PGBAR_DEFAULT_TIMER__ "00:00:00 < 99:60:60"
-#define __PGBAR_DEFAULT_RATE__ "  0.00 Hz "
+#define __PGBAR_DEFAULT_RATE__ "   inf Hz "
 
     static constexpr __detail::CharT blank = ' ';
     static constexpr __detail::CharT backspace = '\b';
@@ -737,18 +737,9 @@ namespace pgbar {
       );
     }
 
-    __detail::StrT show_rate( std::chrono::duration<__detail::SizeT, std::nano> interval ) const {
-      static decltype(interval) invoke_interval;
-
-      if ( !is_updated() ) {
-        invoke_interval = interval;
+    __detail::StrT show_rate( std::chrono::nanoseconds time_passed ) const {
+      if ( !is_updated() )
         return { __PGBAR_DEFAULT_RATE__ };
-      }
-
-      invoke_interval = (invoke_interval + interval) / 2; // each invoke interval
-      __detail::SizeT frequency = invoke_interval.count() != 0 ? std::chrono::duration_cast<
-        std::chrono::nanoseconds>(std::chrono::seconds( 1 )) / invoke_interval
-        : ~static_cast<__detail::SizeT>(0); // The invoking rate is too fast to calculate.
 
       auto rate2str = []( double val ) -> __detail::StrT {
         __detail::StrT str = __detail::ToString( val );
@@ -756,58 +747,62 @@ namespace pgbar {
         return str;
       };
 
+      const double seconds_passed = std::chrono::duration<double>( time_passed ).count();
+      // zero or negetive is invalid.
+      const double frequency = seconds_passed <= 0.0 ? (std::numeric_limits<double>::max)() : get_current() / seconds_passed;
       __detail::StrT rate_str;
       if ( frequency < 1e3 ) // < 1Hz => '999.99 Hz'
-        rate_str = rate2str( frequency ) + __detail::StrT( " Hz" );
+        rate_str = rate2str( frequency ) + " Hz";
       else if ( frequency < 1e6 ) // < 1 kHz => '999.99 kHz'
-        rate_str = rate2str( frequency / 1e3 ) + __detail::StrT( " kHz" );
+        rate_str = rate2str( frequency / 1e3 ) + " kHz";
       else if ( frequency < 1e9 ) // < 1 MHz => '999.99 MHz'
-        rate_str = rate2str( frequency / 1e6 ) + __detail::StrT( " MHz" );
-      else { // < 1 GHz => '> 1.00 GHz'
+        rate_str = rate2str( frequency / 1e6 ) + " MHz";
+      else { // > 999 GHz => infinity
         const double temp = frequency / 1e9;
-        if ( temp > 999.99 ) rate_str = "> 1.00 GHz" ;
+        if ( temp > 999.99 ) rate_str = __PGBAR_DEFAULT_RATE__; // it's impossible I think
         else rate_str = rate2str( temp ) + __detail::StrT( " GHz" );
       }
 
       return formatter<txt_layout::align_center>( rate_len, std::move( rate_str ) );
     }
 
-    __detail::StrT show_timer( std::chrono::duration<__detail::SizeT, std::nano> interval,
-                                   __detail::SizeT num_done ) const {
+    __detail::StrT show_timer( std::chrono::nanoseconds time_passed, __detail::SizeT num_done ) const {
       if ( !is_updated() )
         return { __PGBAR_DEFAULT_TIMER__ };
 
-      const auto time2str = []( int64_t num_time ) -> __detail::StrT {
+      auto time2str = []( int64_t num_time ) -> __detail::StrT {
         __detail::StrT ret = __detail::ToString( num_time );
         if ( ret.size() < 2 ) return "0" + ret;
         return ret;
       };
-      static const auto to_time = [&time2str]( int64_t seconds ) -> __detail::StrT {
-        const int64_t hours = seconds / 3600.0;
-        const int64_t minutes = (seconds -= (3600.0 * hours)) / 60.0;
-        seconds -= 60 * minutes;
+      auto to_time = [&time2str]( std::chrono::nanoseconds duration ) -> __detail::StrT {
+        const auto hours = std::chrono::duration_cast<std::chrono::hours>( duration );
+        duration -= hours;
+        const auto minutes = std::chrono::duration_cast<std::chrono::minutes>( duration );
+        duration -= minutes;
         return (
-          ((hours > 99 ? __detail::StrT( "99" ) : time2str( hours )) + ":") +
-          (time2str( minutes ) + ":") +
-          time2str( seconds )
+          ((hours.count() > 99 ? __detail::StrT( "99" ) : time2str( hours.count() )) + ":") +
+          (time2str( minutes.count() ) + ":") +
+          time2str( std::chrono::duration_cast<std::chrono::seconds>(duration).count() )
         );
       };
 
+      auto time_per_task = time_passed / get_current();
+      if ( time_per_task.count() == 0 )
+        time_per_task = decltype(time_per_task)(1);
+      std::chrono::nanoseconds estimated_time = time_per_task * (get_tasks() - get_current());
+
       return formatter<txt_layout::align_center>(
         timer_len,
-        to_time( std::chrono::duration_cast<
-          std::chrono::seconds>(interval * num_done).count()
-        ) + __detail::StrT( " < " ) +
-        to_time( std::chrono::duration_cast<
-          std::chrono::seconds>(interval * (get_tasks() - num_done)).count()
-        )
+        to_time( std::move( time_passed ) ) + __detail::StrT( " < " ) +
+        to_time( std::move( estimated_time ) )
       );
     }
 
     /// @brief Based on the value of `option` and bitwise operations,
     /// @brief determine which part of the string needs to be concatenated.
     void generate_barcode( BitVector ctrller, double num_per, __detail::SizeT num_done,
-                           std::chrono::duration<__detail::SizeT, std::nano> interval ) const {
+                           std::chrono::nanoseconds time_passed ) const {
       const __detail::SizeT total_length = (
         (ctrller[bit_index::bar] ?
           (bar_length_ + startpoint_.size() + endpoint_.size() + 1) : 0)
@@ -832,12 +827,12 @@ namespace pgbar {
           buffer << division;
       }
       if ( ctrller[bit_index::rate] ) {
-        buffer << show_rate( interval );
+        buffer << show_rate( time_passed );
         if ( ctrller[bit_index::timer] )
           buffer << division;
       }
       if ( ctrller[bit_index::timer] )
-        buffer << show_timer( std::move( interval ), get_current() );
+        buffer << show_timer( std::move( time_passed ), get_current() );
       if ( status_length_ != 0 )
         buffer << rstatus_ << default_col;
     }
@@ -848,7 +843,7 @@ namespace pgbar {
         beginning, refreshing, ending, stopped
       } cur_state = render_state::stopped;
       static double last_bar_progress {};
-      static std::chrono::duration<__detail::SizeT, std::nano> invoke_interval {};
+      static std::chrono::nanoseconds time_passed {};
       static std::chrono::system_clock::time_point first_invoked {};
 
       auto transition = [this]( render_state current_state ) -> render_state {
@@ -869,7 +864,7 @@ namespace pgbar {
 
       switch ( cur_state = transition( cur_state ) ) {
       case render_state::beginning: {
-        last_bar_progress = {}; invoke_interval = {};
+        last_bar_progress = {}; time_passed = {};
         first_invoked = std::chrono::system_clock::now();
 
         generate_barcode( option_, 0.0, 0, {} );
@@ -879,8 +874,7 @@ namespace pgbar {
 
       case render_state::refreshing: {
         auto now = std::chrono::system_clock::now();
-        invoke_interval = task_cnt_ != 0 ? (now - first_invoked) / get_current()
-          : (now - first_invoked) / static_cast<__detail::SizeT>(1);
+        time_passed = now - first_invoked;
         double num_percent = get_current() / static_cast<double>(get_tasks());
 
         auto controller = option_;
@@ -889,12 +883,12 @@ namespace pgbar {
         else last_bar_progress = num_percent;
 
         // Then normally output the progress bar.
-        generate_barcode( std::move( controller ), num_percent, get_current(), invoke_interval );
+        generate_barcode( std::move( controller ), num_percent, get_current(), time_passed );
         stream_ << buffer;
       } break;
 
       case render_state::ending: {
-        generate_barcode( option_, 1, get_tasks(), invoke_interval );
+        generate_barcode( option_, 1, get_tasks(), time_passed );
         buffer.append( 1, '\n' );
         stream_ << buffer; // Same, for visual purposes.
         buffer.release(); // releases the buffer
