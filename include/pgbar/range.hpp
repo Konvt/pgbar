@@ -22,21 +22,11 @@
 # define __PGBAR_CXX20__ 0
 #endif // __cplusplus >= 202002L
 
-#ifndef PGBAR_NOT_COL
-# define __PGBAR_DEFAULT_COL__ "\x1B[0m"
-# define __PGBAR_STATI_CASSERT__(Pred, Info) \
-  static_assert(Pred, "\x1B[1;31m" Info __PGBAR_DEFAULT_COL__)
-#else
-# define __PGBAR_DEFAULT_COL__ ""
-# define __PGBAR_STATI_CASSERT__(Pred, Info) \
-  static_assert(Pred, Info)
-#endif // PGBAR_NOT_COL
-
 namespace pgbar {
   namespace __detail {
     template<typename EleT, typename BarT>
     class numeric_iterator { // for number
-      __PGBAR_STATI_CASSERT__(
+      static_assert(
         std::is_arithmetic<EleT>::value &&
         is_pgbar<BarT>::value,
         "pgbar::__detail::numeric_iterator: Only available for numeric types"
@@ -105,7 +95,7 @@ namespace pgbar {
         return ed_pnt;
       }
       reference operator*() noexcept {
-        return cnt * step;
+        return cnt * step + start_point;
       }
       bool operator==( const numeric_iterator& _other ) const noexcept {
         return cnt == _other.cnt;
@@ -123,7 +113,7 @@ namespace pgbar {
 
     template<typename IterT, typename BarT>
     class container_iterator { // for container
-      __PGBAR_STATI_CASSERT__( // `IterT` means iterator type
+      static_assert( // `IterT` means iterator type
         !std::is_arithmetic<IterT>::value &&
         is_pgbar<BarT>::value,
         "pgbar::__detail::container_iterator: Only available for container types"
@@ -145,8 +135,8 @@ namespace pgbar {
       using reference = EleT&;
 
       explicit container_iterator( IterT _begin, IterT _endpoint, BarT& _bar ) {
-        __PGBAR_STATI_CASSERT__(
-          (!std::is_same<typename std::iterator_traits<IterT>::difference_type, void>::value),
+        static_assert(
+          !std::is_same<typename std::iterator_traits<IterT>::difference_type, void>::value,
           "pgbar::__detail::container_iterator: the difference_type of the iterator shouldn't be 'void'"
         );
         auto dist = std::distance( _begin, _endpoint );
@@ -379,9 +369,6 @@ namespace pgbar {
   }
 
 } // namespace pgbar
-
-#undef __PGBAR_STATI_CASSERT__
-#undef __PGBAR_DEFAULT_COL__
 
 #undef __PGBAR_CMP_V__
 #undef __PGBAR_CXX20__
