@@ -784,7 +784,7 @@ namespace pgbar {
       };
       static const auto to_time = [&time2str]( int64_t seconds ) -> __detail::StrT {
         const int64_t hours = seconds / 3600.0;
-        const int64_t minutes = (seconds - (3600.0 * hours)) / 60.0;
+        const int64_t minutes = (seconds -= (3600.0 * hours)) / 60.0;
         seconds -= 60 * minutes;
         return (
           ((hours > 99 ? __detail::StrT( "99" ) : time2str( hours )) + ":") +
