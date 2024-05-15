@@ -54,12 +54,12 @@ namespace pgbar {
         if ( _endpoint < _startpoint && _step > 0 )
           throw bad_pgbar { "pgbar::__detail::range_iterator: invalid iteration range" };
         bar = &_bar;
-        bar->reset().set_task( iter.get_extent() ).set_step( 1 ); // Only constructor with arguments will invoke these func.
+        bar->reset().set_task( iter.get_extent() ).set_step( 1 );
       }
       __PGBAR_NODISCARD__ range_iterator begin() const noexcept {
         return *this;
       } // invokes copy constructor
-      __PGBAR_NODISCARD__ range_iterator end() const noexcept { // invokes copy constructor and move constructor
+      __PGBAR_NODISCARD__ range_iterator end() const noexcept {
         range_iterator ed_pnt = *this;
         ed_pnt.iter = ed_pnt.iter.end();
         return ed_pnt;

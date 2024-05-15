@@ -99,7 +99,7 @@ int main()
       pgbar::initr::todo_char( "-" ),
       pgbar::initr::done_char( "=" ),
       pgbar::initr::left_status( "" ),
-      pgbar::initr::right_status( "" ) /// and so on...
+      pgbar::initr::right_status( "" ) // and so on...
     };
     // Member method `set_style` also supports this.
     bar.set_style(
@@ -114,7 +114,7 @@ int main()
       pgbar::initr::todo_char( "-" ),
       pgbar::initr::done_char( "=" ),
       pgbar::initr::left_status( "" ),
-      pgbar::initr::right_status( "" ) /// and so on...
+      pgbar::initr::right_status( "" ) // and so on...
     );
   }
 }
@@ -420,7 +420,7 @@ int main()
       pgbar::initr::todo_char( "-" ),
       pgbar::initr::done_char( "=" ),
       pgbar::initr::left_status( "" ),
-      pgbar::initr::right_status( "" ) /// and so on...
+      pgbar::initr::right_status( "" ) // and so on...
     };
     // 成员方法 `set_style` 也支持这种方式.
     bar.set_style(
@@ -435,7 +435,7 @@ int main()
       pgbar::initr::todo_char( "-" ),
       pgbar::initr::done_char( "=" ),
       pgbar::initr::left_status( "" ),
-      pgbar::initr::right_status( "" ) /// and so on...
+      pgbar::initr::right_status( "" ) // and so on...
     );
   }
 }

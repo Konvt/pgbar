@@ -13,7 +13,7 @@ int main()
     // It can be initialized after creating.
     pgbar::pgbar<> bar;
     bar.set_task( TOTAL )
-       .set_step(2)
+       .set_step( 2 )
        .set_todo( "━" )
        .set_done( "━" )
        .set_startpoint( " " )
