@@ -9,6 +9,14 @@
 #include "pgbar.hpp" // Other required header files have been included in pgbar.hpp.
 #include <algorithm> // std::distance
 
+#if defined(__GNUC__) || defined(__clang__)
+# define __PGBAR_NODISCARD__ __attribute__((warn_unused_result))
+#elif defined(_MSC_VER)
+# define __PGBAR_NODISCARD__ _Check_return_
+#else
+# define __PGBAR_NODISCARD__
+#endif
+
 #if defined(_MSVC_VER) && defined(_MSVC_LANG) // for msvc
 # define __PGBAR_CMP_V__ _MSVC_LANG
 #else
@@ -85,22 +93,22 @@ namespace pgbar {
       ~numeric_iterator() {
         bar = nullptr;
       }
-      numeric_iterator begin() const {
+      __PGBAR_NODISCARD__ numeric_iterator begin() const {
         return *this;
       } // invokes copy constructor
-      numeric_iterator end() const { // invokes copy constructor and move constructor
+      __PGBAR_NODISCARD__ numeric_iterator end() const { // invokes copy constructor and move constructor
         numeric_iterator ed_pnt = *this;
         ed_pnt.start_point = ed_pnt.end_point;
         ed_pnt.cnt = extent;
         return ed_pnt;
       }
-      reference operator*() noexcept {
+      __PGBAR_NODISCARD__ reference operator*() noexcept {
         return cnt * step + start_point;
       }
-      bool operator==( const numeric_iterator& _other ) const noexcept {
+      __PGBAR_NODISCARD__ bool operator==( const numeric_iterator& _other ) const noexcept {
         return cnt == _other.cnt;
       }
-      bool operator!=( const numeric_iterator& _other ) const noexcept {
+      __PGBAR_NODISCARD__ bool operator!=( const numeric_iterator& _other ) const noexcept {
         return !(operator==( _other ));
       }
       numeric_iterator& operator++() {
@@ -171,25 +179,25 @@ namespace pgbar {
       ~container_iterator() {
         bar = nullptr;
       }
-      container_iterator begin() const {
+      __PGBAR_NODISCARD__ container_iterator begin() const {
         return container_iterator( *this );
       } // invokes copy constructor
-      container_iterator end() const {
+      __PGBAR_NODISCARD__ container_iterator end() const {
         auto ed_pnt = container_iterator( *this );
         ed_pnt.start = terminus;
         ed_pnt.current = terminus;
         return ed_pnt;
       }
-      reference operator*() noexcept {
+      __PGBAR_NODISCARD__ reference operator*() noexcept {
         return *current;
       }
-      pointer operator->() noexcept {
+      __PGBAR_NODISCARD__ pointer operator->() noexcept {
         return std::addressof( current );
       }
-      bool operator==( const container_iterator& _other ) const noexcept {
+      __PGBAR_NODISCARD__ bool operator==( const container_iterator& _other ) const noexcept {
         return current == _other.current;
       }
-      bool operator!=( const container_iterator& _other ) const noexcept {
+      __PGBAR_NODISCARD__ bool operator!=( const container_iterator& _other ) const noexcept {
         return !(operator==( _other ));
       }
       container_iterator& operator++() {
@@ -215,12 +223,12 @@ namespace pgbar {
 #if __PGBAR_CXX20__
   template<__detail::ArithmeticType _EleT, __detail::PgbarType BarT
     , typename EleT = std::decay_t<_EleT>
-  > __detail::numeric_iterator<EleT, BarT> // return type
+  > __PGBAR_NODISCARD__ __detail::numeric_iterator<EleT, BarT> // return type
 #else
   template<
     typename _EleT, typename BarT
     , typename EleT = typename std::decay<_EleT>::type
-  > typename std::enable_if<
+  > __PGBAR_NODISCARD__ typename std::enable_if<
     std::is_arithmetic<EleT>::value &&
     is_pgbar<BarT>::value
     , __detail::numeric_iterator<EleT, BarT>>::type
@@ -233,12 +241,12 @@ namespace pgbar {
   template<typename _EleT, __detail::PgbarType BarT
     , typename EleT = typename std::decay_t<_EleT>
   > requires std::is_arithmetic_v<EleT>
-  __detail::numeric_iterator<EleT, BarT> // return type
+  __PGBAR_NODISCARD__ __detail::numeric_iterator<EleT, BarT> // return type
 #else
   template<
     typename _EleT, typename BarT
     , typename EleT = typename std::decay<_EleT>::type
-  > typename std::enable_if<
+  > __PGBAR_NODISCARD__ typename std::enable_if<
     std::is_arithmetic<EleT>::value &&
     is_pgbar<BarT>::value
     , __detail::numeric_iterator<EleT, BarT>
@@ -252,12 +260,12 @@ namespace pgbar {
   template<typename _EleT, __detail::PgbarType BarT
     , typename EleT = typename std::decay_t<_EleT>
   > requires std::integral<EleT>
-  __detail::numeric_iterator<EleT, BarT> // return type
+  __PGBAR_NODISCARD__ __detail::numeric_iterator<EleT, BarT> // return type
 #else
   template<
     typename _EleT, typename BarT
     , typename EleT = typename std::decay<_EleT>::type
-  > typename std::enable_if<
+  > __PGBAR_NODISCARD__ typename std::enable_if<
     std::is_integral<EleT>::value &&
     is_pgbar<BarT>::value
     , __detail::numeric_iterator<EleT, BarT>
@@ -271,12 +279,12 @@ namespace pgbar {
   template<typename _EleT, __detail::PgbarType BarT
     , typename EleT = typename std::decay_t<_EleT>
   > requires std::integral<EleT>
-  __detail::numeric_iterator<EleT, BarT> // return type
+  __PGBAR_NODISCARD__ __detail::numeric_iterator<EleT, BarT> // return type
 #else
   template<
     typename _EleT, typename BarT
     , typename EleT = typename std::decay<_EleT>::type
-  > typename std::enable_if<
+  > __PGBAR_NODISCARD__ typename std::enable_if<
     std::is_integral<EleT>::value &&
     is_pgbar<BarT>::value
     , __detail::numeric_iterator<EleT, BarT>
@@ -297,9 +305,9 @@ namespace pgbar {
       !std::is_arithmetic_v<IterT> &&
       std::same_as<IterT, std::decay_t<_endpointT>> &&
       __detail::PgbarType<BarT>
-  ) __detail::container_iterator<IterT, BarT>
+  ) __PGBAR_NODISCARD__ __detail::container_iterator<IterT, BarT>
 #else
-  > typename std::enable_if<
+  > __PGBAR_NODISCARD__ typename std::enable_if<
     !std::is_arithmetic<IterT>::value &&
     std::is_same<IterT, typename std::decay<_endpointT>::type>::value &&
     is_pgbar<BarT>::value
@@ -321,9 +329,9 @@ namespace pgbar {
     std::is_lvalue_reference_v<ConT> &&
     !std::is_array_v<std::remove_reference_t<ConT>> &&
     __detail::PgbarType<BarT>
-  ) __detail::container_iterator<typename std::decay_t<ConT>::iterator, BarT>
+  ) __PGBAR_NODISCARD__ __detail::container_iterator<typename std::decay_t<ConT>::iterator, BarT>
 #else
-  typename std::enable_if<
+  __PGBAR_NODISCARD__ typename std::enable_if<
     std::is_lvalue_reference<ConT>::value &&
     !std::is_array<typename std::remove_reference<ConT>>::value &&
     is_pgbar<BarT>::value
@@ -350,9 +358,9 @@ namespace pgbar {
     std::is_lvalue_reference_v<ArrT> &&
     std::is_array_v<std::remove_reference_t<ArrT>> &&
     __detail::PgbarType<BarT>
-  ) __detail::container_iterator<std::decay_t<ArrT>, BarT> // here's the difference between array type and container type
+  ) __PGBAR_NODISCARD__ __detail::container_iterator<std::decay_t<ArrT>, BarT> // here's the difference between array type and container type
 #else
-  typename std::enable_if<
+  __PGBAR_NODISCARD__ typename std::enable_if<
     std::is_lvalue_reference<ArrT>::value &&
     std::is_array<typename std::remove_reference<ArrT>::type>::value &&
     is_pgbar<BarT>::value
