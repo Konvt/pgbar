@@ -21,7 +21,9 @@ int main()
        .set_lstatus( "=> " )
        .set_todo_col( pgbar::dye::red )
        .set_done_col( pgbar::dye::green );
-    for ( size_t i = 0; i < (TOTAL / 2); ++i ) {
+    // The actual total number of tasks is calculated on an upward rounding basis.
+    const size_t actual_total = std::ceil( TOTAL / 2.0 );
+    for ( size_t i = 0; i < actual_total; ++i ) {
       bar.update(); // Normal update
       // Do anything you want here...
     }
