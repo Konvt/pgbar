@@ -24,13 +24,13 @@
 # include <condition_variable> // std::condition_variable
 
 #if defined(__GNUC__) || defined(__clang__)
-# define __PGBAR_INLINE_FUNC__ __attribute__((always_inline))
+# define __PGBAR_INLINE_FUNC__ __attribute__((always_inline)) inline
 # define __PGBAR_NODISCARD__ __attribute__((warn_unused_result))
 #elif defined(_MSC_VER)
-# define __PGBAR_INLINE_FUNC__ __forceinline
+# define __PGBAR_INLINE_FUNC__ __forceinline inline
 # define __PGBAR_NODISCARD__ _Check_return_
 #else
-# define __PGBAR_INLINE_FUNC__
+# define __PGBAR_INLINE_FUNC__ inline
 # define __PGBAR_NODISCARD__
 #endif
 
@@ -141,7 +141,7 @@ namespace pgbar {
       = std::chrono::microseconds( 35 );
 
     template<typename T>
-    __PGBAR_INLINE_FUNC__ inline
+    __PGBAR_INLINE_FUNC__
     typename std::enable_if<
       std::is_arithmetic<typename std::decay<T>::type>::value,
       StrT
@@ -484,7 +484,7 @@ namespace pgbar {
 
   namespace __detail {
     template<typename B> // end point
-    __PGBAR_INLINE_FUNC__ inline void pipeline_expan( B& b ) {}
+    __PGBAR_INLINE_FUNC__ void pipeline_expan( B& b ) {}
 
 #define __PGBAR_EXPAN_FUNC__(OptionName, MethodName) \
     template<typename B, typename ...Args> \
@@ -661,17 +661,17 @@ namespace pgbar {
     enum class txt_layout { align_left, align_right, align_center }; // text layout
     enum bit_index : style::Type { bar = 0, per, cnt, rate, timer };
     using BitVector = std::bitset<sizeof( style::Type ) * 8>;
-    class rendering_core final { // nested class, a rendering state machine
-      pgbar& bar_;
+    class rendering_core final { // nested class
+      const pgbar& bar_;
       enum class render_state {
         beginning, refreshing, ending, stopped
       } cur_state_;
       double last_bar_progress_;
       std::chrono::system_clock::time_point first_invoked_;
 
-      render_state transition( render_state current_state ) const noexcept;
+      __PGBAR_INLINE_FUNC__ render_state transition( render_state current_state ) const noexcept;
 
-      void init_member() {
+      __PGBAR_INLINE_FUNC__ void init_member() {
         cur_state_ = render_state::stopped;
         last_bar_progress_ = {};
         first_invoked_ = {};
@@ -684,7 +684,7 @@ namespace pgbar {
       rendering_core( pgbar<StreamObj, RenderMode>& _bar ) : bar_ { _bar } {
         init_member();
       }
-      void reset() noexcept { cur_state_ = render_state::stopped; }
+      __PGBAR_INLINE_FUNC__ void reset() noexcept { cur_state_ = render_state::stopped; }
       void operator()();
     };
 
@@ -1044,7 +1044,7 @@ namespace pgbar {
       npod_move( _rhs );
       pod_copy( _rhs );
     }
-    ~pgbar() {}
+    ~pgbar() { reset(); }
     pgbar& operator=( const pgbar& _lhs ) {
       if ( this == &_lhs || is_updated() )
         return *this;

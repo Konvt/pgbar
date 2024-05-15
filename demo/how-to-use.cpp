@@ -57,7 +57,7 @@ int main()
       pgbar::initr::todo_char( "-" ),
       pgbar::initr::done_char( "=" ),
       pgbar::initr::left_status( "" ),
-      pgbar::initr::right_status( "" ) /// and so on...
+      pgbar::initr::right_status( "" ) // and so on...
     );
   }
 
@@ -82,7 +82,7 @@ int main()
   { // Using numeric types to define iteration intervals with `range()`.
     pgbar::pgbar<> bar;
     std::vector<int> interval;
-    for ( auto ele : pgbar::range( 10, bar ) ) {// in interval [0, 10)
+    for ( auto ele : pgbar::range( 10, bar ) ) { // in interval [0, 10)
       interval.push_back( ele );
       std::this_thread::sleep_for( std::chrono::milliseconds( 500 ) );
     }
