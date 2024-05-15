@@ -286,16 +286,15 @@ namespace pgbar {
         step_ = _step;
         init_extent();
       }
-      virtual ~numeric_iterator() {}
-      __PGBAR_NODISCARD__ virtual numeric_iterator begin() const noexcept {
+      __PGBAR_NODISCARD__ numeric_iterator begin() const noexcept {
         return *this;
       }
-      __PGBAR_NODISCARD__ virtual numeric_iterator end() const noexcept {
+      __PGBAR_NODISCARD__ numeric_iterator end() const noexcept {
         auto endpoint = *this;
         endpoint.cnt_ = extent_;
         return endpoint;
       }
-      __PGBAR_NODISCARD__ virtual reference operator*() const noexcept { return cnt_ * step_; }
+      __PGBAR_NODISCARD__ reference operator*() const noexcept { return cnt_ * step_; }
       __PGBAR_NODISCARD__ bool operator==( value_type _num ) const noexcept {
         return (cnt_ * step_) == _num;
       }
@@ -308,10 +307,10 @@ namespace pgbar {
       __PGBAR_NODISCARD__ bool operator!=( const numeric_iterator& lhs ) const noexcept {
         return !(operator==( lhs ));
       }
-      __PGBAR_INLINE_FUNC__ virtual numeric_iterator& operator++() noexcept {
+      __PGBAR_INLINE_FUNC__ numeric_iterator& operator++() noexcept {
         ++cnt_; return *this;
       }
-      __PGBAR_INLINE_FUNC__ virtual numeric_iterator operator++( int ) noexcept {
+      __PGBAR_INLINE_FUNC__ numeric_iterator operator++( int ) noexcept {
         auto before = *this; ++cnt_; return before;
       }
       __PGBAR_INLINE_FUNC__ numeric_iterator& operator+=( value_type _increment ) noexcept {
@@ -670,7 +669,7 @@ namespace pgbar {
       double last_bar_progress_;
       std::chrono::system_clock::time_point first_invoked_;
 
-      render_state transition( render_state current_state ) const;
+      render_state transition( render_state current_state ) const noexcept;
 
       void init_member() {
         cur_state_ = render_state::stopped;
@@ -1217,7 +1216,8 @@ namespace pgbar {
 
 #define __PGBAR_NAME_PREFIX__ pgbar<StreamObj, RenderMode>::rendering_core
   template<typename StreamObj, typename RenderMode>
-  typename __PGBAR_NAME_PREFIX__::render_state __PGBAR_NAME_PREFIX__::transition( render_state current_state ) const {
+  typename __PGBAR_NAME_PREFIX__::render_state
+  __PGBAR_NAME_PREFIX__::transition( render_state current_state ) const noexcept {
     if ( bar_.in_tty_ == false ) return render_state::stopped;
     else if ( bar_.reset_signal_ == true ) return render_state::ending;
     switch ( current_state ) {
