@@ -318,7 +318,9 @@ namespace pgbar {
         cnt_ = cnt_ + num_inc > extent_ ? extent_ : num_inc;
         return *this;
       }
-      void reset() noexcept { cnt_ = 0; }
+      __PGBAR_INLINE_FUNC__ void reset() noexcept {
+        cnt_ = 0;
+      }
       void set_step( value_type _step ) noexcept {
         step_ = _step;
         init_extent();
@@ -330,6 +332,7 @@ namespace pgbar {
       __PGBAR_NODISCARD__ value_type get_step() const noexcept { return step_; }
       __PGBAR_NODISCARD__ value_type get_upper() const noexcept { return end_point_; }
       __PGBAR_NODISCARD__ SizeT get_extent() const noexcept { return extent_; }
+      __PGBAR_NODISCARD__ bool is_end() const noexcept { return cnt_ == extent_; }
     };
 
     /// @brief A dynamic character buffer is provided for string concatenation to reduce heap allocations.
@@ -549,7 +552,7 @@ namespace pgbar {
           {
             std::unique_lock<std::mutex> lock { mtx_ };
             if ( stop_signal_ && !finish_signal_ ) {
-              if ( active_flag_ ) // it means subthread has been printed already
+              if ( active_flag_ ) // it means child thread has been printed already
                 task_->run(); // so output the last progress bar before suspend
               suspend_flag_ = true;
               cond_var_.wait( lock );
@@ -866,7 +869,7 @@ namespace pgbar {
 
       auto time_per_task = time_passed / num_done;
       if ( time_per_task.count() == 0 )
-        time_per_task = decltype(time_per_task)(1);
+        time_per_task = std::chrono::duration<__detail::SizeT, std::nano>( 1 );
       std::chrono::nanoseconds estimated_time = time_per_task * (get_tasks() - num_done);
 
       return formatter<txt_layout::align_center>(
@@ -929,7 +932,7 @@ namespace pgbar {
       if ( is_done() )
         throw bad_pgbar { "pgbar::do_update: updating a full progress bar" };
       if ( !is_updated() ) {
-        if ( task_cnt_.end() == 0 )
+        if ( task_cnt_.get_upper() == 0 )
           throw bad_pgbar { "pgbar::do_update: the number of tasks is zero" };
         rndrer_.active();
       }
@@ -937,7 +940,7 @@ namespace pgbar {
       updating_task();
       rndrer_.render();
 
-      if ( task_cnt_ == task_cnt_.end() )
+      if ( task_cnt_.is_end() )
         rndrer_.suspend(); // wait for child thread to finish
     }
 
@@ -1064,7 +1067,7 @@ namespace pgbar {
       return update_flag_;
     }
     bool is_done() const noexcept {
-      return is_updated() && task_cnt_ == task_cnt_.end();
+      return is_updated() && task_cnt_.is_end();
     }
     /// @brief Reset pgbar obj, EXCLUDING the total number of tasks.
     pgbar& reset() {
@@ -1218,17 +1221,16 @@ namespace pgbar {
   template<typename StreamObj, typename RenderMode>
   typename __PGBAR_NAME_PREFIX__::render_state
   __PGBAR_NAME_PREFIX__::transition( render_state current_state ) const noexcept {
-    if ( bar_.in_tty_ == false ) return render_state::stopped;
-    else if ( bar_.reset_signal_ == true ) return render_state::ending;
     switch ( current_state ) {
     case render_state::beginning: // fallthrough
       __PGBAR_FALLTHROUGH__
     case render_state::refreshing:
-      return bar_.is_done() ? render_state::ending : render_state::refreshing;
+      return bar_.reset_signal_ || bar_.is_done() ? render_state::ending : render_state::refreshing;
     case render_state::ending: // fallthrough
       __PGBAR_FALLTHROUGH__
     case render_state::stopped:
-      return bar_.is_done() ? render_state::stopped : render_state::beginning;
+      return !bar_.in_tty_ || bar_.reset_signal_ || bar_.is_done() ?
+             render_state::stopped : render_state::beginning;
     default: break;
     }
     return render_state::stopped;
