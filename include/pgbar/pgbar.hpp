@@ -1077,14 +1077,14 @@ namespace pgbar {
       return *this;
     }
     /// @brief Set the number of steps the counter is updated each time `update()` is called.
-    /// @throw If the `_step` is zero.
+    /// @throw pgbar::bad_pgbar If the `_step` is zero.
     pgbar& set_step( __detail::SizeT _step ) {
       if ( is_updated() ) return *this;
       else if ( _step == 0 ) throw bad_pgbar { "pgbar::set_step: zero step" };
       task_cnt_.set_step( _step ); return *this;
     }
     /// @brief Set the number of tasks to be updated.
-    /// @throw If the `_total_tsk` is zero.
+    /// @throw pgbar::bad_pgbar If the `_total_tsk` is zero.
     pgbar& set_task( __detail::SizeT _total_tsk ) {
       if ( is_updated() ) return *this;
       else if ( _total_tsk == 0 )
