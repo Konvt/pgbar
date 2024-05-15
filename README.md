@@ -10,6 +10,8 @@
     - [pgbar/pgbar.hpp](#pgbarpgbarhpp)
     - [pgbar/range.hpp](#pgbarrangehpp)
   - [Instructions for Use](#instructions-for-use)
+    - [Exceptional Situations](#exceptional-situations)
+    - [Notes](#notes)
   - [FAQ](#faq)
     - [Will it slow down the program?](#will-it-slow-down-the-program)
     - [Can it be used on Windows/Linux?](#can-it-be-used-on-windowslinux)
@@ -24,6 +26,8 @@
     - [pgbar/pgbar.hpp](#pgbarpgbarhpp-1)
     - [pgbar/range.hpp](#pgbarrangehpp-1)
   - [使用须知](#使用须知)
+    - [异常情况](#异常情况)
+    - [注意事项](#注意事项)
   - [FAQ](#faq-1)
     - [会拖慢程序吗？](#会拖慢程序吗)
     - [能在 Windows/Linux 上使用吗？](#能在-windowslinux-上使用吗)
@@ -42,6 +46,7 @@ No third party dependencies required.
 [-------                       ] [  24.00% |  48/200 |  31.00 Hz  | 00:00:01 < 00:00:04 ]
 ```
 ![example-color](images/example_color.gif)
+
 > The "Hz" indicates how many tasks are performed per second.
 
 The status bar is colored using escape sequences by default.
@@ -196,7 +201,7 @@ struct is_renderer { constexpr bool value; };
 template<typename S>
 struct is_stream { constexpr bool value; };
 
-/* Notify the progress bar that it needs updating, return value is the current iteration progress. */
+/* Notify the progress bar that it needs updating. */
 void pgbar::update();
 
 /* Requests the progress bar to advance its iteration progress by next_step steps,
@@ -205,7 +210,7 @@ void pgbar::update(size_t next_step);
 
 /* Set the iteration progress of the progress bar to the specified percentage, with parameter range [0, 100];
  * values outside this range will be treated as 100%; return value ditto. */
-size_t update_to( size_t percentage );
+void update_to( size_t percentage );
 
 /* Get the total number of tasks. */
 size_t get_tasks() const noexcept;
@@ -287,21 +292,34 @@ range(container, BarT& _bar) // Raw arrays do not have iterator name requirement
 ```
 
 ## Instructions for Use
-If `update()` is called again (directly or indirectly) without executing `reset()` after the progress bar has finished updating, it will throw the exception `bad_pgbar`.
+### Exceptional Situations
+The only global exception that may be thrown is `pgbar::bad_pgbar`, which inherits from `std::exception`.
 
-Calling `update()` without setting the total number of tasks will also throw the exception `bad_pgbar`.
-
-Attempting to update tasks with an incremental step size of 0 when calling `update()` will also throw the exception `bad_pgbar`.
-
-When using `range`, specifying an incorrect range (such as an endpoint smaller than the starting point) will also throw the exception `bad_pgbar`.
-
+Here are several situations that may throw `pgbar::bad_pgbar`:
+1. Calling `update()` again (directly or indirectly) without executing `reset()` when the progress bar iteration count is full.
+2. Executing `update()` without setting the task count.
+3. Attempting to update when the step increment `step` is 0.
+4. Using `range` with incorrectly specified boundaries (e.g., end value smaller than start value, and the step is not negative).
+### Notes
 The progress bar object considers the output stream object type and renderer type as part of the type parameters, with the default output stream object bound to `std::cerr`.
 
 By default, the progress bar uses multithreaded rendering for terminal output, and you can switch rendering modes using `pgbar::singlethread` and `pgbar::multithread`.
 
 After completing tasks, if you need to reset the progress bar style, you must execute `reset()` first, otherwise the change will not take effect.
 
-Attempting to call non-`const` member methods while the progress bar is running is invalid but will not throw an exception.
+Attempting to call non-`const` member methods while the progress bar is running (except for the `reset()` method) is ineffective but will not throw an exception.
+
+Calling the `reset()` method will **directly terminate the progress bar iteration and reset all state variables**.
+
+> The progress bar allows setting the task count and the number of steps forward per iteration. The total iterations are calculated by the following formula:
+> \
+> $iterations = \lceil \frac{total\_task} {step} \rceil$
+> \
+> This means if the task count is 100 and the iteration step is 70, the expected number of iterations is:
+> \
+> $\lceil \frac{100} {70} \rceil = 2$
+> \
+> Please be mindful of this when using it.
 
 ## FAQ
 ### Will it slow down the program?
@@ -322,8 +340,6 @@ However, a single-threaded renderer will skip some refreshes at a fixed refresh 
 Each update of the progress bar will be executed by the main thread, so the performance will be much lower than multithreading, but the display effect will be smoother.
 ### Can it be used on Windows/Linux?
 Yes, it can.  Since the code implementation only uses standard library features, it has good cross-platform compatibility.
-
-Some components will enable the concepts feature when compiling with C++20, so make sure your compiler supports it.
 
 The code also checks if its standard output is bound to a terminal, and if not, it will not output strings externally.
 
@@ -354,6 +370,7 @@ Just for practice, that's all.
 [-------                       ] [  24.00% |  48/200 |  31.00 Hz  | 00:00:01 < 00:00:04 ]
 ```
 ![example-color](images/example_color.gif)
+
 > 这里的 'Hz' 表示每秒执行了多少次更新.
 
 默认情况下会使用 ASCII 转义序列对状态栏进行染色，如果你的终端不支持、或者不希望有着色效果，可以在程序最开头定义一个宏.
@@ -504,14 +521,14 @@ struct is_renderer { constexpr bool value; };
 template<typename S>
 struct is_stream { constexpr bool value; };
 
-/* 通知进度条该更新了，返回值为当前迭代进度，下同. */
-size_t pgbar::update();
+/* 通知进度条该更新了，下同. */
+void pgbar::update();
 
 /* 要求进度条的迭代进度一次性前进 next_step 步，超出任务总数的步数会被忽略. */
-size_t pgbar::update(size_t next_step);
+void pgbar::update(size_t next_step);
 
-/* 将进度条的迭代进度设置到指定的百分比，参数范围为 [0, 100]；超出范围的数值会被视作 100%. */
-size_t update_to( size_t percentage );
+/* 将进度条的迭代进度设置到指定的百分比，参数范围为 [0, 100]；超出范围的数值会被视作 100% */
+void update_to( size_t percentage );
 
 /* 获取当前进度条对象的任务总数. */
 size_t get_tasks() const noexcept;
@@ -592,21 +609,34 @@ range(container, BarT& _bar) // 原始数组没有 iterator 名称要求
 ```
 
 ## 使用须知
-如果在进度条更新完成后，没有执行 `reset()` 的情况下（直接或间接地）再次调用 `update()`，会导致异常 `bad_pgbar` 抛出.
+### 异常情况
+全局可能被抛出的异常只有 `pgbar::bad_pgbar` 一个，该异常继承自 `std::exception`.
 
-如果没有设置任务数就执行 `update()`，同样会抛出异常 `bad_pgbar`.
-
-如果递进步数 `step` 为 0，调用 `update()` 尝试更新任务时也会抛出异常 `bad_pgbar`.
-
-使用 `range` 时，指定了错误的范围（如结尾数值小于开头），同样会抛出异常 `bad_pgbar`.
-
+以下是几种会抛出异常 `pgbar::bad_pgbar` 的情况：
+1. 在进度条迭代次数已满，没有执行 `reset()` 的情况下（直接或间接地）再次调用 `update()`.
+2. 没有设置任务数就执行 `update()`.
+3. 递进步数 `step` 为 0 时，调用 `update()` 尝试更新.
+4. 使用 `range` 时，指定了错误的范围（如结尾数值小于开头，且此时的步长不为负数）.
+### 注意事项
 进度条对象会将输出流对象类型、渲染器类型视作是类型参数的一部分，同时默认情况下的流对象被绑定在 `std::cerr` 上.
 
 默认情况下，进度条会使用多线程渲染终端输出，可以使用 `pgbar::singlethread` 和 `pgbar::multithread` 切换渲染方式.
 
 任务完成后，如果需要重设进度条风格，必须先执行 `reset()`，否则更改不会发生.
 
-在进度条正在运行时，尝试调用非 `const` 成员方法是无效的，但不会抛出异常.
+在进度条正在运行时，尝试调用非 `const` 成员方法是无效的（`reset()` 方法除外），但不会抛出异常.
+
+调用方法 `reset()` 会导致进度条对象 `pgbar` **直接终止迭代，并重置所有状态量**.
+
+> 进度条允许设置任务数与每次迭代时前进的步数，在计算时，迭代总数由以下公式给出：
+> \
+> $iterations = \lceil \frac{total\_task} {step} \rceil$
+> \
+> 也就是说，如果任务总数为 100，迭代步长为 70，那么预期迭代次数为：
+> \
+> $\lceil \frac{100} {70} \rceil = 2$
+>\
+> 在使用时请注意这一点.
 
 ## FAQ
 ### 会拖慢程序吗？
@@ -621,8 +651,6 @@ range(container, BarT& _bar) // 原始数组没有 iterator 名称要求
 但单线程渲染器只会按照固定刷新速率（25Hz）跳过部分刷新，每次进度条更新都会一定会由主线程执行，故性能会比多线程低很多，但显示效果会更流畅.
 ### 能在 Windows/Linux 上使用吗？
 可以的，由于代码实现只使用了标准库功能，因此具有很好的跨平台兼容性.
-
-部分组件在开启 C++20 编译标准时会启用 `concepts` 功能，请确保你的编译器支持.
 
 代码还会判断自己的标准输出是否绑定在终端上，如果输出不在终端中显示则不会对外输出字符串.
 
