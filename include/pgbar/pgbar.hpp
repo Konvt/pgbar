@@ -260,10 +260,10 @@ namespace pgbar {
       NumT start_point_, end_point_, step_;
       SizeT cnt_, extent_;
 
-      void init_extent() noexcept {
-        const SizeT diff = std::max( start_point_, end_point_ ) - std::min( start_point_, end_point_ );
+      __PGBAR_INLINE_FUNC__ void init_extent() noexcept {
+        const NumT diff = std::max( start_point_, end_point_ ) - std::min( start_point_, end_point_ );
         extent_ = static_cast<SizeT>(
-          std::ceil( static_cast<double>(diff) / static_cast<SizeT>(step_ < 0 ? -step_ : step_) )
+          std::ceil( static_cast<double>(diff) / (step_ < 0 ? -step_ : step_) )
         );
       }
 
@@ -321,11 +321,11 @@ namespace pgbar {
       __PGBAR_INLINE_FUNC__ void reset() noexcept {
         cnt_ = 0;
       }
-      void set_step( value_type _step ) noexcept {
+      __PGBAR_INLINE_FUNC__ void set_step( value_type _step ) noexcept {
         step_ = _step;
         init_extent();
       }
-      void set_upper( value_type _upper ) noexcept {
+      __PGBAR_INLINE_FUNC__ void set_upper( value_type _upper ) noexcept {
         end_point_ = _upper;
         init_extent();
       }

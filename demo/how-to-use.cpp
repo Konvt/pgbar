@@ -81,15 +81,15 @@ int main()
 
   { // Using numeric types to define iteration intervals with `range()`.
     pgbar::pgbar<> bar;
-    std::vector<int> interval;
-    for ( auto ele : pgbar::range( 10, bar ) ) { // in interval [0, 10)
+    std::vector<double> interval;
+    for ( auto ele : pgbar::range( 2.0, 0.1, bar ) ) { // in interval [0, 2.0), step is 0.1
       interval.push_back( ele );
       std::this_thread::sleep_for( std::chrono::milliseconds( 500 ) );
     }
     bar.reset();
     std::cout << "The iteration intervals: ";
     for ( auto ele : interval )
-      std::cout << ele << ' ';
+      std::cout << ele << ",";
     std::cout << std::endl;
   }
 
