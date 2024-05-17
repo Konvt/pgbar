@@ -146,6 +146,9 @@ namespace pgbar {
       std::is_arithmetic<typename std::decay<T>::type>::value,
       StrT
     >::type ToString( T&& value ) {
+      // The ToString function must has the following behaviors:
+      // 1. can convert numeric type data to a string;
+      // 2. when converting a floating-point number to a string, preserve more than two bits of precision.
       return std::to_string( value );
     }
 
@@ -179,12 +182,14 @@ namespace pgbar {
     > : std::true_type {};
 #endif // __PGBAR_CXX20__
     template<typename T>
-    struct is_copyable {
-      static constexpr bool value = std::is_copy_constructible<T>::value && std::is_copy_assignable<T>::value;
-    };
-    template<typename T>
-    struct copyability_extractor {
-      using type = typename std::conditional<is_copyable<T>::value, T, T&>::type;
+    struct copyable_trait {
+      using type = typename std::conditional<
+        (std::is_copy_assignable<T>::value &&
+         std::is_copy_constructible<T>::value &&
+         !std::is_lvalue_reference<T>::value) ||
+        std::is_rvalue_reference<T>::value,
+        T, T& // then it will be `T`
+      >::type;
     };
   } // namespace __detail
 
@@ -241,7 +246,7 @@ namespace pgbar {
         "pgbar::__detail::functor_wrapper: template type error"
       );
 
-      typename __detail::copyability_extractor<F>::type func_;
+      F func_;
 
     public:
       template<typename U>
@@ -545,7 +550,8 @@ namespace pgbar {
 #endif
     explicit multithread( F&& task )
       : multithread() {
-      auto new_res = new __detail::functor_wrapper<typename std::decay<F>::type>( std::forward<F>( task ) );
+      auto new_res = new __detail::functor_wrapper<
+        typename __detail::copyable_trait<F>::type>( std::forward<F>( task ) );
       task_ = new_res;
       td_ = std::thread( [this]() -> void {
         do {
@@ -620,7 +626,8 @@ namespace pgbar {
 #endif
     explicit singlethread( F&& tsk )
       : task_ { nullptr }, active_flag_ { false } {
-      auto new_res = new __detail::functor_wrapper<typename std::decay<F>::type>( std::forward<F>( tsk ) );
+      auto new_res = new __detail::functor_wrapper<
+        typename __detail::copyable_trait<F>::type>( std::forward<F>( tsk ) );
       task_ = new_res;
     }
     ~singlethread() {
