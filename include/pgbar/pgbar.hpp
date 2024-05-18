@@ -11,6 +11,7 @@
 # include <cmath>       // std::round, std::log10, std::trunc, std::ceil
 # include <type_traits> // SFINAE
 # include <utility>     // std::pair
+# include <functional>  // std::reference_wrapper
 # include <iterator>    // marks iterator tags
 # include <bitset>      // std::bitset
 # include <string>      // std::string
@@ -126,10 +127,11 @@ namespace pgbar {
     using SizeT = size_t;
     using StrT = std::string;
     using CharT = char;
+    using RefStrT = std::reference_wrapper<const StrT>; // a reference type that can be passed into STL containers
 #if __PGBAR_CXX17__
-    using ROStrT = std::string_view; // read only string
-    using ConstStrT = const std::string_view;
-    using LiteralStrT = std::string_view;
+    using ROStrT = std::string_view; // a read only string type
+    using ConstStrT = const ROStrT;  // a constant string type that has method `size()`
+    using LiteralStrT = ROStrT;      // a string type that can be a compile-time constant
 #else
     using ROStrT = const StrT&;
     using ConstStrT = const StrT;
@@ -342,10 +344,34 @@ namespace pgbar {
 
     /// @brief A dynamic character buffer is provided for string concatenation to reduce heap allocations.
     /// @brief The core thoughts is based on `std::string::clear` does not clear the allocated memory block.
-    class streambuf final {
+    class charactersbuf final {
       StrT buffer_;
 
+      __PGBAR_INLINE_FUNC__ void member_copy( const charactersbuf& _from ) {
+        buffer_.reserve( _from.buffer_.capacity() );
+      }
+      __PGBAR_INLINE_FUNC__ void member_move( charactersbuf& _from ) {
+        using std::swap;
+        swap( buffer_, _from.buffer_ );
+      }
+
     public:
+      charactersbuf() {}
+      charactersbuf( const charactersbuf& lhs ) {
+        member_copy( lhs );
+      }
+      charactersbuf( charactersbuf&& rhs ) {
+        member_move( rhs );
+      }
+      charactersbuf& operator=( const charactersbuf& lhs ) {
+        member_copy( lhs );
+        return *this;
+      }
+      charactersbuf& operator=( charactersbuf&& rhs ) {
+        member_move( rhs );
+        return *this;
+      }
+
       /// @brief Append several characters to the buffer.
       __PGBAR_INLINE_FUNC__ void append( SizeT _num, CharT _ch ) { buffer_.append( _num, _ch ); }
       __PGBAR_INLINE_FUNC__ void reserve( SizeT _size ) { buffer_.reserve( _size ); }
@@ -353,24 +379,36 @@ namespace pgbar {
       __PGBAR_INLINE_FUNC__ void release() { clear(); buffer_.shrink_to_fit(); }
       __PGBAR_NODISCARD__ __PGBAR_INLINE_FUNC__ StrT& data() noexcept { return buffer_; }
 
-      template<typename _T>
-      __PGBAR_INLINE_FUNC__ streambuf& operator<<( _T&& info ) {
-        using T = typename std::decay<_T>::type;
-        static_assert(
-          std::is_same<T, StrT>::value ||
-          std::is_same<T, ROStrT>::value ||
-          std::is_same<T, ConstStrT>::value ||
-          std::is_same<T, LiteralStrT>::value,
-          "pgbar::__detail::streambuf: 'T' must be a type that can be appended to 'pgbar::__detail::StrT'"
-        );
+      template<typename _T, typename T = typename std::decay<_T>::type>
+      __PGBAR_INLINE_FUNC__ typename std::enable_if<
+        std::is_same<T, StrT>::value ||
+        std::is_same<T, ROStrT>::value ||
+        std::is_same<T, ConstStrT>::value ||
+        std::is_same<T, LiteralStrT>::value ||
+        std::is_same<T, const CharT*>::value,
+        charactersbuf&
+      >::type operator<<( _T&& info ) {
         buffer_.append( info );
         return *this;
       }
+      __PGBAR_INLINE_FUNC__ charactersbuf& operator<<( CharT character ) {
+        buffer_.push_back( character );
+        return *this;
+      }
+      /// @brief Copy the string info_str.second info_str.first times.
+      __PGBAR_INLINE_FUNC__ charactersbuf& operator<<( std::pair<SizeT, RefStrT> info_str ) {
+        const auto& copied_str = info_str.second.get();
+        if ( info_str.first != 0 && copied_str.size() != 0 ) {
+          for ( __detail::SizeT _ = 0; _ < info_str.first; ++_ )
+            buffer_.append( copied_str );
+        }
+        return *this;
+      }
       template<typename S>
-      __PGBAR_INLINE_FUNC__ friend S& operator<<( S& stream, streambuf& buf ) { // hidden friend
+      __PGBAR_INLINE_FUNC__ friend S& operator<<( S& stream, charactersbuf& buf ) { // hidden friend
         static_assert(
           is_stream<S>::value,
-          "pgbar::__detail::streambuf: 'S' must be a type that supports 'operator<<' to insert 'pgbar::__detail::StrT'"
+          "pgbar::__detail::charactersbuf: 'S' must be a type that supports 'operator<<' to insert 'pgbar::__detail::StrT'"
         );
         stream << buf.data();
         buf.clear(); return stream;
@@ -717,7 +755,7 @@ namespace pgbar {
     mutable std::atomic<bool> update_flag_;
     RenderMode rndrer_;
     StreamObj& stream_;
-    mutable __detail::streambuf buffer_;
+    mutable __detail::charactersbuf buffer_;
 
     BitVector option_;
     __detail::LiteralStrT todo_col_, done_col_;
@@ -761,19 +799,6 @@ namespace pgbar {
 #endif // __PGBAR_CXX20__
     }
 
-    /// @brief Copy a string mutiple times and concatenate them together.
-    /// @tparam S The type of the string.
-    /// @param _time Copy times.
-    /// @param _src The string to be copied.
-    /// @return The string copied mutiple times.
-    static __detail::StrT bulk_copy( __detail::SizeT _time, __detail::ROStrT _src ) {
-      if ( _time == 0 || _src.size() == 0 ) return {};
-      __detail::StrT ret; ret.reserve( _src.size() * _time );
-      for ( __detail::SizeT _ = 0; _ < _time; ++_ )
-        ret.append( _src );
-      return ret;
-    }
-
     __PGBAR_INLINE_FUNC__ static bool check_output_stream( const StreamObj* const os ) {
       if __PGBAR_ENHANCE_CONSTEXPR__( std::is_same<StreamObj, std::ostream>::value == false )
         return true; // Custom object, the program does not block output.
@@ -789,15 +814,10 @@ namespace pgbar {
       else return false;
     }
 
-    __PGBAR_NODISCARD__ __PGBAR_INLINE_FUNC__ __detail::StrT show_bar( double num_per ) const {
+    __PGBAR_NODISCARD__ __PGBAR_INLINE_FUNC__
+    std::pair<__detail::SizeT, __detail::SizeT> show_bar( double num_per ) const {
       const __detail::SizeT done_len = std::round( bar_length_ * num_per );
-      return (
-        startpoint_ +
-        __detail::StrT( done_col_ ) + bulk_copy( done_len, done_ch_ ) +
-        __detail::StrT( todo_col_ ) + bulk_copy( bar_length_ - done_len, todo_ch_ ) +
-        __detail::StrT( __PGBAR_DEFAULT_COL__ ) + endpoint_ +
-        __detail::StrT( 1, blank )
-      );
+      return std::make_pair( done_len, bar_length_ - done_len );
     }
 
     __PGBAR_NODISCARD__ __PGBAR_INLINE_FUNC__ __detail::StrT show_ratio( double num_per ) const {
@@ -899,8 +919,13 @@ namespace pgbar {
       if ( is_updated() )
         buffer_.append( total_length, backspace );
 
-      if ( ctrller[bit_index::bar] )
-        buffer_ << show_bar( num_per );
+      if ( ctrller[bit_index::bar] ) {
+        auto info = show_bar( num_per );
+        buffer_ << startpoint_ << done_col_
+          << std::make_pair( info.first, std::cref( done_ch_ ) ) << todo_col_
+          << std::make_pair( info.second, std::cref( todo_ch_ ) ) << __PGBAR_DEFAULT_COL__
+          << endpoint_ << blank;
+      }
       if ( status_length_ != 0 )
         buffer_ << font_fmt << status_col_ << lstatus_;
       if ( ctrller[bit_index::per] ) {
@@ -967,6 +992,7 @@ namespace pgbar {
       endpoint_ = _from.endpoint_;
       lstatus_ = _from.lstatus_;
       rstatus_ = _from.rstatus_;
+      buffer_ = _from.buffer_;
       task_cnt_ = _from.task_cnt_;
       task_cnt_.reset();
     }
@@ -981,6 +1007,7 @@ namespace pgbar {
       endpoint_ = std::move( _from.endpoint_ );
       lstatus_ = std::move( _from.lstatus_ );
       rstatus_ = std::move( _from.rstatus_ );
+      buffer_ = std::move( _from.buffer_ );
       task_cnt_ = std::move( _from.task_cnt_ );
       task_cnt_.reset();
     }
@@ -1081,6 +1108,7 @@ namespace pgbar {
       reset_signal_ = true;
       rndrer_.suspend();
       machine_.reset();
+      buffer_.clear();
       task_cnt_.reset();
       update_flag_ = false;
       reset_signal_ = false;
