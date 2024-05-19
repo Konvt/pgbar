@@ -41,7 +41,7 @@ No third party dependencies required.
 ## Styles
 ```
 {startpoint}{done char}{todo char}{endpoint} {left status}{percentage}{task counter}{rate}{timer}{right status}
-^~~~~~~~~~~~~~~ Progress bar ~~~~~~~~~~~~~~^ ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Status bar ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+^~~~~~~~~~~~~~~ Progress bar ~~~~~~~~~~~~~~^ ^~~~~~~~~~~~~~~~~~~~~~~~~~~ Status bar ~~~~~~~~~~~~~~~~~~~~~~~~~~^
 
 [-------                       ] [  24.00% |  48/200 |  31.00 Hz  | 00:00:01 < 00:00:04 ]
 ```
@@ -197,7 +197,7 @@ struct is_pgbar { constexpr bool value; };
 template<typename R>
 struct is_renderer { constexpr bool value; };
 
-/* Template type predicate, checks if the given type is acceptable by a pgbar object as an output stream object */
+/* Template type predicate, checks if the given type is an output stream object acceptaed by pgbar */
 template<typename S>
 struct is_stream { constexpr bool value; };
 
@@ -205,21 +205,21 @@ struct is_stream { constexpr bool value; };
 void pgbar::update();
 
 /* Requests the progress bar to advance its iteration progress by next_step steps,
- * steps beyond the total number of tasks will be ignored; return value ditto. */
+ * steps beyond the total number of tasks will be ignored. */
 void pgbar::update(size_t next_step);
 
 /* Set the iteration progress of the progress bar to the specified percentage, with parameter range [0, 100];
- * values outside this range will be treated as 100%; return value ditto. */
+ * Values outside this range will be treated as 100%. */
 void update_to( size_t percentage );
 
 /* Get the total number of tasks. */
-size_t get_tasks() const noexcept;
+size_t total_tasks() const noexcept;
 
 /* Get the number of steps the iteration advances. */
-size_t get_step() const noexcept;
+size_t steps() const noexcept;
 
 /* Get the number of tasks that have been updated. */
-size_t get_current();
+size_t current();
 
 /* Check if the progress bar object has been started. */
 bool pgbar::is_updated() const noexcept;
@@ -358,6 +358,7 @@ Just for practice, that's all.
 - - -
 
 # pgbar - ProgressBar for C++11 - zh_cn
+
 一个简单的，适用于 C++11 及更高标准的 tqdm-like、header-only 进度条.
 
 不需要第三方依赖.
@@ -365,7 +366,7 @@ Just for practice, that's all.
 ## 风格样式
 ```
 {startpoint}{done char}{todo char}{endpoint} {left status}{percentage}{task counter}{rate}{timer}{right status}
-^~~~~~~~~~~~~~~ Progress bar ~~~~~~~~~~~~~~^ ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Status bar ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+^~~~~~~~~~~~~~~ Progress bar ~~~~~~~~~~~~~~^ ^~~~~~~~~~~~~~~~~~~~~~~~~~~ Status bar ~~~~~~~~~~~~~~~~~~~~~~~~~~^
 
 [-------                       ] [  24.00% |  48/200 |  31.00 Hz  | 00:00:01 < 00:00:04 ]
 ```
@@ -517,7 +518,7 @@ struct is_pgbar { constexpr bool value; };
 template<typename R>
 struct is_renderer { constexpr bool value; };
 
-/* 模板类型谓词，检查给定类型是否是渲染器能接受的输出流对象 */
+/* 模板类型谓词，检查给定类型是否是 pgbar 能接受的输出流对象 */
 template<typename S>
 struct is_stream { constexpr bool value; };
 
@@ -531,13 +532,13 @@ void pgbar::update(size_t next_step);
 void update_to( size_t percentage );
 
 /* 获取当前进度条对象的任务总数. */
-size_t get_tasks() const noexcept;
+size_t total_tasks() const noexcept;
 
 /* 获取当前进度条对象的迭代步长. */
-size_t get_step() const noexcept;
+size_t steps() const noexcept;
 
 /* 获取当前进度条对象已被迭代的任务数. */
-size_t get_current();
+size_t current();
 
 /* 检查进度条对象是否已经启动. */
 bool pgbar::is_updated() const noexcept;
