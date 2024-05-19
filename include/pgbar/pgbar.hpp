@@ -732,7 +732,9 @@ namespace pgbar {
       rendering_core( pgbar<StreamObj, RenderMode>& _bar ) : bar_ { _bar } {
         init_member();
       }
-      __PGBAR_INLINE_FUNC__ void reset() noexcept { cur_state_ = render_state::stopped; }
+      __PGBAR_INLINE_FUNC__ void reset() noexcept {
+        init_member();
+      }
       void operator()();
     };
 
@@ -746,16 +748,12 @@ namespace pgbar {
     static constexpr __detail::SizeT timer_len = sizeof( __PGBAR_DEFAULT_TIMER__ ) - sizeof( __detail::CharT );
     static constexpr __detail::SizeT rate_len = sizeof( __PGBAR_DEFAULT_RATE__ ) - sizeof( __detail::CharT );
     static __detail::ConstStrT division; // The default division character.
-    // The font style of status bar.
-    static constexpr __detail::LiteralStrT font_fmt = __PGBAR_BOLD__;
-    // The default color and font style.
-    static constexpr __detail::LiteralStrT default_col = __PGBAR_DEFAULT_COL__;
 
-    rendering_core machine_;
     mutable std::atomic<bool> update_flag_;
-    RenderMode rndrer_;
-    StreamObj& stream_;
     mutable __detail::charactersbuf buffer_;
+    StreamObj& stream_;
+    rendering_core machine_;
+    RenderMode rndrer_;
 
     BitVector option_;
     __detail::LiteralStrT todo_col_, done_col_;
@@ -815,12 +813,12 @@ namespace pgbar {
     }
 
     __PGBAR_NODISCARD__ __PGBAR_INLINE_FUNC__
-    std::pair<__detail::SizeT, __detail::SizeT> show_bar( double num_per ) const {
+    std::pair<__detail::SizeT, __detail::SizeT> produce_bar( double num_per ) const {
       const __detail::SizeT done_len = std::round( bar_length_ * num_per );
       return std::make_pair( done_len, bar_length_ - done_len );
     }
 
-    __PGBAR_NODISCARD__ __PGBAR_INLINE_FUNC__ __detail::StrT show_ratio( double num_per ) const {
+    __PGBAR_NODISCARD__ __PGBAR_INLINE_FUNC__ __detail::StrT produce_ratio( double num_per ) const {
       if ( !is_updated() )
         return { __PGBAR_DEFAULT_RATIO__ };
 
@@ -833,7 +831,8 @@ namespace pgbar {
       );
     }
 
-    __PGBAR_NODISCARD__ __PGBAR_INLINE_FUNC__ __detail::StrT show_task_counter( __detail::SizeT num_done ) const {
+    __PGBAR_NODISCARD__ __PGBAR_INLINE_FUNC__
+    __detail::StrT produce_progress( __detail::SizeT num_done ) const {
       __detail::StrT total_str = __detail::ToString( get_tasks() );
       __detail::SizeT size = total_str.size();
       return (
@@ -842,8 +841,9 @@ namespace pgbar {
       );
     }
 
-    __PGBAR_NODISCARD__ __detail::StrT show_rate( std::chrono::nanoseconds time_passed,
-                                                  __detail::SizeT num_done ) const {
+    __PGBAR_NODISCARD__
+    __detail::StrT produce_rate( std::chrono::nanoseconds time_passed,
+                                   __detail::SizeT num_done ) const {
       if ( !is_updated() )
         return { __PGBAR_DEFAULT_RATE__ };
 
@@ -872,7 +872,7 @@ namespace pgbar {
       return formatter<txt_layout::align_center>( rate_len, std::move( rate_str ) );
     }
 
-    __PGBAR_NODISCARD__ __detail::StrT show_timer( std::chrono::nanoseconds time_passed,
+    __PGBAR_NODISCARD__ __detail::StrT produce_timer( std::chrono::nanoseconds time_passed,
                                                    __detail::SizeT num_done ) const {
       if ( !is_updated() )
         return { __PGBAR_DEFAULT_TIMER__ };
@@ -908,8 +908,8 @@ namespace pgbar {
 
     /// @brief Based on the value of `option` and bitwise operations,
     /// @brief determine which part of the string needs to be concatenated.
-    void generate_barcode( BitVector ctrller, double num_per, __detail::SizeT num_done,
-                           std::chrono::nanoseconds time_passed ) const {
+    void fitter( BitVector ctrller, double num_per, __detail::SizeT num_done,
+                 std::chrono::nanoseconds time_passed ) const {
       const __detail::SizeT total_length = (
         (ctrller[bit_index::bar] ?
           (bar_length_ + startpoint_.size() + endpoint_.size() + 1) : 0)
@@ -920,33 +920,33 @@ namespace pgbar {
         buffer_.append( total_length, backspace );
 
       if ( ctrller[bit_index::bar] ) {
-        auto info = show_bar( num_per );
+        auto info = produce_bar( num_per );
         buffer_ << startpoint_ << done_col_
           << std::make_pair( info.first, std::cref( done_ch_ ) ) << todo_col_
           << std::make_pair( info.second, std::cref( todo_ch_ ) ) << __PGBAR_DEFAULT_COL__
           << endpoint_ << blank;
       }
       if ( status_length_ != 0 )
-        buffer_ << font_fmt << status_col_ << lstatus_;
+        buffer_ << __PGBAR_BOLD__ << status_col_ << lstatus_;
       if ( ctrller[bit_index::per] ) {
-        buffer_ << show_ratio( num_per );
+        buffer_ << produce_ratio( num_per );
         if ( ctrller[bit_index::cnt] || ctrller[bit_index::rate] || ctrller[bit_index::timer] )
           buffer_ << division;
       }
       if ( ctrller[bit_index::cnt] ) {
-        buffer_ << show_task_counter( num_done );
+        buffer_ << produce_progress( num_done );
         if ( ctrller[bit_index::rate] || ctrller[bit_index::timer] )
           buffer_ << division;
       }
       if ( ctrller[bit_index::rate] ) {
-        buffer_ << show_rate( time_passed, num_done );
+        buffer_ << produce_rate( time_passed, num_done );
         if ( ctrller[bit_index::timer] )
           buffer_ << division;
       }
       if ( ctrller[bit_index::timer] )
-        buffer_ << show_timer( std::move( time_passed ), num_done );
+        buffer_ << produce_timer( std::move( time_passed ), num_done );
       if ( status_length_ != 0 )
-        buffer_ << rstatus_ << default_col;
+        buffer_ << rstatus_ << __PGBAR_DEFAULT_COL__;
     }
 
     template<typename F>
@@ -1031,8 +1031,9 @@ namespace pgbar {
     }
 
     pgbar( StreamObj* _ostream )
-      : machine_ { *this }, update_flag_ { false }
-      , rndrer_ { machine_ }, stream_ { *_ostream } {
+      : update_flag_ { false }, buffer_ {}
+      , stream_ { *_ostream }, machine_ { *this }
+      , rndrer_ { machine_ } {
       option_ = style::entire;
       todo_col_ = dye::none;
       done_col_ = dye::none;
@@ -1275,10 +1276,9 @@ namespace pgbar {
   void __PGBAR_NAME_PREFIX__::operator()() {
     switch ( cur_state_ = transition( cur_state_ ) ) {
     case render_state::beginning: { // intermediate state
-      last_bar_progress_ = {};
       first_invoked_ = std::chrono::system_clock::now();
 
-      bar_.generate_barcode( bar_.option_, 0.0, 0, {} );
+      bar_.fitter( bar_.option_, 0.0, 0, {} );
       bar_.stream_ << bar_.buffer_; // For visual purposes, output the full progress bar at the beginning.
       bar_.update_flag_ = true;
       cur_state_ = render_state::refreshing; // unconditional jump
@@ -1294,15 +1294,15 @@ namespace pgbar {
       else last_bar_progress_ = num_percent;
 
       // Then normally output the progress bar.
-      bar_.generate_barcode( std::move( controller ), num_percent, current,
-                             std::chrono::system_clock::now() - first_invoked_ );
+      bar_.fitter( std::move( controller ), num_percent, current,
+                   std::chrono::system_clock::now() - first_invoked_ );
       bar_.stream_ << bar_.buffer_;
     } break;
 
     case render_state::ending: { // intermediate state
       if ( !bar_.reset_signal_ )
-        bar_.generate_barcode( bar_.option_, 1, bar_.get_tasks(),
-                               std::chrono::system_clock::now() - first_invoked_ );
+        bar_.fitter( bar_.option_, 1, bar_.get_tasks(),
+                     std::chrono::system_clock::now() - first_invoked_ );
       bar_.buffer_.append( 1, '\n' );
       bar_.stream_ << bar_.buffer_; // Same, for visual purposes.
       bar_.buffer_.release(); // releases the buffer
