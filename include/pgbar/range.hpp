@@ -54,7 +54,7 @@ namespace pgbar {
         if ( _endpoint < _startpoint && _step > 0 )
           throw bad_pgbar { "pgbar::__detail::range_iterator: invalid iteration range" };
         bar = &_bar;
-        bar->reset().set_task( iter.get_extent() ).set_step( 1 );
+        bar->reset().set_task( iter.extent() ).set_step( 1 );
       }
       __PGBAR_NODISCARD__ range_iterator begin() const noexcept {
         return *this;
