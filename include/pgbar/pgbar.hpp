@@ -373,7 +373,10 @@ namespace pgbar {
       }
 
       /// @brief Append several characters to the buffer.
-      __PGBAR_INLINE_FUNC__ void append( SizeT _num, CharT _ch ) { buffer_.append( _num, _ch ); }
+      __PGBAR_INLINE_FUNC__ charactersbuf& append( SizeT _num, CharT _ch ) {
+        buffer_.append( _num, _ch );
+        return *this;
+      }
       __PGBAR_INLINE_FUNC__ void reserve( SizeT _size ) { buffer_.reserve( _size ); }
       __PGBAR_INLINE_FUNC__ void clear() { buffer_.clear(); }
       __PGBAR_INLINE_FUNC__ void release() { clear(); buffer_.shrink_to_fit(); }
@@ -873,7 +876,7 @@ namespace pgbar {
     }
 
     __PGBAR_NODISCARD__ __detail::StrT produce_timer( std::chrono::nanoseconds time_passed,
-                                                   __detail::SizeT num_done ) const {
+                                                      __detail::SizeT num_done ) const {
       if ( !is_updated() )
         return { __PGBAR_DEFAULT_TIMER__ };
 
@@ -908,8 +911,9 @@ namespace pgbar {
 
     /// @brief Based on the value of `option` and bitwise operations,
     /// @brief determine which part of the string needs to be concatenated.
-    void fitter( BitVector ctrller, double num_per, __detail::SizeT num_done,
-                 std::chrono::nanoseconds time_passed ) const {
+    __detail::charactersbuf&
+      fitter( BitVector ctrller, double num_per, __detail::SizeT num_done,
+              std::chrono::nanoseconds time_passed ) const {
       const __detail::SizeT total_length = (
         (ctrller[bit_index::bar] ?
           (bar_length_ + startpoint_.size() + endpoint_.size() + 1) : 0)
@@ -947,6 +951,8 @@ namespace pgbar {
         buffer_ << produce_timer( std::move( time_passed ), num_done );
       if ( status_length_ != 0 )
         buffer_ << rstatus_ << __PGBAR_DEFAULT_COL__;
+
+      return buffer_;
     }
 
     template<typename F>
@@ -1098,10 +1104,10 @@ namespace pgbar {
       return *this;
     }
 
-    bool is_updated() const noexcept {
+    __PGBAR_NODISCARD__ bool is_updated() const noexcept {
       return update_flag_;
     }
-    bool is_done() const noexcept {
+    __PGBAR_NODISCARD__ bool is_done() const noexcept {
       return is_updated() && task_cnt_.is_end();
     }
     /// @brief Reset pgbar obj, EXCLUDING the total number of tasks.
@@ -1278,8 +1284,8 @@ namespace pgbar {
     case render_state::beginning: { // intermediate state
       first_invoked_ = std::chrono::system_clock::now();
 
-      bar_.fitter( bar_.option_, 0.0, 0, {} );
-      bar_.stream_ << bar_.buffer_; // For visual purposes, output the full progress bar at the beginning.
+      bar_.stream_ << // For visual purposes, output the full progress bar at the beginning.
+        bar_.fitter( bar_.option_, 0.0, 0, {} );
       bar_.update_flag_ = true;
       cur_state_ = render_state::refreshing; // unconditional jump
     } break;
@@ -1294,17 +1300,16 @@ namespace pgbar {
       else last_bar_progress_ = num_percent;
 
       // Then normally output the progress bar.
-      bar_.fitter( std::move( controller ), num_percent, current,
-                   std::chrono::system_clock::now() - first_invoked_ );
-      bar_.stream_ << bar_.buffer_;
+      bar_.stream_ <<
+        bar_.fitter( std::move( controller ), num_percent, current,
+                     std::chrono::system_clock::now() - first_invoked_ );
     } break;
 
     case render_state::ending: { // intermediate state
       if ( !bar_.reset_signal_ )
         bar_.fitter( bar_.option_, 1, bar_.total_tasks(),
                      std::chrono::system_clock::now() - first_invoked_ );
-      bar_.buffer_.append( 1, '\n' );
-      bar_.stream_ << bar_.buffer_; // Same, for visual purposes.
+      bar_.stream_ << bar_.buffer_.append( 1, '\n' ); // Same, for visual purposes.
       bar_.buffer_.release(); // releases the buffer
       cur_state_ = render_state::stopped; // unconditional jump
     } break;
@@ -1322,13 +1327,11 @@ namespace pgbar {
     concept PgbarType = requires {
       typename B::StreamType;
       typename B::RendererType;
-      requires (
-        std::conjunction_v<
-          is_stream<typename B::StreamType>,
-          is_renderer<typename B::RendererType>,
-          std::is_same<pgbar<typename B::StreamType, typename B::RendererType>, B>
-        >
-      );
+      requires std::conjunction_v<
+        is_stream<typename B::StreamType>,
+        is_renderer<typename B::RendererType>,
+        std::is_same<pgbar<typename B::StreamType, typename B::RendererType>, B>
+      >;
     };
   }
 
@@ -1367,7 +1370,8 @@ namespace pgbar {
     pgbar<S, R>
   >::type
 #endif // __PGBAR_CXX20__
-  make_pgbar( S& stream_obj, Args&&... args ) {
+  make_pgbar( S& stream_obj, Args&&... args )
+  {
     pgbar<S, R> bar { stream_obj };
     __detail::pipeline_expan( bar, std::forward<Args>( args )... );
     return bar;
