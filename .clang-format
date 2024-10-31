@@ -1,0 +1,83 @@
+---
+Language: Cpp
+BasedOnStyle: Mozilla
+AlignArrayOfStructures: Left
+AlignConsecutiveAssignments:
+  Enabled: true
+  AcrossEmptyLines: false
+  AcrossComments: true
+  AlignCompound: false
+  AlignFunctionPointers: false
+  PadOperators: false
+AlignConsecutiveBitFields:
+  Enabled: true
+  AcrossEmptyLines: false
+  AcrossComments: true
+  AlignCompound: false
+  AlignFunctionPointers: false
+  PadOperators: false
+AlignConsecutiveMacros:
+  Enabled: true
+  AcrossEmptyLines: false
+  AcrossComments: true
+  AlignCompound:   false
+  AlignFunctionPointers: false
+  PadOperators:    false
+AlignConsecutiveShortCaseStatements:
+  Enabled: true
+  AcrossEmptyLines: false
+  AcrossComments: true
+  AlignCaseColons: false
+AlignEscapedNewlines: Left
+AlignOperands: AlignAfterOperator
+AllowAllArgumentsOnNextLine: false
+AllowBreakBeforeNoexceptSpecifier: OnlyWithParen
+AllowShortBlocksOnASingleLine: Always
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortIfStatementsOnASingleLine: Never
+# deprecated in clang-format 19
+AlwaysBreakAfterDefinitionReturnType: None
+AlwaysBreakAfterReturnType: None #ExceptShortType
+BraceWrapping:
+  AfterCaseLabel:  false
+  AfterClass:      false
+  AfterControlStatement: Never
+  AfterEnum:       false
+  AfterExternBlock: false
+  AfterFunction:   true
+  AfterNamespace:  false
+  AfterObjCDeclaration: false
+  AfterStruct:     false
+  AfterUnion:      false
+  BeforeCatch:     false
+  BeforeElse:      false
+  BeforeLambdaBody: false
+  BeforeWhile:     false
+  IndentBraces:    false
+  SplitEmptyFunction: false
+  SplitEmptyRecord: false
+  SplitEmptyNamespace: false
+BreakBeforeBraces: Custom
+BreakBeforeBinaryOperators: NonAssignment
+ColumnLimit: 100
+FixNamespaceComments: true
+IndentCaseLabels: false
+IndentExternBlock: Indent
+IndentGotoLabels: false
+IndentPPDirectives: AfterHash
+IndentWrappedFunctionNames: true
+InsertNewlineAtEOF: true
+NamespaceIndentation: All
+PackConstructorInitializers: NextLine
+PPIndentWidth: 1
+ShortNamespaceLines: 5
+SpaceBeforeCpp11BracedList: true
+SpacesInParens: Custom
+SpacesInParensOptions:
+  #ExceptDoubleParentheses: false
+  InConditionalStatements: true
+  InCStyleCasts: false
+  InEmptyParentheses: false
+  Other: true
+Standard: Latest
+...

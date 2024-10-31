@@ -1,7 +1,7 @@
-*.cpp        text eol=lf
-Makefile     text eol=lf
-*.md         text eol=lf
-LICENSE      text eol=lf
-*            -trailing
+*.cpp    text eol=lf
+Makefile text eol=lf
+*.md     text eol=lf
+LICENSE  text eol=lf
+*        -trailing
 
-*.gif        -text
+*.gif    -text

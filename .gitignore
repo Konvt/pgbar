@@ -1,12 +1,7 @@
 .vscode/
 .vs/
-
+.xmake/
 build/
-dev/
-demo/cxx11
-demo/cxx20
+misc/
 
 *.exe
-sample
-how-to-use
-commit_info.*

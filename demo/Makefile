@@ -1,5 +1,6 @@
-all:
-	g++ -Og -std=c++11 -Wpedantic -I ../include sample.cpp -o sample
-	g++ -Og -std=c++11 -Wpedantic -I ../include how-to-use.cpp -o how-to-use
+demo:
+	g++ -Og -std=c++11 -Wpedantic -Wall -I ../include demo.cpp -o demo
+unicode:
+	g++ -Og -std=c++11 -Wpedantic -Wall -I ../include unicode.cpp -o unicode
 clean:
-	rm -f sample
+	rm -f demo unicode
