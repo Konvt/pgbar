@@ -43,7 +43,7 @@ int main()
 
 ![example-usage](images/example_usage.gif)
 
-更多用例详见 [QuickStart_zh.md](QuickStart_zh.md) 及 [usage.cpp](demo/usage.cpp)。
+更多用例详见 [QuickStart_zh.md](QuickStart_zh.md) 及 [demo.cpp](demo/demo.cpp)。
 
 ## FAQ
 ### 进度条的更新工作会拖慢程序本身吗？
@@ -80,7 +80,7 @@ int main()
 
 > 不过我认为现在大多数终端都支持解析转义序列（只要你的终端中的字符能够被染色），所以这个问题应该不大。
 
-你可以在 [demo/unicode.cpp](demo/unicode.cpp) 中查看具体的 Unicode 渲染示例。
+你可以在 [unicode.cpp](demo/unicode.cpp) 中查看具体的 Unicode 渲染示例。
 
 ## 许可
 项目遵从 [MIT](LICENSE) 许可。
