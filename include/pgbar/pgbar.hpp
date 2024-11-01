@@ -2035,7 +2035,7 @@ namespace pgbar {
                   // Intermediate state
                   // Used to tell other threads that the current thread has woken up.
                   task_->run();
-                  auto expected = state::active;
+                  auto expected = state::awake;
                   state_.compare_exchange_strong( expected,
                                                   state::active,
                                                   std::memory_order_acq_rel,
