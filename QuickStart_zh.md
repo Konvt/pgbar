@@ -12,7 +12,6 @@
     - [错误的 RGB 数值](#错误的-rgb-数值)
   - [指派特定的流对象](#指派特定的流对象)
   - [更改进度条的长度](#更改进度条的长度)
-  - [工厂函数](#工厂函数)
   - [更改全局刷新率](#更改全局刷新率)
   - [线程安全性](#线程安全性)
   - [运行单元测试](#运行单元测试)
@@ -178,13 +177,13 @@ for ( auto _ = 0; _ < 100; ++_ )
   bar.tick();
 ```
 
-实际上，以上的所有操作都是在修改 `ProgressBar` 内部的 `pgbar::Config` 对象。所以你也可以单独定义一个 `pgbar::Config` 类型，然后将它传递给 `ProgressBar`。
+实际上，以上的所有操作都是在修改 `ProgressBar` 内部的 `pgbar::configs::Progress` 对象。所以你也可以单独定义一个 `pgbar::configs::Progress` 类型，然后将它传递给 `ProgressBar`。
 
 ```cpp
-auto cfg = pgbar::Config( pgbar::options::TodoChar( "-" ),
-                          pgbar::options::DoneChar( "+" ),
-                          pgbar::options::Tasks( 114514 ) );
-pgbar::ProgressBar<> bar2 { cfg }; // `Config` 是可复制的
+auto cfg = pgbar::configs::Progress( pgbar::options::TodoChar( "-" ),
+                                     pgbar::options::DoneChar( "+" ),
+                                     pgbar::options::Tasks( 114514 ) );
+pgbar::ProgressBar<> bar2 { cfg }; // `pgbar::configs::Progress` 是可复制的
 bar.configure( std::move( cfg ) ); // 也是可移动的
 ```
 
@@ -343,11 +342,11 @@ pgbar::ProgressBar<StreamType> bar { std::clog };
 
 默认使用的流对象会被绑定到 `std::cerr` 上。
 
-如果程序并没有运行在终端中，`Config::intty()` 方法还会返回 `false`，并且进度条将不会显示任何东西。
+如果程序并没有运行在终端中，`pgbar::configs::Global::intty()` 方法还会返回 `false`，并且进度条将不会显示任何东西。
 
 ```cpp
 std::cout << "  Current program is running in a tty? " << std::boolalpha
-          << pgbar::Config::intty() << std::endl;
+          << pgbar::configs::Global::intty() << std::endl;
 ```
 
 不过这个功能仅限于 Windows 或类 Unix 系统。
@@ -397,29 +396,17 @@ bar.configure().bar_length( terminal_width - total_length_excluding_bar );
 
 此时的进度条恰能填满一行。
 
-## 工厂函数
-库中提供了一个名为 `pgbar::make_progress` 的工厂函数。
-
-```cpp
-auto bar =
-  pgbar::make_progress( std::clog,
-                        pgbar::options::Tasks( 1919810 ),
-                        pgbar::options::Styles( pgbar::configs::Progress::Entire & pgbar::configs::Progress::Bar ) );
-```
-
-同样的，缺省流对象时会默认绑定到默认的上。
-
 ## 更改全局刷新率
-刷新率（或者叫刷新间隔）是一个 `pgbar::Config` 的静态成员，它会影响到全局的进度条显示效果。
+刷新率（或者叫刷新间隔）是一个 `pgbar::configs::Global` 的静态成员，它会影响到全局的进度条显示效果。
 
 它的单位是 `std::chrono::nanoseconds`。
 
 ```cpp
-std::cout << "  Default refresh interval: " << pgbar::Config::refresh_interval().count()
+std::cout << "  Default refresh interval: " << pgbar::configs::Global::refresh_interval().count()
           << " ns" << std::endl;
 // 可以通过调用同名方法更改它的值
-pgbar::Config::refresh_interval( std::chrono::nanoseconds( 20000 ) );
-std::cout << "  The new refresh interval: " << pgbar::Config::refresh_interval().count()
+pgbar::configs::Global::refresh_interval( std::chrono::nanoseconds( 20000 ) );
+std::cout << "  The new refresh interval: " << pgbar::configs::Global::refresh_interval().count()
           << " ns" << std::endl;
 ```
 
@@ -430,7 +417,7 @@ std::cout << "  The new refresh interval: " << pgbar::Config::refresh_interval()
 这里的刷新间隔仅提供了一个延长每次刷新时间的手段，或者换句话说，用来降低刷新率。
 
 ## 线程安全性
-调用 `pgbar::Config` 除了构造函数之外的成员方法以及静态方法是线程安全的，它们都受到读写锁的保护。
+调用 `pgbar::configs` 中的成员的除了构造函数之外的成员方法以及静态方法是线程安全的，它们都受到读写锁的保护。
 
 但是如果 `pgbar::ProgressBar` 在运行中（使用 `is_running` 方法判断），那么调用任何非 `const` 修饰的非静态成员方法必然线程不安全，并且调用的行为是不确定的。
 

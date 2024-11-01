@@ -12,9 +12,8 @@
     - [Invalid RGB values or strings](#invalid-rgb-values-or-strings)
   - [Appoint a specific stream object](#appoint-a-specific-stream-object)
   - [Change the length of the progress bar](#change-the-length-of-the-progress-bar)
-  - [Use a factory function](#use-a-factory-function)
   - [Determine the refresh rate of the progress bar](#determine-the-refresh-rate-of-the-progress-bar)
-  - [The thread safety of the `pgbar::Config` and `pgbar::pgbar`](#the-thread-safety-of-the-pgbarconfig-and-pgbarpgbar)
+  - [The thread safety](#the-thread-safety)
   - [Run unit tests](#run-unit-tests)
 - [`pgbar::SpinnerBar`](#pgbarspinnerbar)
   - [UI Logic](#ui-logic)
@@ -155,14 +154,14 @@ for ( auto _ = 0; _ < 100; ++_ )
 ```
 
 ## Tweak the configurations *when* constructing a object
-You can create a `ProgressBar` by passing a list of wrapper objects defined in `pgbar::initr`.
+You can create a `ProgressBar` by passing a list of wrapper objects defined in `pgbar::options`.
 
 ```cpp
-pgbar::ProgressBar<> bar { pgbar::initr::TodoChar( "-" ),
-                           pgbar::initr::DoneChar( "=" ),
-                           pgbar::initr::Styles( pgbar::configs::Progress::Rate | pgbar::configs::Progress::Timer ),
-                           pgbar::initr::StatusColor( pgbar::colors::Yellow ),
-                           pgbar::initr::Tasks( 100 ) };
+pgbar::ProgressBar<> bar { pgbar::options::TodoChar( "-" ),
+                           pgbar::options::DoneChar( "=" ),
+                           pgbar::options::Styles( pgbar::configs::Progress::Rate | pgbar::configs::Progress::Timer ),
+                           pgbar::options::StatusColor( pgbar::colors::Yellow ),
+                           pgbar::options::Tasks( 100 ) };
 for ( auto _ = 0; _ < 100; ++_ )
   bar.tick();
 ```
@@ -170,19 +169,19 @@ for ( auto _ = 0; _ < 100; ++_ )
 This configuration method can be used not only in constructor, but also in method `configure().set()`.
 
 ```cpp
-bar.configure().set( pgbar::initr::TodoChar( " " ),
-                     pgbar::initr::StatusColor( pgbar::colors::Green ) );
+bar.configure().set( pgbar::options::TodoChar( " " ),
+                     pgbar::options::StatusColor( pgbar::colors::Green ) );
 for ( auto _ = 0; _ < 100; ++_ )
   bar.tick();
 ```
 
-This actually modifies the object `pgbar::Config` within the `ProgressBar` object, which allows you to modify the configuration in this manner if desired.
+This actually modifies the object `pgbar::configs::Progress` within the `ProgressBar` object, which allows you to modify the configuration in this manner if desired.
 
 ```cpp
-auto cfg = pgbar::Config( pgbar::initr::TodoChar( "-" ),
-                          pgbar::initr::DoneChar( "+" ),
-                          pgbar::initr::Tasks( 114514 ) );
-pgbar::ProgressBar<> bar2 { cfg }; // `Config` is copyable
+auto cfg = pgbar::configs::Progress( pgbar::options::TodoChar( "-" ),
+                                     pgbar::options::DoneChar( "+" ),
+                                     pgbar::options::Tasks( 114514 ) );
+pgbar::ProgressBar<> bar2 { cfg }; // `pgbar::configs::Progress` is copyable
 bar.configure( std::move( cfg ) ); // also movable
 ```
 
@@ -343,11 +342,11 @@ pgbar::ProgressBar<StreamType> bar { std::clog };
 
 The default stream object is bound to `std::cerr`.
 
-If the program is not running in a terminal, the `Config::intty()` will return false, and the progress bar display nothing.
+If the program is not running in a terminal, the `pgbar::configs::Global::intty()` will return false, and the progress bar display nothing.
 
 ```cpp
 std::cout << "  Current program is running in a tty? " << std::boolalpha
-          << pgbar::Config::intty() << std::endl;
+          << pgbar::configs::Global::intty() << std::endl;
 ```
 
 This feature is available only on Windows or Unix-like systems.
@@ -397,27 +396,15 @@ bar.configure().bar_length( terminal_width - total_length_excluding_bar );
 
 The progress bar perfectly fills one line now.
 
-## Use a factory function
-There's a simple factory function named `pgbar::make_progress`, it's just as simple as constructing a `pgbar::Config`.
-
-```cpp
-auto bar =
-  pgbar::make_progress( std::clog,
-                        pgbar::initr::Tasks( 1919810 ),
-                        pgbar::initr::Styles( pgbar::configs::Progress::Entire & pgbar::configs::Progress::Bar ) );
-```
-
-The default stream object will be used if none is provided.
-
 ## Determine the refresh rate of the progress bar
-The refresh interval is a global static object defined in `pgbar::Config`, which affects the refresh rate of all progress bars output to the terminal.
+The refresh interval is a global static object defined in `pgbar::configs::Global`, which affects the refresh rate of all progress bars output to the terminal.
 
 ```cpp
-std::cout << "  Default refresh interval: " << pgbar::Config::refresh_interval().count()
+std::cout << "  Default refresh interval: " << pgbar::configs::Global::refresh_interval().count()
           << " ns" << std::endl;
 // You can change its value by invoking a function with the same name.
-pgbar::Config::refresh_interval( std::chrono::nanoseconds( 20000 ) );
-std::cout << "  The new refresh interval: " << pgbar::Config::refresh_interval().count()
+pgbar::configs::Global::refresh_interval( std::chrono::nanoseconds( 20000 ) );
+std::cout << "  The new refresh interval: " << pgbar::configs::Global::refresh_interval().count()
           << " ns" << std::endl;
 ```
 
@@ -427,10 +414,10 @@ Since the time consumed during each output is not always zero, the maximum refre
 
 The refresh interval merely provides the capability to extend the refresh time, or in other words, "lower the refresh rate."
 
-## The thread safety of the `pgbar::Config` and `pgbar::pgbar`
-Invoking member and static functions other than the ctor of `pgbar::Config` is thread-safe, they are protected by a read-write lock.
+## The thread safety
+Invoking member and static functions other than the ctor of objects defined in `pgbar::configs` is thread-safe, they are protected by a read-write lock.
 
-However, when the `pgbar::ProgressBar` is running (Use the `is_running` method for the check), invoking any non-const member function of its `pgbar::Config` is thread-unsafe, and the behavior in such cases is unspecified.
+However, when the `pgbar::ProgressBar` is running (Use the `is_running` method for the check), invoking any non-const member function of its `pgbar::configs::Progress` is thread-unsafe, and the behavior in such cases is unspecified.
 
 The `pgbar::ProgressBar` itself can be either thread-safe or thread-unsafe, it depends on its second template parameter.
 

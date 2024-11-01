@@ -266,7 +266,7 @@ int main()
     // The default stream object is bound to `std::cerr`.
 
     // If the program is not running in a terminal,
-    // the `Config::intty()` will return false,
+    // the `pgbar::Global::intty()` will return false,
     // and the progress bar display nothing.
     std::cout << "  Current program is running in a tty? " << std::boolalpha
               << pgbar::configs::Global::intty() << std::endl;
