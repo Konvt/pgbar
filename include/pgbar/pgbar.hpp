@@ -2035,7 +2035,11 @@ namespace pgbar {
                   // Intermediate state
                   // Used to tell other threads that the current thread has woken up.
                   task_->run();
-                  state_.store( state::active, std::memory_order_release );
+                  auto expected = state::active;
+                  state_.compare_exchange_strong( expected,
+                                                  state::active,
+                                                  std::memory_order_acq_rel,
+                                                  std::memory_order_relaxed );
                 } break;
                   /* The state `awake` does not jump to `active` by using `fallthrough`,
                    * because we need to ensure that `suspend` must be transferred from `active`.
@@ -2063,7 +2067,8 @@ namespace pgbar {
                 }
               } catch ( ... ) {
                 // keep object valid
-                state_.store( state::dormant, std::memory_order_release );
+                if ( state_.load( std::memory_order_acquire ) != state::finish )
+                  state_.store( state::dormant, std::memory_order_release );
                 // Avoid deadlock in main thread
                 // when the child thread catchs exceptions.
                 auto exception = std::current_exception();
@@ -2326,10 +2331,19 @@ namespace pgbar {
 
     void unlock_reset()
     {
-      __PGBAR_UNLIKELY if ( !configs::Global::intty() ) return;
-      __PGBAR_ASSERT( this->executor_.valid() );
-      state_.store( state::finish, std::memory_order_release );
-      this->executor_.suspend();
+      if ( this->executor_.valid() ) {
+        auto expected = state::begin;
+        state_.compare_exchange_strong( expected,
+                                        state::finish,
+                                        std::memory_order_acq_rel,
+                                        std::memory_order_relaxed )
+          || state_.compare_exchange_strong( expected = state::refresh,
+                                             state::finish,
+                                             std::memory_order_acq_rel,
+                                             std::memory_order_relaxed );
+        this->executor_.suspend();
+      } else
+        __PGBAR_ASSERT( state_ == state::stopped );
     }
 
     template<typename F>
@@ -2759,7 +2773,11 @@ namespace pgbar {
           idx_frame_ = 0,
           widest_frame_size_ );
 
-        state_.store( state::refresh, std::memory_order_release );
+        auto expected = state::begin;
+        state_.compare_exchange_strong( expected,
+                                        state::refresh,
+                                        std::memory_order_release,
+                                        std::memory_order_relaxed );
       }
         __PGBAR_FALLTHROUGH;
 
@@ -2790,10 +2808,19 @@ namespace pgbar {
 
     void unlock_reset()
     {
-      __PGBAR_UNLIKELY if ( !configs::Global::intty() ) return;
-      __PGBAR_ASSERT( this->executor_.valid() );
-      state_.store( state::finish, std::memory_order_release );
-      this->executor_.suspend();
+      if ( this->executor_.valid() ) {
+        auto expected = state::begin;
+        state_.compare_exchange_strong( expected,
+                                        state::finish,
+                                        std::memory_order_acq_rel,
+                                        std::memory_order_relaxed )
+          || state_.compare_exchange_strong( expected = state::refresh,
+                                             state::finish,
+                                             std::memory_order_acq_rel,
+                                             std::memory_order_relaxed );
+        this->executor_.suspend();
+      } else
+        __PGBAR_ASSERT( state_ == state::stopped );
     }
 
   public:

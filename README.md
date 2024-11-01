@@ -46,7 +46,7 @@ int main()
 
 ![example-usage](images/example_usage.gif)
 
-For more examples, see [QuickStart.md](QuickStart.md) and [usage.cpp](demo/usage.cpp).
+For more examples, see [QuickStart.md](QuickStart.md) and [demo.cpp](demo/demo.cpp).
 
 ## FAQ
 ### Does updating the progress bar slow down the program?
@@ -83,7 +83,7 @@ The only caveat is that the progress bar requires a terminal that supports ANSI 
 
 > Most modern terminals support escape sequences, so this shouldn't be a concern as long as your terminal can render colored characters.
 
-For a specific example of Unicode rendering, see [demo/unicode.cpp].
+For a specific example of Unicode rendering, see [unicode.cpp](demo/unicode.cpp).
 
 ## License
 This project is licensed under the [MIT](LICENSE) license.
