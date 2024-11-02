@@ -14,10 +14,13 @@
   - [Change the length of the progress bar](#change-the-length-of-the-progress-bar)
   - [Determine the refresh rate of the progress bar](#determine-the-refresh-rate-of-the-progress-bar)
   - [The thread safety](#the-thread-safety)
-  - [Run unit tests](#run-unit-tests)
 - [`pgbar::SpinnerBar`](#pgbarspinnerbar)
   - [UI Logic](#ui-logic)
   - [Tweak the detailed configurations](#tweak-the-detailed-configurations-1)
+  - [Some exceptional situations](#some-exceptional-situations-1)
+    - [Invalid parameter of frame animation](#invalid-parameter-of-frame-animation)
+  - [The thread safety](#the-thread-safety-1)
+- [Run unit tests](#run-unit-tests)
 
 # `pgbar::ProgressBar`
 ## Construct a default object
@@ -453,40 +456,6 @@ for ( auto& td : threads ) {
     td.join();
 }
 ```
-
-## Run unit tests
-The project uses [Catch2](https://github.com/catchorg/Catch2) for basic unit tests and tests via the [xmake](https://github.com/xmake-io/xmake/) build system.
-
-> Note:
-> \
-> When compiling test cases with different C++ standards, you need to include the appropriate version of `Catch2`;
->  For C++11, place the [Catch2 v2.x](https://github.com/catchorg/Catch2/tree/v2.x) headers directly in the [tests/](tests/) directory;
-> For C++14 and later, use a package manager (or `xmake`) to bring in [Catch2 v3.x](https://github.com/catchorg/Catch2/tree/devel), or manually merge the headers and place them in the [tests/](tests/) directory.
-> \
-> The xmake version must be higher than 2.8.5.
-
-To run all test cases, use the following command:
-
-```sh
-xmake test
-# Add the -vD flag for verbose output
-```
-
-To run a specific test case, use:
-
-```sh
-xmake test testcase_filename/*
-```
-
-Since `xmake` tests are not bound to the terminal, some test cases may be invalid in this environment.
-
-> Some "test cases" are performance tests and are not part of the test suite.
-
-You can switch to the `tests/` directory and manually compile test cases with the `Makefile` as another way to run individual tests.
-
-```sh
-cd tests/ && make file=test_case_name.cpp && ./test
-```
 - - -
 
 # `pgbar::SpinnerBar`
@@ -533,3 +502,68 @@ bar.configure().suffix( "Waiting main thread..." );
 >   (setter only) to change the color of the True frame;
 > - `configure().false_color()`:
 >   (setter only) to change the color of the False frame.
+
+## Some exceptional situations
+### Invalid parameter of frame animation
+If you pass an empty vector to `frames()`, the object will throw an `pgbar::exceptions::InvalidArgument` exception immediately.
+
+```cpp
+pgbar::SpinnerBar<> spbar;
+try {
+  spbar.configure().frames( {} );
+} catch ( const pgbar::exceptions::InvalidArgument& e ) {
+  std::cerr << "  Exception: \"" << e.what() << "\"" << std::endl;
+}
+```
+
+It's same in `pgbar::options::Frames`.
+
+```cpp
+try {
+  pgbar::options::Frames( {} );
+} catch ( const pgbar::exceptions::InvalidArgument& e ) {
+  std::cerr << "  Exception: \"" << e.what() << "\"" << std::endl;
+}
+```
+
+## The thread safety
+The thread-safety of `pgbar::configs::Spinner` is same as what [this section](#the-thread-safety) says.
+
+When `pgbar::configs::SpinnerBar` is set to thread safety, only the first invocation of `tick()` method in multiple threads will launch it, the rest will be ignored.
+
+The `reset()` method is the same as above.
+- - -
+
+# Run unit tests
+The project uses [Catch2](https://github.com/catchorg/Catch2) for basic unit tests and tests via the [xmake](https://github.com/xmake-io/xmake/) build system.
+
+> Note:
+> \
+> When compiling test cases with different C++ standards, you need to include the appropriate version of `Catch2`;
+>  For C++11, place the [Catch2 v2.x](https://github.com/catchorg/Catch2/tree/v2.x) headers directly in the [tests/](tests/) directory;
+> For C++14 and later, use a package manager (or `xmake`) to bring in [Catch2 v3.x](https://github.com/catchorg/Catch2/tree/devel), or manually merge the headers and place them in the [tests/](tests/) directory.
+> \
+> The xmake version must be higher than 2.8.5.
+
+To run all test cases, use the following command:
+
+```sh
+xmake test
+# Add the -vD flag for verbose output
+```
+
+To run a specific test case, use:
+
+```sh
+xmake test testcase_filename/*
+```
+
+Since `xmake` tests are not bound to the terminal, some test cases may be invalid in this environment.
+
+> Some "test cases" are performance tests and are not part of the test suite.
+
+You can switch to the `tests/` directory and manually compile test cases with the `Makefile` as another way to run individual tests.
+
+```sh
+cd tests/ && make file=test_case_name.cpp && ./test
+```

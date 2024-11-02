@@ -1301,13 +1301,13 @@ namespace pgbar {
 
       Global( const Global& lhs ) { operator=( lhs ); }
       Global( Global&& rhs ) noexcept { operator=( std::move( rhs ) ); }
-      Global& operator=( const Global& lhs )
+      Global& operator=( const Global& lhs ) &
       {
         __PGBAR_ASSERT( this != std::addressof( lhs ) );
         front_options_ = lhs.front_options_;
         return *this;
       }
-      Global& operator=( Global&& rhs ) noexcept
+      Global& operator=( Global&& rhs ) & noexcept
       {
         __PGBAR_ASSERT( this != std::addressof( rhs ) );
         front_options_ = rhs.front_options_;
@@ -1840,13 +1840,13 @@ namespace pgbar {
          * concatenated.
          */
         StringBuffer& build( StringBuffer& buffer,
-                             types::Float num_per,
                              types::Size num_done,
                              types::TimeUnit time_passed ) const
         {
+          __PGBAR_ASSERT( num_done <= task_range_.end_value() );
+          const auto num_per = static_cast<types::Float>( num_done ) / task_range_.end_value();
           __PGBAR_ASSERT( num_per >= 0.0 );
           __PGBAR_ASSERT( num_per <= 1.0 );
-          __PGBAR_ASSERT( num_done <= task_range_.end_value() );
 
           const types::ROStr placeholder = "";
           if ( visibilities_[BitIndex::bar] ) {
@@ -2138,7 +2138,7 @@ namespace pgbar {
       };
 
       template<typename Config, typename StreamObj, typename MutexMode, class Derived>
-      class Director { // CRTP
+      class Director { // CRTP, defines some common members.
 # if !__PGBAR_CXX20
         static_assert( traits::is_ostream<StreamObj>::value,
                        "pgbar::__detail::render::Director: Invalid tmeplate type" );
@@ -2172,14 +2172,14 @@ namespace pgbar {
         Director( self&& rhs ) noexcept( std::is_nothrow_default_constructible<MutexMode>::value )
           : Director( *rhs.stream_, std::move( rhs.builder_ ) )
         {}
-        self& operator=( const self& lhs )
+        self& operator=( const self& lhs ) &
         {
           __PGBAR_ASSERT( this != std::addressof( lhs ) );
           builder_ = lhs.builder_;
           stream_  = lhs.stream_;
           return *this;
         }
-        self& operator=( self&& rhs ) noexcept
+        self& operator=( self&& rhs ) & noexcept
         {
           __PGBAR_ASSERT( this != std::addressof( rhs ) );
           builder_.swap( rhs.builder_ );
@@ -2281,7 +2281,6 @@ namespace pgbar {
         *this->stream_ << this->builder_.build(
           this->buffer_.reserve( this->builder_.fixed_size() + this->builder_.bar_length() + 7 )
             .append( __detail::constants::cursor_save ),
-          0.0,
           0,
           {} );
 
@@ -2297,24 +2296,16 @@ namespace pgbar {
         __PGBAR_FALLTHROUGH;
 
       case state::refresh: {
-        const auto num_percent = progress() / static_cast<__detail::types::Float>( task_end_ );
-        __PGBAR_ASSERT( num_percent <= 100.0 && num_percent >= 0.0 );
-
         // Then normally output the progress bar.
         *this->stream_ << this->builder_.build(
           this->buffer_.append( __detail::constants::cursor_restore ),
-          num_percent,
           progress(),
           std::chrono::system_clock::now() - zero_point_ );
       } break;
 
       case state::finish: { // intermediate state
-        const auto num_percent = progress() / static_cast<__detail::types::Float>( task_end_ );
-        __PGBAR_ASSERT( num_percent <= 100.0 && num_percent >= 0.0 );
-
         *this->stream_ << this->builder_
                             .build( this->buffer_.append( __detail::constants::cursor_restore ),
-                                    num_percent,
                                     progress(),
                                     std::chrono::system_clock::now() - zero_point_ )
                             .append( 1, '\n' );

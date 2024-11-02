@@ -14,10 +14,13 @@
   - [更改进度条的长度](#更改进度条的长度)
   - [更改全局刷新率](#更改全局刷新率)
   - [线程安全性](#线程安全性)
-  - [运行单元测试](#运行单元测试)
 - [`pgbar::SpinnerBar`](#pgbarspinnerbar)
   - [UI 逻辑](#ui-逻辑)
   - [调整详细配置](#调整详细配置-1)
+  - [异常场景](#异常场景-1)
+    - [空的帧动画](#空的帧动画)
+  - [线程安全性](#线程安全性-1)
+- [运行单元测试](#运行单元测试)
 
 # `pgbar::ProgressBar`
 ## 构造默认对象
@@ -455,40 +458,6 @@ for ( auto& td : threads ) {
     td.join();
 }
 ```
-
-## 运行单元测试
-项目使用了 [Catch2](https://github.com/catchorg/Catch2) 编写了一些基础的单元测试，并基于 [xmake](https://github.com/xmake-io/xmake/) 提供的编译工具链测试。
-
-> 注意：
-> \
-> 使用不同的 C++ 标准编译测试用例时，你需要引入不同版本的 `Catch2`；
-> 对于 C++11，请将 [Catch2 v2.x](https://github.com/catchorg/Catch2/tree/v2.x) 的头文件直接放在 [tests/](tests/) 目录下；
-> 对于 C++14 及更高版本，请使用包管理工具（你也可以使用 `xmake`）引入 [Catch2 v3.x](https://github.com/catchorg/Catch2/tree/devel)，或者自行将头文件合并、放在 [tests/](tests/) 目录下。
-> \
-> 使用的 `xmake` 版本必须高于 `2.8.5`.
-
-如果想同时运行所有测试用例，可以使用以下命令。
-
-```sh
-xmake test
-# 带上 -vD 参数可以查看详细输出信息
-```
-
-单独运行某个测试，可以使用以下命令。
-
-```sh
-xmake test testcase_filename/*
-```
-
-由于 `xmake` 的测试程序不会绑定到终端，所以部分测试用例在这种测试环境下是无效测试。
-
-> 部分“测试用例”属于性能测试文件，不会归入测试集中。
-
-这时候可以切入 `tests/` 目录使用 `Makefile` 手动编译测试用例；这也是一种单独运行某个测试的方法。
-
-```sh
-cd tests/ && make file=test_case_name.cpp && ./test
-```
 - - -
 
 # `pgbar::SpinnerBar`
@@ -536,3 +505,68 @@ bar.configure().suffix( "Waiting main thread..." );
 >  （仅 setter）更改 True 帧的颜色；
 > - `configure().false_color()`：
 >  （仅 setter）更改 False 帧的颜色。
+
+## 异常场景
+### 空的帧动画
+如果给 `frames()` 方法传递一个空向量，则会立即抛出一个异常 `pgbar::exceptions::InvalidArgument`。
+
+```cpp
+pgbar::SpinnerBar<> spbar;
+try {
+  spbar.configure().frames( {} );
+} catch ( const pgbar::exceptions::InvalidArgument& e ) {
+  std::cerr << "  Exception: \"" << e.what() << "\"" << std::endl;
+}
+```
+
+对于 `pgbar::options::Frames` 来说也是一样的。
+
+```cpp
+try {
+  pgbar::options::Frames( {} );
+} catch ( const pgbar::exceptions::InvalidArgument& e ) {
+  std::cerr << "  Exception: \"" << e.what() << "\"" << std::endl;
+}
+```
+
+## 线程安全性
+`pgbar::configs::Spinner` 的线程安全性与[这一节](#线程安全性)所说的相同。
+
+`pgbar::configs::SpinnerBar` 被设置为线程安全时，只有第一个调用 `tick()` 方法的线程能够启动它，其余线程的调用会被无视。
+
+`reset()` 方法同上。
+- - -
+
+# 运行单元测试
+项目使用了 [Catch2](https://github.com/catchorg/Catch2) 编写了一些基础的单元测试，并基于 [xmake](https://github.com/xmake-io/xmake/) 提供的编译工具链测试。
+
+> 注意：
+> \
+> 使用不同的 C++ 标准编译测试用例时，你需要引入不同版本的 `Catch2`；
+> 对于 C++11，请将 [Catch2 v2.x](https://github.com/catchorg/Catch2/tree/v2.x) 的头文件直接放在 [tests/](tests/) 目录下；
+> 对于 C++14 及更高版本，请使用包管理工具（你也可以使用 `xmake`）引入 [Catch2 v3.x](https://github.com/catchorg/Catch2/tree/devel)，或者自行将头文件合并、放在 [tests/](tests/) 目录下。
+> \
+> 使用的 `xmake` 版本必须高于 `2.8.5`.
+
+如果想同时运行所有测试用例，可以使用以下命令。
+
+```sh
+xmake test
+# 带上 -vD 参数可以查看详细输出信息
+```
+
+单独运行某个测试，可以使用以下命令。
+
+```sh
+xmake test testcase_filename/*
+```
+
+由于 `xmake` 的测试程序不会绑定到终端，所以部分测试用例在这种测试环境下是无效测试。
+
+> 部分“测试用例”属于性能测试文件，不会归入测试集中。
+
+这时候可以切入 `tests/` 目录使用 `Makefile` 手动编译测试用例；这也是一种单独运行某个测试的方法。
+
+```sh
+cd tests/ && make file=test_case_name.cpp && ./test
+```
