@@ -4,16 +4,17 @@
 - Header-only: All functionality contained within a single `.hpp` file in `include/pgbar`.
 - Low update overhead: Minimal cost for each progress update.
 - RGB color support: Customizable progress bar colors.
-- Unicode support: Supports strings in various encodings, including but not limited to Unicode.
 - Optional thread safety: Switchable via template parameters.
 - `tqdm`-like interface: Access provided via template metaprogramming.
 - Modern C++ compliance: Adheres to best practices in modern C++.
 - Basic unit tests: Utilizes `Catch2` framework for fundamental testing.
 
+[See here for Unicode support](#does-it-support-unicode).
+
 ## Styles
 ```
-{startpoint}{done char}{todo char}{endpoint} {left status}{percentage}{task counter}{rate}{timer}{right status}
-^~~~~~~~~~~~~~~~  Progress  ~~~~~~~~~~~~~~~^ ^~~~~~~~~~~~~~~~~~~~~~~~~~~~  Status  ~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+{startpoint}{done}{todo}{endpoint} {left status}{percentage}{task counter}{rate}{timer}{right status}
+^~~~~~~~~~~  Progress  ~~~~~~~~~~^ ^~~~~~~~~~~~~~~~~~~~~~~~~~~~  Status  ~~~~~~~~~~~~~~~~~~~~~~~~~~~^
 
 [-------                       ] [  24.00% |  48/200 |  31.00 Hz  | 00:00:01 < 00:00:04 ]
 ```
@@ -75,13 +76,15 @@ However, the smoothness of the display will depend on the single-core performanc
 ### Is it compatible with Windows/Linux?
 Absolutely. I designed this library to work seamlessly on both systems, providing a unified visualization of iteration progress.
 ### Does it support Unicode?
-As long as the UTF string is correctly encoded and your terminal can render it properly, there should be no issues.
+Well..., the answer is somewhat nuanced; it can be both affirmative and negative.
 
-From a rendering perspective, the progress bar only cares about the cursor position before rendering starts. Each render resets the cursor to that position, making it independent of the specific character encoding. Even if the string isn't Unicode-encoded, it should work fine.
+**Affirmative Aspect:** From the perspective of the progress bar's rendering mechanism, it doesn't recognize the character encoding of the strings it outputs; it only knows that it must continually output strings on a given terminal line to refresh the display.
 
-The only caveat is that the progress bar requires a terminal that supports ANSI escape sequences; otherwise, it won’t function correctly.
+Thus, if you supply a UTF string, or even emoji characters, it works just fine under normal conditions.
 
-> Most modern terminals support escape sequences, so this shouldn't be a concern as long as your terminal can render colored characters.
+**Negative Aspect:** However, because I didn’t implement specific character encoding and decoding logic, the progress bar interprets the strings passed to it at the byte level. This can lead to rendering inconsistencies when mixing multi-byte UTF characters (such as CJK characters and emojis) with ASCII characters.
+
+In such cases, you may need to manually align the width of ASCII and UTF characters. For instance, if the progress bar’s "todo" element is a double-width emoji like "🎈", the corresponding "done" element should also be double-width, such as two spaces.
 
 For a specific example of Unicode rendering, see [unicode.cpp](demo/unicode.cpp).
 
