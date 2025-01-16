@@ -344,7 +344,6 @@ int main()
 
     // Using the pgbar::Threadsafe parameter, you can create a thread-safe progress bar object
     pgbar::ProgressBar<pgbar::Threadsafe> safe_bar1;
-    // 对于线程安全的版本，你可以在任意多个线程中同时调用它的 tick() 和 reset() 方法
 
     // For the thread-safe version
     // you can call its tick() and reset() methods from as many threads as you want
