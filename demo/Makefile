@@ -5,7 +5,7 @@ CFLAGS:= -std=$(STANDARD) -Wpedantic -Wall
 IFLAG:= -I ../include
 
 %: %.cpp
-	$(CC) $(CFLAGS) $(IFLAG) $< -o $@
+	$(CC) $(OFLAG) $(CFLAGS) $(IFLAG) $< -o $@
 
 all: demo progressbar blockprogressbar spinnerbar scannerbar unicode
 clean:
