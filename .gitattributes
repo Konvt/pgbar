@@ -1,4 +1,4 @@
-*.cpp    text eol=lf
+*.*pp    text eol=lf
 Makefile text eol=lf
 *.md     text eol=lf
 LICENSE  text eol=lf

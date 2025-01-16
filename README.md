@@ -1,30 +1,42 @@
 [中文文档见此](README_zh.md)。
 
 ## Features
-- Header-only: All functionality contained within a single `.hpp` file in `include/pgbar`.
-- Low update overhead: Minimal cost for each progress update.
-- RGB color support: Customizable progress bar colors.
-- Optional thread safety: Switchable via template parameters.
-- `tqdm`-like interface: Access provided via template metaprogramming.
-- Modern C++ compliance: Adheres to best practices in modern C++.
-- Basic unit tests: Utilizes `Catch2` framework for fundamental testing.
-
-[See here for Unicode support](#does-it-support-unicode).
+- **Header-only**: All functionality contained within a single `.hpp` file in `include/pgbar`.
+- **Low update overhead**: Minimal cost for each progress update.
+- **Unicode support**: Parse each string in UTF-8 encoding.
+- **RGB color support**: Customizable progress bar colors.
+- **Optional thread safety**: Switchable via template parameters.
+- **`tqdm`-like interface**: Access provided via template metaprogramming.
+- **Modern C++ compliance**: Adheres to best practices in modern C++.
 
 ## Styles
+### ProgressBar
 ```
-{startpoint}{done}{todo}{endpoint} {left status}{percentage}{task counter}{rate}{timer}{right status}
-^~~~~~~~~~~  Progress  ~~~~~~~~~~^ ^~~~~~~~~~~~~~~~~~~~~~~~~~~~  Status  ~~~~~~~~~~~~~~~~~~~~~~~~~~~^
-
-[-------                       ] [  24.00% |  48/200 |  31.00 Hz  | 00:00:01 < 00:00:04 ]
+{Description}{Percent}{Starting}{Filler}{Lead}{Remains}{Ending}{Counter}{Speed}{Elapsed}{Countdown}
+ 30.87% | [=========>                    ] |  662933732/2147483647 |  11.92 MHz | 00:00:55 < 00:02:03
 ```
-![example-color](images/example_color.gif)
+![progressbar](images/progressbar.gif)
 
-> The "Hz" indicates how many tasks are performed per second.
+### BlockProgressBar
+```
+{Description}{Percent}{Starting}{BlockIndicator}{Ending}{Counter}{Speed}{Elapsed}{Countdown}
+ 35.22% | ██████████▋                    |  47275560/134217727 |  16.80 MHz | 00:00:02 < 00:00:05
+```
+![blockprogressbar](images/blockprogressbar.gif)
 
-You can use multiple constants from `pgbar::colors` or pass custom hexadecimal RGB values to customize the color of the progress bar.
+### SpinnerBar
+```
+{Lead}{Description}{Percent}{Counter}{Speed}{Elapsed}{Countdown}
+\ |  48.64% |  65288807/134217727 |  17.84 MHz | 00:00:03 < 00:00:03
+```
+![spinnerbar](images/spinnerbar.gif)
 
-![example-rgb](images/example_rgb.gif)
+### ScannerBar
+```
+{Description}{Percent}{Starting}{Filler}{Lead}{Filler}{Ending}{Counter}{Speed}{Elapsed}{Countdown}
+ 39.82% | [---------------------<==>----] |  53458698/134217727 |  17.89 MHz | 00:00:02 < 00:00:04
+```
+![scannerbar](images/scannerbar.gif)
 
 ### Usage
 ```cpp
@@ -32,20 +44,18 @@ You can use multiple constants from `pgbar::colors` or pass custom hexadecimal R
 
 int main()
 {
-  pgbar::ProgressBar<> bar { pgbar::options::TodoChar( "-" ),
-                             pgbar::options::DoneChar( "=" ),
-                             pgbar::options::Styles( pgbar::configs::Progress::Entire ),
-                             pgbar::options::TodoColor( "#A52A2A" ),
-                             pgbar::options::DoneColor( 0x0099FF ),
-                             pgbar::options::StatusColor( pgbar::colors::Yellow ),
-                             pgbar::options::Tasks( 100 ) };
+  pgbar::ProgressBar<> bar { pgbar::option::Remains( "-" ),
+                             pgbar::option::Filler( "=" ),
+                             pgbar::option::Styles( pgbar::configs::CharBar::Entire ),
+                             pgbar::option::TodoColor( "#A52A2A" ),
+                             pgbar::option::DoneColor( 0x0099FF ),
+                             pgbar::option::StatusColor( pgbar::color::Yellow ),
+                             pgbar::option::Tasks( 100 ) };
 
   for ( auto _ = 0; _ < 100; ++_ )
     bar.tick();
 }
 ```
-
-![example-usage](images/example_usage.gif)
 
 For more examples, see [QuickStart.md](QuickStart.md) and [demo.cpp](demo/demo.cpp).
 
@@ -76,17 +86,13 @@ However, the smoothness of the display will depend on the single-core performanc
 ### Is it compatible with Windows/Linux?
 Absolutely. I designed this library to work seamlessly on both systems, providing a unified visualization of iteration progress.
 ### Does it support Unicode?
-Well..., the answer is somewhat nuanced; it can be both affirmative and negative.
+As pointed out at the beginning, there is no problem.
 
-**Affirmative Aspect:** From the perspective of the progress bar's rendering mechanism, it doesn't recognize the character encoding of the strings it outputs; it only knows that it must continually output strings on a given terminal line to refresh the display.
+Although only UTF-8 encoded strings are currently supported, using any non-UTF-8 encoded string will result in an exception.
 
-Thus, if you supply a UTF string, or even emoji characters, it works just fine under normal conditions.
+If you are using the C++20, `pgbar`'s functions also support u8 strings.
 
-**Negative Aspect:** However, because I didn’t implement specific character encoding and decoding logic, the progress bar interprets the strings passed to it at the byte level. This can lead to rendering inconsistencies when mixing multi-byte UTF characters (such as CJK characters and emojis) with ASCII characters.
-
-In such cases, you may need to manually align the width of ASCII and UTF characters. For instance, if the progress bar’s "todo" element is a double-width emoji like "🎈", the corresponding "done" element should also be double-width, such as two spaces.
-
-For a specific example of Unicode rendering, see [unicode.cpp](demo/unicode.cpp).
+![unicode](images/unicode.gif)
 
 ## License
 This project is licensed under the [MIT](LICENSE) license.
