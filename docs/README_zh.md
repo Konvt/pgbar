@@ -55,7 +55,7 @@ int main()
 }
 ```
 
-更多用例详见 [QuickStart_zh.md](QuickStart_zh.md) 及 [demo.cpp](demo/demo.cpp)。
+更多用例详见 [QuickStart_zh.md](QuickStart_zh.md) 及 [demo.cpp](../demo/demo.cpp)。
 
 ## FAQ
 ### 进度条的更新工作会拖慢程序本身吗？

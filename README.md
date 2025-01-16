@@ -1,4 +1,4 @@
-[中文文档见此](README_zh.md)。
+[中文文档见此](docs/README_zh.md)。
 
 ## Features
 - **Header-only**: All functionality contained within a single `.hpp` file in `include/pgbar`.
@@ -57,7 +57,7 @@ int main()
 }
 ```
 
-For more examples, see [QuickStart.md](QuickStart.md) and [demo.cpp](demo/demo.cpp).
+For more examples, see [QuickStart.md](docs/QuickStart.md) and [demo.cpp](demo/demo.cpp).
 
 ## FAQ
 ### Does updating the progress bar slow down the program?
