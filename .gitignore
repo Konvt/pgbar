@@ -2,6 +2,5 @@
 .vs/
 .xmake/
 build/
-misc/
 
 *.exe

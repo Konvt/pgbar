@@ -59,7 +59,7 @@ BraceWrapping:
   SplitEmptyNamespace: false
 BreakBeforeBraces: Custom
 BreakBeforeBinaryOperators: NonAssignment
-ColumnLimit: 100
+ColumnLimit: 110
 FixNamespaceComments: true
 IndentCaseLabels: false
 IndentExternBlock: Indent

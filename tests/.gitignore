@@ -1,7 +1,0 @@
-*
-!*.*
-*.exe
-!Makefile
-
-catch.hpp
-catch2/*
