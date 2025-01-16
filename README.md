@@ -34,6 +34,8 @@
     - [需要什么样的 C++ 版本？](#需要什么样的-c-版本)
     - [与 Github 上的其他 C++ 进度条有什么区别？](#与-github-上的其他-c-进度条有什么区别)
 
+> This branch is outdated and no longer maintained. It is retained for backward compatibility with older versions.
+
 A simple tqdm-like, header-only progress bar for C++11 and higher standards.
 
 No third party dependencies required.
