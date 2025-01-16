@@ -10,28 +10,28 @@
 ## 样式
 ### ProgressBar
 ```
-{Description}{Percent}{Starting}{Filler}{Lead}{Remains}{Ending}{Counter}{Speed}{Elapsed}{Countdown}
+{LeftBorder}{Description}{Percent}{Starting}{Filler}{Lead}{Remains}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
  30.87% | [=========>                    ] |  662933732/2147483647 |  11.92 MHz | 00:00:55 < 00:02:03
 ```
 ![progressbar](../images/progressbar.gif)
 
 ### BlockProgressBar
 ```
-{Description}{Percent}{Starting}{BlockIndicator}{Ending}{Counter}{Speed}{Elapsed}{Countdown}
+{LeftBorder}{Description}{Percent}{Starting}{BlockBar}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
  35.22% | ██████████▋                    |  47275560/134217727 |  16.80 MHz | 00:00:02 < 00:00:05
 ```
 ![blockprogressbar](../images/blockprogressbar.gif)
 
 ### SpinnerBar
 ```
-{Lead}{Description}{Percent}{Counter}{Speed}{Elapsed}{Countdown}
+{LeftBorder}{Lead}{Description}{Percent}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
 \ |  48.64% |  65288807/134217727 |  17.84 MHz | 00:00:03 < 00:00:03
 ```
 ![spinnerbar](../images/spinnerbar.gif)
 
 ### ScannerBar
 ```
-{Description}{Percent}{Starting}{Filler}{Lead}{Filler}{Ending}{Counter}{Speed}{Elapsed}{Countdown}
+{LeftBorder}{Description}{Percent}{Starting}{Filler}{Lead}{Filler}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
  39.82% | [---------------------<==>----] |  53458698/134217727 |  17.89 MHz | 00:00:02 < 00:00:04
 ```
 ![scannerbar](../images/scannerbar.gif)
