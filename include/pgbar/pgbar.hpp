@@ -1806,10 +1806,7 @@ namespace pgbar {
           std::lock_guard<SharedMutex> lock2 { lhs.mtx_ };
 
 #if defined(__clang__) || defined(_MSC_VER)
-          // do swap by copy.
-          auto tmp = exception_;
-          exception_ = lhs.exception_;
-          lhs.exception_ = tmp;
+          std::swap(exception_, lhs.exception_);
 #else
           exception_.swap( lhs.exception_ );
 #endif
