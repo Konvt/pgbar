@@ -6,12 +6,13 @@
 #ifndef __KONVT_PGBAR
 # define __KONVT_PGBAR
 
-# if defined( __GNUC__ ) || defined( __clang__ )
+
+# if defined( _MSC_VER )
+#  define __PGBAR_NODISCARD _Check_return_
+#  define __PGBAR_INLINE_FN  inline
+# elif defined( __GNUC__ ) || defined( __clang__ )
 #  define __PGBAR_NODISCARD __attribute__( ( warn_unused_result ) )
 #  define __PGBAR_INLINE_FN __attribute__( ( always_inline ) ) inline
-# elif defined( _MSC_VER )
-#  define __PGBAR_NODISCARD _Check_return_
-#  define __PGBAR_INLINE_FN __forceline inline
 # else
 #  define __PGBAR_NODISCARD
 #  define __PGBAR_INLINE_FN inline
@@ -117,6 +118,19 @@
 # else
 #  define __PGBAR_ASSERT( expr )
 # endif
+
+#if defined( _MSC_VER )
+
+#ifdef max
+#undef max
+#endif
+
+
+#ifdef min
+#undef min
+#endif
+
+#endif
 
 # define __PGBAR_DEFAULT 0xC105EA11 // C1O5E -> ClOSE, A11 -> All
 # define __PGBAR_BLACK   0x000000
@@ -1790,7 +1804,15 @@ namespace pgbar {
           __PGBAR_ASSERT( this != std::addressof( lhs ) );
           std::lock_guard<SharedMutex> lock1 { mtx_ };
           std::lock_guard<SharedMutex> lock2 { lhs.mtx_ };
+
+#if defined(__clang__) || defined(_MSC_VER)
+          // do swap by copy.
+          auto tmp = exception_;
+          exception_ = lhs.exception_;
+          lhs.exception_ = tmp;
+#else
           exception_.swap( lhs.exception_ );
+#endif
         }
         friend void swap( ExceptionBox& a, ExceptionBox& b ) noexcept { a.swap( b ); }
       };
