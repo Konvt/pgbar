@@ -282,7 +282,7 @@ namespace pgbar {
       template<template<typename...> class... Ts>
       struct TemplateList;
 
-      // Insert a new template type into the header of the TemplateList.
+      // Insert a new template type into the head of the TemplateList.
       template<typename List, template<typename...> class T>
       struct Prepend;
       // Get the result of the template `Prepend`.
@@ -1032,7 +1032,7 @@ namespace pgbar {
        */
       __PGBAR_CXX20_CNSTXPR types::String rgb2ansi( types::HexRGB rgb )
 # ifdef PGBAR_COLORLESS
-        noexcept
+        noexcept( std::is_nothrow_default_constructible<types::String>::value )
       {
         return {};
       }
