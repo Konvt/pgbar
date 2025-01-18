@@ -6,10 +6,9 @@
 #ifndef __KONVT_PGBAR
 # define __KONVT_PGBAR
 
-
 # if defined( _MSC_VER )
 #  define __PGBAR_NODISCARD _Check_return_
-#  define __PGBAR_INLINE_FN  inline
+#  define __PGBAR_INLINE_FN __forceinline inline
 # elif defined( __GNUC__ ) || defined( __clang__ )
 #  define __PGBAR_NODISCARD __attribute__( ( warn_unused_result ) )
 #  define __PGBAR_INLINE_FN __attribute__( ( always_inline ) ) inline
@@ -18,7 +17,7 @@
 #  define __PGBAR_INLINE_FN inline
 # endif
 
-# if defined( _MSVC_VER ) && defined( _MSVC_LANG ) // for msvc
+# if defined( _MSC_VER ) && defined( _MSVC_LANG ) // for msvc
 #  define __PGBAR_CC_STD _MSVC_LANG
 # else
 #  define __PGBAR_CC_STD __cplusplus
@@ -26,6 +25,8 @@
 
 # if defined( _WIN32 ) || defined( _WIN64 )
 #  include <windows.h>
+#  undef min
+#  undef max
 #  define __PGBAR_WIN     1
 #  define __PGBAR_UNIX    0
 #  define __PGBAR_UNKNOWN 0
@@ -119,19 +120,6 @@
 #  define __PGBAR_ASSERT( expr )
 # endif
 
-#if defined( _MSC_VER )
-
-#ifdef max
-#undef max
-#endif
-
-
-#ifdef min
-#undef min
-#endif
-
-#endif
-
 # define __PGBAR_DEFAULT 0xC105EA11 // C1O5E -> ClOSE, A11 -> All
 # define __PGBAR_BLACK   0x000000
 # define __PGBAR_RED     0xFF0000
@@ -212,18 +200,6 @@ namespace pgbar {
     }
 
     namespace trait {
-# if __PGBAR_CXX17
-      template<typename... Ts>
-      using void_t = std::void_t<Ts...>;
-# else
-      template<typename...>
-      struct make_void {
-        using type = void;
-      };
-      template<typename... Ts>
-      using void_t = typename make_void<Ts...>::type;
-# endif
-
       template<typename E>
       __PGBAR_NODISCARD __PGBAR_CNSTEVAL __PGBAR_INLINE_FN
         typename std::enable_if<std::is_enum<E>::value, typename std::underlying_type<E>::type>::type
@@ -506,7 +482,8 @@ namespace pgbar {
         T,
         typename std::enable_if<
           !std::is_const<typename std::remove_reference<T>::type>::value
-          && std::is_void<void_t<typename std::remove_reference<T>::type::iterator>>::value>::type> {
+          && std::is_same<typename std::remove_reference<T>::type::iterator,
+                          typename std::remove_reference<T>::type::iterator>::value>::type> {
         using type = typename std::remove_reference<T>::type::iterator;
       };
       template<typename T>
@@ -514,7 +491,8 @@ namespace pgbar {
         T,
         typename std::enable_if<
           std::is_const<typename std::remove_reference<T>::type>::value
-          && std::is_void<void_t<typename std::remove_reference<T>::type::const_iterator>>::value>::type> {
+          && std::is_same<typename std::remove_reference<T>::type::const_iterator,
+                          typename std::remove_reference<T>::type::const_iterator>::value>::type> {
         using type = typename std::remove_reference<T>::type::const_iterator;
       };
 
@@ -809,9 +787,10 @@ namespace pgbar {
       __PGBAR_CXX14_CNSTXPR void swap( NumericSpan<N>& lhs ) noexcept
       {
         __PGBAR_ASSERT( this != std::addressof( lhs ) );
-        std::swap( start_, lhs.start_ );
-        std::swap( end_, lhs.end_ );
-        std::swap( step_, lhs.step_ );
+        using std::swap;
+        swap( start_, lhs.start_ );
+        swap( end_, lhs.end_ );
+        swap( step_, lhs.step_ );
       }
       friend __PGBAR_CXX14_CNSTXPR void swap( NumericSpan<N>& a, NumericSpan<N>& b ) noexcept { a.swap( b ); }
     };
@@ -1804,12 +1783,8 @@ namespace pgbar {
           __PGBAR_ASSERT( this != std::addressof( lhs ) );
           std::lock_guard<SharedMutex> lock1 { mtx_ };
           std::lock_guard<SharedMutex> lock2 { lhs.mtx_ };
-
-#if defined(__clang__) || defined(_MSC_VER)
-          std::swap(exception_, lhs.exception_);
-#else
-          exception_.swap( lhs.exception_ );
-#endif
+          using std::swap; // ADL custom point
+          swap( exception_, lhs.exception_ );
         }
         friend void swap( ExceptionBox& a, ExceptionBox& b ) noexcept { a.swap( b ); }
       };
@@ -2284,10 +2259,11 @@ namespace pgbar {
         }
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void member_swap( BasicAnimation& lhs ) & noexcept
         {
-          std::swap( shift_factor_, lhs.shift_factor_ );
+          using std::swap;
+          swap( shift_factor_, lhs.shift_factor_ );
           lead_col_.swap( lhs.lead_col_ );
           lead_.swap( lhs.lead_ );
-          std::swap( size_longest_lead_, lhs.size_longest_lead_ );
+          swap( size_longest_lead_, lhs.size_longest_lead_ );
         }
 
       protected:
@@ -3698,7 +3674,8 @@ namespace pgbar {
         std::lock_guard<__detail::concurrent::SharedMutex> lock1 { this->rw_mtx_ };
         std::lock_guard<__detail::concurrent::SharedMutex> lock2 { rhs.rw_mtx_ };
         Base::operator=( std::move( rhs ) );
-        std::swap( visual_masks_, rhs.visual_masks_ );
+        using std::swap;
+        swap( visual_masks_, rhs.visual_masks_ );
         return *this;
       }
       virtual ~BasicConfig() noexcept = default;
@@ -4744,7 +4721,7 @@ namespace pgbar {
     {
       __PGBAR_ASSERT( this != std::addressof( lhs ) );
       config_.swap( lhs.config_ );
-      std::swap( ostream_, lhs.ostream_ );
+      ostream_.swap( lhs.ostream_ );
     }
     friend __PGBAR_CXX20_CNSTXPR void swap( BasicBar& a, BasicBar& b ) noexcept { a.swap( b ); }
   };
@@ -5017,7 +4994,8 @@ namespace pgbar {
       template<typename B>
       struct is_iterable_bar<
         B,
-        void_t<decltype( std::declval<B&>().config().tasks( std::declval<types::Size>() ) )>>
+        typename std::enable_if<std::is_void<
+          decltype( std::declval<B&>().config().tasks( std::declval<types::Size>() ), void() )>::value>::type>
         : std::true_type {};
     }
   } // namespace __detail
