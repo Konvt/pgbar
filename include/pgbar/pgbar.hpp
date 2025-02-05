@@ -8,7 +8,7 @@
 
 # if defined( _MSC_VER )
 #  define __PGBAR_NODISCARD _Check_return_
-#  define __PGBAR_INLINE_FN __forceinline inline
+#  define __PGBAR_INLINE_FN __forceinline
 # elif defined( __GNUC__ ) || defined( __clang__ )
 #  define __PGBAR_NODISCARD __attribute__( ( warn_unused_result ) )
 #  define __PGBAR_INLINE_FN __attribute__( ( always_inline ) ) inline
@@ -45,9 +45,12 @@
 # if __PGBAR_CC_STD >= 202302L
 #  define __PGBAR_CXX23         1
 #  define __PGBAR_CXX23_CNSTXPR constexpr
+#  define __PGBAR_UNREACHABLE   std::unreachable()
+#  include <functional>
 # else
 #  define __PGBAR_CXX23 0
 #  define __PGBAR_CXX23_CNSTXPR
+#  define __PGBAR_UNREACHABLE __PGBAR_ASSERT( false )
 # endif
 # if __PGBAR_CC_STD >= 202002L
 #  include <concepts>
@@ -199,7 +202,7 @@ namespace pgbar {
       types::ConstStr nil_str     = "";
     }
 
-    namespace trait {
+    namespace traits {
       template<typename E>
       __PGBAR_NODISCARD __PGBAR_CNSTEVAL __PGBAR_INLINE_FN
         typename std::enable_if<std::is_enum<E>::value, typename std::underlying_type<E>::type>::type
@@ -300,10 +303,8 @@ namespace pgbar {
       template<template<typename...> class T>
       struct Contain<TemplateList<>, T> : std::false_type {};
       template<template<typename...> class Head,
-               template<typename...>
-               class... Tail,
-               template<typename...>
-               class T>
+               template<typename...> class... Tail,
+               template<typename...> class T>
       struct Contain<TemplateList<Head, Tail...>, T>
         : std::conditional<Equal<Head, T>::value, std::true_type, Contain<TemplateList<Tail...>, T>>::type {};
 
@@ -369,8 +370,7 @@ namespace pgbar {
           using type = SortedList;
         };
         template<template<typename...> class Head,
-                 template<typename...>
-                 class... Tail,
+                 template<typename...> class... Tail,
                  typename SortedList,
                  typename VisitedList>
         struct Helper<true, TemplateList<Head, Tail...>, SortedList, VisitedList> {
@@ -392,8 +392,7 @@ namespace pgbar {
                                       Prepend_t<SortNB_t, Head>>::type;
         };
         template<template<typename...> class Head,
-                 template<typename...>
-                 class... Tail,
+                 template<typename...> class... Tail,
                  typename SortedList,
                  typename VisitedList>
         struct Helper<false, TemplateList<Head, Tail...>, SortedList, VisitedList> {
@@ -440,8 +439,7 @@ namespace pgbar {
           using type = FinalBase;
         };
         template<template<typename...> class Head,
-                 template<typename...>
-                 class... Tail,
+                 template<typename...> class... Tail,
                  typename FinalBase,
                  typename... Args>
         struct Helper<TemplateList<Head, Tail...>, FinalBase, Args...> {
@@ -496,6 +494,31 @@ namespace pgbar {
         using type = typename std::remove_reference<T>::type::const_iterator;
       };
 
+      template<typename... Signature>
+      struct RemoveNoexcept;
+      template<typename... Signature>
+      using RemoveNoexcept_t = typename RemoveNoexcept<Signature...>::type;
+
+# define __PGBAR_REMOVE_NOEXCEPT( Qualifier, Noexcept )       \
+   template<typename Ret, typename... Args>                   \
+   struct RemoveNoexcept<Ret( Args... ) Qualifier Noexcept> { \
+     using type = Ret( Args... ) Qualifier;                   \
+   }
+      __PGBAR_REMOVE_NOEXCEPT(, );
+      __PGBAR_REMOVE_NOEXCEPT( &, );
+      __PGBAR_REMOVE_NOEXCEPT( &&, );
+      __PGBAR_REMOVE_NOEXCEPT( const&, );
+      __PGBAR_REMOVE_NOEXCEPT( const&&, );
+# if __PGBAR_CXX17
+      __PGBAR_REMOVE_NOEXCEPT(, noexcept );
+      __PGBAR_REMOVE_NOEXCEPT( &, noexcept );
+      __PGBAR_REMOVE_NOEXCEPT( &&, noexcept );
+      __PGBAR_REMOVE_NOEXCEPT( const, noexcept );
+      __PGBAR_REMOVE_NOEXCEPT( const&, noexcept );
+      __PGBAR_REMOVE_NOEXCEPT( const&&, noexcept );
+# endif
+# undef __PGBAR_REMOVE_NOEXCEPT
+
 # if __PGBAR_CXX20
       template<typename F>
       concept TaskFunctor = requires( F fn ) {
@@ -531,7 +554,7 @@ namespace pgbar {
                                 && std::is_void<decltype( std::declval<M&>().unlock() )>::value>::type>
         : std::true_type {};
 # endif
-    } // namespace trait
+    } // namespace traits
 
     namespace wrappers {
       template<typename I>
@@ -588,7 +611,7 @@ namespace pgbar {
 
         __PGBAR_CXX20_CNSTXPR void swap( IterSpanBase<I>& lhs ) noexcept
         {
-          __PGBAR_ASSERT( this != std::addressof( lhs ) );
+          __PGBAR_ASSERT( this != &lhs );
           using std::swap;
           swap( start_, lhs.start_ );
           swap( end_, lhs.end_ );
@@ -602,6 +625,274 @@ namespace pgbar {
       template<typename I>
       __PGBAR_CXX20_CNSTXPR IterSpanBase<I>::~IterSpanBase()
         noexcept( std::is_nothrow_destructible<I>::value ) = default;
+
+# if __PGBAR_CXX23
+      template<typename... Signature>
+      using UniqueFunction = std::move_only_function<Signature...>;
+# else
+      template<typename... Signature>
+      class UniqueFunctionImpl;
+
+      template<typename Ret, typename... Args>
+      class UniqueFunctionImpl<Ret( Args... )> final {
+        using Self = UniqueFunctionImpl;
+
+        struct AnyFn {
+#  if __PGBAR_CXX17
+          template<types::Size BufferSize, std::size_t Align>
+          __PGBAR_CXX20_CNSTXPR static void swap_fn( AnyFn* const a,
+                                                     void* const mem_a,
+                                                     AnyFn* const b,
+                                                     void* const mem_b ) noexcept
+          {
+            __PGBAR_ASSERT( a != nullptr );
+            __PGBAR_ASSERT( b != nullptr );
+            __PGBAR_ASSERT( mem_a != nullptr );
+            __PGBAR_ASSERT( mem_b != nullptr );
+            __PGBAR_ASSERT( a == mem_a );
+            __PGBAR_ASSERT( b == mem_b );
+
+            alignas( Align ) std::byte buffer[BufferSize];
+            a->move_to( buffer );
+            a->~AnyFn();
+
+            b->move_to( mem_a );
+            b->~AnyFn();
+
+            AnyFn* const a_tmp = std::launder( reinterpret_cast<AnyFn*>( &buffer ) );
+            a_tmp->move_to( mem_b );
+            a_tmp->~AnyFn();
+          }
+#  endif
+          __PGBAR_CXX20_CNSTXPR virtual ~AnyFn() noexcept = default;
+          virtual Ret operator()( Args... args ) const    = 0;
+#  if __PGBAR_CXX17
+          virtual void move_to( void* const dest_mem ) noexcept = 0;
+#  endif
+        };
+        template<typename Fn, typename = void>
+        struct FnContainer final : public AnyFn {
+        private:
+          static_assert( !std::is_reference<Fn>::value,
+                         "pgbar::__detail::wrappers::UniqueFunction: Incomplete type" );
+
+          mutable Fn fntor_;
+
+        public:
+          __PGBAR_CXX14_CNSTXPR FnContainer( Fn fntor )
+            noexcept( std::is_nothrow_move_constructible<Fn>::value )
+            : fntor_ { std::move( fntor ) }
+          {}
+
+          FnContainer( const FnContainer& )                     = delete;
+          FnContainer& operator=( const FnContainer& ) &        = delete;
+          __PGBAR_CXX20_CNSTXPR virtual ~FnContainer() noexcept = default;
+
+          Ret operator()( Args... args ) const
+            noexcept( noexcept( std::declval<Fn>()( std::declval<Args>()... ) ) ) override
+          {
+            return fntor_( std::forward<Args>( args )... );
+          }
+#  if __PGBAR_CXX17
+          void move_to( void* const dest_mem ) noexcept override
+          {
+            __PGBAR_ASSERT( dest_mem != nullptr );
+            new ( dest_mem ) FnContainer( std::move( fntor_ ) );
+          }
+#  endif
+        };
+
+#  if __PGBAR_CXX14
+        template<typename Fn> // EBO
+        struct FnContainer<Fn, std::enable_if_t<std::is_empty<Fn>::value && !std::is_final<Fn>::value>> final
+          : public AnyFn
+          , private Fn {
+          __PGBAR_CXX14_CNSTXPR FnContainer( Fn fntor )
+            noexcept( std::is_nothrow_move_constructible<Fn>::value )
+            : Fn( std::move( fntor ) )
+          {}
+
+          FnContainer( const FnContainer& )                     = delete;
+          FnContainer& operator=( const FnContainer& ) &        = delete;
+          __PGBAR_CXX20_CNSTXPR virtual ~FnContainer() noexcept = default;
+
+          Ret operator()( Args... args ) const
+            noexcept( noexcept( std::declval<Fn>()( std::declval<Args>()... ) ) ) override
+          {
+            return ( ( static_cast<Fn&>( const_cast<FnContainer&>( *this ) ) ) )(
+              std::forward<Args>( args )... );
+          }
+#   if __PGBAR_CXX17
+          void move_to( void* const dest_mem ) noexcept override
+          {
+            __PGBAR_ASSERT( dest_mem != nullptr );
+            new ( dest_mem ) FnContainer( std::move( static_cast<Fn&>( *this ) ) );
+          }
+#   endif
+        };
+#  endif
+
+#  if __PGBAR_CXX17
+        union {
+          alignas( 16 ) std::add_pointer_t<Ret( Args... )> fptr_;
+          alignas( 16 ) AnyFn* ftor_;
+        } data_;
+        enum class Tag : std::uint8_t { None, Fptr, FtorInline, FtorDync } tag_;
+#  else
+        union {
+          typename std::add_pointer<Ret( Args... )>::type fptr_;
+          AnyFn* ftor_;
+        } data_;
+        enum class Tag : std::uint8_t { None, Fptr, Ftor } tag_;
+#  endif
+
+      public:
+        __PGBAR_CXX14_CNSTXPR UniqueFunctionImpl() noexcept
+        {
+          std::memset( &data_, 0, sizeof data_ );
+          tag_ = Tag::None;
+        }
+        __PGBAR_CXX14_CNSTXPR UniqueFunctionImpl( std::nullptr_t ) noexcept : UniqueFunctionImpl() {}
+
+        template<typename Fn,
+                 typename = typename std::enable_if<
+                   std::is_function<Fn>::value
+                   && std::is_convertible<decltype( ( *std::declval<Fn>() )( std::declval<Args>()... ) ),
+                                          Ret>::value>::type>
+        __PGBAR_CXX14_CNSTXPR UniqueFunctionImpl( Fn* function_ptr ) noexcept : UniqueFunctionImpl()
+        {
+          data_.fptr_ = function_ptr;
+          tag_        = Tag::Fptr;
+        }
+        template<typename Fn,
+                 typename = typename std::enable_if<
+                   std::is_class<Fn>::value
+                   && std::is_convertible<decltype( ( std::declval<Fn>() )( std::declval<Args>()... ) ),
+                                          Ret>::value>::type>
+        __PGBAR_CXX20_CNSTXPR UniqueFunctionImpl( Fn functor ) : UniqueFunctionImpl()
+        {
+          static_assert( std::is_move_constructible<Fn>::value,
+                         "pgbar::__detail::wrappers::UniqueFunctionImpl: Invalid type" );
+
+#  if __PGBAR_CXX17
+          if __PGBAR_CXX17_CNSTXPR ( sizeof( FnContainer<Fn> ) <= sizeof data_ ) {
+            [[maybe_unused]] const auto object = new ( &data_ ) FnContainer<Fn>( std::move( functor ) );
+            __PGBAR_ASSERT( static_cast<void*>( object ) == static_cast<void*>( &data_ ) );
+            tag_ = Tag::FtorInline;
+          } else {
+            data_.ftor_ = new FnContainer<Fn>( std::move( functor ) );
+            tag_        = Tag::FtorDync;
+          }
+#  else
+          data_.ftor_ = new FnContainer<Fn>( std::move( functor ) );
+          tag_        = Tag::Ftor;
+#  endif
+        }
+
+        __PGBAR_CXX20_CNSTXPR UniqueFunctionImpl( Self&& rhs ) noexcept : UniqueFunctionImpl()
+        {
+          swap( rhs );
+          rhs = nullptr; // exclusive semantics
+        }
+        __PGBAR_CXX20_CNSTXPR Self& operator=( Self&& rhs ) & noexcept
+        {
+          __PGBAR_ASSERT( this != &rhs );
+          swap( rhs );
+          rhs = nullptr;
+          return *this;
+        }
+
+        __PGBAR_CXX20_CNSTXPR Self& operator=( std::nullptr_t ) & noexcept
+        {
+#  if __PGBAR_CXX17
+          switch ( tag_ ) {
+          case Tag::FtorInline: std::launder( reinterpret_cast<AnyFn*>( &data_ ) )->~AnyFn(); break;
+          case Tag::FtorDync:   delete data_.ftor_; break;
+          default:              break;
+          }
+#  else
+          if ( tag_ == Tag::Ftor )
+            delete data_.ftor_;
+#  endif
+          tag_ = Tag::None;
+          return *this;
+        }
+
+        __PGBAR_CXX20_CNSTXPR ~UniqueFunctionImpl() noexcept { ( *this ) = nullptr; }
+
+        __PGBAR_CXX20_CNSTXPR Ret operator()( Args... args ) const
+        {
+          __PGBAR_ASSERT( tag_ != Tag::None );
+#  if __PGBAR_CXX17
+          switch ( tag_ ) {
+          case Tag::Fptr: return ( *data_.fptr_ )( std::forward<Args>( args )... );
+          case Tag::FtorInline:
+            return ( *std::launder( reinterpret_cast<const AnyFn*>( &data_ ) ) )(
+              std::forward<Args>( args )... );
+          case Tag::FtorDync: return ( *data_.ftor_ )( std::forward<Args>( args )... );
+          default:            break;
+          }
+#  else
+          if ( tag_ == Tag::Fptr )
+            return ( *data_.fptr_ )( std::forward<Args>( args )... );
+          return ( *data_.ftor_ )( std::forward<Args>( args )... );
+#  endif
+          __PGBAR_UNREACHABLE;
+        }
+
+        void swap( Self& lhs ) noexcept
+        {
+#  if __PGBAR_CXX17
+          switch ( tag_ ) {
+          case Tag::FtorInline: {
+            switch ( lhs.tag_ ) {
+            case Tag::Fptr:     __PGBAR_FALLTHROUGH;
+            case Tag::FtorDync: {
+              auto union_copy     = lhs.data_;
+              const auto base_ptr = std::launder( reinterpret_cast<AnyFn*>( &data_ ) );
+              base_ptr->move_to( &lhs.data_ );
+              base_ptr->~AnyFn();
+              data_ = union_copy;
+            } break;
+            case Tag::FtorInline: {
+              AnyFn::template swap_fn<sizeof data_, alignof( decltype( data_ ) )>(
+                std::launder( reinterpret_cast<AnyFn*>( &data_ ) ),
+                &data_,
+                std::launder( reinterpret_cast<AnyFn*>( &lhs.data_ ) ),
+                &lhs.data_ );
+            } break;
+            case Tag::None: {
+              const auto base_ptr = std::launder( reinterpret_cast<AnyFn*>( &data_ ) );
+              base_ptr->move_to( &lhs.data_ );
+              base_ptr->~AnyFn();
+            } break;
+            default: __PGBAR_UNREACHABLE;
+            }
+          } break;
+          default: {
+            std::swap( data_, lhs.data_ );
+          } break;
+          }
+#  else
+          std::swap( data_, lhs.data_ );
+#  endif
+          std::swap( tag_, lhs.tag_ );
+        }
+        friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
+
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN friend constexpr bool operator==( const Self& a,
+                                                                              std::nullptr_t ) noexcept
+        {
+          return !static_cast<bool>( a );
+        }
+
+        explicit operator bool() const noexcept { return tag_ != Tag::None; }
+      };
+
+      // A simplified implementation of std::move_only_function
+      template<typename... Signature>
+      using UniqueFunction = UniqueFunctionImpl<traits::RemoveNoexcept_t<Signature...>>;
+# endif
     } // namespace wrappers
   } // namespace __detail
 
@@ -657,7 +948,8 @@ namespace pgbar {
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr reference operator*() const noexcept
         {
-          return itr_start_ + itr_cnt_ * itr_step_;
+          return static_cast<reference>( static_cast<__detail::types::Size>( itr_start_ )
+                                         + itr_cnt_ * static_cast<__detail::types::Size>( itr_step_ ) );
         }
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr bool operator==( value_type num ) const noexcept
@@ -786,7 +1078,7 @@ namespace pgbar {
 
       __PGBAR_CXX14_CNSTXPR void swap( NumericSpan<N>& lhs ) noexcept
       {
-        __PGBAR_ASSERT( this != std::addressof( lhs ) );
+        __PGBAR_ASSERT( this != &lhs );
         using std::swap;
         swap( start_, lhs.start_ );
         swap( end_, lhs.end_ );
@@ -979,10 +1271,10 @@ namespace pgbar {
   } // namespace iterators
 
   // A enum that specifies the type of the output stream.
-  enum class StreamChannel : __detail::types::BitwiseSet { Stdout, Stderr };
+  enum class StreamChannel : std::uint8_t { Stdout, Stderr };
 
   namespace __detail {
-    namespace trait {
+    namespace traits {
       template<typename T>
       struct is_arith_range {
       private:
@@ -1004,7 +1296,7 @@ namespace pgbar {
       public:
         static constexpr bool value = decltype( check( std::declval<T>() ) )::value;
       };
-    } // namespace trait
+    } // namespace traits
 
     namespace console {
       namespace escape {
@@ -1185,7 +1477,7 @@ namespace pgbar {
 
       // A simple UTF-8 string implementation.
       class U8String final {
-        using self = U8String;
+        using Self = U8String;
 
         types::Size width_;
         std::string bytes_;
@@ -1291,13 +1583,13 @@ namespace pgbar {
           width_ = render_width( u8_bytes );
           bytes_ = std::move( u8_bytes );
         }
-        __PGBAR_CXX20_CNSTXPR U8String( const self& )              = default;
-        __PGBAR_CXX20_CNSTXPR U8String( self&& ) noexcept          = default;
-        __PGBAR_CXX20_CNSTXPR self& operator=( const self& ) &     = default;
-        __PGBAR_CXX20_CNSTXPR self& operator=( self&& ) & noexcept = default;
+        __PGBAR_CXX20_CNSTXPR U8String( const Self& )              = default;
+        __PGBAR_CXX20_CNSTXPR U8String( Self&& ) noexcept          = default;
+        __PGBAR_CXX20_CNSTXPR Self& operator=( const Self& ) &     = default;
+        __PGBAR_CXX20_CNSTXPR Self& operator=( Self&& ) & noexcept = default;
         __PGBAR_CXX20_CNSTXPR ~U8String() noexcept                 = default;
 
-        self& operator=( types::ROStr u8_bytes ) &
+        Self& operator=( types::ROStr u8_bytes ) &
         {
           auto new_width = render_width( u8_bytes );
           auto new_bytes = types::String( u8_bytes );
@@ -1305,7 +1597,7 @@ namespace pgbar {
           bytes_.swap( new_bytes );
           return *this;
         }
-        self& operator=( types::String u8_bytes ) &
+        Self& operator=( types::String u8_bytes ) &
         {
           auto new_width = render_width( u8_bytes );
           std::swap( width_, new_width );
@@ -1317,25 +1609,25 @@ namespace pgbar {
         __PGBAR_CXX14_CNSTXPR types::Size size() const noexcept { return width_; }
         __PGBAR_CXX20_CNSTXPR types::ROStr str() const noexcept { return bytes_; }
 
-        __PGBAR_CXX20_CNSTXPR void swap( self& lhs ) noexcept
+        __PGBAR_CXX20_CNSTXPR void swap( Self& lhs ) noexcept
         {
           std::swap( width_, lhs.width_ );
           bytes_.swap( lhs.bytes_ );
         }
-        __PGBAR_CXX20_CNSTXPR friend void swap( self& a, self& b ) noexcept { a.swap( b ); }
+        __PGBAR_CXX20_CNSTXPR friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
 
         __PGBAR_CXX20_CNSTXPR explicit operator types::String() & { return bytes_; }
         __PGBAR_CXX20_CNSTXPR explicit operator types::String() const& { return bytes_; }
         __PGBAR_CXX20_CNSTXPR explicit operator types::String() && noexcept { return std::move( bytes_ ); }
         __PGBAR_CXX20_CNSTXPR operator types::ROStr() const noexcept { return str(); }
 
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN self operator+( types::ROStr a, const self& b )
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN Self operator+( types::ROStr a, const Self& b )
         {
           auto tmp = types::String( a );
           tmp.append( b.bytes_ );
           return U8String( std::move( tmp ) );
         }
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN self operator+( const self& a, types::ROStr b )
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN Self operator+( const Self& a, types::ROStr b )
         {
           auto tmp = a.bytes_;
           tmp.append( b );
@@ -1409,7 +1701,7 @@ namespace pgbar {
 
       // A simple string buffer, unrelated to the `std::stringbuf` in the STL.
       class Stringbuf {
-        using self = Stringbuf;
+        using Self = Stringbuf;
 
       protected:
         std::vector<types::Char> buffer_;
@@ -1417,17 +1709,17 @@ namespace pgbar {
       public:
         __PGBAR_CXX20_CNSTXPR Stringbuf() noexcept = default;
 
-        __PGBAR_CXX20_CNSTXPR Stringbuf( const self& lhs ) { operator=( lhs ); }
-        __PGBAR_CXX20_CNSTXPR Stringbuf( self&& rhs ) noexcept : Stringbuf() { swap( rhs ); }
-        __PGBAR_CXX20_CNSTXPR __PGBAR_INLINE_FN self& operator=( const self& lhs ) &
+        __PGBAR_CXX20_CNSTXPR Stringbuf( const Self& lhs ) { operator=( lhs ); }
+        __PGBAR_CXX20_CNSTXPR Stringbuf( Self&& rhs ) noexcept : Stringbuf() { swap( rhs ); }
+        __PGBAR_CXX20_CNSTXPR __PGBAR_INLINE_FN Self& operator=( const Self& lhs ) &
         {
-          __PGBAR_ASSERT( this != std::addressof( lhs ) );
+          __PGBAR_ASSERT( this != &lhs );
           buffer_ = lhs.buffer_;
           return *this;
         }
-        __PGBAR_CXX20_CNSTXPR __PGBAR_INLINE_FN self& operator=( self&& rhs ) & noexcept
+        __PGBAR_CXX20_CNSTXPR __PGBAR_INLINE_FN Self& operator=( Self&& rhs ) & noexcept
         {
-          __PGBAR_ASSERT( this != std::addressof( rhs ) );
+          __PGBAR_ASSERT( this != &rhs );
           swap( rhs );
           return *this;
         }
@@ -1444,19 +1736,19 @@ namespace pgbar {
           buffer_.shrink_to_fit();
         }
 
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR self& reserve( types::Size capacity ) &
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& reserve( types::Size capacity ) &
         {
           buffer_.reserve( capacity );
           return *this;
         }
 
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR self& append( types::Char info, types::Size __num = 1 ) &
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& append( types::Char info, types::Size __num = 1 ) &
         {
           buffer_.insert( buffer_.end(), __num, info );
           return *this;
         }
         template<types::Size N>
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR self& append( const char ( &info )[N],
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& append( const char ( &info )[N],
                                                               types::Size __num = 1 ) &
         {
           __PGBAR_ASSERT( N != 0 );
@@ -1464,7 +1756,7 @@ namespace pgbar {
             buffer_.insert( buffer_.cend(), info, info + N );
           return *this;
         }
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR self& append( types::ROStr info, types::Size __num = 1 ) &
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& append( types::ROStr info, types::Size __num = 1 ) &
         {
           __PGBAR_ASSERT( info != nullptr );
           for ( types::Size _ = 0; _ < __num; ++_ )
@@ -1475,14 +1767,14 @@ namespace pgbar {
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR
           typename std::enable_if<std::is_same<typename std::decay<T>::type, types::String>::value
                                     || std::is_same<typename std::decay<T>::type, types::ROStr>::value,
-                                  self&>::type
+                                  Self&>::type
           append( T&& info, types::Size __num = 1 ) &
         {
           for ( types::Size _ = 0; _ < __num; ++_ )
             buffer_.insert( buffer_.cend(), info.cbegin(), info.cend() );
           return *this;
         }
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR self& append( const charset::U8String& info,
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& append( const charset::U8String& info,
                                                               types::Size __num = 1 )
         {
           return append( info.str(), __num );
@@ -1497,18 +1789,18 @@ namespace pgbar {
                                          && std::is_same<typename std::decay<typename std::remove_pointer<
                                                            typename std::decay<T>::type>::type>::type,
                                                          char>::value ),
-                                  self&>::type
-          operator<<( self& stream, T&& info )
+                                  Self&>::type
+          operator<<( Self& stream, T&& info )
         {
           return stream.append( std::forward<T>( info ) );
         }
-        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR self& operator<<( self& stream,
+        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& operator<<( Self& stream,
                                                                          const charset::U8String& info )
         {
           return stream.append( info );
         }
         template<types::Size N>
-        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR self& operator<<( self& stream,
+        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& operator<<( Self& stream,
                                                                          const char ( &info )[N] )
         {
           return stream.append( info );
@@ -1516,7 +1808,7 @@ namespace pgbar {
 
         __PGBAR_CXX20_CNSTXPR void swap( Stringbuf& lhs ) noexcept
         {
-          __PGBAR_ASSERT( this != std::addressof( lhs ) );
+          __PGBAR_ASSERT( this != &lhs );
           buffer_.swap( lhs.buffer_ );
         }
         friend __PGBAR_CXX20_CNSTXPR void swap( Stringbuf& a, Stringbuf& b ) noexcept { a.swap( b ); }
@@ -1547,13 +1839,13 @@ namespace pgbar {
        */
       template<StreamChannel StreamType>
       class OStream final : public Stringbuf {
-        using self = OStream;
+        using Self = OStream;
 
       public:
         __PGBAR_CXX20_CNSTXPR OStream() noexcept          = default;
         __PGBAR_CXX20_CNSTXPR virtual ~OStream() noexcept = default;
 
-        self& flush() &
+        Self& flush() &
         {
 # if __PGBAR_WIN
           DWORD written = 0;
@@ -1561,12 +1853,12 @@ namespace pgbar {
             auto h_stdout = GetStdHandle( STD_OUTPUT_HANDLE );
             __PGBAR_UNLIKELY if ( h_stdout == INVALID_HANDLE_VALUE ) throw exception::SystemError(
               "pgbar: cannot open the standard output stream" );
-            WriteFile( h_stdout, buffer_.data(), buffer_.size(), &written, nullptr );
+            WriteFile( h_stdout, buffer_.data(), static_cast<DWORD>( buffer_.size() ), &written, nullptr );
           } else {
             auto h_stderr = GetStdHandle( STD_ERROR_HANDLE );
             __PGBAR_UNLIKELY if ( h_stderr == INVALID_HANDLE_VALUE ) throw exception::SystemError(
               "pgbar: cannot open the standard error stream" );
-            WriteFile( h_stderr, buffer_.data(), buffer_.size(), &written, nullptr );
+            WriteFile( h_stderr, buffer_.data(), static_cast<DWORD>( buffer_.size() ), &written, nullptr );
           }
 # elif __PGBAR_UNIX
           if __PGBAR_CXX17_CNSTXPR ( StreamType == StreamChannel::Stdout )
@@ -1583,7 +1875,7 @@ namespace pgbar {
           return *this;
         }
 
-        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR self& operator<<( OStream& stream,
+        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& operator<<( OStream& stream,
                                                                          OStream& ( *fnptr )(OStream&))
         {
           __PGBAR_ASSERT( fnptr != nullptr );
@@ -1592,33 +1884,10 @@ namespace pgbar {
       };
     } // namespace io
 
-    namespace wrappers {
-      // Used for type erasure
-      struct RenderFn {
-        __PGBAR_CXX20_CNSTXPR virtual ~RenderFn() noexcept = default;
-        virtual void run()                                 = 0;
-      };
-      template<typename F>
-      class RenderFnWrapper final : public RenderFn {
-        static_assert( trait::is_void_functor<F>::value,
-                       "pgbar::__detail::wrappers::RenderFnWrapper: Invalid template type" );
-
-        F fntor_;
-
-      public:
-        __PGBAR_CXX14_CNSTXPR explicit RenderFnWrapper( F fn )
-          noexcept( std::is_nothrow_move_constructible<F>::value )
-          : fntor_ { std::move( fn ) }
-        {}
-        __PGBAR_CXX20_CNSTXPR ~RenderFnWrapper() noexcept = default;
-        virtual void run() { fntor_(); }
-      };
-    } // namespace wrappers
-
     namespace concurrent {
       // Some components require a noexcept mutex.
       class Mutex final {
-        using self = Mutex;
+        using Self = Mutex;
 
         std::atomic_flag lock_stat_ = ATOMIC_FLAG_INIT;
 
@@ -1645,15 +1914,15 @@ namespace pgbar {
 
       // A simple `Shared Mutex` implementation for any C++ version.
       class SharedMutex final {
-        using self = SharedMutex;
+        using Self = SharedMutex;
 
       protected:
         std::atomic<types::Size> num_readers_;
         Mutex writer_mtx_;
 
       public:
-        SharedMutex( const self& )     = delete;
-        self& operator=( const self& ) = delete;
+        SharedMutex( const Self& )     = delete;
+        Self& operator=( const Self& ) = delete;
 
         SharedMutex() noexcept : num_readers_ { 0 } {}
         ~SharedMutex() noexcept = default;
@@ -1719,13 +1988,13 @@ namespace pgbar {
         __PGBAR_INLINE_FN void unlock() & noexcept { mtx_.unlock_shared(); }
       };
 
-      // A pipe that transmits exception between different threads.
+      // A nullable container that holds an exception pointer.
       class ExceptionBox final {
         // This is the component requiring a noexcept mutex.
-        using self = ExceptionBox;
+        using Self = ExceptionBox;
 
         std::exception_ptr exception_;
-        mutable SharedMutex mtx_;
+        mutable SharedMutex rw_mtx_;
 
       public:
         ExceptionBox() noexcept  = default;
@@ -1734,34 +2003,34 @@ namespace pgbar {
         ExceptionBox( ExceptionBox&& rhs ) noexcept : ExceptionBox() { swap( rhs ); }
         ExceptionBox& operator=( ExceptionBox&& rhs ) & noexcept
         {
-          __PGBAR_ASSERT( this != std::addressof( rhs ) );
+          __PGBAR_ASSERT( this != &rhs );
           swap( rhs );
           return *this;
         }
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN bool empty() const noexcept
         {
-          __detail::concurrent::SharedMutexRef shared_end { mtx_ };
+          __detail::concurrent::SharedMutexRef shared_end { rw_mtx_ };
           std::lock_guard<SharedMutexRef> lock { shared_end };
           return !static_cast<bool>( exception_ );
         }
 
-        __PGBAR_INLINE_FN self& store( std::exception_ptr e ) & noexcept
+        __PGBAR_INLINE_FN Self& store( std::exception_ptr e ) & noexcept
         {
-          std::lock_guard<SharedMutex> lock { mtx_ };
+          std::lock_guard<SharedMutex> lock { rw_mtx_ };
           if ( !exception_ )
             exception_ = e;
           return *this;
         }
         __PGBAR_INLINE_FN std::exception_ptr load() const noexcept
         {
-          __detail::concurrent::SharedMutexRef shared_end { mtx_ };
+          __detail::concurrent::SharedMutexRef shared_end { rw_mtx_ };
           std::lock_guard<SharedMutexRef> lock { shared_end };
           return exception_;
         }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN self& clear() & noexcept
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN Self& clear() & noexcept
         {
-          std::lock_guard<SharedMutex> lock { mtx_ };
+          std::lock_guard<SharedMutex> lock { rw_mtx_ };
           exception_ = std::exception_ptr();
           return *this;
         }
@@ -1769,7 +2038,7 @@ namespace pgbar {
         // Pop up the head of the queue element and throw it as an exception.
         __PGBAR_INLINE_FN void rethrow() & noexcept( false )
         {
-          std::lock_guard<SharedMutex> lock { mtx_ };
+          std::lock_guard<SharedMutex> lock { rw_mtx_ };
           if ( !exception_ )
             return;
           auto exception_ptr = exception_;
@@ -1780,14 +2049,387 @@ namespace pgbar {
 
         void swap( ExceptionBox& lhs ) noexcept
         {
-          __PGBAR_ASSERT( this != std::addressof( lhs ) );
-          std::lock_guard<SharedMutex> lock1 { mtx_ };
-          std::lock_guard<SharedMutex> lock2 { lhs.mtx_ };
+          __PGBAR_ASSERT( this != &lhs );
+          std::lock_guard<SharedMutex> lock1 { rw_mtx_ };
+          std::lock_guard<SharedMutex> lock2 { lhs.rw_mtx_ };
           using std::swap; // ADL custom point
           swap( exception_, lhs.exception_ );
         }
         friend void swap( ExceptionBox& a, ExceptionBox& b ) noexcept { a.swap( b ); }
       };
+
+      class StateThread final {
+        using Self = StateThread;
+
+        static types::TimeUnit _working_interval;
+        static SharedMutex _rw_mtx;
+
+        /* The state transfer process is:
+         *                   activate()                   suspend()
+         * dormant(default) -----------> awake -> active ----------> suspend -> dormat
+         *              dctor
+         * (any state) ------> finish
+         *              catch an exception while box_ isn't empty
+         * (any state) ------------------------------------------> dead */
+        enum class state : std::uint8_t { dormant, awake, active, suspend, finish, dead };
+        struct Handle final {
+          wrappers::UniqueFunction<void()> task_;
+          std::thread td_;
+          ExceptionBox box_;
+          std::atomic<state> state_;
+
+          mutable std::condition_variable cond_var_;
+          mutable std::mutex mtx_;
+
+          Handle() noexcept( std::is_nothrow_default_constructible<std::condition_variable>::value )
+            : task_ { nullptr }, td_ {}, box_ {}, state_ { state::dormant }
+          {}
+          Handle( const Handle& )              = delete;
+          Handle& operator=( const Handle& ) & = delete;
+          ~Handle() noexcept                   = default;
+        };
+
+        std::unique_ptr<Handle> handle_;
+
+        __PGBAR_INLINE_FN void launch() &
+        {
+          __PGBAR_ASSERT( handle_ != nullptr );
+          __PGBAR_ASSERT( handle_->td_.get_id() == std::thread::id() );
+
+          handle_->state_.store( state::dormant, std::memory_order_release );
+          try {
+            const auto self = handle_.get();
+            handle_->td_    = std::thread( [self]() -> void {
+              while ( self->state_.load( std::memory_order_acquire ) != state::finish ) {
+                try {
+                  switch ( self->state_.load( std::memory_order_acquire ) ) {
+                  case state::dormant: {
+                    std::unique_lock<std::mutex> lock { self->mtx_ };
+                    self->cond_var_.wait( lock, [self]() noexcept -> bool {
+                      return self->state_.load( std::memory_order_acquire ) != state::dormant;
+                    } );
+                  } break;
+
+                  case state::awake: { // Intermediate state
+                    // Used to tell other threads that the current thread has woken up.
+                    auto expected = state::awake;
+                    self->state_.compare_exchange_strong( expected,
+                                                          state::active,
+                                                          std::memory_order_acq_rel,
+                                                          std::memory_order_relaxed );
+                  }
+                    __PGBAR_FALLTHROUGH;
+                  case state::active: {
+                    self->task_();
+                    std::this_thread::sleep_for( working_interval() );
+                  } break;
+
+                  case state::suspend: {
+                    self->task_();
+                    auto expected = state::suspend;
+                    self->state_.compare_exchange_strong( expected,
+                                                          state::dormant,
+                                                          std::memory_order_acq_rel,
+                                                          std::memory_order_relaxed );
+                  } break;
+
+                  default: return;
+                  }
+                } catch ( ... ) {
+                  // keep thread valid
+                  if ( self->box_.empty() ) {
+                    auto try_update = [self]( state expected ) noexcept {
+                      return self->state_.compare_exchange_strong( expected,
+                                                                   state::dormant,
+                                                                   std::memory_order_acq_rel,
+                                                                   std::memory_order_relaxed );
+                    };
+                    try_update( state::awake ) || try_update( state::active ) || try_update( state::suspend );
+                    // Avoid deadlock in main thread when the child thread catchs exception.
+                    auto exception = std::current_exception();
+                    if ( exception )
+                      self->box_.store( exception );
+                  } else {
+                    self->state_.store( state::dead, std::memory_order_relaxed );
+                    throw; // Rethrow it, and let the current thread crash.
+                  }
+                }
+              }
+            } );
+          } catch ( ... ) {
+            handle_->state_.store( state::dead, std::memory_order_release );
+            throw;
+          }
+        }
+
+        __PGBAR_INLINE_FN void shutdown() & noexcept
+        {
+          __PGBAR_ASSERT( handle_ != nullptr );
+          handle_->state_.store( state::finish, std::memory_order_release );
+          {
+            std::lock_guard<std::mutex> lock { handle_->mtx_ };
+            handle_->cond_var_.notify_all();
+          }
+          if ( handle_->td_.joinable() )
+            handle_->td_.join();
+          handle_->td_ = std::thread();
+        }
+
+      public:
+        __PGBAR_NODISCARD static types::TimeUnit working_interval()
+        {
+          SharedMutexRef shared_end { _rw_mtx };
+          std::lock_guard<SharedMutexRef> lock { shared_end };
+          return _working_interval;
+        }
+        static void working_interval( types::TimeUnit new_rate )
+        {
+          std::lock_guard<SharedMutex> lock { _rw_mtx };
+          _working_interval = std::move( new_rate );
+        }
+
+        constexpr StateThread() noexcept : handle_ { nullptr } {}
+        explicit StateThread( wrappers::UniqueFunction<void()> task ) : StateThread()
+        {
+          appoint( std::move( task ) );
+        }
+        ~StateThread() noexcept { drop(); }
+
+        StateThread( Self&& rhs ) noexcept : StateThread()
+        {
+          handle_.swap( rhs.handle_ );
+          rhs.drop();
+        }
+        Self& operator=( Self&& rhs ) & noexcept
+        {
+          __PGBAR_ASSERT( this != &rhs );
+          handle_.swap( rhs.handle_ );
+          rhs.drop();
+          return *this;
+        }
+
+        __PGBAR_INLINE_FN void halt() & noexcept
+        {
+          if ( handle_ != nullptr ) {
+            const auto self = handle_.get();
+            auto try_update = [self]( state expected ) noexcept {
+              return self->state_.compare_exchange_strong( expected,
+                                                           state::dormant,
+                                                           std::memory_order_acq_rel,
+                                                           std::memory_order_relaxed );
+            };
+            try_update( state::awake ) || try_update( state::active ) || try_update( state::suspend );
+          }
+        }
+        __PGBAR_INLINE_FN void drop() noexcept
+        {
+          if ( handle_ != nullptr ) {
+            shutdown();
+            handle_.reset();
+          }
+        }
+
+        __PGBAR_INLINE_FN void appoint() & noexcept
+        {
+          __PGBAR_ASSERT( active() == false );
+          if ( handle_ != nullptr ) {
+            halt();
+            handle_->task_ = nullptr;
+          }
+        }
+        __PGBAR_INLINE_FN
+        void appoint( wrappers::UniqueFunction<void()> task ) & noexcept( false )
+        {
+          if ( handle_ == nullptr ) {
+# if __PGBAR_CXX14
+            handle_ = std::make_unique<Handle>();
+# else
+            handle_.reset( new Handle() );
+# endif
+            launch();
+          } else if ( handle_->state_.load( std::memory_order_acquire ) == state::dead ) {
+            shutdown();
+            launch();
+          } else
+            __PGBAR_ASSERT( active() == false );
+          handle_->task_.swap( task );
+        }
+
+        __PGBAR_INLINE_FN void activate() & noexcept( false )
+        {
+          __PGBAR_ASSERT( jobless() == false );
+          __PGBAR_UNLIKELY if ( handle_->state_.load( std::memory_order_acquire ) == state::dead )
+          {
+            shutdown();
+            launch();
+          }
+          auto expected = state::dormant;
+          if ( handle_->state_.compare_exchange_strong( expected,
+                                                        state::awake,
+                                                        std::memory_order_acq_rel,
+                                                        std::memory_order_relaxed ) ) {
+            {
+              std::lock_guard<std::mutex> lock { handle_->mtx_ };
+              handle_->cond_var_.notify_one();
+            }
+            // spin wait, ensure that the thread has moved to the new state
+            do {
+              // avoid deadlock and throw the exception the thread received
+              __PGBAR_UNLIKELY if ( handle_->box_.empty() == false ) handle_->box_.rethrow();
+            } while ( handle_->state_.load( std::memory_order_acquire ) == state::awake
+                      && handle_->state_.load( std::memory_order_acquire ) != state::finish );
+          } else
+            __PGBAR_UNLIKELY if ( handle_->box_.empty() == false ) handle_->box_.rethrow();
+        }
+        __PGBAR_INLINE_FN void suspend() & noexcept( false )
+        {
+          __PGBAR_UNLIKELY if ( handle_ == nullptr ) return;
+          const auto self = handle_.get();
+          auto try_update = [self]( state expected ) noexcept {
+            return self->state_.compare_exchange_strong( expected,
+                                                         state::suspend,
+                                                         std::memory_order_acq_rel,
+                                                         std::memory_order_relaxed );
+          };
+          if ( try_update( state::awake ) || try_update( state::active ) ) {
+            do {
+              __PGBAR_UNLIKELY if ( handle_->box_.empty() == false ) handle_->box_.rethrow();
+            } while ( handle_->state_.load( std::memory_order_acquire ) == state::suspend
+                      && handle_->state_.load( std::memory_order_acquire ) != state::finish );
+          } else
+            __PGBAR_UNLIKELY if ( handle_->box_.empty() == false ) handle_->box_.rethrow();
+        }
+
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool jobless() const noexcept
+        {
+          return handle_ == nullptr || handle_->task_ == nullptr;
+        }
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool active() const noexcept
+        {
+          if ( jobless() )
+            return false;
+          const auto current_state = handle_->state_.load( std::memory_order_acquire );
+          return current_state != state::dormant && current_state != state::finish
+              && current_state != state::dead;
+        }
+        __PGBAR_INLINE_FN void rethrow_if_exception() const noexcept( false )
+        {
+          if ( handle_ != nullptr && handle_->box_.empty() == false )
+            handle_->box_.rethrow();
+        }
+      };
+      types::TimeUnit StateThread::_working_interval =
+        std::chrono::duration_cast<types::TimeUnit>( std::chrono::milliseconds( 40 ) );
+      SharedMutex StateThread::_rw_mtx {};
+
+      template<typename T, types::Size Capacity>
+      class RingQueue final {
+        using Self = RingQueue;
+
+        static_assert( std::is_default_constructible<T>::value,
+                       "pgbar::__detail::concurrent::RingQueue: T must be default constructible" );
+        static_assert( std::is_move_constructible<T>::value,
+                       "pgbar::__detail::concurrent::RingQueue: T must be move constructible" );
+        static_assert( std::is_move_assignable<T>::value,
+                       "pgbar::__detail::concurrent::RingQueue: T must be move assignable" );
+
+        std::array<T, Capacity> buffer_;
+        types::Size read_idx_, write_idx_, count_;
+
+        mutable SharedMutex rw_mtx_;
+
+      public:
+        __PGBAR_CXX14_CNSTXPR RingQueue() noexcept { read_idx_ = write_idx_ = count_ = 0; }
+
+        __PGBAR_CXX14_CNSTXPR RingQueue( const T& __value, types::Size __n = 1 )
+          noexcept( std::is_nothrow_copy_assignable<T>::value )
+          : RingQueue()
+        {
+          __PGBAR_ASSERT( __n <= Capacity );
+          for ( types::Size i = 0; i < __n; ++i ) {
+            buffer_[write_idx_] = __value;
+            write_idx_          = ( write_idx_ + 1 ) % Capacity;
+            ++count_;
+          }
+        }
+
+        RingQueue( const Self& rhs )         = delete;
+        Self& operator=( const Self& rhs ) & = delete;
+
+        __PGBAR_CXX20_CNSTXPR ~RingQueue() noexcept( std::is_nothrow_destructible<T>::value ) = default;
+
+        bool push( T item ) & noexcept( std::is_nothrow_move_assignable<T>::value )
+        {
+          {
+            std::lock_guard<SharedMutex> lock { rw_mtx_ };
+            if ( count_ == Capacity )
+              return false;
+            buffer_[write_idx_] = std::move( item );
+            write_idx_          = ( write_idx_ + 1 ) % Capacity;
+            ++count_;
+          }
+          return true;
+        }
+
+        __PGBAR_NODISCARD T pop() noexcept( std::is_nothrow_default_constructible<T>::value
+                                            && std::is_nothrow_move_assignable<T>::value )
+        {
+          T item {};
+          {
+            std::lock_guard<SharedMutex> lock { rw_mtx_ };
+            if ( count_ != 0 ) {
+              item      = std::move( buffer_[read_idx_] );
+              read_idx_ = ( read_idx_ + 1 ) % Capacity;
+              --count_;
+            }
+          }
+          return item;
+        }
+
+        void clear() & noexcept
+        {
+          std::lock_guard<SharedMutex> lock { rw_mtx_ };
+          read_idx_ = write_idx_ = count_ = 0;
+        }
+        void drop()
+          noexcept( std::is_nothrow_default_constructible<T>::value
+                    && std::is_nothrow_move_assignable<T>::value && std::is_nothrow_destructible<T>::value )
+        {
+          std::lock_guard<SharedMutex> lock { rw_mtx_ };
+          for ( ; count_ > 0; --count_ ) {
+            buffer_[read_idx_] = T {};
+            read_idx_          = ( read_idx_ + 1 ) % Capacity;
+          }
+          read_idx_ = write_idx_ = 0;
+          __PGBAR_ASSERT( count_ == 0 );
+        }
+
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool full() const noexcept
+        {
+          SharedMutexRef shared_end { rw_mtx_ };
+          std::lock_guard<SharedMutexRef> lock { shared_end };
+          return count_ == Capacity;
+        }
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool empty() const noexcept
+        {
+          SharedMutexRef shared_end { rw_mtx_ };
+          std::lock_guard<SharedMutexRef> lock { shared_end };
+          return count_ == 0;
+        }
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN types::Size size() const noexcept
+        {
+          SharedMutexRef shared_end { rw_mtx_ };
+          std::lock_guard<SharedMutexRef> lock { shared_end };
+          return count_;
+        }
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CNSTEVAL types::Size capacity() const noexcept
+        {
+          return Capacity;
+        }
+      };
+
+      // Global `StateThread` repository.
+      RingQueue<StateThread, 4> thread_repo;
     } // namespace concurrent
   } // namespace __detail
 
@@ -1816,7 +2458,7 @@ namespace pgbar {
    }                                                                               \
    __PGBAR_CXX20_CNSTXPR void swap( StructName& lhs ) noexcept                     \
    {                                                                               \
-     __PGBAR_ASSERT( this != std::addressof( lhs ) );                              \
+     __PGBAR_ASSERT( this != &lhs );                                               \
      using std::swap;                                                              \
      swap( data_, lhs.data_ );                                                     \
    }                                                                               \
@@ -2050,7 +2692,7 @@ namespace pgbar {
 
   namespace __detail {
     // The Basic components of the progress bar.
-    namespace asset {
+    namespace assets {
 # define __PGBAR_MEMBER_METHOD( ClassName, Constexpr )                        \
    Constexpr ClassName( const ClassName& lhs ) : Base( lhs )                  \
    {                                                                          \
@@ -2093,7 +2735,7 @@ namespace pgbar {
    friend __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR void unpacking( Fonts& cfg,                       \
                                                                   option::OptionName val ) noexcept \
    {                                                                                                \
-     cfg.fonts_[trait::as_val( Mask::OptionName )] = val.value();                                   \
+     cfg.fonts_[traits::as_val( Mask::OptionName )] = val.value();                                  \
    }
         __PGBAR_UNPAKING( Colored, colored_ )
         __PGBAR_UNPAKING( Bolded, bolded_ )
@@ -2111,14 +2753,14 @@ namespace pgbar {
       protected:
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::ROStr build_color( types::ROStr ansi_color ) const
         {
-          return fonts_[trait::as_val( Mask::Colored )] ? ansi_color : constants::nil_str;
+          return fonts_[traits::as_val( Mask::Colored )] ? ansi_color : constants::nil_str;
         }
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& build_font( io::Stringbuf& buffer,
                                                                            types::ROStr ansi_color ) const
         {
           return buffer << build_color( ansi_color )
-                        << ( fonts_[trait::as_val( Mask::Bolded )] ? console::escape::bold_font
-                                                                   : constants::nil_str );
+                        << ( fonts_[traits::as_val( Mask::Bolded )] ? console::escape::bold_font
+                                                                    : constants::nil_str );
         }
 
         mutable concurrent::SharedMutex rw_mtx_;
@@ -2144,7 +2786,7 @@ namespace pgbar {
 # define __PGBAR_METHOD( Offset )                                     \
    __detail::concurrent::SharedMutexRef shared_end { this->rw_mtx_ }; \
    std::lock_guard<concurrent::SharedMutexRef> lock { shared_end };   \
-   return fonts_[trait::as_val( Mask::Offset )]
+   return fonts_[traits::as_val( Mask::Offset )]
 
         // Check if the color effect is enabled.
         __PGBAR_NODISCARD bool colored() const { __PGBAR_METHOD( Colored ); }
@@ -2490,8 +3132,8 @@ namespace pgbar {
           buffer << console::escape::reset_font << this->build_color( this->start_col_ ) << this->starting_
                  << console::escape::reset_font << this->build_color( this->filler_col_ );
 
-          const types::Size len_finished = std::round( this->bar_length_ * num_percent );
-          types::Size len_unfinished     = this->bar_length_ - len_finished;
+          const auto len_finished = static_cast<types::Size>( std::round( this->bar_length_ * num_percent ) );
+          types::Size len_unfinished = this->bar_length_ - len_finished;
           __PGBAR_ASSERT( len_finished + len_unfinished == this->bar_length_ );
 
           // build filler_
@@ -2505,7 +3147,7 @@ namespace pgbar {
           // build lead_
           buffer << console::escape::reset_font;
           if ( !this->lead_.empty() ) {
-            num_frame_cnt *= this->shift_factor_;
+            num_frame_cnt = static_cast<types::Size>( num_frame_cnt * this->shift_factor_ );
             num_frame_cnt %= this->lead_.size();
             const auto& current_lead = this->lead_[num_frame_cnt];
             if ( current_lead.size() <= len_unfinished ) {
@@ -2586,8 +3228,8 @@ namespace pgbar {
           buffer << console::escape::reset_font << this->build_color( this->start_col_ ) << this->starting_
                  << console::escape::reset_font << this->build_color( this->filler_col_ );
 
-          const types::Size len_finished = std::trunc( this->bar_length_ * num_percent );
-          const types::Float float_part  = ( this->bar_length_ * num_percent ) - len_finished;
+          const auto len_finished = static_cast<types::Size>( std::trunc( this->bar_length_ * num_percent ) );
+          const types::Float float_part = ( this->bar_length_ * num_percent ) - len_finished;
           __PGBAR_ASSERT( float_part >= 0.0 );
           __PGBAR_ASSERT( float_part <= 1.0 );
           const types::Size incomplete_block = static_cast<types::Size>( float_part * filler_.size() );
@@ -2618,7 +3260,7 @@ namespace pgbar {
         {
           if ( this->lead_.empty() )
             return buffer;
-          num_frame_cnt *= this->shift_factor_;
+          num_frame_cnt = static_cast<types::Size>( num_frame_cnt * this->shift_factor_ );
           num_frame_cnt %= this->lead_.size();
           __PGBAR_ASSERT( this->size_longest_lead_ >= this->lead_[num_frame_cnt].size() );
 
@@ -2657,7 +3299,7 @@ namespace pgbar {
           io::Stringbuf& buffer,
           types::Size num_frame_cnt ) const
         {
-          num_frame_cnt *= this->shift_factor_;
+          num_frame_cnt = static_cast<types::Size>( num_frame_cnt * this->shift_factor_ );
           buffer << console::escape::reset_font << this->build_color( this->start_col_ ) << this->starting_
                  << console::escape::reset_font << this->build_color( this->filler_col_ );
 
@@ -3409,13 +4051,13 @@ namespace pgbar {
                                       std::is_array<std::remove_reference_t<R>>>
                 && std::is_lvalue_reference_v<R>
         __PGBAR_NODISCARD __PGBAR_CXX17_CNSTXPR
-          iterators::ProxySpan<iterators::IterSpan<trait::IteratorTrait_t<R>>, Derived>
+          iterators::ProxySpan<iterators::IterSpan<traits::IteratorTrait_t<R>>, Derived>
 # else
         __PGBAR_NODISCARD __PGBAR_CXX17_CNSTXPR typename std::enable_if<
           ( std::is_class<typename std::decay<R>::type>::value
             || std::is_array<typename std::remove_reference<R>::type>::value )
             && std::is_lvalue_reference<R>::value,
-          iterators::ProxySpan<iterators::IterSpan<trait::IteratorTrait_t<R>>, Derived>>::type
+          iterators::ProxySpan<iterators::IterSpan<traits::IteratorTrait_t<R>>, Derived>>::type
 # endif
           iterate( R&& container ) &
         { // forward it to the iterator overload
@@ -3458,32 +4100,33 @@ namespace pgbar {
       };
       template<typename Base, typename Derived>
       __PGBAR_CXX20_CNSTXPR FrameCounter<Base, Derived>::~FrameCounter() noexcept = default;
-    } // namespace asset
+    } // namespace assets
 
-    namespace trait {
-      __PGBAR_INHERIT_REGISTER( asset::TaskQuantity, asset::Fonts, );
-      __PGBAR_INHERIT_REGISTER( asset::BasicAnimation, asset::Fonts, );
-      __PGBAR_INHERIT_REGISTER( asset::BasicIndicator, asset::Fonts, );
+    namespace traits {
+      __PGBAR_INHERIT_REGISTER( assets::TaskQuantity, assets::Fonts, );
+      __PGBAR_INHERIT_REGISTER( assets::BasicAnimation, assets::Fonts, );
+      __PGBAR_INHERIT_REGISTER( assets::BasicIndicator, assets::Fonts, );
 
-      __PGBAR_INHERIT_REGISTER( asset::CharIndicator,
-                                asset::TaskQuantity,
-                                __PGBAR_PACK( asset::BasicAnimation, asset::BasicIndicator ) );
-      __PGBAR_INHERIT_REGISTER( asset::BlockIndicator, asset::TaskQuantity, asset::BasicIndicator );
+      __PGBAR_INHERIT_REGISTER( assets::CharIndicator,
+                                assets::TaskQuantity,
+                                __PGBAR_PACK( assets::BasicAnimation, assets::BasicIndicator ) );
+      __PGBAR_INHERIT_REGISTER( assets::BlockIndicator, assets::TaskQuantity, assets::BasicIndicator );
 
-      __PGBAR_INHERIT_REGISTER( asset::Spinner, , asset::BasicAnimation );
-      __PGBAR_INHERIT_REGISTER( asset::Scanner,
+      __PGBAR_INHERIT_REGISTER( assets::Spinner, , assets::BasicAnimation );
+      __PGBAR_INHERIT_REGISTER( assets::Scanner,
                                 ,
-                                __PGBAR_PACK( asset::BasicAnimation, asset::BasicIndicator ) );
+                                __PGBAR_PACK( assets::BasicAnimation, assets::BasicIndicator ) );
 
-      __PGBAR_INHERIT_REGISTER( asset::Description, asset::Fonts, );
-      __PGBAR_INHERIT_REGISTER( asset::Segment, asset::Fonts, );
+      __PGBAR_INHERIT_REGISTER( assets::Description, assets::Fonts, );
+      __PGBAR_INHERIT_REGISTER( assets::Segment, assets::Fonts, );
 
-      __PGBAR_INHERIT_REGISTER( asset::PercentMeter, asset::TaskQuantity, );
-      __PGBAR_INHERIT_REGISTER( asset::SpeedMeter, asset::TaskQuantity, );
-      __PGBAR_INHERIT_REGISTER( asset::CounterMeter, asset::TaskQuantity, );
+      __PGBAR_INHERIT_REGISTER( assets::PercentMeter, assets::TaskQuantity, );
+      __PGBAR_INHERIT_REGISTER( assets::SpeedMeter, assets::TaskQuantity, );
+      __PGBAR_INHERIT_REGISTER( assets::CounterMeter, assets::TaskQuantity, );
 
-      __PGBAR_INHERIT_REGISTER( asset::ElapsedTimer, asset::Timer, );
-      __PGBAR_INHERIT_REGISTER( asset::CountdownTimer, __PGBAR_PACK( asset::TaskQuantity, asset::Timer ), );
+      __PGBAR_INHERIT_REGISTER( assets::ElapsedTimer, assets::Timer, );
+      __PGBAR_INHERIT_REGISTER( assets::CountdownTimer,
+                                __PGBAR_PACK( assets::TaskQuantity, assets::Timer ), );
 
       // Following are the types of `option` that each `asset` can receive.
 
@@ -3514,7 +4157,7 @@ namespace pgbar {
       using GroupBlockIndicator = GroupBasicBar;
       using GroupSpinner        = GroupBasicAnimation;
       using GroupScanner        = Merge_t<GroupBasicAnimation, GroupBasicBar, TypeList<option::Filler>>;
-    } // namespace trait
+    } // namespace traits
 
     namespace render {
       template<typename ConfigType>
@@ -3532,24 +4175,18 @@ namespace pgbar {
       static const bool _stdout_in_tty;
       static const bool _stderr_in_tty;
 
-      static __detail::types::TimeUnit _refresh_interval;
-      static __detail::concurrent::SharedMutex _rw_mtx;
-
     public:
       using TimeUnit = __detail::types::TimeUnit;
 
       // Get the current output interval.
       __PGBAR_NODISCARD static TimeUnit refresh_interval()
       {
-        __detail::concurrent::SharedMutexRef shared_end { _rw_mtx };
-        std::lock_guard<__detail::concurrent::SharedMutexRef> lock { shared_end };
-        return _refresh_interval;
+        return __detail::concurrent::StateThread::working_interval();
       }
       // Set the new output interval.
       static void refresh_interval( TimeUnit new_rate )
       {
-        std::lock_guard<__detail::concurrent::SharedMutex> lock { _rw_mtx };
-        _refresh_interval = std::move( new_rate );
+        __detail::concurrent::StateThread::working_interval( std::move( new_rate ) );
       }
       __PGBAR_NODISCARD __PGBAR_INLINE_FN static bool intty( StreamChannel stream_type ) noexcept
       {
@@ -3561,53 +4198,50 @@ namespace pgbar {
       constexpr Core( Core&& ) noexcept      = default;
       __PGBAR_CXX17_CNSTXPR Core& operator=( const Core& lhs ) &
       {
-        __PGBAR_ASSERT( this != std::addressof( lhs ) );
+        __PGBAR_ASSERT( this != &lhs );
         (void)lhs;
         return *this;
       }
       __PGBAR_CXX17_CNSTXPR Core& operator=( Core&& rhs ) & noexcept
       {
-        __PGBAR_ASSERT( this != std::addressof( rhs ) );
+        __PGBAR_ASSERT( this != &rhs );
         (void)rhs;
         return *this;
       }
 
       __PGBAR_CXX20_CNSTXPR virtual ~Core() noexcept = 0;
     };
-    Core::TimeUnit Core::_refresh_interval =
-      std::chrono::duration_cast<Core::TimeUnit>( std::chrono::milliseconds( 40 ) );
-    __detail::concurrent::SharedMutex Core::_rw_mtx {};
     const bool Core::_stdout_in_tty              = __detail::console::intty<StreamChannel::Stdout>();
     const bool Core::_stderr_in_tty              = __detail::console::intty<StreamChannel::Stderr>();
     __PGBAR_CXX20_CNSTXPR Core::~Core() noexcept = default;
 
     template<template<typename...> class BarType, typename OptionConstraint>
     class BasicConfig
-      : public __detail::trait::LI<
+      : public __detail::traits::LI<
           BarType,
-          __detail::asset::Description,
-          __detail::asset::Segment,
-          __detail::asset::PercentMeter,
-          __detail::asset::SpeedMeter,
-          __detail::asset::CounterMeter,
-          __detail::asset::ElapsedTimer,
-          __detail::asset::CountdownTimer>::template type<Core, BasicConfig<BarType, OptionConstraint>> {
+          __detail::assets::Description,
+          __detail::assets::Segment,
+          __detail::assets::PercentMeter,
+          __detail::assets::SpeedMeter,
+          __detail::assets::CounterMeter,
+          __detail::assets::ElapsedTimer,
+          __detail::assets::CountdownTimer>::template type<Core, BasicConfig<BarType, OptionConstraint>> {
       // BarType must inherit from BasicIndicator or BasicAnimation
-      static_assert(
-        __detail::trait::Contain<__detail::trait::TopoSort_t<BarType>, __detail::asset::BasicIndicator>::value
-          || __detail::trait::Contain<__detail::trait::TopoSort_t<BarType>,
-                                      __detail::asset::BasicAnimation>::value,
-        "pgbar::config::BasicConfig: Invalid progress bar type" );
+      static_assert( __detail::traits::Contain<__detail::traits::TopoSort_t<BarType>,
+                                               __detail::assets::BasicIndicator>::value
+                       || __detail::traits::Contain<__detail::traits::TopoSort_t<BarType>,
+                                                    __detail::assets::BasicAnimation>::value,
+                     "pgbar::config::BasicConfig: Invalid progress bar type" );
 
-      using self = BasicConfig<BarType, OptionConstraint>;
-      using Base = typename __detail::trait::LI<BarType,
-                                                __detail::asset::Description,
-                                                __detail::asset::Segment,
-                                                __detail::asset::PercentMeter,
-                                                __detail::asset::SpeedMeter,
-                                                __detail::asset::CounterMeter,
-                                                __detail::asset::ElapsedTimer,
-                                                __detail::asset::CountdownTimer>::template type<Core, self>;
+      using Self = BasicConfig;
+      using Base = typename __detail::traits::LI<BarType,
+                                                 __detail::assets::Description,
+                                                 __detail::assets::Segment,
+                                                 __detail::assets::PercentMeter,
+                                                 __detail::assets::SpeedMeter,
+                                                 __detail::assets::CounterMeter,
+                                                 __detail::assets::ElapsedTimer,
+                                                 __detail::assets::CountdownTimer>::template type<Core, Self>;
 
       template<typename, typename>
       friend struct __detail::render::ConfigInfo;
@@ -3642,15 +4276,15 @@ namespace pgbar {
       template<
         typename Arg,
         typename... Args,
-        typename = typename std::enable_if<__detail::trait::AllBelongAny<
-          __detail::trait::TypeList<typename std::decay<Arg>::type, typename std::decay<Args>::type...>,
-          __detail::trait::GroupFonts,
-          __detail::trait::GroupTaskQuantity,
+        typename = typename std::enable_if<__detail::traits::AllBelongAny<
+          __detail::traits::TypeList<typename std::decay<Arg>::type, typename std::decay<Args>::type...>,
+          __detail::traits::GroupFonts,
+          __detail::traits::GroupTaskQuantity,
           OptionConstraint,
-          __detail::trait::GroupDescription,
-          __detail::trait::GroupSegment,
-          __detail::trait::GroupSpeedMeter,
-          __detail::trait::GroupBitOption>::value>::type>
+          __detail::traits::GroupDescription,
+          __detail::traits::GroupSegment,
+          __detail::traits::GroupSpeedMeter,
+          __detail::traits::GroupBitOption>::value>::type>
       BasicConfig( Arg&& arg, Args&&... args ) : BasicConfig()
       {
         unpacking( *this, std::forward<Arg>( arg ) );
@@ -3658,9 +4292,9 @@ namespace pgbar {
           std::initializer_list<char> { ( unpacking( *this, std::forward<Args>( args ) ), '\0' )... } );
       }
 
-      BasicConfig( const self& ) noexcept( std::is_nothrow_copy_constructible<Base>::value ) = default;
-      BasicConfig( self&& ) noexcept                                                         = default;
-      self& operator=( const self& lhs ) & noexcept( std::is_nothrow_copy_assignable<Base>::value )
+      BasicConfig( const Self& ) noexcept( std::is_nothrow_copy_constructible<Base>::value ) = default;
+      BasicConfig( Self&& ) noexcept                                                         = default;
+      Self& operator=( const Self& lhs ) & noexcept( std::is_nothrow_copy_assignable<Base>::value )
       {
         std::lock_guard<__detail::concurrent::SharedMutex> lock1 { this->rw_mtx_ };
         __detail::concurrent::SharedMutexRef shared_end { lhs.rw_mtx_ };
@@ -3669,7 +4303,7 @@ namespace pgbar {
         visual_masks_ = lhs.visual_masks_;
         return *this;
       }
-      self& operator=( self&& rhs ) & noexcept
+      Self& operator=( Self&& rhs ) & noexcept
       {
         std::lock_guard<__detail::concurrent::SharedMutex> lock1 { this->rw_mtx_ };
         std::lock_guard<__detail::concurrent::SharedMutex> lock2 { rhs.rw_mtx_ };
@@ -3680,7 +4314,7 @@ namespace pgbar {
       }
       virtual ~BasicConfig() noexcept = default;
 
-      self& style( __detail::types::BitwiseSet val ) &
+      Self& style( __detail::types::BitwiseSet val ) &
       {
         std::lock_guard<__detail::concurrent::SharedMutex> lock { this->rw_mtx_ };
         unpacking( *this, option::Style( val ) );
@@ -3691,20 +4325,20 @@ namespace pgbar {
       {
         __detail::concurrent::SharedMutexRef shared_end { this->rw_mtx_ };
         std::lock_guard<__detail::concurrent::SharedMutexRef> lock { shared_end };
-        return __detail::render::ConfigInfo<self>::fixed_render_size( *this );
+        return __detail::render::ConfigInfo<Self>::fixed_render_size( *this );
       }
 
       template<typename... Args>
       typename std::enable_if<
-        __detail::trait::AllBelongAny<__detail::trait::TypeList<typename std::decay<Args>::type...>,
-                                      __detail::trait::GroupFonts,
-                                      __detail::trait::GroupTaskQuantity,
-                                      OptionConstraint,
-                                      __detail::trait::GroupDescription,
-                                      __detail::trait::GroupSegment,
-                                      __detail::trait::GroupSpeedMeter,
-                                      __detail::trait::GroupBitOption>::value,
-        self&>::type
+        __detail::traits::AllBelongAny<__detail::traits::TypeList<typename std::decay<Args>::type...>,
+                                       __detail::traits::GroupFonts,
+                                       __detail::traits::GroupTaskQuantity,
+                                       OptionConstraint,
+                                       __detail::traits::GroupDescription,
+                                       __detail::traits::GroupSegment,
+                                       __detail::traits::GroupSpeedMeter,
+                                       __detail::traits::GroupBitOption>::value,
+        Self&>::type
         set( Args&&... args ) &
       {
         std::lock_guard<__detail::concurrent::SharedMutex> lock { this->rw_mtx_ };
@@ -3714,14 +4348,14 @@ namespace pgbar {
       }
     };
 
-    using CharBar = BasicConfig<__detail::asset::CharIndicator, __detail::trait::GroupCharIndicator>;
-    using BlckBar = BasicConfig<__detail::asset::BlockIndicator, __detail::trait::GroupBlockIndicator>;
-    using SpinBar = BasicConfig<__detail::asset::Spinner, __detail::trait::GroupSpinner>;
-    using ScanBar = BasicConfig<__detail::asset::Scanner, __detail::trait::GroupScanner>;
+    using CharBar = BasicConfig<__detail::assets::CharIndicator, __detail::traits::GroupCharIndicator>;
+    using BlckBar = BasicConfig<__detail::assets::BlockIndicator, __detail::traits::GroupBlockIndicator>;
+    using SpinBar = BasicConfig<__detail::assets::Spinner, __detail::traits::GroupSpinner>;
+    using ScanBar = BasicConfig<__detail::assets::Scanner, __detail::traits::GroupScanner>;
   } // namespace config
 
   namespace __detail {
-    namespace trait {
+    namespace traits {
       template<typename C>
       struct ConfigTrait;
 
@@ -3737,11 +4371,14 @@ namespace pgbar {
       template<typename C>
       using ConfigTrait_t = typename ConfigTrait<C>::TraitsList;
 
-      __PGBAR_TRAIT_REGISTER( config::CharBar, GroupCharIndicator, asset::TaskCounter, asset::FrameCounter );
-      __PGBAR_TRAIT_REGISTER( config::BlckBar, GroupBlockIndicator, asset::TaskCounter );
-      __PGBAR_TRAIT_REGISTER( config::SpinBar, GroupSpinner, asset::TaskCounter, asset::FrameCounter );
-      __PGBAR_TRAIT_REGISTER( config::ScanBar, GroupScanner, asset::TaskCounter, asset::FrameCounter );
-    } // namespace trait
+      __PGBAR_TRAIT_REGISTER( config::CharBar,
+                              GroupCharIndicator,
+                              assets::TaskCounter,
+                              assets::FrameCounter );
+      __PGBAR_TRAIT_REGISTER( config::BlckBar, GroupBlockIndicator, assets::TaskCounter );
+      __PGBAR_TRAIT_REGISTER( config::SpinBar, GroupSpinner, assets::TaskCounter, assets::FrameCounter );
+      __PGBAR_TRAIT_REGISTER( config::ScanBar, GroupScanner, assets::TaskCounter, assets::FrameCounter );
+    } // namespace traits
 
     namespace render {
       template<>
@@ -3805,22 +4442,22 @@ namespace pgbar {
         __PGBAR_NODISCARD static __PGBAR_INLINE_FN types::Size fixed_render_size(
           const ConfigType& cfg ) noexcept
         {
-          using self = ConfigType;
+          using Self = ConfigType;
           return cfg.fixed_len_description()
-               + ( cfg.visual_masks_[trait::as_val( self::Mask::Per )] ? cfg.fixed_len_percent() : 0 )
-               + ( cfg.visual_masks_[trait::as_val( self::Mask::Ani )] ? cfg.fixed_len_bar() : 0 )
-               + ( cfg.visual_masks_[trait::as_val( self::Mask::Cnt )] ? cfg.fixed_len_counter() : 0 )
-               + ( cfg.visual_masks_[trait::as_val( self::Mask::Sped )] ? cfg.fixed_len_speed() : 0 )
-               + ( cfg.visual_masks_[trait::as_val( self::Mask::Elpsd )] ? cfg.fixed_len_elapsed() : 0 )
-               + ( cfg.visual_masks_[trait::as_val( self::Mask::Cntdwn )] ? cfg.fixed_len_countdown() : 0 )
-               + ( cfg.visual_masks_[trait::as_val( self::Mask::Elpsd )]
-                       && cfg.visual_masks_[trait::as_val( self::Mask::Cntdwn )]
+               + ( cfg.visual_masks_[traits::as_val( Self::Mask::Per )] ? cfg.fixed_len_percent() : 0 )
+               + ( cfg.visual_masks_[traits::as_val( Self::Mask::Ani )] ? cfg.fixed_len_bar() : 0 )
+               + ( cfg.visual_masks_[traits::as_val( Self::Mask::Cnt )] ? cfg.fixed_len_counter() : 0 )
+               + ( cfg.visual_masks_[traits::as_val( Self::Mask::Sped )] ? cfg.fixed_len_speed() : 0 )
+               + ( cfg.visual_masks_[traits::as_val( Self::Mask::Elpsd )] ? cfg.fixed_len_elapsed() : 0 )
+               + ( cfg.visual_masks_[traits::as_val( Self::Mask::Cntdwn )] ? cfg.fixed_len_countdown() : 0 )
+               + ( cfg.visual_masks_[traits::as_val( Self::Mask::Elpsd )]
+                       && cfg.visual_masks_[traits::as_val( Self::Mask::Cntdwn )]
                      ? 3
                      : 0 )
                + cfg.fixed_len_segment(
                  cfg.visual_masks_.count()
-                 - ( cfg.visual_masks_[trait::as_val( self::Mask::Cntdwn )]
-                     && cfg.visual_masks_[trait::as_val( self::Mask::Elpsd )] )
+                 - ( cfg.visual_masks_[traits::as_val( Self::Mask::Cntdwn )]
+                     && cfg.visual_masks_[traits::as_val( Self::Mask::Elpsd )] )
                  + ( !cfg.true_mesg_.empty() || !cfg.false_mesg_.empty() || !cfg.description_.empty() ) )
                + 1;
         }
@@ -3830,24 +4467,24 @@ namespace pgbar {
         __PGBAR_NODISCARD static __PGBAR_INLINE_FN types::Size fixed_render_size(
           const config::SpinBar& cfg ) noexcept
         {
-          using self = config::SpinBar;
-          return ( cfg.visual_masks_[trait::as_val( self::Mask::Ani )]
+          using Self = config::SpinBar;
+          return ( cfg.visual_masks_[traits::as_val( Self::Mask::Ani )]
                      ? cfg.fixed_len_animation() + cfg.fixed_len_description()
                          + ( !cfg.true_mesg_.empty() || !cfg.false_mesg_.empty()
                              || !cfg.description_.empty() )
                      : 0 )
-               + ( cfg.visual_masks_[trait::as_val( self::Mask::Per )] ? cfg.fixed_len_percent() : 0 )
-               + ( cfg.visual_masks_[trait::as_val( self::Mask::Cnt )] ? cfg.fixed_len_counter() : 0 )
-               + ( cfg.visual_masks_[trait::as_val( self::Mask::Sped )] ? cfg.fixed_len_speed() : 0 )
-               + ( cfg.visual_masks_[trait::as_val( self::Mask::Elpsd )] ? cfg.fixed_len_elapsed() : 0 )
-               + ( cfg.visual_masks_[trait::as_val( self::Mask::Cntdwn )] ? cfg.fixed_len_countdown() : 0 )
-               + ( cfg.visual_masks_[trait::as_val( self::Mask::Elpsd )]
-                       && cfg.visual_masks_[trait::as_val( self::Mask::Cntdwn )]
+               + ( cfg.visual_masks_[traits::as_val( Self::Mask::Per )] ? cfg.fixed_len_percent() : 0 )
+               + ( cfg.visual_masks_[traits::as_val( Self::Mask::Cnt )] ? cfg.fixed_len_counter() : 0 )
+               + ( cfg.visual_masks_[traits::as_val( Self::Mask::Sped )] ? cfg.fixed_len_speed() : 0 )
+               + ( cfg.visual_masks_[traits::as_val( Self::Mask::Elpsd )] ? cfg.fixed_len_elapsed() : 0 )
+               + ( cfg.visual_masks_[traits::as_val( Self::Mask::Cntdwn )] ? cfg.fixed_len_countdown() : 0 )
+               + ( cfg.visual_masks_[traits::as_val( Self::Mask::Elpsd )]
+                       && cfg.visual_masks_[traits::as_val( Self::Mask::Cntdwn )]
                      ? 3
                      : 0 )
                + cfg.fixed_len_segment( cfg.visual_masks_.count()
-                                        - ( cfg.visual_masks_[trait::as_val( self::Mask::Cntdwn )]
-                                            && cfg.visual_masks_[trait::as_val( self::Mask::Elpsd )] ) )
+                                        - ( cfg.visual_masks_[traits::as_val( Self::Mask::Cntdwn )]
+                                            && cfg.visual_masks_[traits::as_val( Self::Mask::Elpsd )] ) )
                + 1;
         }
       };
@@ -3875,33 +4512,33 @@ namespace pgbar {
           const std::chrono::steady_clock::time_point& zero_point ) const
         {
           __PGBAR_ASSERT( num_task_done <= num_all_tasks );
-          using self = ConfigType;
-          if ( this->visual_masks_[trait::as_val( self::Mask::Cnt )]
-               || this->visual_masks_[trait::as_val( self::Mask::Sped )]
-               || this->visual_masks_[trait::as_val( self::Mask::Elpsd )]
-               || this->visual_masks_[trait::as_val( self::Mask::Cntdwn )] ) {
+          using Self = ConfigType;
+          if ( this->visual_masks_[traits::as_val( Self::Mask::Cnt )]
+               || this->visual_masks_[traits::as_val( Self::Mask::Sped )]
+               || this->visual_masks_[traits::as_val( Self::Mask::Elpsd )]
+               || this->visual_masks_[traits::as_val( Self::Mask::Cntdwn )] ) {
             buffer << console::escape::reset_font;
             this->build_font( buffer, this->info_col_ );
-            if ( this->visual_masks_[trait::as_val( self::Mask::Cnt )] ) {
+            if ( this->visual_masks_[traits::as_val( Self::Mask::Cnt )] ) {
               buffer << this->build_counter( num_task_done, num_all_tasks );
-              if ( this->visual_masks_[trait::as_val( self::Mask::Sped )]
-                   || this->visual_masks_[trait::as_val( self::Mask::Elpsd )]
-                   || this->visual_masks_[trait::as_val( self::Mask::Cntdwn )] )
+              if ( this->visual_masks_[traits::as_val( Self::Mask::Sped )]
+                   || this->visual_masks_[traits::as_val( Self::Mask::Elpsd )]
+                   || this->visual_masks_[traits::as_val( Self::Mask::Cntdwn )] )
                 this->build_divider( buffer );
             }
             const auto time_passed = std::chrono::steady_clock::now() - zero_point;
-            if ( this->visual_masks_[trait::as_val( self::Mask::Sped )] ) {
+            if ( this->visual_masks_[traits::as_val( Self::Mask::Sped )] ) {
               buffer << this->build_speed( time_passed, num_task_done, num_all_tasks );
-              if ( this->visual_masks_[trait::as_val( self::Mask::Elpsd )]
-                   || this->visual_masks_[trait::as_val( self::Mask::Cntdwn )] )
+              if ( this->visual_masks_[traits::as_val( Self::Mask::Elpsd )]
+                   || this->visual_masks_[traits::as_val( Self::Mask::Cntdwn )] )
                 this->build_divider( buffer );
             }
-            if ( this->visual_masks_[trait::as_val( self::Mask::Elpsd )] ) {
+            if ( this->visual_masks_[traits::as_val( Self::Mask::Elpsd )] ) {
               buffer << this->build_elapsed( time_passed );
-              if ( this->visual_masks_[trait::as_val( self::Mask::Cntdwn )] )
+              if ( this->visual_masks_[traits::as_val( Self::Mask::Cntdwn )] )
                 buffer << " < ";
             }
-            if ( this->visual_masks_[trait::as_val( self::Mask::Cntdwn )] )
+            if ( this->visual_masks_[traits::as_val( Self::Mask::Cntdwn )] )
               buffer << this->build_countdown( time_passed, num_task_done, num_all_tasks );
           }
           return buffer;
@@ -3912,8 +4549,8 @@ namespace pgbar {
       struct Builder;
       template<>
       struct Builder<config::CharBar> final : public CommonBuilder<config::CharBar> {
-        using self = config::CharBar;
-        using CommonBuilder<self>::CommonBuilder;
+        using Self = config::CharBar;
+        using CommonBuilder<Self>::CommonBuilder;
         virtual ~Builder() noexcept = default;
 
         __PGBAR_INLINE_FN io::Stringbuf& build(
@@ -3934,18 +4571,18 @@ namespace pgbar {
           this->build_description( buffer );
           if ( !this->description_.empty() && this->visual_masks_.any() )
             this->build_divider( buffer );
-          if ( this->visual_masks_[trait::as_val( self::Mask::Per )] ) {
+          if ( this->visual_masks_[traits::as_val( Self::Mask::Per )] ) {
             this->build_font( buffer, this->info_col_ );
             buffer << this->build_percent( num_percent );
             auto masks = this->visual_masks_;
-            if ( masks.reset( trait::as_val( self::Mask::Per ) ).any() )
+            if ( masks.reset( traits::as_val( Self::Mask::Per ) ).any() )
               this->build_divider( buffer );
           }
-          if ( this->visual_masks_[trait::as_val( self::Mask::Ani )] ) {
+          if ( this->visual_masks_[traits::as_val( Self::Mask::Ani )] ) {
             this->build_char( buffer, num_frame_cnt, num_percent );
             auto masks = this->visual_masks_;
-            if ( masks.reset( trait::as_val( self::Mask::Ani ) )
-                   .reset( trait::as_val( self::Mask::Per ) )
+            if ( masks.reset( traits::as_val( Self::Mask::Ani ) )
+                   .reset( traits::as_val( Self::Mask::Per ) )
                    .any() )
               this->build_divider( buffer );
           }
@@ -3978,19 +4615,19 @@ namespace pgbar {
                  || !this->description_.empty() )
                && this->visual_masks_.any() )
             this->build_divider( buffer );
-          if ( this->visual_masks_[trait::as_val( self::Mask::Per )] ) {
+          if ( this->visual_masks_[traits::as_val( Self::Mask::Per )] ) {
             buffer << console::escape::reset_font;
             this->build_font( buffer, this->info_col_ );
             buffer << this->build_percent( num_percent );
             auto masks = this->visual_masks_;
-            if ( masks.reset( trait::as_val( self::Mask::Per ) ).any() )
+            if ( masks.reset( traits::as_val( Self::Mask::Per ) ).any() )
               this->build_divider( buffer );
           }
-          if ( this->visual_masks_[trait::as_val( self::Mask::Ani )] ) {
+          if ( this->visual_masks_[traits::as_val( Self::Mask::Ani )] ) {
             this->build_char( buffer, num_frame_cnt, num_percent );
             auto masks = this->visual_masks_;
-            if ( masks.reset( trait::as_val( self::Mask::Ani ) )
-                   .reset( trait::as_val( self::Mask::Per ) )
+            if ( masks.reset( traits::as_val( Self::Mask::Ani ) )
+                   .reset( traits::as_val( Self::Mask::Per ) )
                    .any() )
               this->build_divider( buffer );
           }
@@ -4006,15 +4643,15 @@ namespace pgbar {
         {
           concurrent::SharedMutexRef shared_end { this->rw_mtx_ };
           std::lock_guard<concurrent::SharedMutexRef> lock { shared_end };
-          return ConfigInfo<self>::fixed_render_size( *this )
-               + ( this->visual_masks_[trait::as_val( self::Mask::Ani )] ? this->bar_length_ : 0 );
+          return ConfigInfo<Self>::fixed_render_size( *this )
+               + ( this->visual_masks_[traits::as_val( Self::Mask::Ani )] ? this->bar_length_ : 0 );
         }
       };
 
       template<>
       struct Builder<config::BlckBar> final : public CommonBuilder<config::BlckBar> {
-        using self = config::BlckBar;
-        using CommonBuilder<self>::CommonBuilder;
+        using Self = config::BlckBar;
+        using CommonBuilder<Self>::CommonBuilder;
         virtual ~Builder() noexcept = default;
 
         __PGBAR_INLINE_FN io::Stringbuf& build(
@@ -4034,19 +4671,19 @@ namespace pgbar {
           this->build_description( buffer );
           if ( !this->description_.empty() && this->visual_masks_.any() )
             this->build_divider( buffer );
-          if ( this->visual_masks_[trait::as_val( self::Mask::Per )] ) {
+          if ( this->visual_masks_[traits::as_val( Self::Mask::Per )] ) {
             buffer << console::escape::reset_font;
             this->build_font( buffer, this->info_col_ );
             buffer << this->build_percent( num_percent );
             auto masks = this->visual_masks_;
-            if ( masks.reset( trait::as_val( self::Mask::Per ) ).any() )
+            if ( masks.reset( traits::as_val( Self::Mask::Per ) ).any() )
               this->build_divider( buffer );
           }
-          if ( this->visual_masks_[trait::as_val( self::Mask::Ani )] ) {
+          if ( this->visual_masks_[traits::as_val( Self::Mask::Ani )] ) {
             this->build_block( buffer, num_percent );
             auto masks = this->visual_masks_;
-            if ( masks.reset( trait::as_val( self::Mask::Ani ) )
-                   .reset( trait::as_val( self::Mask::Per ) )
+            if ( masks.reset( traits::as_val( Self::Mask::Ani ) )
+                   .reset( traits::as_val( Self::Mask::Per ) )
                    .any() )
               this->build_divider( buffer );
           }
@@ -4078,19 +4715,19 @@ namespace pgbar {
                  || !this->description_.empty() )
                && this->visual_masks_.any() )
             this->build_divider( buffer );
-          if ( this->visual_masks_[trait::as_val( self::Mask::Per )] ) {
+          if ( this->visual_masks_[traits::as_val( Self::Mask::Per )] ) {
             buffer << console::escape::reset_font;
             this->build_font( buffer, this->info_col_ );
             buffer << this->build_percent( num_percent );
             auto masks = this->visual_masks_;
-            if ( masks.reset( trait::as_val( self::Mask::Per ) ).any() )
+            if ( masks.reset( traits::as_val( Self::Mask::Per ) ).any() )
               this->build_divider( buffer );
           }
-          if ( this->visual_masks_[trait::as_val( self::Mask::Ani )] ) {
+          if ( this->visual_masks_[traits::as_val( Self::Mask::Ani )] ) {
             this->build_block( buffer, num_percent );
             auto masks = this->visual_masks_;
-            if ( masks.reset( trait::as_val( self::Mask::Ani ) )
-                   .reset( trait::as_val( self::Mask::Per ) )
+            if ( masks.reset( traits::as_val( Self::Mask::Ani ) )
+                   .reset( traits::as_val( Self::Mask::Per ) )
                    .any() )
               this->build_divider( buffer );
           }
@@ -4106,15 +4743,15 @@ namespace pgbar {
         {
           concurrent::SharedMutexRef shared_end { this->rw_mtx_ };
           std::lock_guard<concurrent::SharedMutexRef> lock { shared_end };
-          return ConfigInfo<self>::fixed_render_size( *this )
-               + ( this->visual_masks_[trait::as_val( self::Mask::Ani )] ? this->bar_length_ : 0 );
+          return ConfigInfo<Self>::fixed_render_size( *this )
+               + ( this->visual_masks_[traits::as_val( Self::Mask::Ani )] ? this->bar_length_ : 0 );
         }
       };
 
       template<>
       struct Builder<config::SpinBar> final : public CommonBuilder<config::SpinBar> {
-        using self = config::SpinBar;
-        using CommonBuilder<self>::CommonBuilder;
+        using Self = config::SpinBar;
+        using CommonBuilder<Self>::CommonBuilder;
         virtual ~Builder() noexcept = default;
 
         __PGBAR_INLINE_FN io::Stringbuf& build(
@@ -4132,23 +4769,23 @@ namespace pgbar {
           if ( this->visual_masks_.any() )
             this->build_lborder( buffer );
 
-          if ( this->visual_masks_[trait::as_val( self::Mask::Ani )] ) {
+          if ( this->visual_masks_[traits::as_val( Self::Mask::Ani )] ) {
             this->build_spinner( buffer, num_frame_cnt );
             if ( !this->description_.empty() ) {
               buffer << constants::blank;
               this->build_description( buffer );
             }
             auto masks = this->visual_masks_;
-            if ( masks.reset( trait::as_val( self::Mask::Ani ) ).any() )
+            if ( masks.reset( traits::as_val( Self::Mask::Ani ) ).any() )
               this->build_divider( buffer );
           }
-          if ( this->visual_masks_[trait::as_val( self::Mask::Per )] ) {
+          if ( this->visual_masks_[traits::as_val( Self::Mask::Per )] ) {
             buffer << console::escape::reset_font;
             this->build_font( buffer, this->info_col_ );
             buffer << this->build_percent( num_percent );
             auto masks = this->visual_masks_;
-            if ( masks.reset( trait::as_val( self::Mask::Ani ) )
-                   .reset( trait::as_val( self::Mask::Per ) )
+            if ( masks.reset( traits::as_val( Self::Mask::Ani ) )
+                   .reset( traits::as_val( Self::Mask::Per ) )
                    .any() )
               this->build_divider( buffer );
           }
@@ -4174,7 +4811,7 @@ namespace pgbar {
           if ( this->visual_masks_.any() )
             this->build_lborder( buffer );
 
-          if ( this->visual_masks_[trait::as_val( self::Mask::Ani )] ) {
+          if ( this->visual_masks_[traits::as_val( Self::Mask::Ani )] ) {
             if ( ( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() ) {
               this->build_spinner( buffer, num_frame_cnt );
               if ( !this->description_.empty() )
@@ -4182,16 +4819,16 @@ namespace pgbar {
             }
             this->build_description( buffer, final_mesg );
             auto masks = this->visual_masks_;
-            if ( masks.reset( trait::as_val( self::Mask::Ani ) ).any() )
+            if ( masks.reset( traits::as_val( Self::Mask::Ani ) ).any() )
               this->build_divider( buffer );
           }
-          if ( this->visual_masks_[trait::as_val( self::Mask::Per )] ) {
+          if ( this->visual_masks_[traits::as_val( Self::Mask::Per )] ) {
             buffer << console::escape::reset_font;
             this->build_font( buffer, this->info_col_ );
             buffer << this->build_percent( num_percent );
             auto masks = this->visual_masks_;
-            if ( masks.reset( trait::as_val( self::Mask::Ani ) )
-                   .reset( trait::as_val( self::Mask::Per ) )
+            if ( masks.reset( traits::as_val( Self::Mask::Ani ) )
+                   .reset( traits::as_val( Self::Mask::Per ) )
                    .any() )
               this->build_divider( buffer );
           }
@@ -4205,14 +4842,14 @@ namespace pgbar {
         {
           concurrent::SharedMutexRef shared_end { this->rw_mtx_ };
           std::lock_guard<concurrent::SharedMutexRef> lock { shared_end };
-          return ConfigInfo<self>::fixed_render_size( *this );
+          return ConfigInfo<Self>::fixed_render_size( *this );
         }
       };
 
       template<>
       struct Builder<config::ScanBar> final : public CommonBuilder<config::ScanBar> {
-        using self = config::ScanBar;
-        using CommonBuilder<self>::CommonBuilder;
+        using Self = config::ScanBar;
+        using CommonBuilder<Self>::CommonBuilder;
         virtual ~Builder() noexcept = default;
 
         __PGBAR_INLINE_FN io::Stringbuf& build(
@@ -4233,19 +4870,19 @@ namespace pgbar {
           this->build_description( buffer );
           if ( !this->description_.empty() && this->visual_masks_.any() )
             this->build_divider( buffer );
-          if ( this->visual_masks_[trait::as_val( self::Mask::Per )] ) {
+          if ( this->visual_masks_[traits::as_val( Self::Mask::Per )] ) {
             buffer << console::escape::reset_font;
             this->build_font( buffer, this->info_col_ );
             buffer << this->build_percent( num_percent );
             auto masks = this->visual_masks_;
-            if ( masks.reset( trait::as_val( self::Mask::Per ) ).any() )
+            if ( masks.reset( traits::as_val( Self::Mask::Per ) ).any() )
               this->build_divider( buffer );
           }
-          if ( this->visual_masks_[trait::as_val( self::Mask::Ani )] ) {
+          if ( this->visual_masks_[traits::as_val( Self::Mask::Ani )] ) {
             this->build_scanner( buffer, num_frame_cnt );
             auto masks = this->visual_masks_;
-            if ( masks.reset( trait::as_val( self::Mask::Ani ) )
-                   .reset( trait::as_val( self::Mask::Per ) )
+            if ( masks.reset( traits::as_val( Self::Mask::Ani ) )
+                   .reset( traits::as_val( Self::Mask::Per ) )
                    .any() )
               this->build_divider( buffer );
           }
@@ -4278,19 +4915,19 @@ namespace pgbar {
                  || !this->description_.empty() )
                && this->visual_masks_.any() )
             this->build_divider( buffer );
-          if ( this->visual_masks_[trait::as_val( self::Mask::Per )] ) {
+          if ( this->visual_masks_[traits::as_val( Self::Mask::Per )] ) {
             buffer << console::escape::reset_font;
             this->build_font( buffer, this->info_col_ );
             buffer << this->build_percent( num_percent );
             auto masks = this->visual_masks_;
-            if ( masks.reset( trait::as_val( self::Mask::Per ) ).any() )
+            if ( masks.reset( traits::as_val( Self::Mask::Per ) ).any() )
               this->build_divider( buffer );
           }
-          if ( this->visual_masks_[trait::as_val( self::Mask::Ani )] ) {
+          if ( this->visual_masks_[traits::as_val( Self::Mask::Ani )] ) {
             this->build_scanner( buffer, num_frame_cnt );
             auto masks = this->visual_masks_;
-            if ( masks.reset( trait::as_val( self::Mask::Ani ) )
-                   .reset( trait::as_val( self::Mask::Per ) )
+            if ( masks.reset( traits::as_val( Self::Mask::Ani ) )
+                   .reset( traits::as_val( Self::Mask::Per ) )
                    .any() )
               this->build_divider( buffer );
           }
@@ -4306,210 +4943,38 @@ namespace pgbar {
         {
           concurrent::SharedMutexRef shared_end { this->rw_mtx_ };
           std::lock_guard<concurrent::SharedMutexRef> lock { shared_end };
-          return ConfigInfo<self>::fixed_render_size( *this )
-               + ( this->visual_masks_[trait::as_val( self::Mask::Ani )] ? this->bar_length_ : 0 );
+          return ConfigInfo<Self>::fixed_render_size( *this )
+               + ( this->visual_masks_[traits::as_val( Self::Mask::Ani )] ? this->bar_length_ : 0 );
         }
       };
 
       // A manager class used to synchronize the rendering thread and main thread.
       class Renderer final {
-        using self = Renderer;
-        /* The state transfer process is:
-         *                   activate()                   suspend()
-         * dormant(default) -----------> awake -> active ----------> suspend -> dormat
-         *              dctor
-         * (any state) ------> finish
-         *              catch an exception while box_ isn't empty
-         * (any state) ------------------------------------------> dead*/
-        enum class state : types::BitwiseSet { dormant, awake, active, suspend, finish, dead };
-
-        std::unique_ptr<wrappers::RenderFn> task_;
-
-        std::atomic<state> state_;
-        concurrent::ExceptionBox box_;
-
-        mutable std::condition_variable cond_var_;
-        mutable std::mutex mtx_;
-
-        std::thread td_;
-
-        // initialize the thread object
-        __PGBAR_INLINE_FN void reboot() &
-        {
-          __PGBAR_ASSERT( task_ != nullptr );
-          state_.store( state::dormant, std::memory_order_release );
-          // A thread object is a mutually exclusive resource.
-          td_ = std::thread( [this]() -> void {
-            while ( state_.load( std::memory_order_acquire ) != state::finish ) {
-              try {
-                switch ( state_.load( std::memory_order_acquire ) ) {
-                case state::dormant: {
-                  std::unique_lock<std::mutex> lock { mtx_ };
-                  cond_var_.wait( lock, [this]() noexcept -> bool {
-                    return state_.load( std::memory_order_acquire ) != state::dormant;
-                  } );
-                } break;
-
-                case state::awake: { // Intermediate state
-                  // Used to tell other threads that the current thread has woken up.
-                  task_->run();
-                  auto expected = state::awake;
-                  state_.compare_exchange_strong( expected,
-                                                  state::active,
-                                                  std::memory_order_acq_rel,
-                                                  std::memory_order_relaxed );
-                } break;
-                  /* The state `awake` does not jump to `active` by using `fallthrough`,
-                   * because we need to ensure that `suspend` must be transferred from `active`.
-
-                   * In some cases the `state` transition
-                   * won't work as well as we'd like if we use `fallthrough` here. */
-
-                case state::active: {
-                  task_->run();
-                  std::this_thread::sleep_for( config::Core::refresh_interval() );
-                } break;
-
-                case state::suspend: {
-                  task_->run();
-                  /* We expect the progress bar to be waiting for output to show that
-                   * the iteration is complete at this point,
-                   * so we should render it one last time before moving to `dormat` here. */
-
-                  auto expected = state::suspend;
-                  state_.compare_exchange_strong( expected,
-                                                  state::dormant,
-                                                  std::memory_order_acq_rel,
-                                                  std::memory_order_relaxed );
-                } break;
-
-                default: return;
-                }
-              } catch ( ... ) {
-                // keep object valid
-                if ( box_.empty() ) {
-                  auto try_update = [this]( state expected ) noexcept {
-                    return state_.compare_exchange_strong( expected,
-                                                           state::dormant,
-                                                           std::memory_order_acq_rel,
-                                                           std::memory_order_relaxed );
-                  };
-                  try_update( state::active ) || try_update( state::awake ) || try_update( state::suspend );
-                  // Avoid deadlock in main thread when the child thread catchs exception.
-                  auto exception = std::current_exception();
-                  if ( exception )
-                    box_.store( exception );
-                } else {
-                  state_.store( state::dead, std::memory_order_relaxed );
-                  throw; // Rethrow it, and let the current thread crash.
-                }
-              }
-            }
-          } );
-        }
+        using Self = Renderer;
+        concurrent::StateThread state_td_;
 
       public:
-        Renderer( const self& )        = delete;
-        self& operator=( const self& ) = delete;
+        Renderer( const Self& )        = delete;
+        Self& operator=( const Self& ) = delete;
 
-        // Lazily initialize.
-        Renderer() noexcept : task_ { nullptr }, state_ { state::dormant } {}
-
-        template<typename F>
-        explicit Renderer( F&& task ) : Renderer()
+        Renderer() noexcept : state_td_ { concurrent::thread_repo.pop() } {}
+        ~Renderer() noexcept
         {
-          reset( std::forward<F>( task ) );
-        }
-        ~Renderer() noexcept { reset(); }
-
-# if __PGBAR_CXX20
-        template<trait::TaskFunctor F>
-        __PGBAR_INLINE_FN void
-# else
-        template<typename F>
-        __PGBAR_INLINE_FN
-          typename std::enable_if<trait::is_void_functor<typename std::decay<F>::type>::value>::type
-# endif
-          reset( F&& task ) & noexcept( false )
-        {
-          reset();
-# if __PGBAR_CXX14
-          task_ = std::make_unique<wrappers::RenderFnWrapper<typename std::decay<F>::type>>(
-            std::forward<F>( task ) );
-# else
-          auto new_res =
-            new wrappers::RenderFnWrapper<typename std::decay<F>::type>( std::forward<F>( task ) );
-
-          // incredibly that `std::make_unique` was forgotten in c++11 :/
-          task_ = std::unique_ptr<wrappers::RenderFn>( new_res );
-# endif
-          reboot();
+          state_td_.appoint();
+          concurrent::thread_repo.push( std::move( state_td_ ) );
         }
 
-        __PGBAR_INLINE_FN void reset() noexcept
+        __PGBAR_INLINE_FN void reset( wrappers::UniqueFunction<void()> task )
         {
-          // terminate rendered
-          state_.store( state::finish, std::memory_order_release );
-          {
-            std::lock_guard<std::mutex> lock { mtx_ };
-            cond_var_.notify_all();
-          }
-          if ( td_.joinable() )
-            td_.join();
-
-          task_.reset();
-          td_ = std::thread();
+          state_td_.appoint( std::move( task ) );
         }
+        __PGBAR_INLINE_FN void reset() noexcept { state_td_.halt(); }
 
-        // Check whether the lazy initialization object state is valid.
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool valid() const noexcept { return task_ != nullptr; }
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool empty() const noexcept { return state_td_.jobless(); }
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool active() const noexcept { return state_td_.active(); }
 
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool active() const noexcept
-        {
-          return valid()
-              && ( state_.load( std::memory_order_acquire ) != state::dormant
-                   || state_.load( std::memory_order_acquire ) != state::dead );
-        }
-
-        void activate() & noexcept( false )
-        {
-          __PGBAR_ASSERT( valid() == true );
-          __PGBAR_UNLIKELY if ( state_.load( std::memory_order_acquire ) == state::dead ) reboot();
-          else __PGBAR_UNLIKELY if ( box_.empty() == false ) box_.rethrow();
-
-          auto expected = state::dormant;
-          if ( state_.compare_exchange_strong( expected,
-                                               state::awake,
-                                               std::memory_order_acq_rel,
-                                               std::memory_order_relaxed ) ) {
-            {
-              std::lock_guard<std::mutex> lock { mtx_ };
-              cond_var_.notify_one();
-            }
-            // spin wait, ensure that the thread has moved to the new state
-            do {
-              // avoid deadlock and throw the exception the thread received
-              __PGBAR_UNLIKELY if ( box_.empty() == false ) box_.rethrow();
-            } while ( state_.load( std::memory_order_acquire ) == state::awake
-                      && state_.load( std::memory_order_acquire ) != state::finish );
-          }
-        }
-
-        void suspend() & noexcept( false )
-        {
-          __PGBAR_ASSERT( valid() == true );
-          auto expected = state::active;
-          if ( state_.compare_exchange_strong( expected,
-                                               state::suspend,
-                                               std::memory_order_acq_rel,
-                                               std::memory_order_relaxed ) ) {
-            do {
-              __PGBAR_UNLIKELY if ( box_.empty() == false ) box_.rethrow();
-            } while ( state_.load( std::memory_order_acquire ) == state::suspend
-                      && state_.load( std::memory_order_acquire ) != state::finish );
-          } else
-            __PGBAR_UNLIKELY if ( box_.empty() == false ) box_.rethrow();
-        }
+        void activate() & { state_td_.activate(); }
+        void suspend() & { state_td_.suspend(); }
       };
 
       // customization point
@@ -4543,7 +5008,7 @@ namespace pgbar {
 
     void unlock_reset( bool final_mesg )
     {
-      if ( executor_.valid() ) {
+      if ( !executor_.empty() ) {
         final_mesg_     = final_mesg;
         auto try_update = [this]( state expected ) noexcept {
           return state_.compare_exchange_strong( expected,
@@ -4562,7 +5027,7 @@ namespace pgbar {
     Indicator( Indicator&& ) noexcept : Indicator() {}
     Indicator& operator=( Indicator&& rhs ) & noexcept
     {
-      __PGBAR_ASSERT( this != std::addressof( rhs ) );
+      __PGBAR_ASSERT( this != &rhs );
       (void)rhs;
       return *this;
     }
@@ -4601,14 +5066,14 @@ namespace pgbar {
   };
 
 # if __PGBAR_CXX20
-  template<typename ConfigType, __detail::trait::Mutex MutexMode, StreamChannel StreamType>
+  template<typename ConfigType, __detail::traits::Mutex MutexMode, StreamChannel StreamType>
 # else
   template<typename ConfigType, typename MutexMode, StreamChannel StreamType>
 # endif
   class BasicBar final
-    : public __detail::trait::LI_t<__detail::trait::ConfigTrait_t<ConfigType>>::
+    : public __detail::traits::LI_t<__detail::traits::ConfigTrait_t<ConfigType>>::
         template type<Indicator, BasicBar<ConfigType, MutexMode, StreamType>> {
-    using self = BasicBar<ConfigType, MutexMode, StreamType>;
+    using Self = BasicBar;
     using Indicator::state;
 
     template<typename, typename>
@@ -4628,29 +5093,29 @@ namespace pgbar {
     {}
     template<typename Arg,
              typename... Args,
-             typename = typename std::enable_if<__detail::trait::AllBelongAny<
-               __detail::trait::TypeList<typename std::decay<Arg>::type, typename std::decay<Args>::type...>,
-               __detail::trait::GroupFonts,
-               __detail::trait::GroupTaskQuantity,
-               __detail::trait::ConfigTrait_c<ConfigType>,
-               __detail::trait::GroupDescription,
-               __detail::trait::GroupSegment,
-               __detail::trait::GroupSpeedMeter,
-               __detail::trait::GroupBitOption>::value>::type>
+             typename = typename std::enable_if<__detail::traits::AllBelongAny<
+               __detail::traits::TypeList<typename std::decay<Arg>::type, typename std::decay<Args>::type...>,
+               __detail::traits::GroupFonts,
+               __detail::traits::GroupTaskQuantity,
+               __detail::traits::ConfigTrait_c<ConfigType>,
+               __detail::traits::GroupDescription,
+               __detail::traits::GroupSegment,
+               __detail::traits::GroupSpeedMeter,
+               __detail::traits::GroupBitOption>::value>::type>
     BasicBar( Arg&& arg, Args&&... args )
       : BasicBar( ConfigType( std::forward<Arg>( arg ), std::forward<Args>( args )... ) )
     {}
-    BasicBar( self&& rhs ) noexcept( std::is_nothrow_default_constructible<MutexMode>::value )
+    BasicBar( Self&& rhs ) noexcept( std::is_nothrow_default_constructible<MutexMode>::value )
       : BasicBar( std::move( rhs.config_ ) )
     {}
-    self& operator=( self&& rhs ) & noexcept
+    Self& operator=( Self&& rhs ) & noexcept
     {
       swap( rhs );
       return *this;
     }
     virtual ~BasicBar() noexcept { this->executor_.reset(); }
 
-    self& tick() & override final
+    Self& tick() & override final
     {
       std::lock_guard<MutexMode> lock { mtx_ };
       __detail::render::TickAction<ConfigType>::template do_tick<StreamType>(
@@ -4658,7 +5123,7 @@ namespace pgbar {
         [this]() noexcept -> void { this->task_cnt_.fetch_add( 1, std::memory_order_release ); } );
       return *this;
     }
-    self& tick( __detail::types::Size next_step ) & override final
+    Self& tick( __detail::types::Size next_step ) & override final
     {
       std::lock_guard<MutexMode> lock { mtx_ };
       __detail::render::TickAction<ConfigType>::template do_tick<StreamType>(
@@ -4678,7 +5143,7 @@ namespace pgbar {
      *
      * @param percentage Value range: [0, 100].
      */
-    self& tick_to( __detail::types::Size percentage ) & override final
+    Self& tick_to( __detail::types::Size percentage ) & override final
     {
       std::lock_guard<MutexMode> lock { mtx_ };
       __detail::render::TickAction<ConfigType>::template do_tick<StreamType>(
@@ -4719,7 +5184,7 @@ namespace pgbar {
 
     __PGBAR_CXX20_CNSTXPR void swap( BasicBar& lhs ) noexcept
     {
-      __PGBAR_ASSERT( this != std::addressof( lhs ) );
+      __PGBAR_ASSERT( this != &lhs );
       config_.swap( lhs.config_ );
       ostream_.swap( lhs.ostream_ );
     }
@@ -4775,7 +5240,8 @@ namespace pgbar {
             __PGBAR_ASSERT( bar.task_cnt_ <= bar.task_end_ );
             bar.idx_frame_    = 0;
             bar.max_bar_size_ = bar.config_.full_render_size();
-            bar.ostream_.reserve( bar.max_bar_size_ * 1.2 ) << console::escape::store_cursor;
+            bar.ostream_.reserve( static_cast<types::Size>( bar.max_bar_size_ * 1.2 ) )
+              << console::escape::store_cursor;
             bar.config_.build( bar.ostream_,
                                bar.idx_frame_,
                                bar.task_cnt_.load( std::memory_order_acquire ),
@@ -4849,7 +5315,8 @@ namespace pgbar {
           case BarType::state::begin: {
             __PGBAR_ASSERT( bar.task_cnt_ == 0 );
             bar.max_bar_size_ = bar.config_.full_render_size();
-            bar.ostream_.reserve( bar.max_bar_size_ * 1.2 ) << console::escape::store_cursor;
+            bar.ostream_.reserve( static_cast<types::Size>( bar.max_bar_size_ * 1.2 ) )
+              << console::escape::store_cursor;
 
             bar.config_.build( bar.ostream_,
                                bar.task_cnt_.load( std::memory_order_acquire ),
@@ -4906,7 +5373,7 @@ namespace pgbar {
         template<StreamChannel StreamType, typename BarType, typename F>
         static __PGBAR_INLINE_FN void do_tick( BarType& bar, F&& action )
         {
-          static_assert( trait::is_void_functor<F>::value,
+          static_assert( traits::is_void_functor<F>::value,
                          "pgbar::__detail::render::TickAction::do_tick: Invalid template type error" );
 
           switch ( bar.state_.load( std::memory_order_acquire ) ) {
@@ -4925,7 +5392,7 @@ namespace pgbar {
              * However, in order to maintain semantic consistency,
              * exception checking and task counter updating are always carried out. */
             if ( config::Core::intty( StreamType ) ) {
-              __PGBAR_UNLIKELY if ( !bar.executor_.valid() )
+              __PGBAR_UNLIKELY if ( bar.executor_.empty() )
                 bar.executor_.reset( [&bar]() { RenderAction<ConfigType>::rendering( bar ); } );
               bar.executor_.activate();
             }
@@ -4951,7 +5418,7 @@ namespace pgbar {
         template<StreamChannel StreamType, typename BarType, typename F>
         static __PGBAR_INLINE_FN void do_tick( BarType& bar, F&& action )
         {
-          static_assert( trait::is_void_functor<F>::value,
+          static_assert( traits::is_void_functor<F>::value,
                          "pgbar::__detail::render::TickAction::do_tick: Invalid template type error" );
 
           switch ( bar.state_.load( std::memory_order_acquire ) ) {
@@ -4962,7 +5429,7 @@ namespace pgbar {
             bar.state_.store( BarType::state::begin, std::memory_order_release );
 
             if ( config::Core::intty( StreamType ) ) {
-              __PGBAR_UNLIKELY if ( !bar.executor_.valid() )
+              __PGBAR_UNLIKELY if ( bar.executor_.empty() )
                 bar.executor_.reset( [&bar]() { RenderAction<ConfigType>::rendering( bar ); } );
               bar.executor_.activate();
             }
@@ -4988,7 +5455,7 @@ namespace pgbar {
       };
     } // namespace render
 
-    namespace trait {
+    namespace traits {
       template<typename B, typename = void>
       struct is_iterable_bar : std::false_type {};
       template<typename B>
@@ -5007,9 +5474,9 @@ namespace pgbar {
      */
     template<typename R, typename B>
     class ProxySpan {
-      static_assert( __detail::trait::is_arith_range<R>::value || __detail::trait::is_iter_range<R>::value,
+      static_assert( __detail::traits::is_arith_range<R>::value || __detail::traits::is_iter_range<R>::value,
                      "pgbar::iterators::ProxySpan: Only available for certain range types" );
-      static_assert( __detail::trait::is_iterable_bar<B>::value,
+      static_assert( __detail::traits::is_iterable_bar<B>::value,
                      "pgbar::iterators::ProxySpan: Must have a method to configure the iteration "
                      "count for the object's configuration type" );
 
@@ -5092,7 +5559,7 @@ namespace pgbar {
       __PGBAR_CXX17_CNSTXPR ProxySpan& operator=( ProxySpan&& rhs ) & noexcept(
         std::is_nothrow_move_assignable<R>::value )
       {
-        __PGBAR_ASSERT( this != std::addressof( rhs ) );
+        __PGBAR_ASSERT( this != &rhs );
         swap( rhs );
         return *this;
       }
@@ -5113,7 +5580,7 @@ namespace pgbar {
 
       __PGBAR_CXX20_CNSTXPR void swap( ProxySpan<R, B>& lhs ) noexcept
       {
-        __PGBAR_ASSERT( this != std::addressof( lhs ) );
+        __PGBAR_ASSERT( this != &lhs );
         std::swap( itr_bar_, lhs.itr_bar_ );
         itr_range_.swap( lhs.itr_range_ );
       }
@@ -5124,15 +5591,15 @@ namespace pgbar {
     };
   } // namespace iterators
 
-  namespace trait {
+  namespace traits {
     template<typename T>
-    using is_mutex = __detail::trait::is_mutex<T>;
+    using is_mutex = __detail::traits::is_mutex<T>;
 
 # if __PGBAR_CXX14
     template<typename T>
     constexpr bool is_mutex_v = is_mutex<T>::value;
 # endif
-  } // namespace trait
+  } // namespace traits
 } // namespace pgbar
 
 # undef __PGBAR_TRAIT_REGISTER
