@@ -2058,6 +2058,7 @@ namespace pgbar {
         friend void swap( ExceptionBox& a, ExceptionBox& b ) noexcept { a.swap( b ); }
       };
 
+      // A reusable stateful thread that performs tasks in a loop.
       class StateThread final {
         using Self = StateThread;
 
@@ -2091,7 +2092,8 @@ namespace pgbar {
 
         std::unique_ptr<Handle> handle_;
 
-        __PGBAR_INLINE_FN void launch() &
+        // Create a new thread object.
+        __PGBAR_INLINE_FN void launch() & noexcept( false )
         {
           __PGBAR_ASSERT( handle_ != nullptr );
           __PGBAR_ASSERT( handle_->td_.get_id() == std::thread::id() );
@@ -2162,6 +2164,7 @@ namespace pgbar {
           }
         }
 
+        // Stop the thread object and release it.
         __PGBAR_INLINE_FN void shutdown() & noexcept
         {
           __PGBAR_ASSERT( handle_ != nullptr );
@@ -2176,19 +2179,21 @@ namespace pgbar {
         }
 
       public:
+        // Get the current working interval for all threads.
         __PGBAR_NODISCARD static types::TimeUnit working_interval()
         {
           SharedMutexRef shared_end { _rw_mtx };
           std::lock_guard<SharedMutexRef> lock { shared_end };
           return _working_interval;
         }
+        // Adjust the thread working interval between this loop and the next loop.
         static void working_interval( types::TimeUnit new_rate )
         {
           std::lock_guard<SharedMutex> lock { _rw_mtx };
           _working_interval = std::move( new_rate );
         }
 
-        constexpr StateThread() noexcept : handle_ { nullptr } {}
+        StateThread() noexcept : handle_ { nullptr } {}
         explicit StateThread( wrappers::UniqueFunction<void()> task ) : StateThread()
         {
           appoint( std::move( task ) );
@@ -2208,6 +2213,7 @@ namespace pgbar {
           return *this;
         }
 
+        // Stop the thread object immediately.
         __PGBAR_INLINE_FN void halt() & noexcept
         {
           if ( handle_ != nullptr ) {
@@ -2221,6 +2227,7 @@ namespace pgbar {
             try_update( state::awake ) || try_update( state::active ) || try_update( state::suspend );
           }
         }
+        // Stop and release everything.
         __PGBAR_INLINE_FN void drop() noexcept
         {
           if ( handle_ != nullptr ) {
@@ -2229,6 +2236,7 @@ namespace pgbar {
           }
         }
 
+        // Release the `task` resource.
         __PGBAR_INLINE_FN void appoint() & noexcept
         {
           __PGBAR_ASSERT( active() == false );
@@ -2237,6 +2245,7 @@ namespace pgbar {
             handle_->task_ = nullptr;
           }
         }
+        // Reassign a new task to the thread object.
         __PGBAR_INLINE_FN
         void appoint( wrappers::UniqueFunction<void()> task ) & noexcept( false )
         {
@@ -2255,6 +2264,7 @@ namespace pgbar {
           handle_->task_.swap( task );
         }
 
+        // Launch the thread object and wait for it to start running.
         __PGBAR_INLINE_FN void activate() & noexcept( false )
         {
           __PGBAR_ASSERT( jobless() == false );
@@ -2281,6 +2291,7 @@ namespace pgbar {
           } else
             __PGBAR_UNLIKELY if ( handle_->box_.empty() == false ) handle_->box_.rethrow();
         }
+        // Stop the thread object and wait for it to sleep.
         __PGBAR_INLINE_FN void suspend() & noexcept( false )
         {
           __PGBAR_UNLIKELY if ( handle_ == nullptr ) return;
@@ -2300,10 +2311,12 @@ namespace pgbar {
             __PGBAR_UNLIKELY if ( handle_->box_.empty() == false ) handle_->box_.rethrow();
         }
 
+        // Check whether there is a `task` assigned to the thread.
         __PGBAR_NODISCARD __PGBAR_INLINE_FN bool jobless() const noexcept
         {
           return handle_ == nullptr || handle_->task_ == nullptr;
         }
+        // Check whether the thread is running.
         __PGBAR_NODISCARD __PGBAR_INLINE_FN bool active() const noexcept
         {
           if ( jobless() )
@@ -2312,6 +2325,7 @@ namespace pgbar {
           return current_state != state::dormant && current_state != state::finish
               && current_state != state::dead;
         }
+        // Checks whether the thread caught an exception and throws it if it did.
         __PGBAR_INLINE_FN void rethrow_if_exception() const noexcept( false )
         {
           if ( handle_ != nullptr && handle_->box_.empty() == false )
@@ -2322,6 +2336,7 @@ namespace pgbar {
         std::chrono::duration_cast<types::TimeUnit>( std::chrono::milliseconds( 40 ) );
       SharedMutex StateThread::_rw_mtx {};
 
+      // A fixed length ring queue.
       template<typename T, types::Size Capacity>
       class RingQueue final {
         using Self = RingQueue;
@@ -2339,9 +2354,9 @@ namespace pgbar {
         mutable SharedMutex rw_mtx_;
 
       public:
-        __PGBAR_CXX14_CNSTXPR RingQueue() noexcept { read_idx_ = write_idx_ = count_ = 0; }
+        RingQueue() noexcept { read_idx_ = write_idx_ = count_ = 0; }
 
-        __PGBAR_CXX14_CNSTXPR RingQueue( const T& __value, types::Size __n = 1 )
+        RingQueue( const T& __value, types::Size __n = 1 )
           noexcept( std::is_nothrow_copy_assignable<T>::value )
           : RingQueue()
         {
@@ -2356,8 +2371,9 @@ namespace pgbar {
         RingQueue( const Self& rhs )         = delete;
         Self& operator=( const Self& rhs ) & = delete;
 
-        __PGBAR_CXX20_CNSTXPR ~RingQueue() noexcept( std::is_nothrow_destructible<T>::value ) = default;
+        ~RingQueue() noexcept( std::is_nothrow_destructible<T>::value ) = default;
 
+        // Insert the item into the queue and discard it if the queue is full.
         bool push( T item ) & noexcept( std::is_nothrow_move_assignable<T>::value )
         {
           {
@@ -2371,6 +2387,11 @@ namespace pgbar {
           return true;
         }
 
+        /**
+         * Remove and return the oldest item from the queue.
+         * 
+         * If the queue is empty, return a default-constructed value.
+         */
         __PGBAR_NODISCARD T pop() noexcept( std::is_nothrow_default_constructible<T>::value
                                             && std::is_nothrow_move_assignable<T>::value )
         {
@@ -2386,11 +2407,13 @@ namespace pgbar {
           return item;
         }
 
+        // Reset the read and write pointers.
         void clear() & noexcept
         {
           std::lock_guard<SharedMutex> lock { rw_mtx_ };
           read_idx_ = write_idx_ = count_ = 0;
         }
+        // Discard all items from the queue, and reset the read and write pointers.
         void drop()
           noexcept( std::is_nothrow_default_constructible<T>::value
                     && std::is_nothrow_move_assignable<T>::value && std::is_nothrow_destructible<T>::value )
@@ -2788,9 +2811,9 @@ namespace pgbar {
    std::lock_guard<concurrent::SharedMutexRef> lock { shared_end };   \
    return fonts_[traits::as_val( Mask::Offset )]
 
-        // Check if the color effect is enabled.
+        // Check whether the color effect is enabled.
         __PGBAR_NODISCARD bool colored() const { __PGBAR_METHOD( Colored ); }
-        // Check if the bold effect is enabled.
+        // Check whether the bold effect is enabled.
         __PGBAR_NODISCARD bool bolded() const { __PGBAR_METHOD( Bolded ); }
 
 # undef __PGBAR_METHOD
