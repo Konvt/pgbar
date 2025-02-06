@@ -2105,22 +2105,25 @@ namespace pgbar {
                     } );
                   } break;
 
-                  case state::Awake: { // Intermediate state
+                  case state::Awake: {
+                    /* Awake indicates that the current thread is started,
+                     * so semantically, a task must be executed here. */
+                    self->task_();
                     // Used to tell other threads that the current thread has woken up.
                     auto expected = state::Awake;
                     self->state_.compare_exchange_strong( expected,
                                                           state::Active,
                                                           std::memory_order_acq_rel,
                                                           std::memory_order_relaxed );
-                  }
-                    __PGBAR_FALLTHROUGH;
+                  } break;
+
                   case state::Active: {
                     self->task_();
                     std::this_thread::sleep_for( working_interval() );
                   } break;
 
                   case state::Suspend: {
-                    self->task_();
+                    self->task_(); // same as Awake
                     auto expected = state::Suspend;
                     self->state_.compare_exchange_strong( expected,
                                                           state::Dormant,
