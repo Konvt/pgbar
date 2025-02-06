@@ -4986,11 +4986,12 @@ namespace pgbar {
 
         Renderer() noexcept : state_td_ { concurrent::thread_repo.pop() }
         {
+          __PGBAR_ASSERT( state_td_.active() == false );
           __PGBAR_ASSERT( state_td_.jobless() );
         }
         ~Renderer() noexcept
         {
-          state_td_.appoint();
+          reset();
           __PGBAR_ASSERT( state_td_.active() == false );
           __PGBAR_ASSERT( state_td_.jobless() );
           concurrent::thread_repo.push( std::move( state_td_ ) );
@@ -5000,7 +5001,7 @@ namespace pgbar {
         {
           state_td_.appoint( std::move( task ) );
         }
-        __PGBAR_INLINE_FN void reset() noexcept { state_td_.halt(); }
+        __PGBAR_INLINE_FN void reset() noexcept { state_td_.appoint(); }
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN bool empty() const noexcept { return state_td_.jobless(); }
         __PGBAR_NODISCARD __PGBAR_INLINE_FN bool active() const noexcept { return state_td_.active(); }
