@@ -638,8 +638,13 @@ namespace pgbar {
       class UniqueFunctionImpl<Ret( Args... )> final {
         using Self = UniqueFunctionImpl;
 
-        struct AnyFn {
 #  if __PGBAR_CXX17
+#   define __PGBAR_LAUNDER( expr ) std::launder( expr )
+#  else
+#   define __PGBAR_LAUNDER( expr ) expr
+#  endif
+
+        struct AnyFn {
           template<types::Size BufferSize, std::size_t Align>
           __PGBAR_CXX20_CNSTXPR static void swap_fn( AnyFn* const a,
                                                      void* const mem_a,
@@ -653,23 +658,20 @@ namespace pgbar {
             __PGBAR_ASSERT( a == mem_a );
             __PGBAR_ASSERT( b == mem_b );
 
-            alignas( Align ) std::byte buffer[BufferSize];
+            alignas( Align ) unsigned char buffer[BufferSize];
             a->move_to( buffer );
             a->~AnyFn();
 
             b->move_to( mem_a );
             b->~AnyFn();
 
-            AnyFn* const a_tmp = std::launder( reinterpret_cast<AnyFn*>( &buffer ) );
+            AnyFn* const a_tmp = __PGBAR_LAUNDER( reinterpret_cast<AnyFn*>( &buffer ) );
             a_tmp->move_to( mem_b );
             a_tmp->~AnyFn();
           }
-#  endif
-          __PGBAR_CXX20_CNSTXPR virtual ~AnyFn() noexcept = default;
-          virtual Ret operator()( Args... args ) const    = 0;
-#  if __PGBAR_CXX17
+          __PGBAR_CXX20_CNSTXPR virtual ~AnyFn() noexcept       = default;
+          virtual Ret operator()( Args... args ) const          = 0;
           virtual void move_to( void* const dest_mem ) noexcept = 0;
-#  endif
         };
         template<typename Fn, typename = void>
         struct FnContainer final : public AnyFn {
@@ -694,13 +696,11 @@ namespace pgbar {
           {
             return fntor_( std::forward<Args>( args )... );
           }
-#  if __PGBAR_CXX17
           void move_to( void* const dest_mem ) noexcept override
           {
             __PGBAR_ASSERT( dest_mem != nullptr );
             new ( dest_mem ) FnContainer( std::move( fntor_ ) );
           }
-#  endif
         };
 
 #  if __PGBAR_CXX14
@@ -723,29 +723,22 @@ namespace pgbar {
             return ( ( static_cast<Fn&>( const_cast<FnContainer&>( *this ) ) ) )(
               std::forward<Args>( args )... );
           }
-#   if __PGBAR_CXX17
           void move_to( void* const dest_mem ) noexcept override
           {
             __PGBAR_ASSERT( dest_mem != nullptr );
             new ( dest_mem ) FnContainer( std::move( static_cast<Fn&>( *this ) ) );
           }
-#   endif
         };
 #  endif
 
-#  if __PGBAR_CXX17
-        union {
-          alignas( 16 ) std::add_pointer_t<Ret( Args... )> fptr_;
-          alignas( 16 ) AnyFn* ftor_;
-        } data_;
-        enum class Tag : std::uint8_t { None, Fptr, FtorInline, FtorDync } tag_;
-#  else
         union {
           typename std::add_pointer<Ret( Args... )>::type fptr_;
           AnyFn* ftor_;
+          unsigned char soo_[16]; // small object optimization
         } data_;
-        enum class Tag : std::uint8_t { None, Fptr, Ftor } tag_;
-#  endif
+        static_assert( sizeof data_ == sizeof data_.soo_,
+                       "pgbar::__detail::wrappers::UniqueFunctionImpl: Unexpected type size mismatched" );
+        enum class Tag : std::uint8_t { None, Fptr, FtorInline, FtorDync } tag_;
 
       public:
         __PGBAR_CXX14_CNSTXPR UniqueFunctionImpl() noexcept
@@ -775,19 +768,14 @@ namespace pgbar {
           static_assert( std::is_move_constructible<Fn>::value,
                          "pgbar::__detail::wrappers::UniqueFunctionImpl: Invalid type" );
 
-#  if __PGBAR_CXX17
-          if __PGBAR_CXX17_CNSTXPR ( sizeof( FnContainer<Fn> ) <= sizeof data_ ) {
-            [[maybe_unused]] const auto object = new ( &data_ ) FnContainer<Fn>( std::move( functor ) );
-            __PGBAR_ASSERT( static_cast<void*>( object ) == static_cast<void*>( &data_ ) );
+          if __PGBAR_CXX17_CNSTXPR ( sizeof( FnContainer<Fn> ) <= sizeof data_.soo_ ) {
+            const auto _ = new ( &data_.soo_ ) FnContainer<Fn>( std::move( functor ) );
+            __PGBAR_ASSERT( static_cast<void*>( _ ) == static_cast<void*>( &data_.soo_ ) );
             tag_ = Tag::FtorInline;
           } else {
             data_.ftor_ = new FnContainer<Fn>( std::move( functor ) );
             tag_        = Tag::FtorDync;
           }
-#  else
-          data_.ftor_ = new FnContainer<Fn>( std::move( functor ) );
-          tag_        = Tag::Ftor;
-#  endif
         }
 
         __PGBAR_CXX20_CNSTXPR UniqueFunctionImpl( Self&& rhs ) noexcept : UniqueFunctionImpl()
@@ -804,16 +792,11 @@ namespace pgbar {
 
         __PGBAR_CXX20_CNSTXPR Self& operator=( std::nullptr_t ) & noexcept
         {
-#  if __PGBAR_CXX17
           switch ( tag_ ) {
-          case Tag::FtorInline: std::launder( reinterpret_cast<AnyFn*>( &data_ ) )->~AnyFn(); break;
+          case Tag::FtorInline: __PGBAR_LAUNDER( reinterpret_cast<AnyFn*>( &data_.soo_ ) )->~AnyFn(); break;
           case Tag::FtorDync:   delete data_.ftor_; break;
           default:              break;
           }
-#  else
-          if ( tag_ == Tag::Ftor )
-            delete data_.ftor_;
-#  endif
           tag_ = Tag::None;
           return *this;
         }
@@ -823,46 +806,39 @@ namespace pgbar {
         __PGBAR_CXX20_CNSTXPR Ret operator()( Args... args ) const
         {
           __PGBAR_ASSERT( tag_ != Tag::None );
-#  if __PGBAR_CXX17
           switch ( tag_ ) {
           case Tag::Fptr: return ( *data_.fptr_ )( std::forward<Args>( args )... );
           case Tag::FtorInline:
-            return ( *std::launder( reinterpret_cast<const AnyFn*>( &data_ ) ) )(
+            return ( *__PGBAR_LAUNDER( reinterpret_cast<const AnyFn*>( &data_.soo_ ) ) )(
               std::forward<Args>( args )... );
           case Tag::FtorDync: return ( *data_.ftor_ )( std::forward<Args>( args )... );
           default:            break;
           }
-#  else
-          if ( tag_ == Tag::Fptr )
-            return ( *data_.fptr_ )( std::forward<Args>( args )... );
-          return ( *data_.ftor_ )( std::forward<Args>( args )... );
-#  endif
           __PGBAR_UNREACHABLE;
         }
 
         void swap( Self& lhs ) noexcept
         {
-#  if __PGBAR_CXX17
           switch ( tag_ ) {
           case Tag::FtorInline: {
             switch ( lhs.tag_ ) {
             case Tag::Fptr:     __PGBAR_FALLTHROUGH;
             case Tag::FtorDync: {
               auto union_copy     = lhs.data_;
-              const auto base_ptr = std::launder( reinterpret_cast<AnyFn*>( &data_ ) );
+              const auto base_ptr = __PGBAR_LAUNDER( reinterpret_cast<AnyFn*>( &data_.soo_ ) );
               base_ptr->move_to( &lhs.data_ );
               base_ptr->~AnyFn();
               data_ = union_copy;
             } break;
             case Tag::FtorInline: {
-              AnyFn::template swap_fn<sizeof data_, alignof( decltype( data_ ) )>(
-                std::launder( reinterpret_cast<AnyFn*>( &data_ ) ),
-                &data_,
-                std::launder( reinterpret_cast<AnyFn*>( &lhs.data_ ) ),
-                &lhs.data_ );
+              AnyFn::template swap_fn<sizeof data_, alignof( decltype( data_.soo_ ) )>(
+                __PGBAR_LAUNDER( reinterpret_cast<AnyFn*>( &data_.soo_ ) ),
+                &data_.soo_,
+                __PGBAR_LAUNDER( reinterpret_cast<AnyFn*>( &lhs.data_.soo_ ) ),
+                &lhs.data_.soo_ );
             } break;
             case Tag::None: {
-              const auto base_ptr = std::launder( reinterpret_cast<AnyFn*>( &data_ ) );
+              const auto base_ptr = __PGBAR_LAUNDER( reinterpret_cast<AnyFn*>( &data_.soo_ ) );
               base_ptr->move_to( &lhs.data_ );
               base_ptr->~AnyFn();
             } break;
@@ -873,9 +849,6 @@ namespace pgbar {
             std::swap( data_, lhs.data_ );
           } break;
           }
-#  else
-          std::swap( data_, lhs.data_ );
-#  endif
           std::swap( tag_, lhs.tag_ );
         }
         friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
@@ -888,6 +861,7 @@ namespace pgbar {
 
         explicit operator bool() const noexcept { return tag_ != Tag::None; }
       };
+#  undef __PGBAR_LAUNDER
 
       // A simplified implementation of std::move_only_function
       template<typename... Signature>
@@ -929,12 +903,12 @@ namespace pgbar {
         constexpr iterator() noexcept : iterator( {}, {}, {} ) {}
         __PGBAR_CXX20_CNSTXPR ~iterator() noexcept = default;
 
-        __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator& operator++() noexcept
+        __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator& operator++() & noexcept
         {
           ++itr_cnt_;
           return *this;
         }
-        __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator operator++( int ) noexcept
+        __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator operator++( int ) & noexcept
         {
           auto before = *this;
           operator++();
@@ -1116,12 +1090,14 @@ namespace pgbar {
         {}
         __PGBAR_CXX20_CNSTXPR ~iterator() noexcept( std::is_nothrow_destructible<I>::value ) = default;
 
-        __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator& operator++()
+        __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator& operator++() & noexcept(
+          noexcept( ++std::declval<I>() ) )
         {
           ++current_;
           return *this;
         }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator operator++( int )
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator operator++( int ) & noexcept(
+          std::is_nothrow_copy_constructible<iterator>::value && noexcept( ++std::declval<I>() ) )
         {
           auto before = *this;
           operator++();
@@ -1200,7 +1176,7 @@ namespace pgbar {
         }
         __PGBAR_CXX20_CNSTXPR ~iterator() noexcept = default;
 
-        __PGBAR_CXX14_CNSTXPR __PGBAR_INLINE_FN iterator& operator++() noexcept
+        __PGBAR_CXX14_CNSTXPR __PGBAR_INLINE_FN iterator& operator++() & noexcept
         {
           if ( reversed_ )
             --current_;
@@ -1896,8 +1872,8 @@ namespace pgbar {
         std::atomic_flag lock_stat_ = ATOMIC_FLAG_INIT;
 
       public:
-        Mutex( const Mutex& )            = delete;
-        Mutex& operator=( const Mutex& ) = delete;
+        Mutex( const Mutex& )              = delete;
+        Mutex& operator=( const Mutex& ) & = delete;
 
         __PGBAR_CXX20_CNSTXPR Mutex() noexcept  = default;
         __PGBAR_CXX20_CNSTXPR ~Mutex() noexcept = default;
@@ -1925,8 +1901,8 @@ namespace pgbar {
         Mutex writer_mtx_;
 
       public:
-        SharedMutex( const Self& )     = delete;
-        Self& operator=( const Self& ) = delete;
+        SharedMutex( const Self& )       = delete;
+        Self& operator=( const Self& ) & = delete;
 
         SharedMutex() noexcept : num_readers_ { 0 } {}
         ~SharedMutex() noexcept = default;
@@ -4981,8 +4957,8 @@ namespace pgbar {
         concurrent::StateThread state_td_;
 
       public:
-        Renderer( const Self& )        = delete;
-        Self& operator=( const Self& ) = delete;
+        Renderer( const Self& )          = delete;
+        Self& operator=( const Self& ) & = delete;
 
         Renderer() noexcept : state_td_ { concurrent::thread_repo.pop() }
         {
@@ -5535,14 +5511,14 @@ namespace pgbar {
         {}
         __PGBAR_CXX20_CNSTXPR ~iterator() noexcept( std::is_nothrow_destructible<R>::value ) = default;
 
-        __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator& operator++()
+        __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator& operator++() &
         {
           __PGBAR_ASSERT( itr_bar_ != nullptr );
           ++itr_;
           itr_bar_->tick();
           return *this;
         }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator operator++( int )
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator operator++( int ) &
         {
           __PGBAR_ASSERT( itr_bar_ != nullptr );
           auto before = *this;
