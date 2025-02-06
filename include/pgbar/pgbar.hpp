@@ -82,6 +82,7 @@
 # if __PGBAR_CC_STD >= 201402L
 #  define __PGBAR_CXX14         1
 #  define __PGBAR_CXX14_CNSTXPR constexpr
+#  include <shared_mutex>
 # else
 #  define __PGBAR_CXX14 0
 #  define __PGBAR_CXX14_CNSTXPR
@@ -791,14 +792,13 @@ namespace pgbar {
 
         __PGBAR_CXX20_CNSTXPR UniqueFunctionImpl( Self&& rhs ) noexcept : UniqueFunctionImpl()
         {
-          swap( rhs );
-          rhs = nullptr; // exclusive semantics
+          operator=( std::move( rhs ) );
         }
         __PGBAR_CXX20_CNSTXPR Self& operator=( Self&& rhs ) & noexcept
         {
           __PGBAR_ASSERT( this != &rhs );
           swap( rhs );
-          rhs = nullptr;
+          rhs = nullptr; // exclusive semantics
           return *this;
         }
 
@@ -1657,7 +1657,7 @@ namespace pgbar {
     } // namespace charset
 
     namespace io {
-      enum class TxtLayout { left, right, center }; // text layout
+      enum class TxtLayout { Left, Right, Center }; // text layout
       // Format the `str`.
       template<TxtLayout Style>
       __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::String formatting( types::Size width,
@@ -1668,11 +1668,11 @@ namespace pgbar {
         __PGBAR_UNLIKELY if ( width == 0 ) return {};
         if ( len_str >= width )
           return types::String( str );
-        if __PGBAR_CXX17_CNSTXPR ( Style == TxtLayout::right ) {
+        if __PGBAR_CXX17_CNSTXPR ( Style == TxtLayout::Right ) {
           auto tmp = types::String( width - len_str, constants::blank );
           tmp.append( str );
           return tmp;
-        } else if __PGBAR_CXX17_CNSTXPR ( Style == TxtLayout::left ) {
+        } else if __PGBAR_CXX17_CNSTXPR ( Style == TxtLayout::Left ) {
           auto tmp = types::String( str );
           tmp.append( width - len_str, constants::blank );
           return tmp;
@@ -1710,7 +1710,10 @@ namespace pgbar {
         __PGBAR_CXX20_CNSTXPR Stringbuf() noexcept = default;
 
         __PGBAR_CXX20_CNSTXPR Stringbuf( const Self& lhs ) { operator=( lhs ); }
-        __PGBAR_CXX20_CNSTXPR Stringbuf( Self&& rhs ) noexcept : Stringbuf() { swap( rhs ); }
+        __PGBAR_CXX20_CNSTXPR Stringbuf( Self&& rhs ) noexcept : Stringbuf()
+        {
+          operator=( std::move( rhs ) );
+        }
         __PGBAR_CXX20_CNSTXPR __PGBAR_INLINE_FN Self& operator=( const Self& lhs ) &
         {
           __PGBAR_ASSERT( this != &lhs );
@@ -1721,6 +1724,8 @@ namespace pgbar {
         {
           __PGBAR_ASSERT( this != &rhs );
           swap( rhs );
+          rhs.buffer_.clear();
+          rhs.buffer_.shrink_to_fit();
           return *this;
         }
 
@@ -1758,7 +1763,6 @@ namespace pgbar {
         }
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& append( types::ROStr info, types::Size __num = 1 ) &
         {
-          __PGBAR_ASSERT( info != nullptr );
           for ( types::Size _ = 0; _ < __num; ++_ )
             buffer_.insert( buffer_.cend(), info.data(), info.data() + info.size() );
           return *this;
@@ -1977,16 +1981,29 @@ namespace pgbar {
           num_readers_.fetch_sub( 1, std::memory_order_release );
         }
       };
-      class SharedMutexRef final {
-        SharedMutex& mtx_;
+
+# if __PGBAR_CXX14
+      template<typename Mtx>
+      using SharedLock = std::shared_lock<Mtx>;
+# else
+      template<typename Mtx>
+      class SharedLock final {
+        using Self = SharedLock;
+
+        Mtx& mtx_;
 
       public:
-        constexpr SharedMutexRef( SharedMutex& mtx ) noexcept : mtx_ { mtx } {}
-        __PGBAR_CXX20_CNSTXPR ~SharedMutexRef() noexcept = default;
+        using mutex_type = Mtx;
 
-        __PGBAR_INLINE_FN void lock() & noexcept { mtx_.lock_shared(); }
-        __PGBAR_INLINE_FN void unlock() & noexcept { mtx_.unlock_shared(); }
+        SharedLock( mutex_type& m ) noexcept( noexcept( std::declval<mutex_type&>().lock_shared() ) )
+          : mtx_ { m }
+        {
+          mtx_.lock_shared();
+        }
+        ~SharedLock() noexcept { mtx_.unlock_shared(); }
       };
+
+# endif
 
       // A nullable container that holds an exception pointer.
       class ExceptionBox final {
@@ -2004,14 +2021,15 @@ namespace pgbar {
         ExceptionBox& operator=( ExceptionBox&& rhs ) & noexcept
         {
           __PGBAR_ASSERT( this != &rhs );
+          // Exception pointers should not be discarded due to movement semantics.
+          // Thus we only swap them here.
           swap( rhs );
           return *this;
         }
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN bool empty() const noexcept
         {
-          __detail::concurrent::SharedMutexRef shared_end { rw_mtx_ };
-          std::lock_guard<SharedMutexRef> lock { shared_end };
+          SharedLock<SharedMutex> lock { rw_mtx_ };
           return !static_cast<bool>( exception_ );
         }
 
@@ -2024,8 +2042,7 @@ namespace pgbar {
         }
         __PGBAR_INLINE_FN std::exception_ptr load() const noexcept
         {
-          __detail::concurrent::SharedMutexRef shared_end { rw_mtx_ };
-          std::lock_guard<SharedMutexRef> lock { shared_end };
+          SharedLock<SharedMutex> lock { rw_mtx_ };
           return exception_;
         }
         __PGBAR_NODISCARD __PGBAR_INLINE_FN Self& clear() & noexcept
@@ -2036,7 +2053,7 @@ namespace pgbar {
         }
 
         // Pop up the head of the queue element and throw it as an exception.
-        __PGBAR_INLINE_FN void rethrow() & noexcept( false )
+        __PGBAR_INLINE_FN void rethrow() noexcept( false )
         {
           std::lock_guard<SharedMutex> lock { rw_mtx_ };
           if ( !exception_ )
@@ -2067,12 +2084,12 @@ namespace pgbar {
 
         /* The state transfer process is:
          *                   activate()                   suspend()
-         * dormant(default) -----------> awake -> active ----------> suspend -> dormat
+         * Dormant(default) -----------> Awake -> Active ----------> Suspend -> Dormant
          *              dctor
-         * (any state) ------> finish
+         * (any state) ------> Dead
          *              catch an exception while box_ isn't empty
-         * (any state) ------------------------------------------> dead */
-        enum class state : std::uint8_t { dormant, awake, active, suspend, finish, dead };
+         * (any state) ------------------------------------------> Dead */
+        enum class state : std::uint8_t { Dormant, Awake, Active, Suspend, Halt, Dead };
         struct Handle final {
           wrappers::UniqueFunction<void()> task_;
           std::thread td_;
@@ -2083,7 +2100,7 @@ namespace pgbar {
           mutable std::mutex mtx_;
 
           Handle() noexcept( std::is_nothrow_default_constructible<std::condition_variable>::value )
-            : task_ { nullptr }, td_ {}, box_ {}, state_ { state::dormant }
+            : task_ { nullptr }, td_ {}, box_ {}, state_ { state::Dead }
           {}
           Handle( const Handle& )              = delete;
           Handle& operator=( const Handle& ) & = delete;
@@ -2098,39 +2115,47 @@ namespace pgbar {
           __PGBAR_ASSERT( handle_ != nullptr );
           __PGBAR_ASSERT( handle_->td_.get_id() == std::thread::id() );
 
-          handle_->state_.store( state::dormant, std::memory_order_release );
+          handle_->state_.store( state::Dormant, std::memory_order_release );
           try {
             const auto self = handle_.get();
             handle_->td_    = std::thread( [self]() -> void {
-              while ( self->state_.load( std::memory_order_acquire ) != state::finish ) {
+              while ( self->state_.load( std::memory_order_acquire ) != state::Dead ) {
                 try {
                   switch ( self->state_.load( std::memory_order_acquire ) ) {
-                  case state::dormant: {
+                  case state::Dormant: {
                     std::unique_lock<std::mutex> lock { self->mtx_ };
                     self->cond_var_.wait( lock, [self]() noexcept -> bool {
-                      return self->state_.load( std::memory_order_acquire ) != state::dormant;
+                      return self->state_.load( std::memory_order_acquire ) != state::Dormant;
                     } );
                   } break;
 
-                  case state::awake: { // Intermediate state
+                  case state::Awake: { // Intermediate state
                     // Used to tell other threads that the current thread has woken up.
-                    auto expected = state::awake;
+                    auto expected = state::Awake;
                     self->state_.compare_exchange_strong( expected,
-                                                          state::active,
+                                                          state::Active,
                                                           std::memory_order_acq_rel,
                                                           std::memory_order_relaxed );
                   }
                     __PGBAR_FALLTHROUGH;
-                  case state::active: {
+                  case state::Active: {
                     self->task_();
                     std::this_thread::sleep_for( working_interval() );
                   } break;
 
-                  case state::suspend: {
+                  case state::Suspend: {
                     self->task_();
-                    auto expected = state::suspend;
+                    auto expected = state::Suspend;
                     self->state_.compare_exchange_strong( expected,
-                                                          state::dormant,
+                                                          state::Dormant,
+                                                          std::memory_order_acq_rel,
+                                                          std::memory_order_relaxed );
+                  } break;
+
+                  case state::Halt: {
+                    auto expected = state::Halt;
+                    self->state_.compare_exchange_strong( expected,
+                                                          state::Dormant,
                                                           std::memory_order_acq_rel,
                                                           std::memory_order_relaxed );
                   } break;
@@ -2142,24 +2167,24 @@ namespace pgbar {
                   if ( self->box_.empty() ) {
                     auto try_update = [self]( state expected ) noexcept {
                       return self->state_.compare_exchange_strong( expected,
-                                                                   state::dormant,
+                                                                   state::Dormant,
                                                                    std::memory_order_acq_rel,
                                                                    std::memory_order_relaxed );
                     };
-                    try_update( state::awake ) || try_update( state::active ) || try_update( state::suspend );
+                    try_update( state::Awake ) || try_update( state::Active ) || try_update( state::Suspend );
                     // Avoid deadlock in main thread when the child thread catchs exception.
                     auto exception = std::current_exception();
                     if ( exception )
                       self->box_.store( exception );
                   } else {
-                    self->state_.store( state::dead, std::memory_order_relaxed );
+                    self->state_.store( state::Dead, std::memory_order_relaxed );
                     throw; // Rethrow it, and let the current thread crash.
                   }
                 }
               }
             } );
           } catch ( ... ) {
-            handle_->state_.store( state::dead, std::memory_order_release );
+            handle_->state_.store( state::Dead, std::memory_order_release );
             throw;
           }
         }
@@ -2168,7 +2193,7 @@ namespace pgbar {
         __PGBAR_INLINE_FN void shutdown() & noexcept
         {
           __PGBAR_ASSERT( handle_ != nullptr );
-          handle_->state_.store( state::finish, std::memory_order_release );
+          handle_->state_.store( state::Dead, std::memory_order_release );
           {
             std::lock_guard<std::mutex> lock { handle_->mtx_ };
             handle_->cond_var_.notify_all();
@@ -2182,8 +2207,7 @@ namespace pgbar {
         // Get the current working interval for all threads.
         __PGBAR_NODISCARD static types::TimeUnit working_interval()
         {
-          SharedMutexRef shared_end { _rw_mtx };
-          std::lock_guard<SharedMutexRef> lock { shared_end };
+          SharedLock<SharedMutex> lock { _rw_mtx };
           return _working_interval;
         }
         // Adjust the thread working interval between this loop and the next loop.
@@ -2200,11 +2224,7 @@ namespace pgbar {
         }
         ~StateThread() noexcept { drop(); }
 
-        StateThread( Self&& rhs ) noexcept : StateThread()
-        {
-          handle_.swap( rhs.handle_ );
-          rhs.drop();
-        }
+        StateThread( Self&& rhs ) noexcept : StateThread() { operator=( std::move( rhs ) ); }
         Self& operator=( Self&& rhs ) & noexcept
         {
           __PGBAR_ASSERT( this != &rhs );
@@ -2216,16 +2236,22 @@ namespace pgbar {
         // Stop the thread object immediately.
         __PGBAR_INLINE_FN void halt() & noexcept
         {
-          if ( handle_ != nullptr ) {
-            const auto self = handle_.get();
-            auto try_update = [self]( state expected ) noexcept {
-              return self->state_.compare_exchange_strong( expected,
-                                                           state::dormant,
-                                                           std::memory_order_acq_rel,
-                                                           std::memory_order_relaxed );
-            };
-            try_update( state::awake ) || try_update( state::active ) || try_update( state::suspend );
-          }
+          if ( handle_ == nullptr )
+            return;
+          const auto self = handle_.get();
+          auto try_update = [self]( state expected ) noexcept {
+            return self->state_.compare_exchange_strong( expected,
+                                                         state::Halt,
+                                                         std::memory_order_acq_rel,
+                                                         std::memory_order_relaxed );
+          };
+          if ( try_update( state::Awake ) || try_update( state::Active ) ) {
+            do {
+              __PGBAR_UNLIKELY if ( handle_->box_.empty() == false ) handle_->box_.rethrow();
+            } while ( handle_->state_.load( std::memory_order_acquire ) == state::Halt
+                      && handle_->state_.load( std::memory_order_acquire ) != state::Dead );
+          } else
+            __PGBAR_UNLIKELY if ( handle_->box_.empty() == false ) handle_->box_.rethrow();
         }
         // Stop and release everything.
         __PGBAR_INLINE_FN void drop() noexcept
@@ -2256,11 +2282,11 @@ namespace pgbar {
             handle_.reset( new Handle() );
 # endif
             launch();
-          } else if ( handle_->state_.load( std::memory_order_acquire ) == state::dead ) {
+          } else if ( handle_->state_.load( std::memory_order_acquire ) == state::Dead ) {
             shutdown();
             launch();
           } else
-            __PGBAR_ASSERT( active() == false );
+            halt();
           handle_->task_.swap( task );
         }
 
@@ -2268,14 +2294,14 @@ namespace pgbar {
         __PGBAR_INLINE_FN void activate() & noexcept( false )
         {
           __PGBAR_ASSERT( jobless() == false );
-          __PGBAR_UNLIKELY if ( handle_->state_.load( std::memory_order_acquire ) == state::dead )
+          __PGBAR_UNLIKELY if ( handle_->state_.load( std::memory_order_acquire ) == state::Dead )
           {
             shutdown();
             launch();
           }
-          auto expected = state::dormant;
+          auto expected = state::Dormant;
           if ( handle_->state_.compare_exchange_strong( expected,
-                                                        state::awake,
+                                                        state::Awake,
                                                         std::memory_order_acq_rel,
                                                         std::memory_order_relaxed ) ) {
             {
@@ -2286,8 +2312,8 @@ namespace pgbar {
             do {
               // avoid deadlock and throw the exception the thread received
               __PGBAR_UNLIKELY if ( handle_->box_.empty() == false ) handle_->box_.rethrow();
-            } while ( handle_->state_.load( std::memory_order_acquire ) == state::awake
-                      && handle_->state_.load( std::memory_order_acquire ) != state::finish );
+            } while ( handle_->state_.load( std::memory_order_acquire ) == state::Awake
+                      && handle_->state_.load( std::memory_order_acquire ) != state::Dead );
           } else
             __PGBAR_UNLIKELY if ( handle_->box_.empty() == false ) handle_->box_.rethrow();
         }
@@ -2298,15 +2324,15 @@ namespace pgbar {
           const auto self = handle_.get();
           auto try_update = [self]( state expected ) noexcept {
             return self->state_.compare_exchange_strong( expected,
-                                                         state::suspend,
+                                                         state::Suspend,
                                                          std::memory_order_acq_rel,
                                                          std::memory_order_relaxed );
           };
-          if ( try_update( state::awake ) || try_update( state::active ) ) {
+          if ( try_update( state::Awake ) || try_update( state::Active ) ) {
             do {
               __PGBAR_UNLIKELY if ( handle_->box_.empty() == false ) handle_->box_.rethrow();
-            } while ( handle_->state_.load( std::memory_order_acquire ) == state::suspend
-                      && handle_->state_.load( std::memory_order_acquire ) != state::finish );
+            } while ( handle_->state_.load( std::memory_order_acquire ) == state::Suspend
+                      && handle_->state_.load( std::memory_order_acquire ) != state::Dead );
           } else
             __PGBAR_UNLIKELY if ( handle_->box_.empty() == false ) handle_->box_.rethrow();
         }
@@ -2322,8 +2348,7 @@ namespace pgbar {
           if ( jobless() )
             return false;
           const auto current_state = handle_->state_.load( std::memory_order_acquire );
-          return current_state != state::dormant && current_state != state::finish
-              && current_state != state::dead;
+          return current_state != state::Dormant && current_state != state::Dead;
         }
         // Checks whether the thread caught an exception and throws it if it did.
         __PGBAR_INLINE_FN void rethrow_if_exception() const noexcept( false )
@@ -2389,7 +2414,6 @@ namespace pgbar {
 
         /**
          * Remove and return the oldest item from the queue.
-         * 
          * If the queue is empty, return a default-constructed value.
          */
         __PGBAR_NODISCARD T pop() noexcept( std::is_nothrow_default_constructible<T>::value
@@ -2429,20 +2453,17 @@ namespace pgbar {
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN bool full() const noexcept
         {
-          SharedMutexRef shared_end { rw_mtx_ };
-          std::lock_guard<SharedMutexRef> lock { shared_end };
+          SharedLock<SharedMutex> lock { rw_mtx_ };
           return count_ == Capacity;
         }
         __PGBAR_NODISCARD __PGBAR_INLINE_FN bool empty() const noexcept
         {
-          SharedMutexRef shared_end { rw_mtx_ };
-          std::lock_guard<SharedMutexRef> lock { shared_end };
+          SharedLock<SharedMutex> lock { rw_mtx_ };
           return count_ == 0;
         }
         __PGBAR_NODISCARD __PGBAR_INLINE_FN types::Size size() const noexcept
         {
-          SharedMutexRef shared_end { rw_mtx_ };
-          std::lock_guard<SharedMutexRef> lock { shared_end };
+          SharedLock<SharedMutex> lock { rw_mtx_ };
           return count_;
         }
         __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CNSTEVAL types::Size capacity() const noexcept
@@ -2806,9 +2827,8 @@ namespace pgbar {
         Derived& bolded( bool _enable ) & { __PGBAR_METHOD( Bolded, _enable ); }
 
 # undef __PGBAR_METHOD
-# define __PGBAR_METHOD( Offset )                                     \
-   __detail::concurrent::SharedMutexRef shared_end { this->rw_mtx_ }; \
-   std::lock_guard<concurrent::SharedMutexRef> lock { shared_end };   \
+# define __PGBAR_METHOD( Offset )                                          \
+   concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
    return fonts_[traits::as_val( Mask::Offset )]
 
         // Check whether the color effect is enabled.
@@ -2874,8 +2894,7 @@ namespace pgbar {
         // Get the current number of tasks.
         __PGBAR_NODISCARD types::Size tasks() const
         {
-          concurrent::SharedMutexRef shared_end { this->rw_mtx_ };
-          std::lock_guard<concurrent::SharedMutexRef> lock { shared_end };
+          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
           return task_range_.end_value();
         }
 
@@ -3105,8 +3124,7 @@ namespace pgbar {
 
         __PGBAR_NODISCARD types::Size bar_length() const
         {
-          __detail::concurrent::SharedMutexRef shared_end { this->_rw_mtx };
-          std::lock_guard<__detail::concurrent::SharedMutexRef> lock { shared_end };
+          __detail::concurrent::SharedLock<__detail::concurrent::SharedMutex> lock { this->rw_mtx_ };
           return bar_length_;
         }
 
@@ -3289,7 +3307,7 @@ namespace pgbar {
 
           buffer << console::escape::reset_font;
           return this->build_font( buffer, this->lead_col_ )
-              << io::formatting<io::TxtLayout::left>( this->size_longest_lead_, this->lead_[num_frame_cnt] );
+              << io::formatting<io::TxtLayout::Left>( this->size_longest_lead_, this->lead_[num_frame_cnt] );
         }
 
       public:
@@ -3336,7 +3354,7 @@ namespace pgbar {
                                                                                 : remainder;
               }();
               const types::Size len_right = this->bar_length_ - current_lead.size() - len_left - 1;
-              __PGBAR_ASSERT( len_left + len_right + current_lead.size() == this->bar_length_ );
+              __PGBAR_ASSERT( len_left + len_right + current_lead.size() + 1 == this->bar_length_ );
 
               buffer.append( filler_, len_left / filler_.size() )
                 .append( constants::blank, len_left % filler_.size() )
@@ -3653,7 +3671,7 @@ namespace pgbar {
           auto proportion = std::to_string( num_percent * 100.0 );
           proportion.resize( proportion.find( '.' ) + 3 );
 
-          return io::formatting<io::TxtLayout::right>( _fixed_length, std::move( proportion ) + "%" );
+          return io::formatting<io::TxtLayout::Right>( _fixed_length, std::move( proportion ) + "%" );
         }
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr types::Size fixed_len_percent() const noexcept
@@ -3700,7 +3718,7 @@ namespace pgbar {
                                                                        types::Size num_all_tasks ) const
         {
           __PGBAR_ASSERT( num_task_done <= num_all_tasks );
-          __PGBAR_UNLIKELY if ( num_all_tasks == 0 ) return io::formatting<io::TxtLayout::right>(
+          __PGBAR_UNLIKELY if ( num_all_tasks == 0 ) return io::formatting<io::TxtLayout::Right>(
             _fixed_length + longest_unit_,
             "-- " + units_.front() );
 
@@ -3728,7 +3746,7 @@ namespace pgbar {
             else rate_str                                     = float2string( remains ) + units_[3];
           }
 
-          return io::formatting<io::TxtLayout::right>( _fixed_length + longest_unit_, rate_str );
+          return io::formatting<io::TxtLayout::Right>( _fixed_length + longest_unit_, rate_str );
         }
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr types::Size fixed_len_speed() const noexcept
@@ -3782,7 +3800,7 @@ namespace pgbar {
             return { "-/-" };
           types::String total_str = std::to_string( num_all_tasks );
           const types::Size size  = total_str.size();
-          return io::formatting<io::TxtLayout::right>( size, std::to_string( num_task_done ) ) + "/"
+          return io::formatting<io::TxtLayout::Right>( size, std::to_string( num_task_done ) ) + "/"
                + std::move( total_str );
         }
 
@@ -4320,8 +4338,7 @@ namespace pgbar {
       Self& operator=( const Self& lhs ) & noexcept( std::is_nothrow_copy_assignable<Base>::value )
       {
         std::lock_guard<__detail::concurrent::SharedMutex> lock1 { this->rw_mtx_ };
-        __detail::concurrent::SharedMutexRef shared_end { lhs.rw_mtx_ };
-        std::lock_guard<__detail::concurrent::SharedMutexRef> lock2 { shared_end };
+        __detail::concurrent::SharedLock<__detail::concurrent::SharedMutex> lock2 { lhs.rw_mtx_ };
         Base::operator=( lhs );
         visual_masks_ = lhs.visual_masks_;
         return *this;
@@ -4346,8 +4363,7 @@ namespace pgbar {
 
       __PGBAR_NODISCARD __detail::types::Size fixed_size() const
       {
-        __detail::concurrent::SharedMutexRef shared_end { this->rw_mtx_ };
-        std::lock_guard<__detail::concurrent::SharedMutexRef> lock { shared_end };
+        __detail::concurrent::SharedLock<__detail::concurrent::SharedMutex> lock { this->rw_mtx_ };
         return __detail::render::ConfigInfo<Self>::fixed_render_size( *this );
       }
 
@@ -4586,8 +4602,7 @@ namespace pgbar {
           __PGBAR_ASSERT( num_task_done <= num_all_tasks );
           const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
 
-          concurrent::SharedMutexRef shared_end { this->rw_mtx_ };
-          std::lock_guard<concurrent::SharedMutexRef> lock { shared_end };
+          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
           if ( !this->description_.empty() || this->visual_masks_.any() )
             this->build_lborder( buffer );
 
@@ -4626,8 +4641,7 @@ namespace pgbar {
           __PGBAR_ASSERT( num_task_done <= num_all_tasks );
           const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
 
-          concurrent::SharedMutexRef shared_end { this->rw_mtx_ };
-          std::lock_guard<concurrent::SharedMutexRef> lock { shared_end };
+          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
           if ( ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty()
                  || !this->description_.empty() )
                || this->visual_masks_.any() )
@@ -4664,8 +4678,7 @@ namespace pgbar {
         }
         __PGBAR_NODISCARD __PGBAR_INLINE_FN types::Size full_render_size() const
         {
-          concurrent::SharedMutexRef shared_end { this->rw_mtx_ };
-          std::lock_guard<concurrent::SharedMutexRef> lock { shared_end };
+          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
           return ConfigInfo<Self>::fixed_render_size( *this )
                + ( this->visual_masks_[traits::as_val( Self::Mask::Ani )] ? this->bar_length_ : 0 );
         }
@@ -4686,8 +4699,7 @@ namespace pgbar {
           __PGBAR_ASSERT( num_task_done <= num_all_tasks );
           const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
 
-          concurrent::SharedMutexRef shared_end { this->rw_mtx_ };
-          std::lock_guard<concurrent::SharedMutexRef> lock { shared_end };
+          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
           if ( !this->description_.empty() || this->visual_masks_.any() )
             this->build_lborder( buffer );
 
@@ -4726,8 +4738,7 @@ namespace pgbar {
           __PGBAR_ASSERT( num_task_done <= num_all_tasks );
           const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
 
-          concurrent::SharedMutexRef shared_end { this->rw_mtx_ };
-          std::lock_guard<concurrent::SharedMutexRef> lock { shared_end };
+          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
           if ( ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty()
                  || !this->description_.empty() )
                || this->visual_masks_.any() )
@@ -4764,8 +4775,7 @@ namespace pgbar {
         }
         __PGBAR_NODISCARD __PGBAR_INLINE_FN types::Size full_render_size() const
         {
-          concurrent::SharedMutexRef shared_end { this->rw_mtx_ };
-          std::lock_guard<concurrent::SharedMutexRef> lock { shared_end };
+          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
           return ConfigInfo<Self>::fixed_render_size( *this )
                + ( this->visual_masks_[traits::as_val( Self::Mask::Ani )] ? this->bar_length_ : 0 );
         }
@@ -4787,8 +4797,7 @@ namespace pgbar {
           __PGBAR_ASSERT( num_task_done <= num_all_tasks );
           const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
 
-          concurrent::SharedMutexRef shared_end { this->rw_mtx_ };
-          std::lock_guard<concurrent::SharedMutexRef> lock { shared_end };
+          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
           if ( this->visual_masks_.any() )
             this->build_lborder( buffer );
 
@@ -4829,8 +4838,7 @@ namespace pgbar {
           __PGBAR_ASSERT( num_task_done <= num_all_tasks );
           const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
 
-          concurrent::SharedMutexRef shared_end { this->rw_mtx_ };
-          std::lock_guard<concurrent::SharedMutexRef> lock { shared_end };
+          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
           if ( this->visual_masks_.any() )
             this->build_lborder( buffer );
 
@@ -4863,8 +4871,7 @@ namespace pgbar {
         }
         __PGBAR_NODISCARD __PGBAR_INLINE_FN types::Size full_render_size() const
         {
-          concurrent::SharedMutexRef shared_end { this->rw_mtx_ };
-          std::lock_guard<concurrent::SharedMutexRef> lock { shared_end };
+          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
           return ConfigInfo<Self>::fixed_render_size( *this );
         }
       };
@@ -4885,8 +4892,7 @@ namespace pgbar {
           __PGBAR_ASSERT( num_task_done <= num_all_tasks );
           const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
 
-          concurrent::SharedMutexRef shared_end { this->rw_mtx_ };
-          std::lock_guard<concurrent::SharedMutexRef> lock { shared_end };
+          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
           if ( !this->description_.empty() || this->visual_masks_.any() )
             this->build_lborder( buffer );
 
@@ -4926,8 +4932,7 @@ namespace pgbar {
           __PGBAR_ASSERT( num_task_done <= num_all_tasks );
           const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
 
-          concurrent::SharedMutexRef shared_end { this->rw_mtx_ };
-          std::lock_guard<concurrent::SharedMutexRef> lock { shared_end };
+          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
           if ( ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty()
                  || !this->description_.empty() )
                || this->visual_masks_.any() )
@@ -4964,8 +4969,7 @@ namespace pgbar {
         }
         __PGBAR_NODISCARD __PGBAR_INLINE_FN types::Size full_render_size() const
         {
-          concurrent::SharedMutexRef shared_end { this->rw_mtx_ };
-          std::lock_guard<concurrent::SharedMutexRef> lock { shared_end };
+          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
           return ConfigInfo<Self>::fixed_render_size( *this )
                + ( this->visual_masks_[traits::as_val( Self::Mask::Ani )] ? this->bar_length_ : 0 );
         }
@@ -4980,10 +4984,15 @@ namespace pgbar {
         Renderer( const Self& )        = delete;
         Self& operator=( const Self& ) = delete;
 
-        Renderer() noexcept : state_td_ { concurrent::thread_repo.pop() } {}
+        Renderer() noexcept : state_td_ { concurrent::thread_repo.pop() }
+        {
+          __PGBAR_ASSERT( state_td_.jobless() );
+        }
         ~Renderer() noexcept
         {
           state_td_.appoint();
+          __PGBAR_ASSERT( state_td_.active() == false );
+          __PGBAR_ASSERT( state_td_.jobless() );
           concurrent::thread_repo.push( std::move( state_td_ ) );
         }
 
@@ -5020,7 +5029,7 @@ namespace pgbar {
 
   class Indicator {
   protected:
-    enum class state : uint8_t { begin, refresh1, refresh2, finish, stopped };
+    enum class state : uint8_t { Begin, Refresh1, Refresh2, Finish, Stopped };
     std::atomic<state> state_;
 
     __detail::render::Renderer executor_;
@@ -5031,22 +5040,22 @@ namespace pgbar {
 
     void unlock_reset( bool final_mesg )
     {
-      if ( !executor_.empty() ) {
+      if ( executor_.active() ) {
         final_mesg_     = final_mesg;
         auto try_update = [this]( state expected ) noexcept {
           return state_.compare_exchange_strong( expected,
-                                                 state::finish,
+                                                 state::Finish,
                                                  std::memory_order_acq_rel,
                                                  std::memory_order_relaxed );
         };
-        try_update( state::begin ) || try_update( state::refresh1 ) || try_update( state::refresh2 );
+        try_update( state::Begin ) || try_update( state::Refresh1 ) || try_update( state::Refresh2 );
         this->executor_.suspend();
       } else
-        state_.store( state::stopped, std::memory_order_release );
+        state_.store( state::Stopped, std::memory_order_release );
     }
 
   public:
-    Indicator() noexcept : state_ { state::stopped } {}
+    Indicator() noexcept : state_ { state::Stopped } {}
     Indicator( Indicator&& ) noexcept : Indicator() {}
     Indicator& operator=( Indicator&& rhs ) & noexcept
     {
@@ -5065,7 +5074,7 @@ namespace pgbar {
 
     __PGBAR_NODISCARD bool is_running() const noexcept
     {
-      return state_.load( std::memory_order_acquire ) != state::stopped;
+      return state_.load( std::memory_order_acquire ) != state::Stopped;
     }
 
     // Wait until the indicator is stopped.
@@ -5259,7 +5268,7 @@ namespace pgbar {
         static void rendering( BarType& bar )
         {
           switch ( bar.state_.load( std::memory_order_acquire ) ) {
-          case BarType::state::begin: {
+          case BarType::state::Begin: {
             __PGBAR_ASSERT( bar.task_cnt_ <= bar.task_end_ );
             bar.idx_frame_    = 0;
             bar.max_bar_size_ = bar.config_.full_render_size();
@@ -5272,17 +5281,17 @@ namespace pgbar {
                                bar.zero_point_ );
             bar.ostream_ << io::flush;
 
-            auto expected = BarType::state::begin;
+            auto expected = BarType::state::Begin;
             if __PGBAR_CXX17_CNSTXPR ( std::is_same<ConfigType, config::CharBar>::value )
               bar.state_.compare_exchange_strong( expected,
-                                                  BarType::state::refresh2,
+                                                  BarType::state::Refresh2,
                                                   std::memory_order_acq_rel,
                                                   std::memory_order_relaxed );
             else
               bar.state_.compare_exchange_strong( expected,
                                                   bar.task_end_.load( std::memory_order_acquire ) == 0
-                                                    ? BarType::state::refresh1
-                                                    : BarType::state::refresh2,
+                                                    ? BarType::state::Refresh1
+                                                    : BarType::state::Refresh2,
                                                   std::memory_order_acq_rel,
                                                   std::memory_order_relaxed );
             /* If the main thread finds that the iteration is complete immediately,
@@ -5291,8 +5300,8 @@ namespace pgbar {
           }
             __PGBAR_FALLTHROUGH;
 
-          case BarType::state::refresh1: __PGBAR_FALLTHROUGH;
-          case BarType::state::refresh2: {
+          case BarType::state::Refresh1: __PGBAR_FALLTHROUGH;
+          case BarType::state::Refresh2: {
             __PGBAR_ASSERT( bar.task_cnt_ <= bar.task_end_ );
             bar.max_bar_size_ = std::max( bar.max_bar_size_, bar.config_.full_render_size() );
             bar.ostream_ << console::escape::restore_cursor
@@ -5307,7 +5316,7 @@ namespace pgbar {
             ++bar.idx_frame_;
           } break;
 
-          case BarType::state::finish: { // intermediate state
+          case BarType::state::Finish: { // intermediate state
             __PGBAR_ASSERT( bar.task_cnt_ <= bar.task_end_ );
             bar.max_bar_size_ = std::max( bar.max_bar_size_, bar.config_.full_render_size() );
             bar.ostream_ << console::escape::restore_cursor
@@ -5321,7 +5330,7 @@ namespace pgbar {
                                bar.zero_point_ )
               << '\n';
             bar.ostream_ << io::flush << io::release;
-            bar.state_.store( BarType::state::stopped, std::memory_order_release );
+            bar.state_.store( BarType::state::Stopped, std::memory_order_release );
           } break;
 
           default: return;
@@ -5335,8 +5344,7 @@ namespace pgbar {
         static void rendering( BarType& bar )
         {
           switch ( bar.state_.load( std::memory_order_acquire ) ) {
-          case BarType::state::begin: {
-            __PGBAR_ASSERT( bar.task_cnt_ == 0 );
+          case BarType::state::Begin: {
             bar.max_bar_size_ = bar.config_.full_render_size();
             bar.ostream_.reserve( static_cast<types::Size>( bar.max_bar_size_ * 1.2 ) )
               << console::escape::store_cursor;
@@ -5347,15 +5355,15 @@ namespace pgbar {
                                bar.zero_point_ );
             bar.ostream_ << io::flush;
 
-            auto expected = BarType::state::begin;
+            auto expected = BarType::state::Begin;
             bar.state_.compare_exchange_strong( expected,
-                                                BarType::state::refresh2,
+                                                BarType::state::Refresh2,
                                                 std::memory_order_acq_rel,
                                                 std::memory_order_relaxed );
           }
             __PGBAR_FALLTHROUGH;
 
-          case BarType::state::refresh2: {
+          case BarType::state::Refresh2: {
             __PGBAR_ASSERT( bar.task_cnt_ <= bar.task_end_ );
             bar.max_bar_size_ = std::max( bar.max_bar_size_, bar.config_.full_render_size() );
             bar.ostream_ << console::escape::restore_cursor
@@ -5368,7 +5376,7 @@ namespace pgbar {
             bar.ostream_ << io::flush;
           } break;
 
-          case BarType::state::finish: {
+          case BarType::state::Finish: {
             __PGBAR_ASSERT( bar.task_cnt_ <= bar.task_end_ );
             bar.max_bar_size_ = std::max( bar.max_bar_size_, bar.config_.full_render_size() );
             bar.ostream_ << console::escape::restore_cursor
@@ -5381,7 +5389,7 @@ namespace pgbar {
                                bar.zero_point_ )
               << '\n';
             bar.ostream_ << io::flush << io::release;
-            bar.state_.store( BarType::state::stopped, std::memory_order_release );
+            bar.state_.store( BarType::state::Stopped, std::memory_order_release );
           } break;
 
           default: return;
@@ -5400,14 +5408,15 @@ namespace pgbar {
                          "pgbar::__detail::render::TickAction::do_tick: Invalid template type error" );
 
           switch ( bar.state_.load( std::memory_order_acquire ) ) {
-          case BarType::state::stopped: {
+          case BarType::state::Stopped: {
+            __PGBAR_ASSERT( bar.executor_.active() == false );
             bar.task_end_.store( bar.config_.tasks(), std::memory_order_release );
             __PGBAR_UNLIKELY if ( bar.task_end_.load( std::memory_order_acquire ) == 0 ) throw exception::
               InvalidState( "pgbar: the number of tasks is zero" );
 
             bar.task_cnt_.store( 0, std::memory_order_release );
             bar.zero_point_ = std::chrono::steady_clock::now();
-            bar.state_.store( BarType::state::begin, std::memory_order_release );
+            bar.state_.store( BarType::state::Begin, std::memory_order_release );
 
             /* If the standard output stream isn't bound to a tty,
              * we shouldn't activate the render thread.
@@ -5415,14 +5424,14 @@ namespace pgbar {
              * However, in order to maintain semantic consistency,
              * exception checking and task counter updating are always carried out. */
             if ( config::Core::intty( StreamType ) ) {
-              __PGBAR_UNLIKELY if ( bar.executor_.empty() )
+              if ( bar.executor_.empty() )
                 bar.executor_.reset( [&bar]() { RenderAction<ConfigType>::rendering( bar ); } );
               bar.executor_.activate();
             }
           }
             __PGBAR_FALLTHROUGH;
-          case BarType::state::begin:    __PGBAR_FALLTHROUGH;
-          case BarType::state::refresh2: {
+          case BarType::state::Begin:    __PGBAR_FALLTHROUGH;
+          case BarType::state::Refresh2: {
             action();
 
             __PGBAR_UNLIKELY if ( bar.task_cnt_.load( std::memory_order_acquire ) >= bar.task_end_.load(
@@ -5445,27 +5454,28 @@ namespace pgbar {
                          "pgbar::__detail::render::TickAction::do_tick: Invalid template type error" );
 
           switch ( bar.state_.load( std::memory_order_acquire ) ) {
-          case BarType::state::stopped: {
+          case BarType::state::Stopped: {
+            __PGBAR_ASSERT( bar.executor_.active() == false );
             bar.task_end_.store( bar.config_.tasks(), std::memory_order_release );
             bar.task_cnt_.store( 0, std::memory_order_release );
             bar.zero_point_ = std::chrono::steady_clock::now();
-            bar.state_.store( BarType::state::begin, std::memory_order_release );
+            bar.state_.store( BarType::state::Begin, std::memory_order_release );
 
             if ( config::Core::intty( StreamType ) ) {
-              __PGBAR_UNLIKELY if ( bar.executor_.empty() )
+              if ( bar.executor_.empty() )
                 bar.executor_.reset( [&bar]() { RenderAction<ConfigType>::rendering( bar ); } );
               bar.executor_.activate();
             }
           }
             __PGBAR_FALLTHROUGH;
 
-          case BarType::state::begin: {
+          case BarType::state::Begin: {
             if ( bar.task_end_.load( std::memory_order_acquire ) == 0 )
               return;
           }
             __PGBAR_FALLTHROUGH;
 
-          case BarType::state::refresh2: {
+          case BarType::state::Refresh2: {
             action();
 
             __PGBAR_UNLIKELY if ( bar.task_cnt_.load( std::memory_order_acquire ) >= bar.task_end_.load(
