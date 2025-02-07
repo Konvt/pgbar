@@ -90,7 +90,7 @@ As pointed out at the beginning, there is no problem.
 
 Although only UTF-8 encoded strings are currently supported, using any non-UTF-8 encoded string will result in an exception.
 
-If you are using the C++20, `pgbar`'s functions also support u8 strings.
+If you are using the C++20, `pgbar`'s functions also support `u8string`.
 
 ![unicode](images/unicode.gif)
 
