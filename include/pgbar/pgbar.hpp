@@ -317,24 +317,25 @@ namespace pgbar {
        */
       template<template<typename...> class Node>
       struct InheritFrom {
-        using VBs = TemplateList<>; // virtual base
-        using NBs = TemplateList<>; // normal base
+        using VBs  = TemplateList<>; // virtual base
+        using NVBs = TemplateList<>; // non-virtual base
       };
+
       // Gets the virtual base list of the template class `Node`.
       template<template<typename...> class Node>
       using InheritFrom_vbt = typename InheritFrom<Node>::VBs;
       // Gets the non-virtual base (also called normal base) list of the template class `Node`.
       template<template<typename...> class Node>
-      using InheritFrom_nbt = typename InheritFrom<Node>::NBs;
+      using InheritFrom_nvbt = typename InheritFrom<Node>::NVBs;
 
 // Pack multiple macro parameters into a single one.
 # define __PGBAR_PACK( ... ) __VA_ARGS__
 // A helper macro to register the inheritance structure of a template class.
-# define __PGBAR_INHERIT_REGISTER( Node, VBList, NBList ) \
-   template<>                                             \
-   struct InheritFrom<Node> {                             \
-     using VBs = TemplateList<VBList>;                    \
-     using NBs = TemplateList<NBList>;                    \
+# define __PGBAR_INHERIT_REGISTER( Node, VBList, NVBList ) \
+   template<>                                              \
+   struct InheritFrom<Node> {                              \
+     using VBs  = TemplateList<VBList>;                    \
+     using NVBs = TemplateList<NVBList>;                   \
    }
 
       /**
@@ -348,75 +349,86 @@ namespace pgbar {
        *
        * The only trade-off is a slight increase in compilation time
        * when resolving highly complex inheritance dependencies.
+       *
+       * NVIList: Non-virtual Base List, VIList: Virtual Base List
        */
-      template<template<typename...> class Base, template<typename...> class... Bases>
-      struct TopoSort {
+      template<typename NVBList, typename VBList = TemplateList<>>
+      struct TopoSort;
+
+      // NVB: Non-virtual Base, VB: Virtual Base
+      template<template<typename...> class NVB,
+               template<typename...> class... NVBs,
+               template<typename...> class... VBs>
+      struct TopoSort<TemplateList<NVB, NVBs...>, TemplateList<VBs...>> {
       private:
         // VI: Virtual Inherit
-        template<bool VI, typename List, typename SortedList, typename VisitedList>
+        template<bool VI, typename List, typename SortedList, typename VisitedVBs>
         struct Helper;
         /* Return the virtual base class node that was accessed during the recursive process.
          * pt: path type. */
-        template<bool VI, typename List, typename SortedList, typename VisitedList>
-        using Helper_pt = typename Helper<VI, List, SortedList, VisitedList>::path;
+        template<bool VI, typename List, typename SortedList, typename VisitedVBs>
+        using Helper_pt = typename Helper<VI, List, SortedList, VisitedVBs>::path;
         /* Return the sorted list.
          * tp: type. */
-        template<bool VI, typename List, typename SortedList, typename VisitedList>
-        using Helper_tp = typename Helper<VI, List, SortedList, VisitedList>::type;
+        template<bool VI, typename List, typename SortedList, typename VisitedVBs>
+        using Helper_tp = typename Helper<VI, List, SortedList, VisitedVBs>::type;
 
-        template<bool VI, typename SortedList, typename VisitedList>
-        struct Helper<VI, TemplateList<>, SortedList, VisitedList> {
-          using path = VisitedList;
+        template<bool VI, typename SortedList, typename VisitedVBs>
+        struct Helper<VI, TemplateList<>, SortedList, VisitedVBs> {
+          using path = VisitedVBs;
           using type = SortedList;
         };
         template<template<typename...> class Head,
                  template<typename...> class... Tail,
                  typename SortedList,
-                 typename VisitedList>
-        struct Helper<true, TemplateList<Head, Tail...>, SortedList, VisitedList> {
+                 typename VisitedVBs>
+        struct Helper<true, TemplateList<Head, Tail...>, SortedList, VisitedVBs> {
         private:
-          using SortVB_t = Helper_tp<true, InheritFrom_vbt<Head>, SortedList, VisitedList>;
-          using MarkVB_t = Helper_pt<true, InheritFrom_vbt<Head>, SortedList, VisitedList>;
+          using SortVB_t = Helper_tp<true, InheritFrom_vbt<Head>, SortedList, VisitedVBs>;
+          using MarkVB_t = Helper_pt<true, InheritFrom_vbt<Head>, SortedList, VisitedVBs>;
 
           using SortTail_t = Helper_tp<true, TemplateList<Tail...>, SortVB_t, MarkVB_t>;
           using MarkTail_t = Helper_pt<true, TemplateList<Tail...>, SortVB_t, MarkVB_t>;
 
-          using SortNB_t = Helper_tp<false, InheritFrom_nbt<Head>, SortTail_t, MarkTail_t>;
-          using MarkNB_t = Helper_pt<false, InheritFrom_nbt<Head>, SortTail_t, MarkTail_t>;
+          using SortNVB_t = Helper_tp<false, InheritFrom_nvbt<Head>, SortTail_t, MarkTail_t>;
+          using MarkNVB_t = Helper_pt<false, InheritFrom_nvbt<Head>, SortTail_t, MarkTail_t>;
 
         public:
-          using path = Prepend_t<MarkNB_t, Head>;
+          using path = Prepend_t<MarkNVB_t, Head>;
           using type =
-            typename std::conditional<Contain<VisitedList, Head>::value,
-                                      Helper_tp<true, TemplateList<Tail...>, SortedList, VisitedList>,
-                                      Prepend_t<SortNB_t, Head>>::type;
+            typename std::conditional<Contain<VisitedVBs, Head>::value || Contain<MarkTail_t, Head>::value,
+                                      Helper_tp<true, TemplateList<Tail...>, SortedList, VisitedVBs>,
+                                      Prepend_t<SortNVB_t, Head>>::type;
         };
         template<template<typename...> class Head,
                  template<typename...> class... Tail,
                  typename SortedList,
-                 typename VisitedList>
-        struct Helper<false, TemplateList<Head, Tail...>, SortedList, VisitedList> {
+                 typename VisitedVBs>
+        struct Helper<false, TemplateList<Head, Tail...>, SortedList, VisitedVBs> {
         private:
-          using SortVB_t = Helper_tp<true, InheritFrom_vbt<Head>, SortedList, VisitedList>;
-          using MarkVB_t = Helper_pt<true, InheritFrom_vbt<Head>, SortedList, VisitedList>;
+          using SortVB_t = Helper_tp<true, InheritFrom_vbt<Head>, SortedList, VisitedVBs>;
+          using MarkVB_t = Helper_pt<true, InheritFrom_vbt<Head>, SortedList, VisitedVBs>;
 
           using SortTail_t = Helper_tp<false, TemplateList<Tail...>, SortVB_t, MarkVB_t>;
           using MarkTail_t = Helper_pt<false, TemplateList<Tail...>, SortVB_t, MarkVB_t>;
 
-          using SortNB_t = Helper_tp<false, InheritFrom_nbt<Head>, SortTail_t, MarkTail_t>;
-          using MarkNB_t = Helper_pt<false, InheritFrom_nbt<Head>, SortTail_t, MarkTail_t>;
+          using SortNVB_t = Helper_tp<false, InheritFrom_nvbt<Head>, SortTail_t, MarkTail_t>;
+          using MarkNVB_t = Helper_pt<false, InheritFrom_nvbt<Head>, SortTail_t, MarkTail_t>;
 
         public:
-          using path = MarkNB_t;
-          using type = Prepend_t<SortNB_t, Head>;
+          using path = MarkNVB_t;
+          using type = Prepend_t<SortNVB_t, Head>;
         };
 
       public:
-        using type = Helper_tp<false, TemplateList<Base, Bases...>, TemplateList<>, TemplateList<>>;
+        using type = Helper_tp<false,
+                               TemplateList<NVB, NVBs...>,
+                               Helper_tp<true, TemplateList<VBs...>, TemplateList<>, TemplateList<>>,
+                               Helper_pt<true, TemplateList<VBs...>, TemplateList<>, TemplateList<>>>;
       };
       // Get a list of topological sorting results for the input template classes.
-      template<template<typename...> class Base, template<typename...> class... Bases>
-      using TopoSort_t = typename TopoSort<Base, Bases...>::type;
+      template<typename NVBList, typename VBList = TemplateList<>>
+      using TopoSort_t = typename TopoSort<NVBList, VBList>::type;
 
       /**
        * Linearization of Inheritance.
@@ -426,38 +438,41 @@ namespace pgbar {
        *
        * It relies on the template `InheritFrom` and `TopoSort` classes to work.
        */
-      template<template<typename...> class Base, template<typename...> class... Bases>
-      struct LI {
-      private:
-        template<typename TopoOrder, typename FinalBase, typename... Args>
-        struct Helper;
-        template<typename TopoOrder, typename FinalBase, typename... Args>
-        using Helper_t = typename Helper<TopoOrder, FinalBase, Args...>::type;
+      template<typename NVBList, typename VBList = TemplateList<>>
+      struct LI;
 
-        template<typename FinalBase, typename... Args>
-        struct Helper<TemplateList<>, FinalBase, Args...> {
-          using type = FinalBase;
+      template<template<typename...> class NVB,
+               template<typename...> class... NVBs,
+               template<typename...> class... VBs>
+      struct LI<TemplateList<NVB, NVBs...>, TemplateList<VBs...>> {
+      private:
+        template<typename TopoOrder, typename RBC, typename... Args>
+        struct Helper;
+        template<typename TopoOrder, typename RBC, typename... Args>
+        using Helper_t = typename Helper<TopoOrder, RBC, Args...>::type;
+
+        template<typename RBC, typename... Args>
+        struct Helper<TemplateList<>, RBC, Args...> {
+          using type = RBC;
         };
         template<template<typename...> class Head,
                  template<typename...> class... Tail,
-                 typename FinalBase,
+                 typename RBC,
                  typename... Args>
-        struct Helper<TemplateList<Head, Tail...>, FinalBase, Args...> {
-          using type = Head<Helper_t<TemplateList<Tail...>, FinalBase, Args...>, Args...>;
+        struct Helper<TemplateList<Head, Tail...>, RBC, Args...> {
+          using type = Head<Helper_t<TemplateList<Tail...>, RBC, Args...>, Args...>;
         };
 
       public:
-        template<typename FinalBase, typename... Args>
-        using type = Helper_t<TopoSort_t<Base, Bases...>, FinalBase, Args...>;
+        // RBC: Root Base Class
+        template<typename RBC, typename... Args>
+        using type = Helper_t<TopoSort_t<TemplateList<NVB, NVBs...>, TemplateList<VBs...>>, RBC, Args...>;
       };
 
-      // A version that accepts TemplateList.
-      template<typename List>
-      struct LI_t;
-      template<template<typename...> class Base, template<typename...> class... Bases>
-      struct LI_t<TemplateList<Base, Bases...>> {
-        template<typename FinalBase, typename... Args>
-        using type = typename LI<Base, Bases...>::template type<FinalBase, Args...>;
+      template<template<typename...> class NVB, template<typename...> class... NVBs>
+      struct LI_t {
+        template<typename RBC, typename... Args>
+        using type = typename LI<TemplateList<NVB, NVBs...>>::type<RBC, Args...>;
       };
 
       /**
@@ -4236,7 +4251,7 @@ namespace pgbar {
 
     template<template<typename...> class BarType, typename OptionConstraint>
     class BasicConfig
-      : public __detail::traits::LI<
+      : public __detail::traits::LI_t<
           BarType,
           __detail::assets::Description,
           __detail::assets::Segment,
@@ -4246,21 +4261,23 @@ namespace pgbar {
           __detail::assets::ElapsedTimer,
           __detail::assets::CountdownTimer>::template type<Core, BasicConfig<BarType, OptionConstraint>> {
       // BarType must inherit from BasicIndicator or BasicAnimation
-      static_assert( __detail::traits::Contain<__detail::traits::TopoSort_t<BarType>,
-                                               __detail::assets::BasicIndicator>::value
-                       || __detail::traits::Contain<__detail::traits::TopoSort_t<BarType>,
-                                                    __detail::assets::BasicAnimation>::value,
-                     "pgbar::config::BasicConfig: Invalid progress bar type" );
+      static_assert(
+        __detail::traits::Contain<__detail::traits::TopoSort_t<__detail::traits::TemplateList<BarType>>,
+                                  __detail::assets::BasicIndicator>::value
+          || __detail::traits::Contain<__detail::traits::TopoSort_t<__detail::traits::TemplateList<BarType>>,
+                                       __detail::assets::BasicAnimation>::value,
+        "pgbar::config::BasicConfig: Invalid progress bar type" );
 
       using Self = BasicConfig;
-      using Base = typename __detail::traits::LI<BarType,
-                                                 __detail::assets::Description,
-                                                 __detail::assets::Segment,
-                                                 __detail::assets::PercentMeter,
-                                                 __detail::assets::SpeedMeter,
-                                                 __detail::assets::CounterMeter,
-                                                 __detail::assets::ElapsedTimer,
-                                                 __detail::assets::CountdownTimer>::template type<Core, Self>;
+      using Base =
+        typename __detail::traits::LI_t<BarType,
+                                        __detail::assets::Description,
+                                        __detail::assets::Segment,
+                                        __detail::assets::PercentMeter,
+                                        __detail::assets::SpeedMeter,
+                                        __detail::assets::CounterMeter,
+                                        __detail::assets::ElapsedTimer,
+                                        __detail::assets::CountdownTimer>::template type<Core, Self>;
 
       template<typename, typename>
       friend struct __detail::render::ConfigInfo;
@@ -5082,7 +5099,7 @@ namespace pgbar {
   template<typename ConfigType, typename MutexMode, StreamChannel StreamType>
 # endif
   class BasicBar final
-    : public __detail::traits::LI_t<__detail::traits::ConfigTrait_t<ConfigType>>::
+    : public __detail::traits::LI<__detail::traits::ConfigTrait_t<ConfigType>>::
         template type<Indicator, BasicBar<ConfigType, MutexMode, StreamType>> {
     using Self = BasicBar;
     using Indicator::state;
