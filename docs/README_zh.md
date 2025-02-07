@@ -88,7 +88,7 @@ int main()
 
 虽然目前也仅支持 UTF-8 编码的字符串，使用任何非 UTF-8 编码字符串都会导致异常。
 
-如果你使用的是 C++20 标准，那么 `pgbar` 的函数也支持 `u8` 字符串。
+如果你使用的是 C++20 标准，那么 `pgbar` 的函数也支持 `u8string`。
 
 ![unicode](../images/unicode.gif)
 

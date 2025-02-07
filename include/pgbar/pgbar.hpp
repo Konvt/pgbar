@@ -43,10 +43,10 @@
 # endif
 
 # if __PGBAR_CC_STD >= 202302L
+#  include <functional>
 #  define __PGBAR_CXX23         1
 #  define __PGBAR_CXX23_CNSTXPR constexpr
 #  define __PGBAR_UNREACHABLE   std::unreachable()
-#  include <functional>
 # else
 #  define __PGBAR_CXX23 0
 #  define __PGBAR_CXX23_CNSTXPR
@@ -71,7 +71,6 @@
 #  define __PGBAR_CXX17         1
 #  define __PGBAR_CXX17_CNSTXPR constexpr
 #  define __PGBAR_FALLTHROUGH   [[fallthrough]]
-
 #  undef __PGBAR_NODISCARD
 #  define __PGBAR_NODISCARD [[nodiscard]]
 # else
@@ -80,9 +79,9 @@
 #  define __PGBAR_FALLTHROUGH
 # endif
 # if __PGBAR_CC_STD >= 201402L
+#  include <shared_mutex>
 #  define __PGBAR_CXX14         1
 #  define __PGBAR_CXX14_CNSTXPR constexpr
-#  include <shared_mutex>
 # else
 #  define __PGBAR_CXX14 0
 #  define __PGBAR_CXX14_CNSTXPR
@@ -1339,7 +1338,7 @@ namespace pgbar {
         if ( hex.front() != '#' || ( hex.size() != 7 && hex.size() != 4 ) )
           throw exception::InvalidArgument( "pgbar: invalid hex color format" );
 
-        for ( std::size_t i = 1; i < hex.size(); i++ ) {
+        for ( types::Size i = 1; i < hex.size(); i++ ) {
           if ( ( hex[i] < '0' || hex[i] > '9' ) && ( hex[i] < 'A' || hex[i] > 'F' )
                && ( hex[i] < 'a' || hex[i] > 'f' ) )
             throw exception::InvalidArgument( "pgbar: invalid hexadecimal letter" );
@@ -1486,7 +1485,7 @@ namespace pgbar {
         __PGBAR_NODISCARD static __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::Size char_width(
           types::UCodePoint codepoint ) noexcept
         {
-          auto&& charts = code_charts();
+          constexpr auto charts = code_charts();
           __PGBAR_ASSERT( std::is_sorted( charts.cbegin(), charts.cend() ) );
           // Compare with the `if-else` version, here we can search for code points with O(logn).
           const auto itr = std::lower_bound( charts.cbegin(), charts.cend(), codepoint );
