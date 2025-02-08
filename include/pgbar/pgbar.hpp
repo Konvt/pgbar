@@ -350,7 +350,7 @@ namespace pgbar {
        * The only trade-off is a slight increase in compilation time
        * when resolving highly complex inheritance dependencies.
        *
-       * NVIList: Non-virtual Base List, VIList: Virtual Base List
+       * NVIList: Non-virtual Base List, VBList: Virtual Base List
        */
       template<typename NVBList, typename VBList = TemplateList<>>
       struct TopoSort;
@@ -472,7 +472,7 @@ namespace pgbar {
       template<template<typename...> class NVB, template<typename...> class... NVBs>
       struct LI_t {
         template<typename RBC, typename... Args>
-        using type = typename LI<TemplateList<NVB, NVBs...>>::type<RBC, Args...>;
+        using type = typename LI<TemplateList<NVB, NVBs...>>::template type<RBC, Args...>;
       };
 
       /**
