@@ -1,4 +1,4 @@
-#include "pgbar/pgbar.hpp"
+#include "../include/pgbar/pgbar.hpp"
 #include <cassert>
 #include <iostream>
 #include <numeric>

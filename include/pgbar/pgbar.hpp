@@ -6,6 +6,28 @@
 #ifndef __KONVT_PGBAR
 # define __KONVT_PGBAR
 
+# include <algorithm>
+# include <array>
+# include <atomic>
+# include <bitset>
+# include <chrono>
+# include <cmath>
+# include <condition_variable>
+# include <cstdint>
+# include <cstring>
+# include <exception>
+# include <initializer_list>
+# include <iterator>
+# include <limits>
+# include <memory>
+# include <mutex>
+# include <queue>
+# include <string>
+# include <thread>
+# include <type_traits>
+# include <utility>
+# include <vector>
+
 # if defined( _MSC_VER )
 #  define __PGBAR_NODISCARD _Check_return_
 #  define __PGBAR_INLINE_FN __forceinline
@@ -91,28 +113,6 @@
 # else
 #  error "The library 'pgbar' requires C++11"
 # endif
-
-# include <algorithm>
-# include <array>
-# include <atomic>
-# include <bitset>
-# include <chrono>
-# include <cmath>
-# include <condition_variable>
-# include <cstdint>
-# include <cstring>
-# include <exception>
-# include <initializer_list>
-# include <iterator>
-# include <limits>
-# include <memory>
-# include <mutex>
-# include <queue>
-# include <string>
-# include <thread>
-# include <type_traits>
-# include <utility>
-# include <vector>
 
 # ifdef PGBAR_DEBUG
 #  include <cassert>
@@ -350,7 +350,7 @@ namespace pgbar {
        * The only trade-off is a slight increase in compilation time
        * when resolving highly complex inheritance dependencies.
        *
-       * NVIList: Non-virtual Base List, VBList: Virtual Base List
+       * NVBList: Non-virtual Base List, VBList: Virtual Base List
        */
       template<typename NVBList, typename VBList = TemplateList<>>
       struct TopoSort;
@@ -659,30 +659,6 @@ namespace pgbar {
 #  endif
 
         struct AnyFn {
-          template<types::Size BufferSize, std::size_t Align>
-          __PGBAR_CXX20_CNSTXPR static void swap_fn( AnyFn* const a,
-                                                     void* const mem_a,
-                                                     AnyFn* const b,
-                                                     void* const mem_b ) noexcept
-          {
-            __PGBAR_ASSERT( a != nullptr );
-            __PGBAR_ASSERT( b != nullptr );
-            __PGBAR_ASSERT( mem_a != nullptr );
-            __PGBAR_ASSERT( mem_b != nullptr );
-            __PGBAR_ASSERT( a == mem_a );
-            __PGBAR_ASSERT( b == mem_b );
-
-            alignas( Align ) unsigned char buffer[BufferSize];
-            a->move_to( buffer );
-            a->~AnyFn();
-
-            b->move_to( mem_a );
-            b->~AnyFn();
-
-            AnyFn* const a_tmp = __PGBAR_LAUNDER( reinterpret_cast<AnyFn*>( &buffer ) );
-            a_tmp->move_to( mem_b );
-            a_tmp->~AnyFn();
-          }
           __PGBAR_CXX20_CNSTXPR virtual ~AnyFn() noexcept       = default;
           virtual Ret operator()( Args... args ) const          = 0;
           virtual void move_to( void* const dest_mem ) noexcept = 0;
@@ -755,12 +731,8 @@ namespace pgbar {
         enum class Tag : std::uint8_t { None, Fptr, FtorInline, FtorDync } tag_;
 
       public:
-        __PGBAR_CXX14_CNSTXPR UniqueFunctionImpl() noexcept
-        {
-          std::memset( &data_, 0, sizeof data_ );
-          tag_ = Tag::None;
-        }
-        __PGBAR_CXX14_CNSTXPR UniqueFunctionImpl( std::nullptr_t ) noexcept : UniqueFunctionImpl() {}
+        constexpr UniqueFunctionImpl() noexcept : data_ {}, tag_ { Tag::None } {}
+        constexpr UniqueFunctionImpl( std::nullptr_t ) noexcept : UniqueFunctionImpl() {}
 
         template<typename Fn,
                  typename = typename std::enable_if<
@@ -838,29 +810,44 @@ namespace pgbar {
             switch ( lhs.tag_ ) {
             case Tag::Fptr:     __PGBAR_FALLTHROUGH;
             case Tag::FtorDync: {
-              auto union_copy     = lhs.data_;
-              const auto base_ptr = __PGBAR_LAUNDER( reinterpret_cast<AnyFn*>( &data_.soo_ ) );
-              base_ptr->move_to( &lhs.data_ );
-              base_ptr->~AnyFn();
-              data_ = union_copy;
+              const auto lhs_fn  = lhs.data_;
+              const auto self_fn = __PGBAR_LAUNDER( reinterpret_cast<AnyFn*>( &data_.soo_ ) );
+              self_fn->move_to( &lhs.data_ );
+              self_fn->~AnyFn();
+              data_ = lhs_fn;
             } break;
             case Tag::FtorInline: {
-              AnyFn::template swap_fn<sizeof data_, alignof( decltype( data_.soo_ ) )>(
-                __PGBAR_LAUNDER( reinterpret_cast<AnyFn*>( &data_.soo_ ) ),
-                &data_.soo_,
-                __PGBAR_LAUNDER( reinterpret_cast<AnyFn*>( &lhs.data_.soo_ ) ),
-                &lhs.data_.soo_ );
+              alignas( decltype( data_.soo_ ) ) unsigned char buffer[sizeof data_.soo_] {};
+              auto self_fn = __PGBAR_LAUNDER( reinterpret_cast<AnyFn*>( &data_.soo_ ) );
+              self_fn->move_to( &buffer );
+              self_fn->~AnyFn();
+
+              const auto lhs_fn = __PGBAR_LAUNDER( reinterpret_cast<AnyFn*>( &lhs.data_.soo_ ) );
+              lhs_fn->move_to( &data_.soo_ );
+              lhs_fn->~AnyFn();
+
+              self_fn = __PGBAR_LAUNDER( reinterpret_cast<AnyFn*>( &buffer ) );
+              self_fn->move_to( &lhs.data_.soo_ );
+              self_fn->~AnyFn();
             } break;
             case Tag::None: {
-              const auto base_ptr = __PGBAR_LAUNDER( reinterpret_cast<AnyFn*>( &data_.soo_ ) );
-              base_ptr->move_to( &lhs.data_ );
-              base_ptr->~AnyFn();
+              const auto self_fn = __PGBAR_LAUNDER( reinterpret_cast<AnyFn*>( &data_.soo_ ) );
+              self_fn->move_to( &lhs.data_ );
+              self_fn->~AnyFn();
             } break;
             default: __PGBAR_UNREACHABLE;
             }
           } break;
+
           default: {
-            std::swap( data_, lhs.data_ );
+            if ( lhs.tag_ == Tag::FtorInline ) {
+              const auto self_fn = data_;
+              const auto lhs_fn  = __PGBAR_LAUNDER( reinterpret_cast<AnyFn*>( &lhs.data_.soo_ ) );
+              lhs_fn->move_to( &data_.soo_ );
+              lhs_fn->~AnyFn();
+              lhs.data_ = self_fn;
+            } else
+              std::swap( data_, lhs.data_ );
           } break;
           }
           std::swap( tag_, lhs.tag_ );
@@ -872,6 +859,13 @@ namespace pgbar {
         {
           return !static_cast<bool>( a );
         }
+#  if !__PGBAR_CXX20
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN friend constexpr bool operator!=( const Self& a,
+                                                                              std::nullptr_t ) noexcept
+        {
+          return static_cast<bool>( a );
+        }
+#  endif
 
         explicit operator bool() const noexcept { return tag_ != Tag::None; }
       };
@@ -1725,7 +1719,7 @@ namespace pgbar {
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void clear() & noexcept { buffer_.clear(); }
 
         // Releases the buffer space completely
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void release() & noexcept
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void release() noexcept
         {
           clear();
           buffer_.shrink_to_fit();
@@ -2035,7 +2029,7 @@ namespace pgbar {
           SharedLock<SharedMutex> lock { rw_mtx_ };
           return exception_;
         }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN Self& clear() & noexcept
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN Self& clear() noexcept
         {
           std::lock_guard<SharedMutex> lock { rw_mtx_ };
           exception_ = std::exception_ptr();
