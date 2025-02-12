@@ -220,46 +220,47 @@ namespace pgbar {
       template<typename... Ts>
       struct TypeList;
 
-      template<typename HeadList, typename TailList>
+      template<typename HeadTpList, typename TailTpList>
       struct Join;
-      template<typename HeadList, typename TailList>
-      using Join_t = typename Join<HeadList, TailList>::type;
+      template<typename HeadTpList, typename TailTpList>
+      using Join_t = typename Join<HeadTpList, TailTpList>::type;
 
       template<typename... Head, typename... Tail>
       struct Join<TypeList<Head...>, TypeList<Tail...>> {
         using type = TypeList<Head..., Tail...>;
       };
 
-      template<typename HeadList, typename... TailList>
+      template<typename HeadTpList, typename... TailTpList>
       struct Merge {
-        using type = Join_t<HeadList, typename Merge<TailList...>::type>;
+        using type = Join_t<HeadTpList, typename Merge<TailTpList...>::type>;
       };
-      template<typename HeadList, typename... TailList>
-      using Merge_t = typename Merge<HeadList, TailList...>::type;
+      template<typename HeadTpList, typename... TailTpList>
+      using Merge_t = typename Merge<HeadTpList, TailTpList...>::type;
 
       template<typename... Ts>
       struct Merge<TypeList<Ts...>> {
         using type = TypeList<Ts...>;
       };
 
-      // Check whether type `T` belongs to the list `TypeGroup`.
-      template<typename T, typename TypeGroup>
+      // Check whether type `T` belongs to the list `TpList`.
+      template<typename T, typename TpList>
       struct Belong;
       template<typename T>
       struct Belong<T, TypeList<>> : std::false_type {};
-      template<typename T, typename U, typename... Us>
-      struct Belong<T, TypeList<U, Us...>>
-        : std::conditional<std::is_same<T, U>::value, std::true_type, Belong<T, TypeList<Us...>>>::type {};
+      template<typename T, typename Head, typename... Tail>
+      struct Belong<T, TypeList<Head, Tail...>>
+        : std::conditional<std::is_same<T, Head>::value, std::true_type, Belong<T, TypeList<Tail...>>>::type {
+      };
 
-      // Check whether type `T` belongs to any of the type groups.
-      template<typename T, typename TypeGroup, typename... TypeGroups>
+      // Check whether type `T` belongs to any of the type lists.
+      template<typename T, typename TpList, typename... TpLists>
       struct BelongAny
-        : std::conditional<Belong<T, TypeGroup>::value, std::true_type, BelongAny<T, TypeGroups...>>::type {};
+        : std::conditional<Belong<T, TpList>::value, std::true_type, BelongAny<T, TpLists...>>::type {};
       template<typename T, typename G>
       struct BelongAny<T, G> : Belong<T, G> {};
 
-      // Check whether all types in `TypeList` belong to any of the type groups `Groups`.
-      template<typename TypeList, typename... Groups>
+      // Check whether all types in `TpList` belong to any of the type lists `Lists`.
+      template<typename TpList, typename... Lists>
       struct AllBelongAny;
       template<>
       struct AllBelongAny<TypeList<>> : std::true_type {};
@@ -275,6 +276,17 @@ namespace pgbar {
                            AllBelongAny<TypeList<Ts...>, G, Gs...>,
                            std::false_type>::type {};
 
+      // Check whether the list contains duplicate types.
+      template<typename TpList>
+      struct Repeat;
+      template<>
+      struct Repeat<TypeList<>> : std::false_type {};
+      template<typename Head, typename... Tail>
+      struct Repeat<TypeList<Head, Tail...>>
+        : std::conditional<Belong<Head, TypeList<Tail...>>::value,
+                           std::true_type,
+                           Repeat<TypeList<Tail...>>>::type {};
+
       // A kind of `std::is_same` that applies to template class types.
       template<template<typename...> class T, template<typename...> class U>
       struct Equal : std::false_type {};
@@ -286,11 +298,11 @@ namespace pgbar {
       struct TemplateList;
 
       // Insert a new template type into the head of the TemplateList.
-      template<typename List, template<typename...> class T>
+      template<typename TmpList, template<typename...> class T>
       struct Prepend;
       // Get the result of the template `Prepend`.
-      template<typename List, template<typename...> class T>
-      using Prepend_t = typename Prepend<List, T>::type;
+      template<typename TmpList, template<typename...> class T>
+      using Prepend_t = typename Prepend<TmpList, T>::type;
 
       template<template<typename...> class... Ts, template<typename...> class T>
       struct Prepend<TemplateList<Ts...>, T> {
@@ -298,7 +310,7 @@ namespace pgbar {
       };
 
       // Check whether a TemplateList contains given template `T`.
-      template<typename List, template<typename...> class T>
+      template<typename TmpList, template<typename...> class T>
       struct Contain;
       template<template<typename...> class T>
       struct Contain<TemplateList<>, T> : std::false_type {};
@@ -2675,7 +2687,7 @@ namespace pgbar {
        */
       SpeedUnit( std::array<std::u8string_view, 4> _units ) : data_ {}
       {
-        std::transform( _units.cbegin(), _units.cend(), data_.begin(), []( std::u8string_view ele ) {
+        std::transform( _units.cbegin(), _units.cend(), data_.begin(), []( const std::u8string_view& ele ) {
           return __detail::charset::U8String( ele );
         } );
       }
@@ -2712,9 +2724,9 @@ namespace pgbar {
         std::transform( _leads.cbegin(),
                         _leads.cend(),
                         std::back_inserter( data_ ),
-                        []( std::u8string_view ele ) { return __detail::charset::U8String( ele ); } );
+                        []( const std::u8string_view& ele ) { return __detail::charset::U8String( ele ); } );
       }
-      Lead( std::u8string_view _lead ) : data_ { __detail::charset::U8String( _lead ) } {}
+      Lead( const std::u8string_view& _lead ) : data_ { __detail::charset::U8String( _lead ) } {}
 # endif
     };
 
@@ -2762,11 +2774,11 @@ namespace pgbar {
         enum class Mask : types::Size { Colored = 0, Bolded };
         std::bitset<2> fonts_;
 
-# define __PGBAR_UNPAKING( OptionName, MemberName )                                                 \
-   friend __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR void unpacking( Fonts& cfg,                       \
-                                                                  option::OptionName val ) noexcept \
-   {                                                                                                \
-     cfg.fonts_[traits::as_val( Mask::OptionName )] = val.value();                                  \
+# define __PGBAR_UNPAKING( OptionName, MemberName )                                                  \
+   friend __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR void unpacker( Fonts& cfg,                         \
+                                                                 option::OptionName&& val ) noexcept \
+   {                                                                                                 \
+     cfg.fonts_[traits::as_val( Mask::OptionName )] = val.value();                                   \
    }
         __PGBAR_UNPAKING( Colored, colored_ )
         __PGBAR_UNPAKING( Bolded, bolded_ )
@@ -2805,7 +2817,7 @@ namespace pgbar {
 # define __PGBAR_METHOD( OptionName, ParamName )                    \
                                                                     \
    std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
-   unpacking( *this, option::OptionName( ParamName ) );             \
+   unpacker( *this, option::OptionName( ParamName ) );              \
    return static_cast<Derived&>( *this )
 
         // Enable or disable the color effect.
@@ -2837,7 +2849,7 @@ namespace pgbar {
       template<typename Base, typename Derived>
       class TaskQuantity : public Base {
 
-        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacking( TaskQuantity& cfg, option::Tasks val )
+        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( TaskQuantity& cfg, option::Tasks&& val )
         {
           cfg.task_range_.end_value( val.value() );
         }
@@ -2875,7 +2887,7 @@ namespace pgbar {
         Derived& tasks( types::Size param ) &
         {
           std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          unpacking( *this, option::Tasks( param ) );
+          unpacker( *this, option::Tasks( param ) );
           return static_cast<Derived&>( *this );
         }
         // Get the current number of tasks.
@@ -2892,18 +2904,18 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class BasicAnimation : public Base {
-        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacking( BasicAnimation& cfg,
-                                                                       option::LeadColor val ) noexcept
+        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( BasicAnimation& cfg,
+                                                                      option::LeadColor&& val ) noexcept
         {
           cfg.lead_col_ = std::move( val.value() );
         }
-        friend __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR void unpacking( BasicAnimation& cfg,
-                                                                       option::Shift val ) noexcept
+        friend __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR void unpacker( BasicAnimation& cfg,
+                                                                      option::Shift&& val ) noexcept
         {
           cfg.shift_factor_ = val.value() < 0 ? ( 1.0 / ( -val.value() ) ) : val.value();
         }
-        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacking( BasicAnimation& cfg,
-                                                                       option::Lead val ) noexcept
+        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( BasicAnimation& cfg,
+                                                                      option::Lead&& val ) noexcept
         {
           if ( std::all_of( val.value().cbegin(),
                             val.value().cend(),
@@ -2956,9 +2968,9 @@ namespace pgbar {
           && std::is_nothrow_default_constructible<std::vector<charset::U8String>>::value ) = default;
         __PGBAR_MEMBER_METHOD( BasicAnimation, __PGBAR_CXX20_CNSTXPR )
 
-# define __PGBAR_METHOD( OptionName, ParamName, Operation )          \
-   std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };  \
-   unpacking( *this, option::OptionName( Operation( ParamName ) ) ); \
+# define __PGBAR_METHOD( OptionName, ParamName, Operation )         \
+   std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
+   unpacker( *this, option::OptionName( Operation( ParamName ) ) ); \
    return static_cast<Derived&>( *this )
 
         /**
@@ -3006,11 +3018,11 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class BasicIndicator : public Base {
-# define __PGBAR_UNPAKING( OptionName, MemberName )                                                 \
-   friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacking( BasicIndicator& cfg,              \
-                                                                  option::OptionName val ) noexcept \
-   {                                                                                                \
-     cfg.MemberName = std::move( val.value() );                                                     \
+# define __PGBAR_UNPAKING( OptionName, MemberName )                                                  \
+   friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( BasicIndicator& cfg,                \
+                                                                 option::OptionName&& val ) noexcept \
+   {                                                                                                 \
+     cfg.MemberName = std::move( val.value() );                                                      \
    }
         __PGBAR_UNPAKING( Starting, starting_ )
         __PGBAR_UNPAKING( Ending, ending_ )
@@ -3057,9 +3069,9 @@ namespace pgbar {
                     && std::is_nothrow_default_constructible<charset::U8String>::value ) = default;
         __PGBAR_MEMBER_METHOD( BasicIndicator, __PGBAR_CXX20_CNSTXPR )
 
-# define __PGBAR_METHOD( OptionName, ParamName, Operation )          \
-   std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };  \
-   unpacking( *this, option::OptionName( Operation( ParamName ) ) ); \
+# define __PGBAR_METHOD( OptionName, ParamName, Operation )         \
+   std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
+   unpacker( *this, option::OptionName( Operation( ParamName ) ) ); \
    return static_cast<Derived&>( *this )
 
         /**
@@ -3122,11 +3134,11 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class CharIndicator : public Base {
-# define __PGBAR_UNPAKING( OptionName, MemberName )                                                 \
-   friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacking( CharIndicator& cfg,               \
-                                                                  option::OptionName val ) noexcept \
-   {                                                                                                \
-     cfg.MemberName = std::move( val.value() );                                                     \
+# define __PGBAR_UNPAKING( OptionName, MemberName )                                                  \
+   friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( CharIndicator& cfg,                 \
+                                                                 option::OptionName&& val ) noexcept \
+   {                                                                                                 \
+     cfg.MemberName = std::move( val.value() );                                                      \
    }
         __PGBAR_UNPAKING( Remains, remains_ )
         __PGBAR_UNPAKING( RemainsColor, remains_col_ )
@@ -3202,9 +3214,9 @@ namespace pgbar {
                     && std::is_nothrow_default_constructible<charset::U8String>::value ) = default;
         __PGBAR_MEMBER_METHOD( CharIndicator, __PGBAR_CXX20_CNSTXPR )
 
-# define __PGBAR_METHOD( OptionName, ParamName, Operation )          \
-   std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };  \
-   unpacking( *this, option::OptionName( Operation( ParamName ) ) ); \
+# define __PGBAR_METHOD( OptionName, ParamName, Operation )         \
+   std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
+   unpacker( *this, option::OptionName( Operation( ParamName ) ) ); \
    return static_cast<Derived&>( *this )
 
         Derived& remains_color( types::HexRGB _remains_color ) &
@@ -3305,8 +3317,8 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class Scanner : public Base {
-        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacking( Scanner& cfg,
-                                                                       option::Filler val ) noexcept
+        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( Scanner& cfg,
+                                                                      option::Filler&& val ) noexcept
         {
           cfg.filler_ = std::move( val.value() );
         }
@@ -3378,7 +3390,7 @@ namespace pgbar {
         Derived& filler( types::String param ) &
         {
           std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          unpacking( *this, option::Filler( std::move( param ) ) );
+          unpacker( *this, option::Filler( std::move( param ) ) );
           return static_cast<Derived&>( *this );
         }
       };
@@ -3387,11 +3399,11 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class Description : public Base {
-# define __PGBAR_UNPAKING( OptionName, MemberName )                                                 \
-   friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacking( Description& cfg,                 \
-                                                                  option::OptionName val ) noexcept \
-   {                                                                                                \
-     cfg.MemberName = std::move( val.value() );                                                     \
+# define __PGBAR_UNPAKING( OptionName, MemberName )                                                  \
+   friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( Description& cfg,                   \
+                                                                 option::OptionName&& val ) noexcept \
+   {                                                                                                 \
+     cfg.MemberName = std::move( val.value() );                                                      \
    }
         __PGBAR_UNPAKING( Description, description_ )
         __PGBAR_UNPAKING( TrueMesg, true_mesg_ )
@@ -3459,9 +3471,9 @@ namespace pgbar {
                     && std::is_nothrow_default_constructible<types::String>::value ) = default;
         __PGBAR_MEMBER_METHOD( Description, __PGBAR_CXX20_CNSTXPR )
 
-# define __PGBAR_METHOD( OptionName, ParamName, Operation )          \
-   std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };  \
-   unpacking( *this, option::OptionName( Operation( ParamName ) ) ); \
+# define __PGBAR_METHOD( OptionName, ParamName, Operation )         \
+   std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
+   unpacker( *this, option::OptionName( Operation( ParamName ) ) ); \
    return static_cast<Derived&>( *this )
 
         /**
@@ -3523,11 +3535,11 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class Segment : public Base {
-# define __PGBAR_UNPAKING( OptionName, MemberName, Operation )                                      \
-   friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacking( Segment& cfg,                     \
-                                                                  option::OptionName val ) noexcept \
-   {                                                                                                \
-     cfg.MemberName = Operation( val.value() );                                                     \
+# define __PGBAR_UNPAKING( OptionName, MemberName, Operation )                                       \
+   friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( Segment& cfg,                       \
+                                                                 option::OptionName&& val ) noexcept \
+   {                                                                                                 \
+     cfg.MemberName = Operation( val.value() );                                                      \
    }
         __PGBAR_UNPAKING( Style, visibilities_, )
         __PGBAR_UNPAKING( InfoColor, info_col_, std::move )
@@ -3594,9 +3606,9 @@ namespace pgbar {
                     && std::is_nothrow_default_constructible<charset::U8String>::value ) = default;
         __PGBAR_MEMBER_METHOD( Segment, __PGBAR_CXX20_CNSTXPR )
 
-# define __PGBAR_METHOD( OptionName, ParamName, Operation )          \
-   std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };  \
-   unpacking( *this, option::OptionName( Operation( ParamName ) ) ); \
+# define __PGBAR_METHOD( OptionName, ParamName, Operation )         \
+   std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
+   unpacker( *this, option::OptionName( Operation( ParamName ) ) ); \
    return static_cast<Derived&>( *this )
 
         /**
@@ -3674,8 +3686,8 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class SpeedMeter : public Base {
-        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacking( SpeedMeter& cfg,
-                                                                       option::SpeedUnit val ) noexcept
+        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( SpeedMeter& cfg,
+                                                                      option::SpeedUnit&& val ) noexcept
         {
           cfg.units_        = std::move( val.value() );
           cfg.longest_unit_ = std::max( std::max( cfg.units_[0].size(), cfg.units_[1].size() ),
@@ -3749,7 +3761,7 @@ namespace pgbar {
 
 # define __PGBAR_METHOD( ParamName )                                \
    std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
-   unpacking( *this, option::SpeedUnit( std::move( ParamName ) ) ); \
+   unpacker( *this, option::SpeedUnit( std::move( ParamName ) ) );  \
    return static_cast<Derived&>( *this )
 
         /**
@@ -4156,45 +4168,42 @@ namespace pgbar {
       __PGBAR_INHERIT_REGISTER( assets::CountdownTimer,
                                 __PGBAR_PACK( assets::TaskQuantity, assets::Timer ), );
 
-      // Following are the types of `option` that each `asset` can receive.
+      // Following are the types of `option` that each `assets` can receive.
 
-      using GroupFonts        = TypeList<option::Colored, option::Bolded>;
-      using GroupTaskQuantity = TypeList<option::Tasks>;
-      using GroupDescription  = TypeList<option::Description,
-                                         option::TrueMesg,
-                                         option::FalseMesg,
-                                         option::DescColor,
-                                         option::TrueColor,
-                                         option::FalseColor>;
-      using GroupSegment =
+      using ListFonts        = TypeList<option::Colored, option::Bolded>;
+      using ListTaskQuantity = TypeList<option::Tasks>;
+      using ListDescription  = TypeList<option::Description,
+                                        option::TrueMesg,
+                                        option::FalseMesg,
+                                        option::DescColor,
+                                        option::TrueColor,
+                                        option::FalseColor>;
+      using ListSegment =
         TypeList<option::Divider, option::LeftBorder, option::RightBorder, option::InfoColor>;
-      using GroupSpeedMeter = TypeList<option::SpeedUnit>;
-      using GroupBitOption  = TypeList<option::Style>;
+      using ListSpeedMeter = TypeList<option::SpeedUnit>;
+      using ListBitOption  = TypeList<option::Style>;
 
-      using GroupBasicAnimation = TypeList<option::Shift, option::Lead, option::LeadColor>;
-      using GroupBasicBar       = TypeList<option::Starting,
-                                           option::Ending,
-                                           option::StartColor,
-                                           option::EndColor,
-                                           option::BarLength,
-                                           option::FillerColor>;
+      using ListBasicAnimation = TypeList<option::Shift, option::Lead, option::LeadColor>;
+      using ListBasicBar       = TypeList<option::Starting,
+                                          option::Ending,
+                                          option::StartColor,
+                                          option::EndColor,
+                                          option::BarLength,
+                                          option::FillerColor>;
 
-      using GroupCharIndicator  = Merge_t<GroupBasicAnimation,
-                                          GroupBasicBar,
-                                          TypeList<option::Remains, option::Filler, option::RemainsColor>>;
-      using GroupBlockIndicator = GroupBasicBar;
-      using GroupSpinner        = GroupBasicAnimation;
-      using GroupScanner        = Merge_t<GroupBasicAnimation, GroupBasicBar, TypeList<option::Filler>>;
+      using ListCharIndicator  = Merge_t<ListBasicAnimation,
+                                         ListBasicBar,
+                                         TypeList<option::Remains, option::Filler, option::RemainsColor>>;
+      using ListBlockIndicator = ListBasicBar;
+      using ListSpinner        = ListBasicAnimation;
+      using ListScanner        = Merge_t<ListBasicAnimation, ListBasicBar, TypeList<option::Filler>>;
     } // namespace traits
 
     namespace render {
       template<typename ConfigType>
-      __PGBAR_INLINE_FN void default_initializer( ConfigType& )
-      {
-        static_assert( false, "pgbar::__detail::render::default_initializer: No implemented" );
-      }
+      struct InitAction;
       template<typename ConfigType, typename Enable = void>
-      struct ConfigInfo;
+      struct InfoAction;
     } // namespace render
   } // namespace __detail
 
@@ -4216,7 +4225,7 @@ namespace pgbar {
       {
         __detail::concurrent::StateThread::working_interval( std::move( new_rate ) );
       }
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN static bool intty( StreamChannel stream_type ) noexcept
+      __PGBAR_NODISCARD static __PGBAR_INLINE_FN bool intty( StreamChannel stream_type ) noexcept
       {
         return stream_type == StreamChannel::Stdout ? _stdout_in_tty : _stderr_in_tty;
       }
@@ -4274,10 +4283,10 @@ namespace pgbar {
                                         __detail::assets::CountdownTimer>::template type<Core, Self>;
 
       template<typename, typename>
-      friend struct __detail::render::ConfigInfo;
+      friend struct __detail::render::InfoAction;
 
-      friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacking( BasicConfig& cfg,
-                                                                     option::Style val ) noexcept
+      friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( BasicConfig& cfg,
+                                                                    option::Style&& val ) noexcept
       {
         cfg.visual_masks_ = val.value();
       }
@@ -4302,24 +4311,24 @@ namespace pgbar {
       // Enable all components
       static constexpr __detail::types::BitwiseSet Entire = ~0;
 
-      BasicConfig() { __detail::render::default_initializer( *this ); }
+      BasicConfig() { __detail::render::InitAction<Self>::template make<>( *this ); }
       template<
-        typename Arg,
         typename... Args,
-        typename = typename std::enable_if<__detail::traits::AllBelongAny<
-          __detail::traits::TypeList<typename std::decay<Arg>::type, typename std::decay<Args>::type...>,
-          __detail::traits::GroupFonts,
-          __detail::traits::GroupTaskQuantity,
-          OptionConstraint,
-          __detail::traits::GroupDescription,
-          __detail::traits::GroupSegment,
-          __detail::traits::GroupSpeedMeter,
-          __detail::traits::GroupBitOption>::value>::type>
-      BasicConfig( Arg&& arg, Args&&... args ) : BasicConfig()
+        typename = typename std::enable_if<
+          !__detail::traits::Repeat<__detail::traits::TypeList<Args...>>::value
+          && __detail::traits::AllBelongAny<__detail::traits::TypeList<typename std::decay<Args>::type...>,
+                                            __detail::traits::ListFonts,
+                                            __detail::traits::ListTaskQuantity,
+                                            OptionConstraint,
+                                            __detail::traits::ListDescription,
+                                            __detail::traits::ListSegment,
+                                            __detail::traits::ListSpeedMeter,
+                                            __detail::traits::ListBitOption>::value>::type>
+      BasicConfig( Args&&... args ) : BasicConfig()
       {
-        unpacking( *this, std::forward<Arg>( arg ) );
+        __detail::render::InitAction<Self>::template make<typename std::decay<Args>::type...>( *this );
         static_cast<void>(
-          std::initializer_list<char> { ( unpacking( *this, std::forward<Args>( args ) ), '\0' )... } );
+          std::initializer_list<char> { ( unpacker( *this, std::forward<Args>( args ) ), '\0' )... } );
       }
 
       BasicConfig( const Self& ) noexcept( std::is_nothrow_copy_constructible<Base>::value ) = default;
@@ -4346,40 +4355,40 @@ namespace pgbar {
       Self& style( __detail::types::BitwiseSet val ) &
       {
         std::lock_guard<__detail::concurrent::SharedMutex> lock { this->rw_mtx_ };
-        unpacking( *this, option::Style( val ) );
+        unpacker( *this, option::Style( val ) );
         return *this;
       }
 
       __PGBAR_NODISCARD __detail::types::Size fixed_size() const
       {
         __detail::concurrent::SharedLock<__detail::concurrent::SharedMutex> lock { this->rw_mtx_ };
-        return __detail::render::ConfigInfo<Self>::fixed_render_size( *this );
+        return __detail::render::InfoAction<Self>::fixed_render_size( *this );
       }
 
       template<typename... Args>
-      typename std::enable_if<
-        __detail::traits::AllBelongAny<__detail::traits::TypeList<typename std::decay<Args>::type...>,
-                                       __detail::traits::GroupFonts,
-                                       __detail::traits::GroupTaskQuantity,
-                                       OptionConstraint,
-                                       __detail::traits::GroupDescription,
-                                       __detail::traits::GroupSegment,
-                                       __detail::traits::GroupSpeedMeter,
-                                       __detail::traits::GroupBitOption>::value,
-        Self&>::type
-        set( Args&&... args ) &
+      typename std::enable_if<!__detail::traits::Repeat<__detail::traits::TypeList<Args...>>::value
+                                && __detail::traits::AllBelongAny<__detail::traits::TypeList<Args...>,
+                                                                  __detail::traits::ListFonts,
+                                                                  __detail::traits::ListTaskQuantity,
+                                                                  OptionConstraint,
+                                                                  __detail::traits::ListDescription,
+                                                                  __detail::traits::ListSegment,
+                                                                  __detail::traits::ListSpeedMeter,
+                                                                  __detail::traits::ListBitOption>::value,
+                              Self&>::type
+        set( Args... args ) &
       {
         std::lock_guard<__detail::concurrent::SharedMutex> lock { this->rw_mtx_ };
         static_cast<void>(
-          std::initializer_list<char> { ( unpacking( *this, std::forward<Args>( args ) ), '\0' )... } );
+          std::initializer_list<char> { ( unpacker( *this, std::move( args ) ), '\0' )... } );
         return *this;
       }
     };
 
-    using CharBar = BasicConfig<__detail::assets::CharIndicator, __detail::traits::GroupCharIndicator>;
-    using BlckBar = BasicConfig<__detail::assets::BlockIndicator, __detail::traits::GroupBlockIndicator>;
-    using SpinBar = BasicConfig<__detail::assets::Spinner, __detail::traits::GroupSpinner>;
-    using ScanBar = BasicConfig<__detail::assets::Scanner, __detail::traits::GroupScanner>;
+    using CharBar = BasicConfig<__detail::assets::CharIndicator, __detail::traits::ListCharIndicator>;
+    using BlckBar = BasicConfig<__detail::assets::BlockIndicator, __detail::traits::ListBlockIndicator>;
+    using SpinBar = BasicConfig<__detail::assets::Spinner, __detail::traits::ListSpinner>;
+    using ScanBar = BasicConfig<__detail::assets::Scanner, __detail::traits::ListScanner>;
   } // namespace config
 
   namespace __detail {
@@ -4399,71 +4408,113 @@ namespace pgbar {
       template<typename C>
       using ConfigTrait_t = typename ConfigTrait<C>::TraitsList;
 
-      __PGBAR_TRAIT_REGISTER( config::CharBar,
-                              GroupCharIndicator,
-                              assets::TaskCounter,
-                              assets::FrameCounter );
-      __PGBAR_TRAIT_REGISTER( config::BlckBar, GroupBlockIndicator, assets::TaskCounter );
-      __PGBAR_TRAIT_REGISTER( config::SpinBar, GroupSpinner, assets::TaskCounter, assets::FrameCounter );
-      __PGBAR_TRAIT_REGISTER( config::ScanBar, GroupScanner, assets::TaskCounter, assets::FrameCounter );
+      __PGBAR_TRAIT_REGISTER( config::CharBar, ListCharIndicator, assets::TaskCounter, assets::FrameCounter );
+      __PGBAR_TRAIT_REGISTER( config::BlckBar, ListBlockIndicator, assets::TaskCounter );
+      __PGBAR_TRAIT_REGISTER( config::SpinBar, ListSpinner, assets::TaskCounter, assets::FrameCounter );
+      __PGBAR_TRAIT_REGISTER( config::ScanBar, ListScanner, assets::TaskCounter, assets::FrameCounter );
     } // namespace traits
 
     namespace render {
       template<>
-      __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void default_initializer<config::CharBar>(
-        config::CharBar& cfg )
-      {
-        unpacking( cfg, option::Shift( -2 ) );
-        unpacking( cfg, option::Lead( ">" ) );
-        unpacking( cfg, option::Starting( "[" ) );
-        unpacking( cfg, option::Ending( "]" ) );
-        unpacking( cfg, option::BarLength( 30 ) );
-        unpacking( cfg, option::Filler( "=" ) );
-        unpacking( cfg, option::Remains( " " ) );
-        unpacking( cfg, option::Divider( " | " ) );
-        unpacking( cfg, option::InfoColor( color::Cyan ) );
-        unpacking( cfg, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
-        unpacking( cfg, option::Style( config::CharBar::Entire ) );
-      }
+      struct InitAction<config::CharBar> final {
+        template<typename... Options>
+        static __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void make( config::CharBar& cfg )
+        {
+          // The types in the tuple are never repeated.
+          using ParamList = traits::TypeList<Options...>;
+          if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Shift, ParamList>::value )
+            unpacker( cfg, option::Shift( -2 ) );
+          if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Lead, ParamList>::value )
+            unpacker( cfg, option::Lead( ">" ) );
+          if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Starting, ParamList>::value )
+            unpacker( cfg, option::Starting( "[" ) );
+          if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Ending, ParamList>::value )
+            unpacker( cfg, option::Ending( "]" ) );
+          if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::BarLength, ParamList>::value )
+            unpacker( cfg, option::BarLength( 30 ) );
+          if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Filler, ParamList>::value )
+            unpacker( cfg, option::Filler( "=" ) );
+          if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Remains, ParamList>::value )
+            unpacker( cfg, option::Remains( " " ) );
+          if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Divider, ParamList>::value )
+            unpacker( cfg, option::Divider( " | " ) );
+          if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::InfoColor, ParamList>::value )
+            unpacker( cfg, option::InfoColor( color::Cyan ) );
+          if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::SpeedUnit, ParamList>::value )
+            unpacker( cfg, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
+          if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Style, ParamList>::value )
+            unpacker( cfg, option::Style( config::CharBar::Entire ) );
+        }
+      };
       template<>
-      __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void default_initializer<config::BlckBar>(
-        config::BlckBar& cfg )
-      {
-        unpacking( cfg, option::BarLength( 30 ) );
-        unpacking( cfg, option::Divider( " | " ) );
-        unpacking( cfg, option::InfoColor( color::Cyan ) );
-        unpacking( cfg, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
-        unpacking( cfg, option::Style( config::CharBar::Entire ) );
-      }
+      struct InitAction<config::BlckBar> final {
+        template<typename... Options>
+        static __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void make( config::BlckBar& cfg )
+        {
+          using ParamList = traits::TypeList<Options...>;
+          if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::BarLength, ParamList>::value )
+            unpacker( cfg, option::BarLength( 30 ) );
+          if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Divider, ParamList>::value )
+            unpacker( cfg, option::Divider( " | " ) );
+          if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::InfoColor, ParamList>::value )
+            unpacker( cfg, option::InfoColor( color::Cyan ) );
+          if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::SpeedUnit, ParamList>::value )
+            unpacker( cfg, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
+          if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Style, ParamList>::value )
+            unpacker( cfg, option::Style( config::CharBar::Entire ) );
+        }
+      };
       template<>
-      __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void default_initializer<config::SpinBar>(
-        config::SpinBar& cfg )
-      {
-        unpacking( cfg, option::Shift( -3 ) );
-        unpacking( cfg, option::Lead( { "/", "-", "\\", "|" } ) );
-        unpacking( cfg, option::Divider( " | " ) );
-        unpacking( cfg, option::InfoColor( color::Cyan ) );
-        unpacking( cfg, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
-        unpacking( cfg, option::Style( config::SpinBar::Ani | config::SpinBar::Elpsd ) );
-      }
+      struct InitAction<config::SpinBar> final {
+        template<typename... Options>
+        static __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void make( config::SpinBar& cfg )
+        {
+          using ParamList = traits::TypeList<Options...>;
+          if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Shift, ParamList>::value )
+            unpacker( cfg, option::Shift( -3 ) );
+          if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Lead, ParamList>::value )
+            unpacker( cfg, option::Lead( { "/", "-", "\\", "|" } ) );
+          if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Divider, ParamList>::value )
+            unpacker( cfg, option::Divider( " | " ) );
+          if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::InfoColor, ParamList>::value )
+            unpacker( cfg, option::InfoColor( color::Cyan ) );
+          if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::SpeedUnit, ParamList>::value )
+            unpacker( cfg, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
+          if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Style, ParamList>::value )
+            unpacker( cfg, option::Style( config::SpinBar::Ani | config::SpinBar::Elpsd ) );
+        }
+      };
       template<>
-      __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void default_initializer<config::ScanBar>(
-        config::ScanBar& cfg )
-      {
-        unpacking( cfg, option::Shift( -3 ) );
-        unpacking( cfg, option::Starting( "[" ) );
-        unpacking( cfg, option::Ending( "]" ) );
-        unpacking( cfg, option::BarLength( 30 ) );
-        unpacking( cfg, option::Filler( "-" ) );
-        unpacking( cfg, option::Lead( "<==>" ) );
-        unpacking( cfg, option::Divider( " | " ) );
-        unpacking( cfg, option::InfoColor( color::Cyan ) );
-        unpacking( cfg, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
-        unpacking( cfg, option::Style( config::ScanBar::Ani | config::ScanBar::Elpsd ) );
-      }
+      struct InitAction<config::ScanBar> final {
+        template<typename... Options>
+        static __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void make( config::ScanBar& cfg )
+        {
+          using ParamList = traits::TypeList<Options...>;
+          if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Shift, ParamList>::value )
+            unpacker( cfg, option::Shift( -3 ) );
+          if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Starting, ParamList>::value )
+            unpacker( cfg, option::Starting( "[" ) );
+          if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Ending, ParamList>::value )
+            unpacker( cfg, option::Ending( "]" ) );
+          if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::BarLength, ParamList>::value )
+            unpacker( cfg, option::BarLength( 30 ) );
+          if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Filler, ParamList>::value )
+            unpacker( cfg, option::Filler( "-" ) );
+          if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Lead, ParamList>::value )
+            unpacker( cfg, option::Lead( "<==>" ) );
+          if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Divider, ParamList>::value )
+            unpacker( cfg, option::Divider( " | " ) );
+          if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::InfoColor, ParamList>::value )
+            unpacker( cfg, option::InfoColor( color::Cyan ) );
+          if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::SpeedUnit, ParamList>::value )
+            unpacker( cfg, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
+          if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Style, ParamList>::value )
+            unpacker( cfg, option::Style( config::ScanBar::Ani | config::ScanBar::Elpsd ) );
+        }
+      };
 
       template<typename ConfigType>
-      struct ConfigInfo<ConfigType,
+      struct InfoAction<ConfigType,
                         typename std::enable_if<std::is_same<ConfigType, config::CharBar>::value
                                                 || std::is_same<ConfigType, config::BlckBar>::value
                                                 || std::is_same<ConfigType, config::ScanBar>::value>::type> {
@@ -4491,7 +4542,7 @@ namespace pgbar {
         }
       };
       template<>
-      struct ConfigInfo<config::SpinBar, void> {
+      struct InfoAction<config::SpinBar, void> {
         __PGBAR_NODISCARD static __PGBAR_INLINE_FN types::Size fixed_render_size(
           const config::SpinBar& cfg ) noexcept
         {
@@ -4668,7 +4719,7 @@ namespace pgbar {
         __PGBAR_NODISCARD __PGBAR_INLINE_FN types::Size full_render_size() const
         {
           concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          return ConfigInfo<Self>::fixed_render_size( *this )
+          return InfoAction<Self>::fixed_render_size( *this )
                + ( this->visual_masks_[traits::as_val( Self::Mask::Ani )] ? this->bar_length_ : 0 );
         }
       };
@@ -4765,7 +4816,7 @@ namespace pgbar {
         __PGBAR_NODISCARD __PGBAR_INLINE_FN types::Size full_render_size() const
         {
           concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          return ConfigInfo<Self>::fixed_render_size( *this )
+          return InfoAction<Self>::fixed_render_size( *this )
                + ( this->visual_masks_[traits::as_val( Self::Mask::Ani )] ? this->bar_length_ : 0 );
         }
       };
@@ -4861,7 +4912,7 @@ namespace pgbar {
         __PGBAR_NODISCARD __PGBAR_INLINE_FN types::Size full_render_size() const
         {
           concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          return ConfigInfo<Self>::fixed_render_size( *this );
+          return InfoAction<Self>::fixed_render_size( *this );
         }
       };
 
@@ -4959,7 +5010,7 @@ namespace pgbar {
         __PGBAR_NODISCARD __PGBAR_INLINE_FN types::Size full_render_size() const
         {
           concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          return ConfigInfo<Self>::fixed_render_size( *this )
+          return InfoAction<Self>::fixed_render_size( *this )
                + ( this->visual_masks_[traits::as_val( Self::Mask::Ani )] ? this->bar_length_ : 0 );
         }
       };
@@ -5113,19 +5164,19 @@ namespace pgbar {
       noexcept( std::is_nothrow_default_constructible<MutexMode>::value )
       : config_ { std::move( config ) }
     {}
-    template<typename Arg,
-             typename... Args,
-             typename = typename std::enable_if<__detail::traits::AllBelongAny<
-               __detail::traits::TypeList<typename std::decay<Arg>::type, typename std::decay<Args>::type...>,
-               __detail::traits::GroupFonts,
-               __detail::traits::GroupTaskQuantity,
-               __detail::traits::ConfigTrait_c<ConfigType>,
-               __detail::traits::GroupDescription,
-               __detail::traits::GroupSegment,
-               __detail::traits::GroupSpeedMeter,
-               __detail::traits::GroupBitOption>::value>::type>
-    BasicBar( Arg&& arg, Args&&... args )
-      : BasicBar( ConfigType( std::forward<Arg>( arg ), std::forward<Args>( args )... ) )
+    template<
+      typename... Args,
+      typename = typename std::enable_if<
+        !__detail::traits::Repeat<__detail::traits::TypeList<Args...>>::value
+        && __detail::traits::AllBelongAny<__detail::traits::TypeList<typename std::decay<Args>::type...>,
+                                          __detail::traits::ListFonts,
+                                          __detail::traits::ListTaskQuantity,
+                                          __detail::traits::ConfigTrait_c<ConfigType>,
+                                          __detail::traits::ListDescription,
+                                          __detail::traits::ListSegment,
+                                          __detail::traits::ListSpeedMeter,
+                                          __detail::traits::ListBitOption>::value>::type>
+    BasicBar( Args&&... args ) : BasicBar( ConfigType( std::forward<Args>( args )... ) )
     {}
     BasicBar( Self&& rhs ) noexcept( std::is_nothrow_default_constructible<MutexMode>::value )
       : BasicBar( std::move( rhs.config_ ) )

@@ -176,16 +176,14 @@ for ( auto _ = 0; _ < 100; ++_ ) {
 }
 ```
 
-在多个重复出现的 `pgbar::option` 类型中，只有最后一个包装器的效果会被保留。
+不允许传递重复的 `pgbar::option` 类型，否则会导致编译错误。
 
 ```cpp
 pgbar::SpinnerBar<> spibar { pgbar::option::Lead( { "◜", "◝", "◞", "◟" } ),
                              pgbar::option::Description( "Loading..." ),
-                             pgbar::option::DescColor( "#FFF" ),      // white
-                             pgbar::option::DescColor( "#39C5BB" ) }; // palegreen
-spibar.tick(); // 所以这个进度条的描述信息颜色会是 palegreen 而非 white
-std::this_thread::sleep_for( std::chrono::seconds( 3 ) );
-spibar.reset();
+                             pgbar::option::DescColor( "#FFF" ),
+                             pgbar::option::DescColor( "#39C5BB" ) };
+// 编译错误！
 ```
 
 ## 成员方法定制
@@ -543,9 +541,9 @@ pgbar::ScannerBar<pgbar::Threadunsafe, pgbar::StreamChannel::Stdout> scnbar;
 
 实际上，所有进度条类型都是模板类 `pgbar::BasicBar` 的别名；同理，所有的配置类型都是 `pgbar::config::BasicConfig` 的别名。
 
-受到[这篇文章](https://zhuanlan.zhihu.com/p/106672814)的启发，进度条遵循 Mixin 模式组合继承自 `pgbar::__detail::asset` 中的不同模板基类；而 `pgbar::__detail::asset` 内的所有模板类都按照 CRTP 模式设计，因此在最终使用时可以通过 `config()` 方法链式调用一大堆用于配置数据的方法。
+受到[这篇文章](https://zhuanlan.zhihu.com/p/106672814)的启发，进度条遵循 Mixin 模式组合继承自 `pgbar::__detail::assets` 中的不同模板基类；而 `pgbar::__detail::assets` 内的所有模板类都按照 CRTP 模式设计，因此在最终使用时可以通过 `config()` 方法链式调用一大堆用于配置数据的方法。
 
-这里的 Mixin 模式主要归功于一个编译期拓扑排序算法 `pgbar::__detail::trait::TopoSort`。
+这里的 Mixin 模式主要归功于一个编译期拓扑排序算法 `pgbar::__detail::traits::TopoSort`。
 
 这个拓扑排序算法类似于 Python 中的 C3 线性化算法，但与之不同的是：C3 线性化算法的目的是在类继承结构中寻找到一个最合适的类方法，而这里的拓扑排序算法则是直接线性化整个继承结构，将一个复杂的多继承结构在编译期内线性化为一条继承链。
 

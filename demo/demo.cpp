@@ -1,4 +1,4 @@
-#include "../include/pgbar/pgbar.hpp"
+#include "pgbar/pgbar.hpp"
 #include <cassert>
 #include <iostream>
 #include <numeric>
@@ -112,10 +112,8 @@ int main()
 
     pgbar::SpinnerBar<> spibar { pgbar::option::Lead( { "◜", "◝", "◞", "◟" } ),
                                  pgbar::option::Description( "Loading..." ),
-                                 pgbar::option::DescColor( "#FFF" ),      // white
-                                 pgbar::option::DescColor( "#39C5BB" ) }; // palegreen
-    // In multiple recurring pgbar::option types, only the effect of the last wrapper is retained
-    // So the description color will be palegreen instead of white
+                                 pgbar::option::DescColor( "#39C5BB" ) };
+    // You cannot pass the same option twice.
     spibar.tick();
     std::this_thread::sleep_for( std::chrono::seconds( 3 ) );
     spibar.reset();
