@@ -1267,7 +1267,7 @@ namespace pgbar {
   } // namespace iterators
 
   // A enum that specifies the type of the output stream.
-  enum class StreamChannel : std::uint8_t { Stdout, Stderr };
+  enum class Channel : std::uint8_t { Stdout = 1, Stderr };
 
   namespace __detail {
     namespace traits {
@@ -1394,7 +1394,7 @@ namespace pgbar {
 # endif
       }
 
-      template<StreamChannel StreamType>
+      template<Channel StreamType>
       /**
        * Determine if the output stream is binded to the tty based on the platform api.
        *
@@ -1407,7 +1407,7 @@ namespace pgbar {
         return true;
 # elif __PGBAR_WIN
         HANDLE stream_handle;
-        if __PGBAR_CXX17_CNSTXPR ( StreamType == StreamChannel::Stdout )
+        if __PGBAR_CXX17_CNSTXPR ( StreamType == Channel::Stdout )
           stream_handle = GetStdHandle( STD_OUTPUT_HANDLE );
         else
           stream_handle = GetStdHandle( STD_ERROR_HANDLE );
@@ -1415,7 +1415,7 @@ namespace pgbar {
         return GetFileType( stream_handle ) == FILE_TYPE_CHAR;
 
 # else
-        if __PGBAR_CXX17_CNSTXPR ( StreamType == StreamChannel::Stdout )
+        if __PGBAR_CXX17_CNSTXPR ( StreamType == Channel::Stdout )
           return isatty( STDOUT_FILENO );
         else
           return isatty( STDERR_FILENO );
@@ -1814,14 +1814,14 @@ namespace pgbar {
         friend __PGBAR_CXX20_CNSTXPR void swap( Stringbuf& a, Stringbuf& b ) noexcept { a.swap( b ); }
       };
 
-      template<StreamChannel StreamType>
+      template<Channel StreamType>
       class OStream;
-      template<StreamChannel StreamType>
+      template<Channel StreamType>
       OStream<StreamType>& flush( OStream<StreamType>& stream )
       {
         return stream.flush();
       }
-      template<StreamChannel StreamType>
+      template<Channel StreamType>
       __PGBAR_CXX20_CNSTXPR OStream<StreamType>& release( OStream<StreamType>& stream ) noexcept
       {
         stream.release();
@@ -1837,7 +1837,7 @@ namespace pgbar {
        * If the local platform is neither `Windows` nor `unix-like`,
        * the class still uses the method `write` of `std::ostream` in standard library.
        */
-      template<StreamChannel StreamType>
+      template<Channel StreamType>
       class OStream final : public Stringbuf {
         using Self = OStream;
 
@@ -1849,7 +1849,7 @@ namespace pgbar {
         {
 # if __PGBAR_WIN
           DWORD written = 0;
-          if __PGBAR_CXX17_CNSTXPR ( StreamType == StreamChannel::Stdout ) {
+          if __PGBAR_CXX17_CNSTXPR ( StreamType == Channel::Stdout ) {
             auto h_stdout = GetStdHandle( STD_OUTPUT_HANDLE );
             __PGBAR_UNLIKELY if ( h_stdout == INVALID_HANDLE_VALUE ) throw exception::SystemError(
               "pgbar: cannot open the standard output stream" );
@@ -1861,12 +1861,12 @@ namespace pgbar {
             WriteFile( h_stderr, buffer_.data(), static_cast<DWORD>( buffer_.size() ), &written, nullptr );
           }
 # elif __PGBAR_UNIX
-          if __PGBAR_CXX17_CNSTXPR ( StreamType == StreamChannel::Stdout )
+          if __PGBAR_CXX17_CNSTXPR ( StreamType == Channel::Stdout )
             write( STDOUT_FILENO, buffer_.data(), buffer_.size() );
           else
             write( STDERR_FILENO, buffer_.data(), buffer_.size() );
 # else
-          if __PGBAR_CXX17_CNSTXPR ( StreamType == StreamChannel::Stdout )
+          if __PGBAR_CXX17_CNSTXPR ( StreamType == Channel::Stdout )
             std::cout.write( buffer_.data(), buffer_.size() ).flush();
           else
             std::cerr.write( buffer_.data(), buffer_.size() ).flush();
@@ -4225,9 +4225,9 @@ namespace pgbar {
       {
         __detail::concurrent::StateThread::working_interval( std::move( new_rate ) );
       }
-      __PGBAR_NODISCARD static __PGBAR_INLINE_FN bool intty( StreamChannel stream_type ) noexcept
+      __PGBAR_NODISCARD static __PGBAR_INLINE_FN bool intty( Channel stream_type ) noexcept
       {
-        return stream_type == StreamChannel::Stdout ? _stdout_in_tty : _stderr_in_tty;
+        return stream_type == Channel::Stdout ? _stdout_in_tty : _stderr_in_tty;
       }
 
       constexpr Core() noexcept              = default;
@@ -4248,8 +4248,8 @@ namespace pgbar {
 
       __PGBAR_CXX20_CNSTXPR virtual ~Core() noexcept = 0;
     };
-    const bool Core::_stdout_in_tty              = __detail::console::intty<StreamChannel::Stdout>();
-    const bool Core::_stderr_in_tty              = __detail::console::intty<StreamChannel::Stderr>();
+    const bool Core::_stdout_in_tty              = __detail::console::intty<Channel::Stdout>();
+    const bool Core::_stderr_in_tty              = __detail::console::intty<Channel::Stderr>();
     __PGBAR_CXX20_CNSTXPR Core::~Core() noexcept = default;
 
     template<template<typename...> class BarType, typename OptionConstraint>
@@ -5139,9 +5139,9 @@ namespace pgbar {
   };
 
 # if __PGBAR_CXX20
-  template<typename ConfigType, __detail::traits::Mutex MutexMode, StreamChannel StreamType>
+  template<typename ConfigType, __detail::traits::Mutex MutexMode, Channel StreamType>
 # else
-  template<typename ConfigType, typename MutexMode, StreamChannel StreamType>
+  template<typename ConfigType, typename MutexMode, Channel StreamType>
 # endif
   class BasicBar final
     : public __detail::traits::LI<__detail::traits::ConfigTrait_t<ConfigType>>::
@@ -5270,7 +5270,7 @@ namespace pgbar {
    * It's structure is shown below:
    * {LeftBorder}{Description}{Percent}{Starting}{Filler}{Lead}{Remains}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
    */
-  template<typename MutexMode = Threadunsafe, StreamChannel StreamType = StreamChannel::Stderr>
+  template<typename MutexMode = Threadunsafe, Channel StreamType = Channel::Stderr>
   using ProgressBar = BasicBar<config::CharBar, MutexMode, StreamType>;
   /**
    * A progress bar with a smoother bar, requires an Unicode-supported terminal.
@@ -5278,7 +5278,7 @@ namespace pgbar {
    * It's structure is shown below:
    * {LeftBorder}{Description}{Percent}{Starting}{BlockBar}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
    */
-  template<typename MutexMode = Threadunsafe, StreamChannel StreamType = StreamChannel::Stderr>
+  template<typename MutexMode = Threadunsafe, Channel StreamType = Channel::Stderr>
   using BlockProgressBar = BasicBar<config::BlckBar, MutexMode, StreamType>;
   /**
    * A progress bar without bar indicator, replaced by a fixed animation component.
@@ -5286,7 +5286,7 @@ namespace pgbar {
    * It's structure is shown below:
    * {LeftBorder}{Lead}{Description}{Percent}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
    */
-  template<typename MutexMode = Threadunsafe, StreamChannel StreamType = StreamChannel::Stderr>
+  template<typename MutexMode = Threadunsafe, Channel StreamType = Channel::Stderr>
   using SpinnerBar = BasicBar<config::SpinBar, MutexMode, StreamType>;
   /**
    * The indeterminate progress bar.
@@ -5294,7 +5294,7 @@ namespace pgbar {
    * It's structure is shown below:
    * {LeftBorder}{Description}{Percent}{Starting}{Filler}{Lead}{Filler}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
    */
-  template<typename MutexMode = Threadunsafe, StreamChannel StreamType = StreamChannel::Stderr>
+  template<typename MutexMode = Threadunsafe, Channel StreamType = Channel::Stderr>
   using ScannerBar = BasicBar<config::ScanBar, MutexMode, StreamType>;
 
   namespace __detail {
@@ -5442,7 +5442,7 @@ namespace pgbar {
       struct TickAction<ConfigType,
                         typename std::enable_if<std::is_same<ConfigType, config::CharBar>::value
                                                 || std::is_same<ConfigType, config::BlckBar>::value>::type> {
-        template<StreamChannel StreamType, typename BarType, typename F>
+        template<Channel StreamType, typename BarType, typename F>
         static __PGBAR_INLINE_FN void do_tick( BarType& bar, F&& action )
         {
           static_assert( traits::is_void_functor<F>::value,
@@ -5488,7 +5488,7 @@ namespace pgbar {
       struct TickAction<ConfigType,
                         typename std::enable_if<std::is_same<ConfigType, config::SpinBar>::value
                                                 || std::is_same<ConfigType, config::ScanBar>::value>::type> {
-        template<StreamChannel StreamType, typename BarType, typename F>
+        template<Channel StreamType, typename BarType, typename F>
         static __PGBAR_INLINE_FN void do_tick( BarType& bar, F&& action )
         {
           static_assert( traits::is_void_functor<F>::value,
