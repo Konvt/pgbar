@@ -286,10 +286,10 @@ This method actually requires the progress bar object to sleep for 20 millisecon
 
 However, since the time of each rendering output cannot be 0, this method is essentially controlling the minimum interval of rendering output can not be lower than the given value.
 
-You can also use `pgbar::config::Core::intty()` method to learn the standard output stream of the current process is binding on the terminal, it need to combine the enumeration `pgbar::StreamChannel` values to determine which is you need to check the output stream; For example, check the standard output stream `stdout`:
+You can also use `pgbar::config::Core::intty()` method to learn the standard output stream of the current process is binding on the terminal, it need to combine the enumeration `pgbar::Channel` values to determine which is you need to check the output stream; For example, check the standard output stream `stdout`:
 
 ```cpp
-if ( pgbar::config::Core::intty( pgbar::StreamChannel::Stdout ) )
+if ( pgbar::config::Core::intty( pgbar::Channel::Stdout ) )
   std::cout << "Standard output is bound to a terminal." << std::endl;
 else
   std::cout << "Standard output is not bound to a terminal." << std::endl;
@@ -507,7 +507,7 @@ By default, the progress bar object outputs a string to the current process's st
 For example, create a progress bar object that outputs to `stdout`:
 
 ```cpp
-pgbar::ScannerBar<pgbar::Threadunsafe, pgbar::StreamChannel::Stdout> scnbar;
+pgbar::ScannerBar<pgbar::Threadunsafe, pgbar::Channel::Stdout> scnbar;
 ```
 
 The progress bar itself does not monopolize a standard output stream of the current process at any point in time, so output information to the standard output stream bound to the progress bar during progress bar work will cause the string rendered by the terminal to be distorted.

@@ -190,10 +190,10 @@ int main()
 
     // You can also use pgbar::config::Core::intty() method
     // to learn the standard output stream of the current process is binding on the terminal
-    // it need to combine the enumeration pgbar::StreamChannel values to determine
+    // it need to combine the enumeration pgbar::Channel values to determine
     // which is you need to check the output stream
     // For example, check the standard output stream `stdout`
-    if ( pgbar::config::Core::intty( pgbar::StreamChannel::Stdout ) )
+    if ( pgbar::config::Core::intty( pgbar::Channel::Stdout ) )
       std::cout << "Standard output is bound to a terminal." << std::endl;
     else
       std::cout << "Standard output is not bound to a terminal." << std::endl;
@@ -391,7 +391,7 @@ int main()
     // to the current process's standard error stream stderr
     // The destination of the output stream can be changed by the template type parameter passed to
     // the progress bar when the progress bar object is created
-    pgbar::ScannerBar<pgbar::Threadunsafe, pgbar::StreamChannel::Stdout> scnbar;
+    pgbar::ScannerBar<pgbar::Threadunsafe, pgbar::Channel::Stdout> scnbar;
 
     // The progress bar itself does not monopolize a standard output stream of the current process
     // at any point in time

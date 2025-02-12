@@ -283,10 +283,10 @@ pgbar::config::Core::refresh_interval( std::chrono::milliseconds( 20 ) );
 
 但由于每次渲染输出的时间不可能为 0，所以这个方法实质上是在控制渲染输出的间隔最短不能低于给定值。
 
-同时你也能通过 `pgbar::config::Core::intty()` 方法获知当前进程的标准输出流是否绑定在终端上，这需要结合枚举量 `pgbar::StreamChannel` 的值确定你需要检查的是哪个输出流；例如检查标准输出流 `stdout`：
+同时你也能通过 `pgbar::config::Core::intty()` 方法获知当前进程的标准输出流是否绑定在终端上，这需要结合枚举量 `pgbar::Channel` 的值确定你需要检查的是哪个输出流；例如检查标准输出流 `stdout`：
 
 ```cpp
-if ( pgbar::config::Core::intty( pgbar::StreamChannel::Stdout ) )
+if ( pgbar::config::Core::intty( pgbar::Channel::Stdout ) )
   std::cout << "Standard output is bound to a terminal." << std::endl;
 else
   std::cout << "Standard output is not bound to a terminal." << std::endl;
@@ -504,7 +504,7 @@ safe_bar.wait();
 例如创建一个向 `stdout` 输出的进度条对象：
 
 ```cpp
-pgbar::ScannerBar<pgbar::Threadunsafe, pgbar::StreamChannel::Stdout> scnbar;
+pgbar::ScannerBar<pgbar::Threadunsafe, pgbar::Channel::Stdout> scnbar;
 ```
 
 进度条本身没有实现在某一时刻独占当前进程的某个标准输出流，因此在进度条工作过程中向该进度条所绑定的标准输出流中输出信息时，会导致终端渲染的字符串出现错乱。
