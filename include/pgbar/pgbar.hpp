@@ -4312,23 +4312,22 @@ namespace pgbar {
       static constexpr __detail::types::BitwiseSet Entire = ~0;
 
       BasicConfig() { __detail::render::InitAction<Self>::template make<>( *this ); }
-      template<
-        typename... Args,
-        typename = typename std::enable_if<
-          !__detail::traits::Repeat<__detail::traits::TypeList<Args...>>::value
-          && __detail::traits::AllBelongAny<__detail::traits::TypeList<typename std::decay<Args>::type...>,
-                                            __detail::traits::ListFonts,
-                                            __detail::traits::ListTaskQuantity,
-                                            OptionConstraint,
-                                            __detail::traits::ListDescription,
-                                            __detail::traits::ListSegment,
-                                            __detail::traits::ListSpeedMeter,
-                                            __detail::traits::ListBitOption>::value>::type>
-      BasicConfig( Args&&... args ) : BasicConfig()
+      template<typename... Args,
+               typename = typename std::enable_if<
+                 !__detail::traits::Repeat<__detail::traits::TypeList<Args...>>::value
+                 && __detail::traits::AllBelongAny<__detail::traits::TypeList<Args...>,
+                                                   __detail::traits::ListFonts,
+                                                   __detail::traits::ListTaskQuantity,
+                                                   OptionConstraint,
+                                                   __detail::traits::ListDescription,
+                                                   __detail::traits::ListSegment,
+                                                   __detail::traits::ListSpeedMeter,
+                                                   __detail::traits::ListBitOption>::value>::type>
+      BasicConfig( Args... args ) : BasicConfig()
       {
-        __detail::render::InitAction<Self>::template make<typename std::decay<Args>::type...>( *this );
+        __detail::render::InitAction<Self>::template make<Args...>( *this );
         static_cast<void>(
-          std::initializer_list<char> { ( unpacker( *this, std::forward<Args>( args ) ), '\0' )... } );
+          std::initializer_list<char> { ( unpacker( *this, std::move( args ) ), '\0' )... } );
       }
 
       BasicConfig( const Self& ) noexcept( std::is_nothrow_copy_constructible<Base>::value ) = default;
@@ -4395,28 +4394,28 @@ namespace pgbar {
     namespace traits {
       template<typename C>
       struct ConfigTrait;
-
-# define __PGBAR_TRAIT_REGISTER( ConfigType, OptionConstraint, ... ) \
-   template<>                                                        \
-   struct ConfigTrait<ConfigType> {                                  \
-     using Constraint = OptionConstraint;                            \
-     using TraitsList = TemplateList<__VA_ARGS__>;                   \
-   }
-
-      template<typename C>
-      using ConfigTrait_c = typename ConfigTrait<C>::Constraint;
       template<typename C>
       using ConfigTrait_t = typename ConfigTrait<C>::TraitsList;
 
-      __PGBAR_TRAIT_REGISTER( config::CharBar, ListCharIndicator, assets::TaskCounter, assets::FrameCounter );
-      __PGBAR_TRAIT_REGISTER( config::BlckBar, ListBlockIndicator, assets::TaskCounter );
-      __PGBAR_TRAIT_REGISTER( config::SpinBar, ListSpinner, assets::TaskCounter, assets::FrameCounter );
-      __PGBAR_TRAIT_REGISTER( config::ScanBar, ListScanner, assets::TaskCounter, assets::FrameCounter );
+# define __PGBAR_TRAIT_REGISTER( ConfigType, ... ) \
+   template<>                                      \
+   struct ConfigTrait<ConfigType> {                \
+     using TraitsList = TemplateList<__VA_ARGS__>; \
+   }
+
+      __PGBAR_TRAIT_REGISTER( config::CharBar, assets::TaskCounter, assets::FrameCounter );
+      __PGBAR_TRAIT_REGISTER( config::BlckBar, assets::TaskCounter );
+      __PGBAR_TRAIT_REGISTER( config::SpinBar, assets::TaskCounter, assets::FrameCounter );
+      __PGBAR_TRAIT_REGISTER( config::ScanBar, assets::TaskCounter, assets::FrameCounter );
     } // namespace traits
 
     namespace render {
       template<>
       struct InitAction<config::CharBar> final {
+        /**
+         * Checks which members already have initialization entries,
+         * and initializes only those members that do not.
+         */
         template<typename... Options>
         static __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void make( config::CharBar& cfg )
         {
@@ -5164,18 +5163,8 @@ namespace pgbar {
       noexcept( std::is_nothrow_default_constructible<MutexMode>::value )
       : config_ { std::move( config ) }
     {}
-    template<
-      typename... Args,
-      typename = typename std::enable_if<
-        !__detail::traits::Repeat<__detail::traits::TypeList<Args...>>::value
-        && __detail::traits::AllBelongAny<__detail::traits::TypeList<typename std::decay<Args>::type...>,
-                                          __detail::traits::ListFonts,
-                                          __detail::traits::ListTaskQuantity,
-                                          __detail::traits::ConfigTrait_c<ConfigType>,
-                                          __detail::traits::ListDescription,
-                                          __detail::traits::ListSegment,
-                                          __detail::traits::ListSpeedMeter,
-                                          __detail::traits::ListBitOption>::value>::type>
+    template<typename... Args,
+             typename = typename std::enable_if<std::is_constructible<ConfigType, Args...>::value>::type>
     BasicBar( Args&&... args ) : BasicBar( ConfigType( std::forward<Args>( args )... ) )
     {}
     BasicBar( Self&& rhs ) noexcept( std::is_nothrow_default_constructible<MutexMode>::value )
