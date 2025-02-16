@@ -92,12 +92,14 @@
 #  include <string_view>
 #  define __PGBAR_CXX17         1
 #  define __PGBAR_CXX17_CNSTXPR constexpr
+#  define __PGBAR_CXX17_INLINE  inline
 #  define __PGBAR_FALLTHROUGH   [[fallthrough]]
 #  undef __PGBAR_NODISCARD
 #  define __PGBAR_NODISCARD [[nodiscard]]
 # else
 #  define __PGBAR_CXX17 0
 #  define __PGBAR_CXX17_CNSTXPR
+#  define __PGBAR_CXX17_INLINE
 #  define __PGBAR_FALLTHROUGH
 # endif
 # if __PGBAR_CC_STD >= 201402L
@@ -198,8 +200,8 @@ namespace pgbar {
     } // namespace types
 
     namespace constants {
-      constexpr types::Char blank = ' ';
-      types::ConstStr nil_str     = "";
+      __PGBAR_CXX17_INLINE constexpr types::Char blank                   = ' ';
+      __PGBAR_CXX17_INLINE __PGBAR_CXX20_CNSTXPR types::ConstStr nil_str = "";
     }
 
     namespace traits {
@@ -2472,7 +2474,7 @@ namespace pgbar {
       };
 
       // Global `StateThread` repository.
-      RingQueue<StateThread, 4> thread_repo;
+      __PGBAR_CXX17_INLINE RingQueue<StateThread, 4> thread_repo;
     } // namespace concurrent
   } // namespace __detail
 
@@ -5690,6 +5692,7 @@ namespace pgbar {
 # undef __PGBAR_NOUNIQUEADDR
 # undef __PGBAR_CXX17
 # undef __PGBAR_CXX17_CNSTXPR
+# undef __PGBAR_CXX17_INLINE
 # undef __PGBAR_FALLTHROUGH
 # undef __PGBAR_UNLIKELY
 # undef __PGBAR_CXX14
