@@ -3282,24 +3282,24 @@ namespace pgbar {
           if ( !this->lead_.empty() ) {
             const auto& current_lead = this->lead_[num_frame_cnt % this->lead_.size()];
             if ( current_lead.size() <= this->bar_length_ ) {
-              const auto len_left = [this, num_frame_cnt, &current_lead]() noexcept -> types::Size {
-                const types::Size period = ( this->bar_length_ - current_lead.size() - 1 ) * 2;
-                const auto remainder     = num_frame_cnt % period;
-                return remainder >= ( this->bar_length_ - current_lead.size() ) ? period - remainder
-                                                                                : remainder;
+              const auto left_fill_len = [this, num_frame_cnt, &current_lead]() noexcept {
+                const auto real_len    = this->bar_length_ - current_lead.size() + 1;
+                const auto total_len   = real_len * 2;
+                const auto current_pos = num_frame_cnt % total_len;
+                return current_pos > real_len ? total_len - current_pos : current_pos - ( current_pos != 0 );
               }();
-              const types::Size len_right = this->bar_length_ - current_lead.size() - len_left - 1;
-              __PGBAR_ASSERT( len_left + len_right + current_lead.size() + 1 == this->bar_length_ );
+              const auto right_fill_len = this->bar_length_ - ( left_fill_len + current_lead.size() );
+              __PGBAR_ASSERT( left_fill_len + right_fill_len + current_lead.size() == this->bar_length_ );
 
-              buffer.append( filler_, len_left / filler_.size() )
-                .append( constants::blank, len_left % filler_.size() )
+              buffer.append( filler_, left_fill_len / filler_.size() )
+                .append( constants::blank, left_fill_len % filler_.size() )
                 .append( console::escape::reset_font )
                 .append( this->lead_col_ )
                 .append( current_lead )
                 .append( console::escape::reset_font )
                 .append( this->filler_col_ )
-                .append( constants::blank, len_right % filler_.size() )
-                .append( filler_, len_right / filler_.size() );
+                .append( constants::blank, right_fill_len % filler_.size() )
+                .append( filler_, right_fill_len / filler_.size() );
             } else
               buffer.append( constants::blank, this->bar_length_ );
           } else if ( filler_.empty() )
