@@ -515,7 +515,7 @@ pgbar::ScannerBar<pgbar::Threadunsafe, pgbar::Channel::Stdout> scnbar;
 
 # 设计原理
 ## 基本架构
-进度条由两个主要部分组成：通知线程和渲染线程。通知线程就是每次负责调用 `tick()` 方法的线程，而渲染线程则是一个由线程管理器 `pgbar::__detail::render::Renderer` 负责管理的线程对象。
+进度条由两个主要部分组成：通知线程和渲染线程。通知线程就是每次负责调用 `tick()` 方法的线程，而渲染线程则是一个由线程管理器 `pgbar::__details::render::Renderer` 负责管理的线程对象。
 
 每次通知线程的首次调用 `tick()` 都会唤醒渲染线程；由于线程管理器被设计为惰性初始化，因此每个进度条对象在全局范围内的第一次调用还会尝试初始化线程管理器，即创建一个子线程。
 
@@ -528,7 +528,7 @@ pgbar::ScannerBar<pgbar::Threadunsafe, pgbar::Channel::Stdout> scnbar;
 
 如果在 Windows 平台下，程序无法获取到当前进程的标准输出流 Handle，那么渲染线程中会抛出一个本地系统错误异常 `pgbar::exception::SystemError`；在更一般的情况下，如果当前机器的资源不足（例如内存爆了），则会由标准库在任意内存申请点位抛出 `std::bad_alloc` 等标准库异常。
 
-其余情况下，如果渲染线程接收到了一个抛出的异常，它会将这个异常存储在内部的 `pgbar::__detail::concurrent::ExceptionBox` 容器中，并终止当前渲染工作；等待下一次通知线程调用 `activate()` 或 `suspend()` 时该被捕获异常会在通知线程中重新被抛出。
+其余情况下，如果渲染线程接收到了一个抛出的异常，它会将这个异常存储在内部的 `pgbar::__details::concurrent::ExceptionBox` 容器中，并终止当前渲染工作；等待下一次通知线程调用 `activate()` 或 `suspend()` 时该被捕获异常会在通知线程中重新被抛出。
 
 > `activate()` 和 `suspend()` 仅会在进度条的第一次和最后一次 `tick()` 及 `reset()` 方法中被调用。
 
@@ -541,9 +541,9 @@ pgbar::ScannerBar<pgbar::Threadunsafe, pgbar::Channel::Stdout> scnbar;
 
 实际上，所有进度条类型都是模板类 `pgbar::BasicBar` 的别名；同理，所有的配置类型都是 `pgbar::config::BasicConfig` 的别名。
 
-受到[这篇文章](https://zhuanlan.zhihu.com/p/106672814)的启发，进度条遵循 Mixin 模式组合继承自 `pgbar::__detail::assets` 中的不同模板基类；而 `pgbar::__detail::assets` 内的所有模板类都按照 CRTP 模式设计，因此在最终使用时可以通过 `config()` 方法链式调用一大堆用于配置数据的方法。
+受到[这篇文章](https://zhuanlan.zhihu.com/p/106672814)的启发，进度条遵循 Mixin 模式组合继承自 `pgbar::__details::assets` 中的不同模板基类；而 `pgbar::__details::assets` 内的所有模板类都按照 CRTP 模式设计，因此在最终使用时可以通过 `config()` 方法链式调用一大堆用于配置数据的方法。
 
-这里的 Mixin 模式主要归功于一个编译期拓扑排序算法 `pgbar::__detail::traits::TopoSort`。
+这里的 Mixin 模式主要归功于一个编译期拓扑排序算法 `pgbar::__details::traits::TopoSort`。
 
 这个拓扑排序算法类似于 Python 中的 C3 线性化算法，但与之不同的是：C3 线性化算法的目的是在类继承结构中寻找到一个最合适的类方法，而这里的拓扑排序算法则是直接线性化整个继承结构，将一个复杂的多继承结构在编译期内线性化为一条继承链。
 
