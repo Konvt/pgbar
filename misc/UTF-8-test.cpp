@@ -5,13 +5,13 @@
 #include <string_view>
 
 /**
- * This file is a minimal implementation of the pgbar::__detail::charset::U8String component,
+ * This file is a minimal implementation of the pgbar::__details::charcodes::U8String component,
  * used to demonstrate the char_width function with character encoding mappings
  * from the Unicode CodeCharts.
  */
 
 namespace pgbar {
-  namespace __detail {
+  namespace __details {
     namespace types {
       using Size       = std::size_t;
       using String     = std::string;
@@ -19,7 +19,7 @@ namespace pgbar {
       using UCodePoint = char32_t;
     }
 
-    namespace charset {
+    namespace charcodes {
       class U8String {
         using self = U8String;
 
@@ -201,8 +201,8 @@ namespace pgbar {
         }
         /* cxx20constexpr */ operator types::ROStr() const noexcept { return bytes_; }
       };
-    } // namespace charset
-  } // namespace __detail
+    } // namespace charcodes
+  } // namespace __details
 } // namespace pgbar
 
 int main()
@@ -211,12 +211,12 @@ int main()
   system( "chcp 65001" );
 #endif
 
-  using namespace pgbar::__detail;
-  std::cout << "🇫🇪" << ": " << charset::U8String::render_width( "🇫🇪" ) << std::endl;
+  using namespace pgbar::__details;
+  std::cout << "🇫🇪" << ": " << charcodes::U8String::render_width( "🇫🇪" ) << std::endl;
   std::cout << "👨‍👩‍👧‍👦" << ": "
-            << charset::U8String::render_width( "👨‍👩‍👧‍👦" ) << std::endl;
-  std::cout << "你好" << ": " << charset::U8String::render_width( "你好" ) << std::endl;
-  std::cout << "お幸せに" << ": " << charset::U8String::render_width( "お幸せに" ) << std::endl;
-  std::cout << "🥳" << ": " << charset::U8String::render_width( "🥳" ) << std::endl;
-  std::cout << "█" << ": " << charset::U8String::render_width( "█" ) << std::endl;
+            << charcodes::U8String::render_width( "👨‍👩‍👧‍👦" ) << std::endl;
+  std::cout << "你好" << ": " << charcodes::U8String::render_width( "你好" ) << std::endl;
+  std::cout << "お幸せに" << ": " << charcodes::U8String::render_width( "お幸せに" ) << std::endl;
+  std::cout << "🥳" << ": " << charcodes::U8String::render_width( "🥳" ) << std::endl;
+  std::cout << "█" << ": " << charcodes::U8String::render_width( "█" ) << std::endl;
 }

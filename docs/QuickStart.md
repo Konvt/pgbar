@@ -518,7 +518,7 @@ If an output stream is not bound to the terminal, the progress bar does not writ
 
 # Design principle
 ## Basic architecture
-The progress bar consists of two main parts: the notification thread and the rendering thread. The notification thread is the thread responsible for calling the `tick()` method each time, while the render thread is a thread object managed by the thread manager `pgbar::__detail::render::Renderer`.
+The progress bar consists of two main parts: the notification thread and the rendering thread. The notification thread is the thread responsible for calling the `tick()` method each time, while the render thread is a thread object managed by the thread manager `pgbar::__details::render::Renderer`.
 
 Each notification thread's first call to `tick()` wakes up the rendering thread; Since thread managers are designed as lazy initialization, the first call of each progress bar object at the global scope also attempts to initialize the thread manager, i.e., create a child thread.
 
@@ -531,7 +531,7 @@ Since the rendering thread needs to repeatedly concatenate strings and write dat
 
 If in Windows platform, the program can't get to the current process flow standard output Handle, the render thread throws a local system error exception `pgbar::exception::SystemError`; In a more general case, if the current machine is running low on resources (e.g., out of memory), a library exception such as `std::bad_alloc` will be thrown by the standard library at any memory request point.
 
-The rest of the case, if the rendering thread received a thrown exception, it will be the exception is stored in the internal `pgbar::__detail::concurrent::ExceptionBox` container, and stop the current render job; Wait until the next time the notification thread calls `activate()` or `suspend()` the caught exception is re-thrown in the notification thread.
+The rest of the case, if the rendering thread received a thrown exception, it will be the exception is stored in the internal `pgbar::__details::concurrent::ExceptionBox` container, and stop the current render job; Wait until the next time the notification thread calls `activate()` or `suspend()` the caught exception is re-thrown in the notification thread.
 
 > `activate()` and `suspend()` are called only on the first and last `tick()` and `reset()` methods of the progress bar.
 
@@ -544,9 +544,9 @@ As mentioned earlier, the functionality of the different types of progress bars 
 
 In fact, all progress bar types are aliases of the template class `pgbar::BasicBar`; Similarly, all configuration type is `pgbar::config::BasicConfig` alias.
 
-By [this article](https://zhuanlan.zhihu.com/p/106672814), the progress bar follow a Mixin pattern combination inherited from `pgbar::__detail::asset` the different template base class; All template classes in `pgbar::__detail::asset` are designed in CRTP mode, so a whole bunch of methods for configuring data can be called through the `config()` method chain for final use.
+By [this article](https://zhuanlan.zhihu.com/p/106672814), the progress bar follow a Mixin pattern combination inherited from `pgbar::__details::assets` the different template base class; All template classes in `pgbar::__details::assets` are designed in CRTP mode, so a whole bunch of methods for configuring data can be called through the `config()` method chain for final use.
 
-The Mixin pattern here owes much to a compile-time topological sorting algorithm called `pgbar::__detail::trait::TopoSort`.
+The Mixin pattern here owes much to a compile-time topological sorting algorithm called `pgbar::__details::traits::TopoSort`.
 
 This topological sorting algorithm is similar to the C3 linearization algorithm in Python, but unlike it: The purpose of C3 linearization algorithm is to find the most suitable class method in the class inheritance structure, while the topological sorting algorithm here linearizes the entire inheritance structure directly, linearizing a complex multi-inheritance structure into an inheritance chain at compile time.
 
