@@ -17,11 +17,13 @@
 # include <cstring>
 # include <exception>
 # include <initializer_list>
+# include <iomanip>
 # include <iterator>
 # include <limits>
 # include <memory>
 # include <mutex>
 # include <queue>
+# include <sstream>
 # include <string>
 # include <thread>
 # include <type_traits>
@@ -588,7 +590,7 @@ namespace pgbar {
     namespace wrappers {
       template<typename I>
       class IterSpanBase {
-        static_assert( !std::is_arithmetic<I>::value,
+        static_assert( std::is_class<I>::value || std::is_pointer<I>::value,
                        "pgbar::__details::wrappers::IterSpanBase: Only available for iterator types" );
         static_assert( !std::is_void<typename std::iterator_traits<I>::difference_type>::value,
                        "pgbar::__details::wrappers::IterSpanBase: The 'difference_type' of the given "
@@ -1018,7 +1020,7 @@ namespace pgbar {
        * or the `start_value` is less than `end_value` while `step` is negative,
        * or the `step` is zero.
        */
-      NumericSpan& step( N step ) noexcept( false )
+      __PGBAR_CXX20_CNSTXPR NumericSpan& step( N step ) noexcept( false )
       {
         __PGBAR_UNLIKELY if ( step < 0 && start_ < end_ ) throw exception::InvalidArgument(
           "pgbar: 'end' is greater than 'start' while 'step' is negative" );
@@ -1359,7 +1361,7 @@ namespace pgbar {
        */
       __PGBAR_CXX20_CNSTXPR types::HexRGB hex2rgb( types::ROStr hex ) noexcept( false )
       {
-        if ( hex.front() != '#' || ( hex.size() != 7 && hex.size() != 4 ) )
+        if ( ( hex.size() != 7 && hex.size() != 4 ) || hex.front() != '#' )
           throw exception::InvalidArgument( "pgbar: invalid hex color format" );
 
         for ( types::Size i = 1; i < hex.size(); i++ ) {
@@ -1620,13 +1622,47 @@ namespace pgbar {
         __PGBAR_CXX20_CNSTXPR explicit operator types::String() && noexcept { return std::move( bytes_ ); }
         __PGBAR_CXX20_CNSTXPR operator types::ROStr() const noexcept { return str(); }
 
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN Self operator+( types::ROStr a, const Self& b )
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( types::String&& a,
+                                                                                         const Self& b )
+        {
+          a.append( b.bytes_ );
+          return U8String( std::move( a ) );
+        }
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self
+          operator+( const types::String& a, const Self& b )
         {
           auto tmp = types::String( a );
           tmp.append( b.bytes_ );
           return U8String( std::move( tmp ) );
         }
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN Self operator+( const Self& a, types::ROStr b )
+        template<std::size_t N>
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( const char ( &a )[N],
+                                                                                         const Self& b )
+        {
+          auto tmp = types::String( a );
+          tmp.append( b.bytes_ );
+          return U8String( std::move( tmp ) );
+        }
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( const char* a,
+                                                                                         const Self& b )
+        {
+          auto tmp = types::String( a );
+          tmp.append( b.bytes_ );
+          return U8String( std::move( tmp ) );
+        }
+# if __PGBAR_CXX20
+        static_assert( sizeof( char8_t ) == sizeof( char ),
+                       "pgbar::__details::chaset::U8String: Unexpected type size mismatch" );
+
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN Self operator+( std::u8string_view a, const Self& b )
+        {
+          auto tmp = Self( a );
+          tmp.bytes_.append( b.bytes_ );
+          return U8String( std::move( tmp ) );
+        }
+# endif
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( const Self& a,
+                                                                                         types::ROStr b )
         {
           auto tmp = a.bytes_;
           tmp.append( b );
@@ -1634,9 +1670,6 @@ namespace pgbar {
         }
 
 # if __PGBAR_CXX20
-        static_assert( sizeof( char8_t ) == sizeof( char ),
-                       "pgbar::__details::chaset::U8String: Unexpected type size mismatch" );
-
         explicit U8String( std::u8string_view u8_sv ) : U8String()
         {
           bytes_.resize( u8_sv.size() + 1 );
@@ -1696,6 +1729,15 @@ namespace pgbar {
         const charcodes::U8String& __str ) noexcept( false )
       {
         return formatting<Style>( width, __str.size(), __str.str() );
+      }
+
+      // Format a floating point number.
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN types::String formatting( types::Float val, types::Size precision )
+        noexcept( false )
+      {
+        std::stringstream ss;
+        ss << std::fixed << std::setprecision( precision ) << val;
+        return std::move( ss ).str();
       }
 
       // A simple string buffer, unrelated to the `std::stringbuf` in the STL.
@@ -2521,32 +2563,58 @@ namespace pgbar {
     struct Style final {
       __PGBAR_OPTIONS_HELPER( Style, __details::types::BitwiseSet, _settings )
     };
+
     // A wrapper that stores the value of the color effect setting.
     struct Colored final {
       __PGBAR_OPTIONS_HELPER( Colored, bool, _enable )
     };
+
     // A wrapper that stores the value of the font boldness setting.
     struct Bolded final {
       __PGBAR_OPTIONS_HELPER( Bolded, bool, _enable )
     };
+
     // A wrapper that stores the number of tasks.
     struct Tasks final {
       __PGBAR_OPTIONS_HELPER( Tasks, __details::types::Size, _num_tasks )
     };
+
     // A wrapper that stores the length of the bar indicator, in the character unit.
     struct BarLength final {
       __PGBAR_OPTIONS_HELPER( BarLength, __details::types::Size, _num_char )
     };
+
     /**
-     * A wrapper that stores the rate factor of the animation
-     * with negative value slowing down the switch per frame and positive value speeding it up.
+     * A wrapper that stores the rate factor for animation frame transitions.
      *
-     * The maximum and minimum of the rate factor is between -128 and 127.
+     * Controls the speed of per-frame animation updates:
      *
-     * If the value is zero, freezes the animation.
+     * - Positive values accelerate the transition (higher -> faster).
+     *
+     * - Negative values decelerate the transition (lower -> slower).
+     *
+     * - Zero freezes the animation completely.
+     *
+     * The effective range is between -128 (slowest) and 127 (fastest).
      */
     struct Shift final {
       __PGBAR_OPTIONS_HELPER( Shift, std::int8_t, _shift_factor )
+    };
+
+    /**
+     * A wrapper that stores the base magnitude for unit scaling in formatted output.
+     *
+     * Defines the threshold at which values are converted to higher-order units
+     * (e.g. 1000 -> "1k", 1000000 -> "1M").
+     *
+     * The effective range is between 1 and 65535.
+     *
+     * - A zero value implies no scaling (raw numeric display).
+     *
+     * - Typical usage: 1000 (decimal) or 1024 (binary) scaling.
+     */
+    struct Magnitude final {
+      __PGBAR_OPTIONS_HELPER( Magnitude, std::uint16_t, _magnitude )
     };
 
 # undef __PGBAR_OPTIONS_HELPER
@@ -2574,38 +2642,47 @@ namespace pgbar {
     struct Filler final {
       __PGBAR_OPTIONS_HELPER( Filler, _filler )
     };
+
     // A wrapper that stores the characters of the remains in the bar indicator.
     struct Remains final {
       __PGBAR_OPTIONS_HELPER( Remains, _remains )
     };
+
     // A wrapper that stores characters located to the left of the bar indicator.
     struct Starting final {
       __PGBAR_OPTIONS_HELPER( Starting, _starting )
     };
+
     // A wrapper that stores characters located to the right of the bar indicator.
     struct Ending final {
       __PGBAR_OPTIONS_HELPER( Ending, _ending )
     };
+
     // A wrapper that stores the description text.
     struct Description final {
       __PGBAR_OPTIONS_HELPER( Description, _desc )
     };
+
     // A wrapper that stores the `true` message text.
     struct TrueMesg final {
       __PGBAR_OPTIONS_HELPER( TrueMesg, _true_mesg )
     };
+
     // A wrapper that stores the `false` message text.
     struct FalseMesg final {
       __PGBAR_OPTIONS_HELPER( FalseMesg, _false_mesg )
     };
+
     // A wrapper that stores the separator component used to separate different infomation.
     struct Divider final {
       __PGBAR_OPTIONS_HELPER( Divider, _divider )
     };
+
     // A wrapper that stores the border component located to the left of the whole indicator.
     struct LeftBorder final {
       __PGBAR_OPTIONS_HELPER( LeftBorder, _l_border )
     };
+
     // A wrapper that stores the border component located to the right of the whole indicator.
     struct RightBorder final {
       __PGBAR_OPTIONS_HELPER( RightBorder, _r_border )
@@ -2625,33 +2702,42 @@ namespace pgbar {
     struct DescColor final {
       __PGBAR_OPTIONS_HELPER( DescColor, _desc_color )
     };
+
     // A wrapper that stores the `true` message text color.
     struct TrueColor final {
       __PGBAR_OPTIONS_HELPER( TrueColor, _true_color )
     };
+
     // A wrapper that stores the `false` message text color.
     struct FalseColor final {
       __PGBAR_OPTIONS_HELPER( FalseColor, _false_color )
     };
+
     // A wrapper that stores the color of component located to the left of the bar indicator.
     struct StartColor final {
       __PGBAR_OPTIONS_HELPER( StartColor, _start_color )
     };
+
     // A wrapper that stores the color of component located to the right of the bar indicator.
     struct EndColor final {
       __PGBAR_OPTIONS_HELPER( EndColor, _end_color )
     };
+
     // A wrapper that stores the color of the filler in the bar indicator.
     struct FillerColor final {
       __PGBAR_OPTIONS_HELPER( FillerColor, _filler_color )
     };
+
     // A wrapper that stores the color of the remains in the bar indicator.
     struct RemainsColor final {
       __PGBAR_OPTIONS_HELPER( RemainsColor, _remains_color )
     };
+
+    // A wrapper that stores the color of the lead in the bar indicator.
     struct LeadColor final {
       __PGBAR_OPTIONS_HELPER( LeadColor, _lead_color )
     };
+
     // A wrapper that stores the color of the whole infomation indicator.
     struct InfoColor final {
       __PGBAR_OPTIONS_HELPER( InfoColor, _info_color )
@@ -2660,10 +2746,23 @@ namespace pgbar {
 # undef __PGBAR_OPTIONS_HELPER
 
     /**
-     * A wrapper that stores the units of the infomation indicator's speed.
+     * A wrapper that stores ordered units for information rate formatting (e.g. B/s, kB/s).
      *
-     * The structure holds exactly four units in a `std::array`,
-     * with each unit being 1,000 times greater than the previous one (from left to right).
+     * Encapsulates four consecutive scaling units where each unit is scaled by the
+     * configured magnitude factor (default 1,000x if no `option::Magnitude` is explicitly set).
+     *
+     * Unit order MUST be ascending: [base_unit, scaled_unit_1, scaled_unit_2, scaled_unit_3].
+     *
+     * Example:
+     *
+     * - magnitude=1000: ["B/s", "kB/s", "MB/s", "GB/s"]
+     *
+     * - magnitude=1024: ["B/s", "KiB/s", "MiB/s", "GiB/s"]
+     *
+     * Scaling logic: value >= magnitude -> upgrade to next unit tier.
+     *
+     * @throw exception::InvalidArgument
+     *   Thrown if any input string fails UTF-8 validation or the array size mismatches.
      */
     struct SpeedUnit final {
       __PGBAR_OPTIONS( SpeedUnit, __PGBAR_PACK( std::array<__details::charcodes::U8String, 4> ) )
@@ -3601,10 +3700,10 @@ namespace pgbar {
 
           __PGBAR_UNLIKELY if ( num_percent <= 0.0 ) return { __PGBAR_DEFAULT_PERCENT };
 
-          auto proportion = std::to_string( num_percent * 100.0 );
-          proportion.resize( proportion.find( '.' ) + 3 );
+          auto str = io::formatting( num_percent * 100.0, 2 );
+          str.push_back( '%' );
 
-          return io::formatting<io::TxtLayout::Right>( _fixed_length, std::move( proportion ) + "%" );
+          return io::formatting<io::TxtLayout::Right>( _fixed_length, str );
         }
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr types::Size fixed_len_percent() const noexcept
@@ -3627,6 +3726,11 @@ namespace pgbar {
           cfg.longest_unit_ = std::max( std::max( cfg.units_[0].size(), cfg.units_[1].size() ),
                                         std::max( cfg.units_[2].size(), cfg.units_[3].size() ) );
         }
+        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( SpeedMeter& cfg,
+                                                                      option::Magnitude&& val ) noexcept
+        {
+          cfg.magnitude_ = val.value();
+        }
 
 # define __PGBAR_DEFAULT_SPEED "   inf "
         static constexpr types::Size _fixed_length = sizeof( __PGBAR_DEFAULT_SPEED ) - 1;
@@ -3634,6 +3738,7 @@ namespace pgbar {
       protected:
         std::array<charcodes::U8String, 4> units_;
         types::Size longest_unit_;
+        std::uint16_t magnitude_;
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN types::String build_speed( const types::TimeUnit& time_passed,
                                                                        types::Size num_task_done,
@@ -3644,28 +3749,29 @@ namespace pgbar {
             _fixed_length + longest_unit_,
             "-- " + units_.front() );
 
-          const auto float2string = []( types::Float val ) -> types::String {
-            auto str = std::to_string( std::round( val * 100.0 ) / 100.0 );
-            str.resize( str.find( '.' ) + 3 ); // Keep two decimal places.
-            str.append( 1, constants::blank );
-            return str;
-          };
-
           const auto seconds_passed    = std::chrono::duration<types::Float>( time_passed ).count();
           // zero or negetive is invalid
           const types::Float frequency = seconds_passed <= 0.0 ? ( std::numeric_limits<types::Float>::max )()
                                                                : num_task_done / seconds_passed;
           types::String rate_str;
-          if ( frequency < 1e3 ) // < 1 Hz => '999.99 Hz'
-            rate_str = float2string( frequency ) + units_[0];
-          else if ( frequency < 1e6 ) // < 1 kHz => '999.99 kHz'
-            rate_str = float2string( frequency / 1e3 ) + units_[1];
-          else if ( frequency < 1e9 ) // < 1 MHz => '999.99 MHz'
-            rate_str = float2string( frequency / 1e6 ) + units_[2];
-          else { // > 999 GHz => infinity
-            const types::Float remains                        = frequency / 1e9;
-            __PGBAR_UNLIKELY if ( remains > 999.99 ) rate_str = __PGBAR_DEFAULT_SPEED + units_[0];
-            else rate_str                                     = float2string( remains ) + units_[3];
+
+          /* Since the cube of the maximum value of std::uint16_t does not exceed
+           * the representable range of std::uint64_t,
+           * we choose to use std::uint16_t to represent the scaling magnitude. */
+          const types::Size tier1 = magnitude_ * magnitude_;
+          const types::Size tier2 = tier1 * magnitude_;
+          // tier0 is magnitude_ itself
+
+          if ( frequency < magnitude_ )
+            rate_str = io::formatting( frequency, 2 ) + ' ' + units_[0];
+          else if ( frequency < tier1 ) // "kilo"
+            rate_str = io::formatting( frequency / magnitude_, 2 ) + ' ' + units_[1];
+          else if ( frequency < tier2 ) // "Mega"
+            rate_str = io::formatting( frequency / tier1, 2 ) + ' ' + units_[2];
+          else { // "Giga" or "infinity"
+            const types::Float remains                            = frequency / tier2;
+            __PGBAR_UNLIKELY if ( remains > magnitude_ ) rate_str = __PGBAR_DEFAULT_SPEED + units_[3];
+            else rate_str = io::formatting( remains, 2 ) + ' ' + units_[3];
           }
 
           return io::formatting<io::TxtLayout::Right>( _fixed_length + longest_unit_, rate_str );
@@ -3682,9 +3788,9 @@ namespace pgbar {
                     && std::is_nothrow_default_constructible<charcodes::U8String>::value ) = default;
         __PGBAR_NONEMPTY_CLASS( SpeedMeter, __PGBAR_CXX20_CNSTXPR, false, false )
 
-# define __PGBAR_METHOD( ParamName )                                \
+# define __PGBAR_METHOD( ParamName, OptionName )                    \
    std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
-   unpacker( *this, option::SpeedUnit( std::move( ParamName ) ) );  \
+   unpacker( *this, option::OptionName( std::move( ParamName ) ) ); \
    return static_cast<Derived&>( *this )
 
         /**
@@ -3696,15 +3802,27 @@ namespace pgbar {
          * The given each unit will be treated as 1,000 times greater than the previous one
          * (from left to right).
          */
-        Derived& speed_unit( std::array<types::String, 4> _units ) & { __PGBAR_METHOD( _units ); }
+        Derived& speed_unit( std::array<types::String, 4> _units ) & { __PGBAR_METHOD( _units, SpeedUnit ); }
 # if __PGBAR_CXX20
         /**
          * @param _units
          * The given each unit will be treated as 1,000 times greater than the previous one
          * (from left to right).
          */
-        Derived& speed_unit( std::array<std::u8string_view, 4> _units ) & { __PGBAR_METHOD( _units ); }
+        Derived& speed_unit( std::array<std::u8string_view, 4> _units ) &
+        {
+          __PGBAR_METHOD( _units, SpeedUnit );
+        }
 # endif
+
+        /**
+         * @param _magnitude
+         * The base magnitude for unit scaling in formatted output.
+         *
+         * Defines the threshold at which values are converted to higher-order units
+         * (e.g. 1000 -> "1k", 1000000 -> "1M").
+         */
+        Derived& magnitude( std::uint16_t _magnitude ) & { __PGBAR_METHOD( _magnitude, Magnitude ); }
 
 # undef __PGBAR_METHOD
 
@@ -3727,10 +3845,12 @@ namespace pgbar {
           __PGBAR_ASSERT( num_task_done <= num_all_tasks );
           if ( num_all_tasks == 0 )
             return { "-/-" };
-          types::String total_str = std::to_string( num_all_tasks );
-          const types::Size size  = total_str.size();
-          return io::formatting<io::TxtLayout::Right>( size, std::to_string( num_task_done ) ) + "/"
-               + std::move( total_str );
+
+          auto str = io::formatting<io::TxtLayout::Right>( std::log10( num_all_tasks ) + 1,
+                                                           std::to_string( num_task_done ) );
+          str.append( 1, '/' ).append( std::to_string( num_all_tasks ) );
+
+          return str;
         }
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN types::Size fixed_len_counter() const noexcept
@@ -3754,20 +3874,21 @@ namespace pgbar {
 # define __PGBAR_DEFAULT_TIMER "--:--:--"
 
       protected:
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN types::String time_formatter( types::TimeUnit duration ) const
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::String time_formatter(
+          types::TimeUnit duration ) const
         {
           const auto time2str = []( std::int64_t num_time ) -> types::String {
             auto ret = std::to_string( num_time );
             if ( ret.size() < 2 )
-              return "0" + std::move( ret );
+              ret.insert( 0, 1, '0' );
             return ret;
           };
           const auto hours = std::chrono::duration_cast<std::chrono::hours>( duration );
           duration -= hours;
           const auto minutes = std::chrono::duration_cast<std::chrono::minutes>( duration );
           duration -= minutes;
-          return ( ( ( hours.count() > 99 ? types::String( "--" ) : time2str( hours.count() ) ) + ":" )
-                   + ( time2str( minutes.count() ) + ":" )
+          return ( ( ( hours.count() > 99 ? types::String( "--" ) : time2str( hours.count() ) ) + ':' )
+                   + ( time2str( minutes.count() ) + ':' )
                    + time2str( std::chrono::duration_cast<std::chrono::seconds>( duration ).count() ) );
         }
 
@@ -3799,9 +3920,10 @@ namespace pgbar {
       template<typename Base, typename Derived>
       class CountdownTimer : public Base {
       protected:
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN types::String build_countdown( const types::TimeUnit& time_passed,
-                                                                           types::Size num_task_done,
-                                                                           types::Size num_all_tasks ) const
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::String build_countdown(
+          const types::TimeUnit& time_passed,
+          types::Size num_task_done,
+          types::Size num_all_tasks ) const
         {
           __PGBAR_ASSERT( num_task_done <= num_all_tasks );
           if ( num_task_done == 0 || num_all_tasks == 0 )
@@ -4408,6 +4530,8 @@ namespace pgbar {
             unpacker( cfg, option::InfoColor( color::Cyan ) );
           if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::SpeedUnit, ParamList>::value )
             unpacker( cfg, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
+          if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Magnitude, ParamList>::value )
+            unpacker( cfg, option::Magnitude( 1000 ) );
           if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Style, ParamList>::value )
             unpacker( cfg, option::Style( config::CharBar::Entire ) );
         }
@@ -4426,6 +4550,8 @@ namespace pgbar {
             unpacker( cfg, option::InfoColor( color::Cyan ) );
           if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::SpeedUnit, ParamList>::value )
             unpacker( cfg, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
+          if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Magnitude, ParamList>::value )
+            unpacker( cfg, option::Magnitude( 1000 ) );
           if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Style, ParamList>::value )
             unpacker( cfg, option::Style( config::CharBar::Entire ) );
         }
@@ -4446,6 +4572,8 @@ namespace pgbar {
             unpacker( cfg, option::InfoColor( color::Cyan ) );
           if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::SpeedUnit, ParamList>::value )
             unpacker( cfg, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
+          if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Magnitude, ParamList>::value )
+            unpacker( cfg, option::Magnitude( 1000 ) );
           if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Style, ParamList>::value )
             unpacker( cfg, option::Style( config::SpinBar::Ani | config::SpinBar::Elpsd ) );
         }
@@ -4474,6 +4602,8 @@ namespace pgbar {
             unpacker( cfg, option::InfoColor( color::Cyan ) );
           if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::SpeedUnit, ParamList>::value )
             unpacker( cfg, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
+          if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Magnitude, ParamList>::value )
+            unpacker( cfg, option::Magnitude( 1000 ) );
           if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Style, ParamList>::value )
             unpacker( cfg, option::Style( config::ScanBar::Ani | config::ScanBar::Elpsd ) );
         }
@@ -4981,7 +5111,7 @@ namespace pgbar {
         }
       };
 
-      // A manager class used to synchronize the rendering thread and main thread.
+      // A manager class used to synchronize the make thread and main thread.
       class Renderer final {
         using Self = Renderer;
         concurrent::StateThread state_td_;
@@ -5152,15 +5282,15 @@ namespace pgbar {
     Self& tick() & override final
     {
       std::lock_guard<MutexMode> lock { mtx_ };
-      __details::render::TickAction<ConfigType>::template do_tick<StreamType>(
-        *this,
-        [this]() noexcept -> void { this->task_cnt_.fetch_add( 1, std::memory_order_release ); } );
+      __details::render::TickAction<ConfigType>::template make<StreamType>( *this, [this]() noexcept -> void {
+        this->task_cnt_.fetch_add( 1, std::memory_order_release );
+      } );
       return *this;
     }
     Self& tick( __details::types::Size next_step ) & override final
     {
       std::lock_guard<MutexMode> lock { mtx_ };
-      __details::render::TickAction<ConfigType>::template do_tick<StreamType>(
+      __details::render::TickAction<ConfigType>::template make<StreamType>(
         *this,
         [this, next_step]() noexcept -> void {
           const auto task_cnt = this->task_cnt_.load( std::memory_order_acquire );
@@ -5180,7 +5310,7 @@ namespace pgbar {
     Self& tick_to( __details::types::Size percentage ) & override final
     {
       std::lock_guard<MutexMode> lock { mtx_ };
-      __details::render::TickAction<ConfigType>::template do_tick<StreamType>(
+      __details::render::TickAction<ConfigType>::template make<StreamType>(
         *this,
         [this, percentage]() noexcept -> void {
           const auto task_end = this->task_end_.load( std::memory_order_acquire );
@@ -5199,7 +5329,7 @@ namespace pgbar {
 
     /**
      * Reset the state of the object,
-     * it will immediately TERMINATE the current rendering.
+     * it will immediately TERMINATE the current make.
      */
     void reset() override final
     {
@@ -5267,7 +5397,7 @@ namespace pgbar {
                                 || std::is_same<ConfigType, config::SpinBar>::value
                                 || std::is_same<ConfigType, config::ScanBar>::value>::type> {
         template<typename BarType>
-        static void rendering( BarType& bar )
+        static void make( BarType& bar )
         {
           switch ( bar.state_.load( std::memory_order_acquire ) ) {
           case BarType::state::Begin: {
@@ -5343,7 +5473,7 @@ namespace pgbar {
       template<>
       struct RenderAction<config::BlckBar, void> {
         template<typename BarType>
-        static void rendering( BarType& bar )
+        static void make( BarType& bar )
         {
           switch ( bar.state_.load( std::memory_order_acquire ) ) {
           case BarType::state::Begin: {
@@ -5404,10 +5534,10 @@ namespace pgbar {
                         typename std::enable_if<std::is_same<ConfigType, config::CharBar>::value
                                                 || std::is_same<ConfigType, config::BlckBar>::value>::type> {
         template<Channel StreamType, typename BarType, typename F>
-        static __PGBAR_INLINE_FN void do_tick( BarType& bar, F&& action )
+        static __PGBAR_INLINE_FN void make( BarType& bar, F&& action )
         {
           static_assert( traits::is_void_functor<F>::value,
-                         "pgbar::__details::render::TickAction::do_tick: Invalid template type error" );
+                         "pgbar::__details::render::TickAction::make: Invalid template type error" );
 
           switch ( bar.state_.load( std::memory_order_acquire ) ) {
           case BarType::state::Stopped: {
@@ -5427,7 +5557,7 @@ namespace pgbar {
              * exception checking and task counter updating are always carried out. */
             if ( config::Core::intty( StreamType ) ) {
               if ( bar.executor_.empty() )
-                bar.executor_.reset( [&bar]() { RenderAction<ConfigType>::rendering( bar ); } );
+                bar.executor_.reset( [&bar]() { RenderAction<ConfigType>::make( bar ); } );
               bar.executor_.activate();
             }
           }
@@ -5450,10 +5580,10 @@ namespace pgbar {
                         typename std::enable_if<std::is_same<ConfigType, config::SpinBar>::value
                                                 || std::is_same<ConfigType, config::ScanBar>::value>::type> {
         template<Channel StreamType, typename BarType, typename F>
-        static __PGBAR_INLINE_FN void do_tick( BarType& bar, F&& action )
+        static __PGBAR_INLINE_FN void make( BarType& bar, F&& action )
         {
           static_assert( traits::is_void_functor<F>::value,
-                         "pgbar::__details::render::TickAction::do_tick: Invalid template type error" );
+                         "pgbar::__details::render::TickAction::make: Invalid template type error" );
 
           switch ( bar.state_.load( std::memory_order_acquire ) ) {
           case BarType::state::Stopped: {
@@ -5465,7 +5595,7 @@ namespace pgbar {
 
             if ( config::Core::intty( StreamType ) ) {
               if ( bar.executor_.empty() )
-                bar.executor_.reset( [&bar]() { RenderAction<ConfigType>::rendering( bar ); } );
+                bar.executor_.reset( [&bar]() { RenderAction<ConfigType>::make( bar ); } );
               bar.executor_.activate();
             }
           }
