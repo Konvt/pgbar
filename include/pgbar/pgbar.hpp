@@ -154,7 +154,7 @@ namespace pgbar {
       {
         __PGBAR_ASSERT( mes != nullptr );
       }
-      virtual ~Error() noexcept = default;
+      virtual ~Error() = default;
       virtual const char* what() const noexcept { return message_; }
     };
 
@@ -162,21 +162,21 @@ namespace pgbar {
     class InvalidArgument : public Error {
     public:
       using Error::Error;
-      virtual ~InvalidArgument() noexcept = default;
+      virtual ~InvalidArgument() = default;
     };
 
     // Exception for error state of object.
     class InvalidState : public Error {
     public:
       using Error::Error;
-      virtual ~InvalidState() noexcept = default;
+      virtual ~InvalidState() = default;
     };
 
     // Exception for local system error.
     class SystemError : public Error {
     public:
       using Error::Error;
-      virtual ~SystemError() noexcept = default;
+      virtual ~SystemError() = default;
     };
   } // namespace exception
 
@@ -617,7 +617,7 @@ namespace pgbar {
         {
           size_ = measure();
         }
-        __PGBAR_CXX20_CNSTXPR virtual ~IterSpanBase() noexcept( std::is_nothrow_destructible<I>::value ) = 0;
+        __PGBAR_CXX20_CNSTXPR virtual ~IterSpanBase() = 0;
 
         __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR I& start_iter() noexcept { return start_; }
         __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR I& end_iter() noexcept { return end_; }
@@ -654,8 +654,7 @@ namespace pgbar {
         }
       };
       template<typename I>
-      __PGBAR_CXX20_CNSTXPR IterSpanBase<I>::~IterSpanBase()
-        noexcept( std::is_nothrow_destructible<I>::value ) = default;
+      __PGBAR_CXX20_CNSTXPR IterSpanBase<I>::~IterSpanBase() = default;
 
 # if __PGBAR_CXX23
       template<typename... Signature>
@@ -675,9 +674,9 @@ namespace pgbar {
 #  endif
 
         struct AnyFn {
-          __PGBAR_CXX20_CNSTXPR virtual ~AnyFn() noexcept       = default;
-          virtual Ret operator()( Args... args ) const          = 0;
-          virtual void move_to( void* const dest_mem ) noexcept = 0;
+          __PGBAR_CXX20_CNSTXPR virtual ~AnyFn()       = default;
+          virtual Ret operator()( Args... args ) const = 0;
+          virtual void move_to( void* const dest_mem ) = 0;
         };
         template<typename Fn, typename = void>
         struct FnContainer final : public AnyFn {
@@ -693,9 +692,9 @@ namespace pgbar {
             : fntor_ { std::move( fntor ) }
           {}
 
-          FnContainer( const FnContainer& )                     = delete;
-          FnContainer& operator=( const FnContainer& ) &        = delete;
-          __PGBAR_CXX20_CNSTXPR virtual ~FnContainer() noexcept = default;
+          FnContainer( const FnContainer& )              = delete;
+          FnContainer& operator=( const FnContainer& ) & = delete;
+          __PGBAR_CXX20_CNSTXPR virtual ~FnContainer()   = default;
 
           Ret operator()( Args... args ) const
             noexcept( noexcept( std::declval<Fn>()( std::declval<Args>()... ) ) ) override
@@ -719,9 +718,9 @@ namespace pgbar {
             : Fn( std::move( fntor ) )
           {}
 
-          FnContainer( const FnContainer& )                     = delete;
-          FnContainer& operator=( const FnContainer& ) &        = delete;
-          __PGBAR_CXX20_CNSTXPR virtual ~FnContainer() noexcept = default;
+          FnContainer( const FnContainer& )              = delete;
+          FnContainer& operator=( const FnContainer& ) & = delete;
+          __PGBAR_CXX20_CNSTXPR virtual ~FnContainer()   = default;
 
           Ret operator()( Args... args ) const
             noexcept( noexcept( std::declval<Fn>()( std::declval<Args>()... ) ) ) override
@@ -925,7 +924,7 @@ namespace pgbar {
         {}
 
         constexpr iterator() noexcept : iterator( {}, {}, {} ) {}
-        __PGBAR_CXX20_CNSTXPR ~iterator() noexcept = default;
+        __PGBAR_CXX20_CNSTXPR ~iterator() = default;
 
         __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator& operator++() & noexcept
         {
@@ -1002,7 +1001,7 @@ namespace pgbar {
        * If the `endpoint` is less than zero.
        */
       __PGBAR_CXX20_CNSTXPR explicit NumericSpan( N endpoint ) : NumericSpan( {}, endpoint, 1 ) {}
-      __PGBAR_CXX20_CNSTXPR virtual ~NumericSpan() noexcept = default;
+      __PGBAR_CXX20_CNSTXPR virtual ~NumericSpan() = default;
 
       __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr iterator begin() const noexcept
       {
@@ -1112,7 +1111,7 @@ namespace pgbar {
         constexpr explicit iterator( I startpoint ) noexcept( std::is_nothrow_move_constructible<I>::value )
           : current_ { std::move( startpoint ) }
         {}
-        __PGBAR_CXX20_CNSTXPR ~iterator() noexcept( std::is_nothrow_destructible<I>::value ) = default;
+        __PGBAR_CXX20_CNSTXPR ~iterator() = default;
 
         __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator& operator++() & noexcept(
           noexcept( ++std::declval<I>() ) )
@@ -1158,7 +1157,7 @@ namespace pgbar {
       };
 
       using __details::wrappers::IterSpanBase<I>::IterSpanBase;
-      __PGBAR_CXX20_CNSTXPR virtual ~IterSpan() noexcept( std::is_nothrow_destructible<I>::value ) = default;
+      __PGBAR_CXX20_CNSTXPR virtual ~IterSpan() = default;
 
       __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr iterator begin() const
         noexcept( std::is_nothrow_move_constructible<I>::value
@@ -1198,7 +1197,7 @@ namespace pgbar {
           __PGBAR_ASSERT( endpoint != nullptr );
           reversed_ = endpoint < startpoint;
         }
-        __PGBAR_CXX20_CNSTXPR ~iterator() noexcept = default;
+        __PGBAR_CXX20_CNSTXPR ~iterator() = default;
 
         __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator& operator++() & noexcept
         {
@@ -1254,7 +1253,7 @@ namespace pgbar {
         __PGBAR_UNLIKELY if ( startpoint == nullptr || endpoint == nullptr ) throw exception::InvalidArgument(
           "pgbar: null pointer cannot generate a range" );
       }
-      __PGBAR_CXX20_CNSTXPR virtual ~IterSpan() noexcept = default;
+      __PGBAR_CXX20_CNSTXPR virtual ~IterSpan() = default;
 
       __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr iterator begin() const noexcept
       {
@@ -1440,7 +1439,7 @@ namespace pgbar {
         { // This is an internal component, so we assume the arguments are always valid.
           __PGBAR_ASSERT( start_ <= end_ );
         }
-        __PGBAR_CXX20_CNSTXPR ~CodeChart() noexcept = default;
+        __PGBAR_CXX20_CNSTXPR ~CodeChart() = default;
 
         // Check whether the Unicode code point is within this code chart.
         __PGBAR_NODISCARD constexpr bool contains( types::UCodePoint codepoint ) const noexcept
@@ -1584,11 +1583,11 @@ namespace pgbar {
           width_ = render_width( u8_bytes );
           bytes_ = std::move( u8_bytes );
         }
-        __PGBAR_CXX20_CNSTXPR U8String( const Self& )              = default;
-        __PGBAR_CXX20_CNSTXPR U8String( Self&& ) noexcept          = default;
-        __PGBAR_CXX20_CNSTXPR Self& operator=( const Self& ) &     = default;
-        __PGBAR_CXX20_CNSTXPR Self& operator=( Self&& ) & noexcept = default;
-        __PGBAR_CXX20_CNSTXPR ~U8String() noexcept                 = default;
+        __PGBAR_CXX20_CNSTXPR U8String( const Self& )          = default;
+        __PGBAR_CXX20_CNSTXPR U8String( Self&& )               = default;
+        __PGBAR_CXX20_CNSTXPR Self& operator=( const Self& ) & = default;
+        __PGBAR_CXX20_CNSTXPR Self& operator=( Self&& ) &      = default;
+        __PGBAR_CXX20_CNSTXPR ~U8String()                      = default;
 
         Self& operator=( types::ROStr u8_bytes ) &
         {
@@ -1748,7 +1747,7 @@ namespace pgbar {
         std::vector<types::Char> buffer_;
 
       public:
-        __PGBAR_CXX20_CNSTXPR Stringbuf() noexcept = default;
+        __PGBAR_CXX20_CNSTXPR Stringbuf() = default;
 
         __PGBAR_CXX20_CNSTXPR Stringbuf( const Self& lhs ) { operator=( lhs ); }
         __PGBAR_CXX20_CNSTXPR Stringbuf( Self&& rhs ) noexcept : Stringbuf()
@@ -1770,7 +1769,7 @@ namespace pgbar {
           return *this;
         }
 
-        __PGBAR_CXX20_CNSTXPR virtual ~Stringbuf() noexcept = default;
+        __PGBAR_CXX20_CNSTXPR virtual ~Stringbuf() = default;
 
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR bool empty() const noexcept { return buffer_.empty(); }
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void clear() & noexcept { buffer_.clear(); }
@@ -1799,13 +1798,13 @@ namespace pgbar {
         {
           __PGBAR_ASSERT( N != 0 );
           for ( types::Size _ = 0; _ < __num; ++_ )
-            buffer_.insert( buffer_.cend(), info, info + N );
+            buffer_.insert( buffer_.end(), info, info + N );
           return *this;
         }
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& append( types::ROStr info, types::Size __num = 1 ) &
         {
           for ( types::Size _ = 0; _ < __num; ++_ )
-            buffer_.insert( buffer_.cend(), info.data(), info.data() + info.size() );
+            buffer_.insert( buffer_.end(), info.data(), info.data() + info.size() );
           return *this;
         }
         template<typename T>
@@ -1816,7 +1815,7 @@ namespace pgbar {
           append( T&& info, types::Size __num = 1 ) &
         {
           for ( types::Size _ = 0; _ < __num; ++_ )
-            buffer_.insert( buffer_.cend(), info.cbegin(), info.cend() );
+            buffer_.insert( buffer_.end(), info.cbegin(), info.cend() );
           return *this;
         }
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& append( const charcodes::U8String& info,
@@ -1887,8 +1886,8 @@ namespace pgbar {
         using Self = OStream;
 
       public:
-        __PGBAR_CXX20_CNSTXPR OStream() noexcept          = default;
-        __PGBAR_CXX20_CNSTXPR virtual ~OStream() noexcept = default;
+        __PGBAR_CXX20_CNSTXPR OStream()          = default;
+        __PGBAR_CXX20_CNSTXPR virtual ~OStream() = default;
 
         Self& flush() &
         {
@@ -1940,8 +1939,8 @@ namespace pgbar {
         Mutex( const Mutex& )              = delete;
         Mutex& operator=( const Mutex& ) & = delete;
 
-        constexpr Mutex() noexcept              = default;
-        __PGBAR_CXX20_CNSTXPR ~Mutex() noexcept = default;
+        constexpr Mutex()              = default;
+        __PGBAR_CXX20_CNSTXPR ~Mutex() = default;
 
         __PGBAR_INLINE_FN void lock() & noexcept
         {
@@ -1970,7 +1969,7 @@ namespace pgbar {
         Self& operator=( const Self& ) & = delete;
 
         constexpr SharedMutex() noexcept : num_readers_ { 0 } {}
-        __PGBAR_CXX20_CNSTXPR ~SharedMutex() noexcept = default;
+        __PGBAR_CXX20_CNSTXPR ~SharedMutex() = default;
 
         void lock() & noexcept
         {
@@ -2055,8 +2054,8 @@ namespace pgbar {
         mutable SharedMutex rw_mtx_;
 
       public:
-        ExceptionBox() noexcept  = default;
-        ~ExceptionBox() noexcept = default;
+        ExceptionBox()  = default;
+        ~ExceptionBox() = default;
 
         ExceptionBox( ExceptionBox&& rhs ) noexcept : ExceptionBox() { swap( rhs ); }
         ExceptionBox& operator=( ExceptionBox&& rhs ) & noexcept
@@ -2145,7 +2144,7 @@ namespace pgbar {
           {}
           Handle( const Handle& )              = delete;
           Handle& operator=( const Handle& ) & = delete;
-          ~Handle() noexcept                   = default;
+          ~Handle()                            = default;
         };
 
         std::unique_ptr<Handle> handle_;
@@ -2440,7 +2439,7 @@ namespace pgbar {
         RingQueue( const Self& rhs )         = delete;
         Self& operator=( const Self& rhs ) & = delete;
 
-        ~RingQueue() noexcept( std::is_nothrow_destructible<T>::value ) = default;
+        ~RingQueue() = default;
 
         // Insert the item into the queue and discard it if the queue is full.
         bool push( T item ) & noexcept( std::is_nothrow_move_assignable<T>::value )
@@ -2539,7 +2538,7 @@ namespace pgbar {
    ValueType data_;                                                                \
                                                                                    \
  public:                                                                           \
-   __PGBAR_CXX20_CNSTXPR ~StructName() noexcept = default;                         \
+   __PGBAR_CXX20_CNSTXPR ~StructName() = default;                                  \
    __PGBAR_CXX14_CNSTXPR ValueType& value() noexcept                               \
    {                                                                               \
      return data_;                                                                 \
@@ -2843,22 +2842,20 @@ namespace pgbar {
   namespace __details {
     // The Basic components of the progress bar.
     namespace assets {
-# define __PGBAR_NONEMPTY_CLASS( ClassName, Constexpr, Noexcept1, Noexcept2 )               \
-   Constexpr ClassName( const ClassName& lhs ) noexcept( Noexcept1 )             = default; \
-   Constexpr ClassName( ClassName&& rhs ) noexcept                               = default; \
-   Constexpr ClassName& operator=( const ClassName& lhs )& noexcept( Noexcept2 ) = default; \
-   Constexpr ClassName& operator=( ClassName&& rhs )& noexcept                   = default; \
-   __PGBAR_CXX20_CNSTXPR virtual ~ClassName() noexcept                           = 0;
+# define __PGBAR_NONEMPTY_CLASS( ClassName, Constexpr )           \
+   Constexpr ClassName( const ClassName& )             = default; \
+   Constexpr ClassName( ClassName&& )                  = default; \
+   Constexpr ClassName& operator=( const ClassName& )& = default; \
+   Constexpr ClassName& operator=( ClassName&& )&      = default; \
+   __PGBAR_CXX20_CNSTXPR virtual ~ClassName()          = 0;
 
-# define __PGBAR_EMPTY_CLASS( ClassName )                                                                    \
-   constexpr ClassName() noexcept( std::is_nothrow_default_constructible<Base>::value ) = default;           \
-   constexpr ClassName( const ClassName& lhs ) noexcept( std::is_nothrow_copy_constructible<Base>::value ) = \
-     default;                                                                                                \
-   constexpr ClassName( ClassName&& rhs ) noexcept = default;                                                \
-   __PGBAR_CXX14_CNSTXPR ClassName& operator=( const ClassName& rhs )& noexcept(                             \
-     std::is_nothrow_copy_assignable<Base>::value )                        = default;                        \
-   __PGBAR_CXX14_CNSTXPR ClassName& operator=( ClassName&& rhs )& noexcept = default;                        \
-   __PGBAR_CXX20_CNSTXPR virtual ~ClassName() noexcept                     = 0;
+# define __PGBAR_EMPTY_CLASS( ClassName )                                     \
+   constexpr ClassName()                                           = default; \
+   constexpr ClassName( const ClassName& )                         = default; \
+   constexpr ClassName( ClassName&& )                              = default; \
+   __PGBAR_CXX14_CNSTXPR ClassName& operator=( const ClassName& )& = default; \
+   __PGBAR_CXX14_CNSTXPR ClassName& operator=( ClassName&& )&      = default; \
+   __PGBAR_CXX20_CNSTXPR virtual ~ClassName()                      = 0;
 
       template<typename Base, typename Derived>
       class Fonts : public Base {
@@ -2890,15 +2887,13 @@ namespace pgbar {
 
       public:
         Fonts() noexcept( std::is_nothrow_default_constructible<Base>::value )
-          : fonts_ { ( std::numeric_limits<types::BitwiseSet>::max )() }
+          : fonts_ { static_cast<types::BitwiseSet>( ~0 ) }
         {}
-        constexpr Fonts( const Fonts& lhs )
-          noexcept( std::is_nothrow_copy_constructible<Base>::value ) = default;
-        constexpr Fonts( Fonts&& rhs ) noexcept                       = default;
-        __PGBAR_CXX14_CNSTXPR Fonts& operator=( const Fonts& rhs ) & noexcept(
-          std::is_nothrow_copy_assignable<Base>::value )                 = default;
-        __PGBAR_CXX14_CNSTXPR Fonts& operator=( Fonts&& rhs ) & noexcept = default;
-        __PGBAR_CXX20_CNSTXPR virtual ~Fonts() noexcept                  = 0;
+        constexpr Fonts( const Fonts& lhs )                          = default;
+        constexpr Fonts( Fonts&& rhs )                               = default;
+        __PGBAR_CXX14_CNSTXPR Fonts& operator=( const Fonts& rhs ) & = default;
+        __PGBAR_CXX14_CNSTXPR Fonts& operator=( Fonts&& rhs ) &      = default;
+        __PGBAR_CXX20_CNSTXPR virtual ~Fonts()                       = 0;
 
 # define __PGBAR_METHOD( OptionName, ParamName )                    \
                                                                     \
@@ -2930,7 +2925,7 @@ namespace pgbar {
         }
       };
       template<typename Base, typename Derived>
-      __PGBAR_CXX20_CNSTXPR Fonts<Base, Derived>::~Fonts() noexcept = default;
+      __PGBAR_CXX20_CNSTXPR Fonts<Base, Derived>::~Fonts() = default;
 
       template<typename Base, typename Derived>
       class TaskQuantity : public Base {
@@ -2943,11 +2938,8 @@ namespace pgbar {
         scope::NumericSpan<types::Size> task_range_;
 
       public:
-        constexpr TaskQuantity() noexcept( std::is_nothrow_default_constructible<Base>::value ) = default;
-        __PGBAR_NONEMPTY_CLASS( TaskQuantity,
-                                __PGBAR_CXX14_CNSTXPR,
-                                std::is_nothrow_copy_constructible<Base>::value,
-                                std::is_nothrow_copy_assignable<Base>::value )
+        constexpr TaskQuantity() = default;
+        __PGBAR_NONEMPTY_CLASS( TaskQuantity, __PGBAR_CXX14_CNSTXPR )
 
         // Set the number of tasks, passing in zero is no exception.
         Derived& tasks( types::Size param ) &
@@ -2970,7 +2962,7 @@ namespace pgbar {
         }
       };
       template<typename Base, typename Derived>
-      __PGBAR_CXX20_CNSTXPR TaskQuantity<Base, Derived>::~TaskQuantity() noexcept = default;
+      __PGBAR_CXX20_CNSTXPR TaskQuantity<Base, Derived>::~TaskQuantity() = default;
 
       template<typename Base, typename Derived>
       class BasicAnimation : public Base {
@@ -3016,11 +3008,8 @@ namespace pgbar {
         }
 
       public:
-        __PGBAR_CXX20_CNSTXPR BasicAnimation() noexcept(
-          std::is_nothrow_default_constructible<Base>::value
-          && std::is_nothrow_default_constructible<types::String>::value
-          && std::is_nothrow_default_constructible<std::vector<charcodes::U8String>>::value ) = default;
-        __PGBAR_NONEMPTY_CLASS( BasicAnimation, __PGBAR_CXX20_CNSTXPR, false, false )
+        __PGBAR_CXX20_CNSTXPR BasicAnimation() = default;
+        __PGBAR_NONEMPTY_CLASS( BasicAnimation, __PGBAR_CXX20_CNSTXPR )
 
 # define __PGBAR_METHOD( OptionName, ParamName, Operation )         \
    std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
@@ -3078,7 +3067,7 @@ namespace pgbar {
         }
       };
       template<typename Base, typename Derived>
-      __PGBAR_CXX20_CNSTXPR BasicAnimation<Base, Derived>::~BasicAnimation() noexcept = default;
+      __PGBAR_CXX20_CNSTXPR BasicAnimation<Base, Derived>::~BasicAnimation() = default;
 
       template<typename Base, typename Derived>
       class BasicIndicator : public Base {
@@ -3108,11 +3097,8 @@ namespace pgbar {
         }
 
       public:
-        __PGBAR_CXX20_CNSTXPR BasicIndicator()
-          noexcept( std::is_nothrow_default_constructible<Base>::value
-                    && std::is_nothrow_default_constructible<types::String>::value
-                    && std::is_nothrow_default_constructible<charcodes::U8String>::value ) = default;
-        __PGBAR_NONEMPTY_CLASS( BasicIndicator, __PGBAR_CXX20_CNSTXPR, false, false )
+        __PGBAR_CXX20_CNSTXPR BasicIndicator() = default;
+        __PGBAR_NONEMPTY_CLASS( BasicIndicator, __PGBAR_CXX20_CNSTXPR )
 
 # define __PGBAR_METHOD( OptionName, ParamName, Operation )         \
    std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
@@ -3185,7 +3171,7 @@ namespace pgbar {
         }
       };
       template<typename Base, typename Derived>
-      __PGBAR_CXX20_CNSTXPR BasicIndicator<Base, Derived>::~BasicIndicator() noexcept = default;
+      __PGBAR_CXX20_CNSTXPR BasicIndicator<Base, Derived>::~BasicIndicator() = default;
 
       template<typename Base, typename Derived>
       class CharIndicator : public Base {
@@ -3250,11 +3236,8 @@ namespace pgbar {
         }
 
       public:
-        __PGBAR_CXX20_CNSTXPR CharIndicator()
-          noexcept( std::is_nothrow_default_constructible<Base>::value
-                    && std::is_nothrow_default_constructible<types::String>::value
-                    && std::is_nothrow_default_constructible<charcodes::U8String>::value ) = default;
-        __PGBAR_NONEMPTY_CLASS( CharIndicator, __PGBAR_CXX20_CNSTXPR, false, false )
+        __PGBAR_CXX20_CNSTXPR CharIndicator() = default;
+        __PGBAR_NONEMPTY_CLASS( CharIndicator, __PGBAR_CXX20_CNSTXPR )
 
 # define __PGBAR_METHOD( OptionName, ParamName, Operation )         \
    std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
@@ -3302,12 +3285,14 @@ namespace pgbar {
         }
       };
       template<typename Base, typename Derived>
-      __PGBAR_CXX20_CNSTXPR CharIndicator<Base, Derived>::~CharIndicator() noexcept = default;
+      __PGBAR_CXX20_CNSTXPR CharIndicator<Base, Derived>::~CharIndicator() = default;
 
       template<typename Base, typename Derived>
       class BlockIndicator : public Base {
       protected:
-        const std::array<types::LitStr, 8> filler_ = { "▏", "▎", "▍", "▌", "▋", "▊", "▉", "█" };
+        const std::array<types::LitStr, 8> filler_ = {
+          { "▏", "▎", "▍", "▌", "▋", "▊", "▉", "█" }
+        };
 
         __PGBAR_INLINE_FN __PGBAR_CXX23_CNSTXPR io::Stringbuf& build_block( io::Stringbuf& buffer,
                                                                             types::Float num_percent ) const
@@ -3339,7 +3324,7 @@ namespace pgbar {
         __PGBAR_EMPTY_CLASS( BlockIndicator )
       };
       template<typename Base, typename Derived>
-      __PGBAR_CXX20_CNSTXPR BlockIndicator<Base, Derived>::~BlockIndicator() noexcept = default;
+      __PGBAR_CXX20_CNSTXPR BlockIndicator<Base, Derived>::~BlockIndicator() = default;
 
       template<typename Base, typename Derived>
       class Spinner : public Base {
@@ -3363,7 +3348,7 @@ namespace pgbar {
         __PGBAR_EMPTY_CLASS( Spinner )
       };
       template<typename Base, typename Derived>
-      __PGBAR_CXX20_CNSTXPR Spinner<Base, Derived>::~Spinner() noexcept = default;
+      __PGBAR_CXX20_CNSTXPR Spinner<Base, Derived>::~Spinner() = default;
 
       template<typename Base, typename Derived>
       class Scanner : public Base {
@@ -3418,10 +3403,8 @@ namespace pgbar {
         }
 
       public:
-        __PGBAR_CXX20_CNSTXPR Scanner()
-          noexcept( std::is_nothrow_default_constructible<Base>::value
-                    && std::is_nothrow_default_constructible<charcodes::U8String>::value ) = default;
-        __PGBAR_NONEMPTY_CLASS( Scanner, __PGBAR_CXX20_CNSTXPR, false, false )
+        __PGBAR_CXX20_CNSTXPR Scanner() = default;
+        __PGBAR_NONEMPTY_CLASS( Scanner, __PGBAR_CXX20_CNSTXPR )
 
         /**
          * @throw exception::InvalidArgument
@@ -3442,7 +3425,7 @@ namespace pgbar {
         }
       };
       template<typename Base, typename Derived>
-      __PGBAR_CXX20_CNSTXPR Scanner<Base, Derived>::~Scanner() noexcept = default;
+      __PGBAR_CXX20_CNSTXPR Scanner<Base, Derived>::~Scanner() = default;
 
       template<typename Base, typename Derived>
       class Description : public Base {
@@ -3494,10 +3477,8 @@ namespace pgbar {
         }
 
       public:
-        __PGBAR_CXX20_CNSTXPR Description()
-          noexcept( std::is_nothrow_default_constructible<Base>::value
-                    && std::is_nothrow_default_constructible<types::String>::value ) = default;
-        __PGBAR_NONEMPTY_CLASS( Description, __PGBAR_CXX20_CNSTXPR, false, false )
+        __PGBAR_CXX20_CNSTXPR Description() = default;
+        __PGBAR_NONEMPTY_CLASS( Description, __PGBAR_CXX20_CNSTXPR )
 
 # define __PGBAR_METHOD( OptionName, ParamName, Operation )         \
    std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
@@ -3570,7 +3551,7 @@ namespace pgbar {
         }
       };
       template<typename Base, typename Derived>
-      __PGBAR_CXX20_CNSTXPR Description<Base, Derived>::~Description() noexcept = default;
+      __PGBAR_CXX20_CNSTXPR Description<Base, Derived>::~Description() = default;
 
       template<typename Base, typename Derived>
       class Segment : public Base {
@@ -3624,11 +3605,8 @@ namespace pgbar {
         }
 
       public:
-        __PGBAR_CXX20_CNSTXPR Segment()
-          noexcept( std::is_nothrow_default_constructible<Base>::value
-                    && std::is_nothrow_default_constructible<types::String>::value
-                    && std::is_nothrow_default_constructible<charcodes::U8String>::value ) = default;
-        __PGBAR_NONEMPTY_CLASS( Segment, __PGBAR_CXX20_CNSTXPR, false, false )
+        __PGBAR_CXX20_CNSTXPR Segment() = default;
+        __PGBAR_NONEMPTY_CLASS( Segment, __PGBAR_CXX20_CNSTXPR )
 
 # define __PGBAR_METHOD( OptionName, ParamName, Operation )         \
    std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
@@ -3685,7 +3663,7 @@ namespace pgbar {
         }
       };
       template<typename Base, typename Derived>
-      __PGBAR_CXX20_CNSTXPR Segment<Base, Derived>::~Segment() noexcept = default;
+      __PGBAR_CXX20_CNSTXPR Segment<Base, Derived>::~Segment() = default;
 
       template<typename Base, typename Derived>
       class PercentMeter : public Base {
@@ -3715,7 +3693,7 @@ namespace pgbar {
         __PGBAR_EMPTY_CLASS( PercentMeter )
       };
       template<typename Base, typename Derived>
-      __PGBAR_CXX20_CNSTXPR PercentMeter<Base, Derived>::~PercentMeter() noexcept = default;
+      __PGBAR_CXX20_CNSTXPR PercentMeter<Base, Derived>::~PercentMeter() = default;
 
       template<typename Base, typename Derived>
       class SpeedMeter : public Base {
@@ -3783,10 +3761,8 @@ namespace pgbar {
         }
 
       public:
-        __PGBAR_CXX20_CNSTXPR SpeedMeter()
-          noexcept( std::is_nothrow_default_constructible<Base>::value
-                    && std::is_nothrow_default_constructible<charcodes::U8String>::value ) = default;
-        __PGBAR_NONEMPTY_CLASS( SpeedMeter, __PGBAR_CXX20_CNSTXPR, false, false )
+        __PGBAR_CXX20_CNSTXPR SpeedMeter() = default;
+        __PGBAR_NONEMPTY_CLASS( SpeedMeter, __PGBAR_CXX20_CNSTXPR )
 
 # define __PGBAR_METHOD( ParamName, OptionName )                    \
    std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
@@ -3834,7 +3810,7 @@ namespace pgbar {
         }
       };
       template<typename Base, typename Derived>
-      __PGBAR_CXX20_CNSTXPR SpeedMeter<Base, Derived>::~SpeedMeter() noexcept = default;
+      __PGBAR_CXX20_CNSTXPR SpeedMeter<Base, Derived>::~SpeedMeter() = default;
 
       template<typename Base, typename Derived>
       class CounterMeter : public Base {
@@ -3867,7 +3843,7 @@ namespace pgbar {
         __PGBAR_EMPTY_CLASS( CounterMeter )
       };
       template<typename Base, typename Derived>
-      __PGBAR_CXX20_CNSTXPR CounterMeter<Base, Derived>::~CounterMeter() noexcept = default;
+      __PGBAR_CXX20_CNSTXPR CounterMeter<Base, Derived>::~CounterMeter() = default;
 
       template<typename Base, typename Derived>
       class Timer : public Base {
@@ -3896,7 +3872,7 @@ namespace pgbar {
         __PGBAR_EMPTY_CLASS( Timer )
       };
       template<typename Base, typename Derived>
-      __PGBAR_CXX20_CNSTXPR Timer<Base, Derived>::~Timer() noexcept = default;
+      __PGBAR_CXX20_CNSTXPR Timer<Base, Derived>::~Timer() = default;
 
       template<typename Base, typename Derived>
       class ElapsedTimer : public Base {
@@ -3915,7 +3891,7 @@ namespace pgbar {
         __PGBAR_EMPTY_CLASS( ElapsedTimer )
       };
       template<typename Base, typename Derived>
-      __PGBAR_CXX20_CNSTXPR ElapsedTimer<Base, Derived>::~ElapsedTimer() noexcept = default;
+      __PGBAR_CXX20_CNSTXPR ElapsedTimer<Base, Derived>::~ElapsedTimer() = default;
 
       template<typename Base, typename Derived>
       class CountdownTimer : public Base {
@@ -3950,7 +3926,7 @@ namespace pgbar {
         __PGBAR_EMPTY_CLASS( CountdownTimer )
       };
       template<typename Base, typename Derived>
-      __PGBAR_CXX20_CNSTXPR CountdownTimer<Base, Derived>::~CountdownTimer() noexcept = default;
+      __PGBAR_CXX20_CNSTXPR CountdownTimer<Base, Derived>::~CountdownTimer() = default;
 
       template<typename Base, typename Derived>
       class TaskCounter : public Base {
@@ -3981,7 +3957,7 @@ namespace pgbar {
           Base::operator=( std::move( rhs ) );
           return *this;
         }
-        __PGBAR_CXX20_CNSTXPR virtual ~TaskCounter() noexcept = 0;
+        __PGBAR_CXX20_CNSTXPR virtual ~TaskCounter() = 0;
 
         // Get the progress of the task.
         __PGBAR_NODISCARD types::Size progress() const noexcept
@@ -4175,7 +4151,7 @@ namespace pgbar {
         }
       };
       template<typename Base, typename Derived>
-      __PGBAR_CXX20_CNSTXPR TaskCounter<Base, Derived>::~TaskCounter() noexcept = default;
+      __PGBAR_CXX20_CNSTXPR TaskCounter<Base, Derived>::~TaskCounter() = default;
 
       template<typename Base, typename Derived>
       class FrameCounter : public Base {
@@ -4186,7 +4162,7 @@ namespace pgbar {
         __PGBAR_EMPTY_CLASS( FrameCounter )
       };
       template<typename Base, typename Derived>
-      __PGBAR_CXX20_CNSTXPR FrameCounter<Base, Derived>::~FrameCounter() noexcept = default;
+      __PGBAR_CXX20_CNSTXPR FrameCounter<Base, Derived>::~FrameCounter() = default;
     } // namespace assets
 
     namespace traits {
@@ -4280,7 +4256,7 @@ namespace pgbar {
         return stream_type == Channel::Stdout ? _stdout_in_tty : _stderr_in_tty;
       }
 
-      constexpr Core() noexcept = default;
+      constexpr Core() = default;
       constexpr Core( const Core& ) noexcept {}
       constexpr Core( Core&& ) noexcept {}
       __PGBAR_CXX14_CNSTXPR Core& operator=( const Core& lhs ) &
@@ -4296,13 +4272,13 @@ namespace pgbar {
         return *this;
       }
 
-      __PGBAR_CXX20_CNSTXPR virtual ~Core() noexcept = 0;
+      __PGBAR_CXX20_CNSTXPR virtual ~Core() = 0;
 
       __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR void swap( Core& ) noexcept {}
     };
-    const bool Core::_stdout_in_tty              = __details::console::intty<Channel::Stdout>();
-    const bool Core::_stderr_in_tty              = __details::console::intty<Channel::Stderr>();
-    __PGBAR_CXX20_CNSTXPR Core::~Core() noexcept = default;
+    const bool Core::_stdout_in_tty     = __details::console::intty<Channel::Stdout>();
+    const bool Core::_stderr_in_tty     = __details::console::intty<Channel::Stderr>();
+    __PGBAR_CXX20_CNSTXPR Core::~Core() = default;
 
     template<template<typename...> class BarType, typename OptionConstraint>
     class BasicConfig
@@ -4396,8 +4372,8 @@ namespace pgbar {
           std::initializer_list<char> { ( unpacker( *this, std::move( args ) ), '\0' )... } );
       }
 
-      BasicConfig( const Self& ) noexcept( std::is_nothrow_copy_constructible<Base>::value ) = default;
-      BasicConfig( Self&& ) noexcept                                                         = default;
+      BasicConfig( const Self& ) = default;
+      BasicConfig( Self&& )      = default;
       Self& operator=( const Self& lhs ) & noexcept( std::is_nothrow_copy_assignable<Base>::value )
       {
         std::lock_guard<__details::concurrent::SharedMutex> lock1 { this->rw_mtx_ };
@@ -4415,7 +4391,7 @@ namespace pgbar {
         Base::operator=( std::move( rhs ) );
         return *this;
       }
-      virtual ~BasicConfig() noexcept = default;
+      virtual ~BasicConfig() = default;
 
       Self& style( __details::types::BitwiseSet val ) &
       {
@@ -4529,7 +4505,8 @@ namespace pgbar {
           if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::InfoColor, ParamList>::value )
             unpacker( cfg, option::InfoColor( color::Cyan ) );
           if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::SpeedUnit, ParamList>::value )
-            unpacker( cfg, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
+            unpacker( cfg,
+                      option::SpeedUnit( std::array<types::String, 4>( { "Hz", "kHz", "MHz", "GHz" } ) ) );
           if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Magnitude, ParamList>::value )
             unpacker( cfg, option::Magnitude( 1000 ) );
           if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Style, ParamList>::value )
@@ -4549,7 +4526,8 @@ namespace pgbar {
           if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::InfoColor, ParamList>::value )
             unpacker( cfg, option::InfoColor( color::Cyan ) );
           if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::SpeedUnit, ParamList>::value )
-            unpacker( cfg, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
+            unpacker( cfg,
+                      option::SpeedUnit( std::array<types::String, 4>( { "Hz", "kHz", "MHz", "GHz" } ) ) );
           if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Magnitude, ParamList>::value )
             unpacker( cfg, option::Magnitude( 1000 ) );
           if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Style, ParamList>::value )
@@ -4571,7 +4549,8 @@ namespace pgbar {
           if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::InfoColor, ParamList>::value )
             unpacker( cfg, option::InfoColor( color::Cyan ) );
           if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::SpeedUnit, ParamList>::value )
-            unpacker( cfg, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
+            unpacker( cfg,
+                      option::SpeedUnit( std::array<types::String, 4>( { "Hz", "kHz", "MHz", "GHz" } ) ) );
           if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Magnitude, ParamList>::value )
             unpacker( cfg, option::Magnitude( 1000 ) );
           if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Style, ParamList>::value )
@@ -4601,7 +4580,8 @@ namespace pgbar {
           if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::InfoColor, ParamList>::value )
             unpacker( cfg, option::InfoColor( color::Cyan ) );
           if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::SpeedUnit, ParamList>::value )
-            unpacker( cfg, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
+            unpacker( cfg,
+                      option::SpeedUnit( std::array<types::String, 4>( { "Hz", "kHz", "MHz", "GHz" } ) ) );
           if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Magnitude, ParamList>::value )
             unpacker( cfg, option::Magnitude( 1000 ) );
           if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Style, ParamList>::value )
@@ -4674,7 +4654,7 @@ namespace pgbar {
         CommonBuilder( ConfigType&& config ) noexcept( std::is_nothrow_move_constructible<ConfigType>::value )
           : ConfigType( std::move( config ) )
         {}
-        virtual ~CommonBuilder() noexcept = default;
+        virtual ~CommonBuilder() = default;
 
         /**
          * Builds and only builds the components belows:
@@ -4726,7 +4706,7 @@ namespace pgbar {
       struct Builder<config::CharBar> final : public CommonBuilder<config::CharBar> {
         using Self = config::CharBar;
         using CommonBuilder<Self>::CommonBuilder;
-        virtual ~Builder() noexcept = default;
+        virtual ~Builder() = default;
 
         __PGBAR_INLINE_FN io::Stringbuf& build(
           io::Stringbuf& buffer,
@@ -4824,7 +4804,7 @@ namespace pgbar {
       struct Builder<config::BlckBar> final : public CommonBuilder<config::BlckBar> {
         using Self = config::BlckBar;
         using CommonBuilder<Self>::CommonBuilder;
-        virtual ~Builder() noexcept = default;
+        virtual ~Builder() = default;
 
         __PGBAR_INLINE_FN io::Stringbuf& build(
           io::Stringbuf& buffer,
@@ -4921,7 +4901,7 @@ namespace pgbar {
       struct Builder<config::SpinBar> final : public CommonBuilder<config::SpinBar> {
         using Self = config::SpinBar;
         using CommonBuilder<Self>::CommonBuilder;
-        virtual ~Builder() noexcept = default;
+        virtual ~Builder() = default;
 
         __PGBAR_INLINE_FN io::Stringbuf& build(
           io::Stringbuf& buffer,
@@ -5016,7 +4996,7 @@ namespace pgbar {
       struct Builder<config::ScanBar> final : public CommonBuilder<config::ScanBar> {
         using Self = config::ScanBar;
         using CommonBuilder<Self>::CommonBuilder;
-        virtual ~Builder() noexcept = default;
+        virtual ~Builder() = default;
 
         __PGBAR_INLINE_FN io::Stringbuf& build(
           io::Stringbuf& buffer,
@@ -5158,8 +5138,8 @@ namespace pgbar {
   // A empty class that satisfies the "Basic lockable" requirement.
   class Threadunsafe final {
   public:
-    constexpr Threadunsafe() noexcept              = default;
-    __PGBAR_CXX20_CNSTXPR ~Threadunsafe() noexcept = default;
+    constexpr Threadunsafe()              = default;
+    __PGBAR_CXX20_CNSTXPR ~Threadunsafe() = default;
     __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR void lock() noexcept {}
     __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR void unlock() noexcept {}
   };
@@ -5201,7 +5181,7 @@ namespace pgbar {
       return *this;
     }
 
-    virtual ~Indicator() noexcept = default;
+    virtual ~Indicator() = default;
 
     virtual Indicator& tick() &                                       = 0;
     virtual Indicator& tick( __details::types::Size next_step ) &     = 0;
@@ -5665,7 +5645,7 @@ namespace pgbar {
           noexcept( std::is_nothrow_move_constructible<typename R::iterator>::value )
           : itr_ { std::move( itr ) }, itr_bar_ { std::addressof( itr_bar ) }
         {}
-        __PGBAR_CXX20_CNSTXPR ~iterator() noexcept( std::is_nothrow_destructible<R>::value ) = default;
+        __PGBAR_CXX20_CNSTXPR ~iterator() = default;
 
         __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator& operator++() &
         {
@@ -5729,7 +5709,7 @@ namespace pgbar {
         swap( rhs );
         return *this;
       }
-      __PGBAR_CXX20_CNSTXPR virtual ~ProxySpan() noexcept( std::is_nothrow_destructible<R>::value ) = default;
+      __PGBAR_CXX20_CNSTXPR virtual ~ProxySpan() = default;
 
       /**
        * This function CHANGES the state of the pgbar object it holds.
