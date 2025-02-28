@@ -595,6 +595,9 @@ namespace pgbar {
         static_assert( !std::is_void<typename std::iterator_traits<I>::difference_type>::value,
                        "pgbar::__details::wrappers::IterSpanBase: The 'difference_type' of the given "
                        "iterators cannot be 'void'" );
+        static_assert(
+          std::is_copy_constructible<I>::value || std::is_move_constructible<I>::value,
+          "pgbar::__details::wrappers::IterSpanBase: The given iterators must be copyable or movable " );
 
         // Measure the length of the iteration range.
         __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR types::Size measure() const noexcept
@@ -617,10 +620,19 @@ namespace pgbar {
         {
           size_ = measure();
         }
-        __PGBAR_CXX20_CNSTXPR virtual ~IterSpanBase() = 0;
+        __PGBAR_CXX17_CNSTXPR IterSpanBase( const IterSpanBase& )              = default;
+        __PGBAR_CXX17_CNSTXPR IterSpanBase( IterSpanBase&& )                   = default;
+        __PGBAR_CXX17_CNSTXPR IterSpanBase& operator=( const IterSpanBase& ) & = default;
+        __PGBAR_CXX17_CNSTXPR IterSpanBase& operator=( IterSpanBase&& ) &      = default;
+        __PGBAR_CXX20_CNSTXPR virtual ~IterSpanBase()                          = 0;
 
-        __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR I& start_iter() noexcept { return start_; }
-        __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR I& end_iter() noexcept { return end_; }
+        __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR I& start_iter() & noexcept { return start_; }
+        __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR const I& start_iter() const& noexcept { return start_; }
+        __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR I start_iter() && noexcept { return std::move( start_ ); }
+
+        __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR I& end_iter() & noexcept { return end_; }
+        __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR const I& end_iter() const& noexcept { return end_; }
+        __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR I end_iter() && noexcept { return std::move( end_ ); }
 
         __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR IterSpanBase& start_iter( I startpoint )
           noexcept( std::is_nothrow_move_assignable<I>::value )
@@ -704,6 +716,7 @@ namespace pgbar {
           void move_to( void* const dest_mem ) noexcept override
           {
             __PGBAR_ASSERT( dest_mem != nullptr );
+            // After C++26, placement new is constexpr.
             new ( dest_mem ) FnContainer( std::move( fntor_ ) );
           }
         };
@@ -922,9 +935,10 @@ namespace pgbar {
         constexpr iterator( N startpoint, N step, __details::types::Size iterated = 0 ) noexcept
           : itr_start_ { startpoint }, itr_step_ { step }, itr_cnt_ { iterated }
         {}
-
         constexpr iterator() noexcept : iterator( {}, {}, {} ) {}
-        __PGBAR_CXX20_CNSTXPR ~iterator() = default;
+        constexpr iterator( const iterator& )                          = default;
+        __PGBAR_CXX14_CNSTXPR iterator& operator=( const iterator& ) & = default;
+        __PGBAR_CXX20_CNSTXPR ~iterator()                              = default;
 
         __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator& operator++() & noexcept
         {
@@ -1001,7 +1015,9 @@ namespace pgbar {
        * If the `endpoint` is less than zero.
        */
       __PGBAR_CXX20_CNSTXPR explicit NumericSpan( N endpoint ) : NumericSpan( {}, endpoint, 1 ) {}
-      __PGBAR_CXX20_CNSTXPR virtual ~NumericSpan() = default;
+      constexpr NumericSpan( const NumericSpan& )                          = default;
+      __PGBAR_CXX14_CNSTXPR NumericSpan& operator=( const NumericSpan& ) & = default;
+      __PGBAR_CXX20_CNSTXPR virtual ~NumericSpan()                         = default;
 
       __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr iterator begin() const noexcept
       {
@@ -1111,7 +1127,11 @@ namespace pgbar {
         constexpr explicit iterator( I startpoint ) noexcept( std::is_nothrow_move_constructible<I>::value )
           : current_ { std::move( startpoint ) }
         {}
-        __PGBAR_CXX20_CNSTXPR ~iterator() = default;
+        constexpr iterator( const iterator& )                          = default;
+        constexpr iterator( iterator&& )                               = default;
+        __PGBAR_CXX14_CNSTXPR iterator& operator=( const iterator& ) & = default;
+        __PGBAR_CXX14_CNSTXPR iterator& operator=( iterator&& ) &      = default;
+        __PGBAR_CXX20_CNSTXPR ~iterator()                              = default;
 
         __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator& operator++() & noexcept(
           noexcept( ++std::declval<I>() ) )
@@ -1157,7 +1177,11 @@ namespace pgbar {
       };
 
       using __details::wrappers::IterSpanBase<I>::IterSpanBase;
-      __PGBAR_CXX20_CNSTXPR virtual ~IterSpan() = default;
+      __PGBAR_CXX17_CNSTXPR IterSpan( const IterSpan& )              = default;
+      __PGBAR_CXX17_CNSTXPR IterSpan( IterSpan&& )                   = default;
+      __PGBAR_CXX17_CNSTXPR IterSpan& operator=( const IterSpan& ) & = default;
+      __PGBAR_CXX17_CNSTXPR IterSpan& operator=( IterSpan&& ) &      = default;
+      __PGBAR_CXX20_CNSTXPR virtual ~IterSpan()                      = default;
 
       __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr iterator begin() const
         noexcept( std::is_nothrow_move_constructible<I>::value
@@ -1197,7 +1221,9 @@ namespace pgbar {
           __PGBAR_ASSERT( endpoint != nullptr );
           reversed_ = endpoint < startpoint;
         }
-        __PGBAR_CXX20_CNSTXPR ~iterator() = default;
+        __PGBAR_CXX14_CNSTXPR iterator( const iterator& )              = default;
+        __PGBAR_CXX14_CNSTXPR iterator& operator=( const iterator& ) & = default;
+        __PGBAR_CXX20_CNSTXPR ~iterator()                              = default;
 
         __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator& operator++() & noexcept
         {
@@ -1253,7 +1279,9 @@ namespace pgbar {
         __PGBAR_UNLIKELY if ( startpoint == nullptr || endpoint == nullptr ) throw exception::InvalidArgument(
           "pgbar: null pointer cannot generate a range" );
       }
-      __PGBAR_CXX20_CNSTXPR virtual ~IterSpan() = default;
+      __PGBAR_CXX20_CNSTXPR IterSpan( const IterSpan& )              = default;
+      __PGBAR_CXX20_CNSTXPR IterSpan& operator=( const IterSpan& ) & = default;
+      __PGBAR_CXX20_CNSTXPR virtual ~IterSpan()                      = default;
 
       __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr iterator begin() const noexcept
       {
@@ -1275,25 +1303,20 @@ namespace pgbar {
   namespace __details {
     namespace traits {
       template<typename T>
-      struct is_arith_range {
+      struct is_scope {
       private:
         template<typename N>
         static std::true_type check( const scope::NumericSpan<N>& );
-        static std::false_type check( ... );
-
-      public:
-        static constexpr bool value = decltype( check( std::declval<T>() ) )::value;
-      };
-
-      template<typename T>
-      struct is_iter_range {
-      private:
         template<typename I>
         static std::true_type check( const scope::IterSpan<I>& );
         static std::false_type check( ... );
 
       public:
-        static constexpr bool value = decltype( check( std::declval<T>() ) )::value;
+        static constexpr bool value =
+          std::conditional<std::is_reference<T>::value,
+                           std::false_type,
+                           decltype( check(
+                             std::declval<typename std::remove_volatile<T>::type>() ) )>::type ::value;
       };
     } // namespace traits
 
@@ -1439,7 +1462,9 @@ namespace pgbar {
         { // This is an internal component, so we assume the arguments are always valid.
           __PGBAR_ASSERT( start_ <= end_ );
         }
-        __PGBAR_CXX20_CNSTXPR ~CodeChart() = default;
+        constexpr CodeChart( const CodeChart& )                          = default;
+        __PGBAR_CXX14_CNSTXPR CodeChart& operator=( const CodeChart& ) & = default;
+        __PGBAR_CXX20_CNSTXPR ~CodeChart()                               = default;
 
         // Check whether the Unicode code point is within this code chart.
         __PGBAR_NODISCARD constexpr bool contains( types::UCodePoint codepoint ) const noexcept
@@ -1606,7 +1631,7 @@ namespace pgbar {
         }
 
         __PGBAR_NODISCARD __PGBAR_CXX20_CNSTXPR bool empty() const noexcept { return bytes_.empty(); }
-        __PGBAR_CXX14_CNSTXPR types::Size size() const noexcept { return width_; }
+        __PGBAR_CXX20_CNSTXPR types::Size size() const noexcept { return width_; }
         __PGBAR_CXX20_CNSTXPR types::ROStr str() const noexcept { return bytes_; }
 
         __PGBAR_CXX20_CNSTXPR void swap( Self& lhs ) noexcept
@@ -2554,9 +2579,11 @@ namespace pgbar {
      a.swap( b );                                                                  \
    }
 
-# define __PGBAR_OPTIONS_HELPER( StructName, ValueType, ParamName ) \
-   __PGBAR_OPTIONS( StructName, ValueType )                         \
-   constexpr StructName( ValueType ParamName ) noexcept : data_ { ParamName } {}
+# define __PGBAR_OPTIONS_HELPER( StructName, ValueType, ParamName )              \
+   __PGBAR_OPTIONS( StructName, ValueType )                                      \
+   constexpr StructName( ValueType ParamName ) noexcept : data_ { ParamName } {} \
+   constexpr StructName( const StructName& )                         = default;  \
+   __PGBAR_CXX14_CNSTXPR StructName& operator=( const StructName& )& = default;
 
     // A wrapper that stores the value of the bit option setting.
     struct Style final {
@@ -2695,7 +2722,11 @@ namespace pgbar {
    {}                                                                                     \
    __PGBAR_CXX20_CNSTXPR StructName( __details::types::HexRGB ParamName )                 \
      : data_ { __details::console::rgb2ansi( ParamName ) }                                \
-   {}
+   {}                                                                                     \
+   __PGBAR_CXX20_CNSTXPR StructName( const StructName& )             = default;           \
+   __PGBAR_CXX20_CNSTXPR StructName( StructName&& )                  = default;           \
+   __PGBAR_CXX20_CNSTXPR StructName& operator=( const StructName& )& = default;           \
+   __PGBAR_CXX20_CNSTXPR StructName& operator=( StructName&& )&      = default;
 
     // A wrapper that stores the description text color.
     struct DescColor final {
@@ -2789,13 +2820,17 @@ namespace pgbar {
        * The given each unit will be treated as 1,000 times greater than the previous one
        * (from left to right).
        */
-      SpeedUnit( std::array<std::u8string_view, 4> _units ) : data_ {}
+      __PGBAR_CXX20_CNSTXPR SpeedUnit( std::array<std::u8string_view, 4> _units ) : data_ {}
       {
         std::transform( _units.cbegin(), _units.cend(), data_.begin(), []( const std::u8string_view& ele ) {
           return __details::charcodes::U8String( ele );
         } );
       }
 # endif
+      __PGBAR_CXX20_CNSTXPR SpeedUnit( const SpeedUnit& )              = default;
+      __PGBAR_CXX20_CNSTXPR SpeedUnit( SpeedUnit&& )                   = default;
+      __PGBAR_CXX20_CNSTXPR SpeedUnit& operator=( const SpeedUnit& ) & = default;
+      __PGBAR_CXX20_CNSTXPR SpeedUnit& operator=( SpeedUnit&& ) &      = default;
     };
 
     // A wrapper that stores the `lead` animated element.
@@ -2824,7 +2859,7 @@ namespace pgbar {
         : data_ { __details::charcodes::U8String( std::move( _lead ) ) }
       {}
 # if __PGBAR_CXX20
-      Lead( std::vector<std::u8string_view> _leads ) : data_ {}
+      __PGBAR_CXX20_CNSTXPR Lead( std::vector<std::u8string_view> _leads ) : data_ {}
       {
         std::transform(
           _leads.cbegin(),
@@ -2834,6 +2869,10 @@ namespace pgbar {
       }
       Lead( const std::u8string_view& _lead ) : data_ { __details::charcodes::U8String( _lead ) } {}
 # endif
+      __PGBAR_CXX20_CNSTXPR Lead( const Lead& )              = default;
+      __PGBAR_CXX20_CNSTXPR Lead( Lead&& )                   = default;
+      __PGBAR_CXX20_CNSTXPR Lead& operator=( const Lead& ) & = default;
+      __PGBAR_CXX20_CNSTXPR Lead& operator=( Lead&& ) &      = default;
     };
 
 # undef __PGBAR_OPTIONS
@@ -4257,7 +4296,7 @@ namespace pgbar {
       }
 
       constexpr Core() = default;
-      constexpr Core( const Core& ) noexcept {}
+      constexpr Core( const Core& ) {}
       constexpr Core( Core&& ) noexcept {}
       __PGBAR_CXX14_CNSTXPR Core& operator=( const Core& lhs ) &
       {
@@ -5606,9 +5645,10 @@ namespace pgbar {
       template<typename B>
       struct is_iterable_bar<
         B,
-        typename std::enable_if<std::is_void<
-          decltype( std::declval<B&>().config().tasks( std::declval<types::Size>() ), void() )>::value>::type>
-        : std::true_type {};
+        typename std::enable_if<
+          !std::is_reference<B>::value
+          && std::is_void<decltype( std::declval<B&>().config().tasks( std::declval<types::Size>() ),
+                                    void() )>::value>::type> : std::true_type {};
     }
   } // namespace __details
 
@@ -5619,8 +5659,7 @@ namespace pgbar {
      */
     template<typename R, typename B>
     class ProxySpan {
-      static_assert( __details::traits::is_arith_range<R>::value
-                       || __details::traits::is_iter_range<R>::value,
+      static_assert( __details::traits::is_scope<R>::value,
                      "pgbar::scope::ProxySpan: Only available for certain range types" );
       static_assert( __details::traits::is_iterable_bar<B>::value,
                      "pgbar::scope::ProxySpan: Must have a method to configure the iteration "
@@ -5645,6 +5684,21 @@ namespace pgbar {
           noexcept( std::is_nothrow_move_constructible<typename R::iterator>::value )
           : itr_ { std::move( itr ) }, itr_bar_ { std::addressof( itr_bar ) }
         {}
+        __PGBAR_CXX17_CNSTXPR iterator( iterator&& rhs )
+          noexcept( std::is_nothrow_move_constructible<typename R::iterator>::value )
+          : itr_ { std::move( rhs.itr_ ) }, itr_bar_ { rhs.itr_bar_ }
+        {
+          rhs.itr_bar_ = nullptr;
+        }
+        __PGBAR_CXX17_CNSTXPR iterator& operator=( iterator&& rhs ) & noexcept(
+          std::is_nothrow_move_assignable<typename R::iterator>::value )
+        {
+          __PGBAR_ASSERT( this != &rhs );
+          itr_         = std::move( rhs.itr_ );
+          itr_bar_     = rhs.itr_bar_;
+          rhs.itr_bar_ = nullptr;
+          return *this;
+        }
         __PGBAR_CXX20_CNSTXPR ~iterator() = default;
 
         __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator& operator++() &
@@ -5690,6 +5744,8 @@ namespace pgbar {
         {
           return !( a == b );
         }
+
+        operator bool() const noexcept { return itr_bar_ != nullptr; }
       };
 
       __PGBAR_CXX17_CNSTXPR ProxySpan( R itr_range, B& itr_bar )
@@ -5700,13 +5756,15 @@ namespace pgbar {
         noexcept( std::is_nothrow_move_constructible<R>::value )
         : ProxySpan( std::move( rhs.itr_range_ ), *rhs.itr_bar_ )
       {
-        __PGBAR_ASSERT( rhs.itr_bar_ != nullptr );
+        __PGBAR_ASSERT( rhs.empty() == false );
+        rhs.itr_bar_ = nullptr;
       }
-      __PGBAR_CXX20_CNSTXPR ProxySpan& operator=( ProxySpan&& rhs ) & noexcept(
+      __PGBAR_CXX17_CNSTXPR ProxySpan& operator=( ProxySpan&& rhs ) & noexcept(
         std::is_nothrow_move_assignable<R>::value )
       {
         __PGBAR_ASSERT( this != &rhs );
         swap( rhs );
+        rhs.itr_bar_ = nullptr;
         return *this;
       }
       __PGBAR_CXX20_CNSTXPR virtual ~ProxySpan() = default;
@@ -5723,14 +5781,18 @@ namespace pgbar {
       {
         return iterator( itr_range_.end(), *itr_bar_ );
       }
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR bool empty() const noexcept
+      {
+        return itr_bar_ == nullptr;
+      }
 
-      __PGBAR_CXX20_CNSTXPR void swap( ProxySpan<R, B>& lhs ) noexcept
+      __PGBAR_CXX14_CNSTXPR void swap( ProxySpan<R, B>& lhs ) noexcept
       {
         __PGBAR_ASSERT( this != &lhs );
         std::swap( itr_bar_, lhs.itr_bar_ );
         itr_range_.swap( lhs.itr_range_ );
       }
-      friend __PGBAR_CXX20_CNSTXPR void swap( ProxySpan<R, B>& a, ProxySpan<R, B>& b ) noexcept
+      friend __PGBAR_CXX14_CNSTXPR void swap( ProxySpan<R, B>& a, ProxySpan<R, B>& b ) noexcept
       {
         a.swap( b );
       }
