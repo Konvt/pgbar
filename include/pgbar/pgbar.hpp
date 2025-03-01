@@ -266,10 +266,12 @@ namespace pgbar {
       // Check whether all types in `TpList` belong to any of the type lists `Lists`.
       template<typename TpList, typename... Lists>
       struct AllBelongAny;
-      template<>
-      struct AllBelongAny<TypeList<>> : std::true_type {};
-      template<typename G, typename... Gs>
-      struct AllBelongAny<TypeList<>, G, Gs...> : std::false_type {};
+      /**
+       * Vacuous truth case: the empty set belongs any collection.
+       * Universal quantification over empty set is always true.
+       */
+      template<typename... Gs>
+      struct AllBelongAny<TypeList<>, Gs...> : std::true_type {};
       template<typename T, typename... Ts>
       struct AllBelongAny<TypeList<T, Ts...>> : std::false_type {};
       template<typename T, typename G, typename... Gs>
@@ -1634,6 +1636,19 @@ namespace pgbar {
         __PGBAR_CXX20_CNSTXPR types::Size size() const noexcept { return width_; }
         __PGBAR_CXX20_CNSTXPR types::ROStr str() const noexcept { return bytes_; }
 
+        __PGBAR_CXX20_CNSTXPR void clear() noexcept
+        {
+          bytes_.clear();
+          width_ = 0;
+        }
+        __PGBAR_CXX20_CNSTXPR void shrink_to_fit()
+          noexcept( noexcept( std::declval<types::String&>().shrink_to_fit() ) )
+        { // The standard does not seem to specify whether the function is noexcept,
+          // so let's make a judgment here.
+          // At least I didn't see it on cppreference.
+          bytes_.shrink_to_fit();
+        }
+
         __PGBAR_CXX20_CNSTXPR void swap( Self& lhs ) noexcept
         {
           std::swap( width_, lhs.width_ );
@@ -1649,8 +1664,13 @@ namespace pgbar {
         __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( types::String&& a,
                                                                                          const Self& b )
         {
+          // Ensure strong exception safety.
+          const auto new_width = U8String::render_width( a );
           a.append( b.bytes_ );
-          return U8String( std::move( a ) );
+          auto ret   = U8String();
+          ret.bytes_ = std::move( a );
+          ret.width_ = new_width + b.width_;
+          return ret;
         }
         __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self
           operator+( const types::String& a, const Self& b )
@@ -1692,20 +1712,28 @@ namespace pgbar {
           tmp.append( b );
           return U8String( std::move( tmp ) );
         }
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( Self&& a,
+                                                                                         types::ROStr b )
+        {
+          const auto new_width = U8String::render_width( b );
+          a.bytes_.append( b );
+          a.width_ += new_width;
+          return a;
+        }
 
 # if __PGBAR_CXX20
         explicit U8String( std::u8string_view u8_sv ) : U8String()
         {
-          bytes_.resize( u8_sv.size() + 1 );
-          std::memcpy( bytes_.data(), u8_sv.data(), u8_sv.size() );
+          bytes_.resize( u8_sv.size() );
+          std::copy( u8_sv.cbegin(), u8_sv.cend(), bytes_.begin() );
           width_ = render_width( bytes_ );
         }
 
         explicit operator std::u8string() const
         {
           std::u8string ret;
-          ret.resize( bytes_.size() + 1 );
-          std::memcpy( ret.data(), bytes_.data(), bytes_.size() );
+          ret.resize( bytes_.size() );
+          std::copy( bytes_.cbegin(), bytes_.cend(), ret.begin() );
           return ret;
         }
 # endif
@@ -3360,7 +3388,28 @@ namespace pgbar {
         }
 
       public:
-        __PGBAR_EMPTY_CLASS( BlockIndicator )
+        constexpr BlockIndicator() = default;
+        constexpr BlockIndicator( const BlockIndicator& lhs )
+          noexcept( std::is_nothrow_copy_constructible<Base>::value )
+          : Base( lhs )
+        {}
+        constexpr BlockIndicator( BlockIndicator&& rhs )
+          noexcept( std::is_nothrow_move_constructible<Base>::value )
+          : Base( std::move( rhs ) )
+        {}
+        __PGBAR_CXX14_CNSTXPR BlockIndicator& operator=( const BlockIndicator& lhs ) & noexcept(
+          std::is_nothrow_copy_assignable<Base>::value )
+        {
+          Base::operator=( lhs );
+          return *this;
+        }
+        __PGBAR_CXX14_CNSTXPR BlockIndicator& operator=( BlockIndicator&& rhs ) & noexcept(
+          std::is_nothrow_move_assignable<Base>::value )
+        {
+          Base::operator=( std::move( rhs ) );
+          return *this;
+        }
+        __PGBAR_CXX20_CNSTXPR virtual ~BlockIndicator() = 0;
       };
       template<typename Base, typename Derived>
       __PGBAR_CXX20_CNSTXPR BlockIndicator<Base, Derived>::~BlockIndicator() = default;
@@ -4379,7 +4428,6 @@ namespace pgbar {
       // Enable all components
       static constexpr __details::types::BitwiseSet Entire = ~0;
 
-      BasicConfig() { __details::render::InitAction<Self>::template make<>( *this ); }
 # if __PGBAR_CXX20
       template<typename... Args>
         requires( !__details::traits::Repeat<__details::traits::TypeList<Args...>>::value
@@ -4404,21 +4452,32 @@ namespace pgbar {
                                                     __details::traits::ListSpeedMeter,
                                                     __details::traits::ListBitOption>::value>::type>
 # endif
-      BasicConfig( Args... args ) : BasicConfig()
+      BasicConfig( Args... args )
       {
         __details::render::InitAction<Self>::template make<Args...>( *this );
-        static_cast<void>(
-          std::initializer_list<char> { ( unpacker( *this, std::move( args ) ), '\0' )... } );
+        (void)std::initializer_list<char> { ( unpacker( *this, std::move( args ) ), '\0' )... };
       }
 
-      BasicConfig( const Self& ) = default;
-      BasicConfig( Self&& )      = default;
+      BasicConfig( const Self& lhs ) noexcept( std::is_nothrow_default_constructible<Base>::value
+                                               && std::is_nothrow_copy_assignable<Base>::value )
+      {
+        __details::concurrent::SharedLock<__details::concurrent::SharedMutex> lock { lhs.rw_mtx_ };
+        visual_masks_ = lhs.visual_masks_;
+        Base::operator=( lhs );
+      }
+      BasicConfig( Self&& rhs ) noexcept
+      {
+        __details::concurrent::SharedLock<__details::concurrent::SharedMutex> lock { rhs.rw_mtx_ };
+        using std::swap;
+        swap( visual_masks_, rhs.visual_masks_ );
+        Base::operator=( std::move( rhs ) );
+      }
       Self& operator=( const Self& lhs ) & noexcept( std::is_nothrow_copy_assignable<Base>::value )
       {
         std::lock_guard<__details::concurrent::SharedMutex> lock1 { this->rw_mtx_ };
         __details::concurrent::SharedLock<__details::concurrent::SharedMutex> lock2 { lhs.rw_mtx_ };
-        Base::operator=( lhs );
         visual_masks_ = lhs.visual_masks_;
+        Base::operator=( lhs );
         return *this;
       }
       Self& operator=( Self&& rhs ) & noexcept
@@ -4445,10 +4504,10 @@ namespace pgbar {
         return __details::render::InfoAction<Self>::fixed_render_size( *this );
       }
 
-      template<typename... Args>
+      template<typename Arg, typename... Args>
 # if __PGBAR_CXX20
-        requires( !__details::traits::Repeat<__details::traits::TypeList<Args...>>::value
-                  && __details::traits::AllBelongAny<__details::traits::TypeList<Args...>,
+        requires( !__details::traits::Repeat<__details::traits::TypeList<Arg, Args...>>::value
+                  && __details::traits::AllBelongAny<__details::traits::TypeList<Arg, Args...>,
                                                      __details::traits::ListFonts,
                                                      __details::traits::ListTaskQuantity,
                                                      OptionConstraint,
@@ -4458,8 +4517,8 @@ namespace pgbar {
                                                      __details::traits::ListBitOption>::value )
       Self&
 # else
-      typename std::enable_if<!__details::traits::Repeat<__details::traits::TypeList<Args...>>::value
-                                && __details::traits::AllBelongAny<__details::traits::TypeList<Args...>,
+      typename std::enable_if<!__details::traits::Repeat<__details::traits::TypeList<Arg, Args...>>::value
+                                && __details::traits::AllBelongAny<__details::traits::TypeList<Arg, Args...>,
                                                                    __details::traits::ListFonts,
                                                                    __details::traits::ListTaskQuantity,
                                                                    OptionConstraint,
@@ -4469,11 +4528,11 @@ namespace pgbar {
                                                                    __details::traits::ListBitOption>::value,
                               Self&>::type
 # endif
-        set( Args... args ) &
+        set( Arg arg, Args... args ) &
       {
         std::lock_guard<__details::concurrent::SharedMutex> lock { this->rw_mtx_ };
-        static_cast<void>(
-          std::initializer_list<char> { ( unpacker( *this, std::move( args ) ), '\0' )... } );
+        unpacker( *this, std::move( arg ) );
+        (void)std::initializer_list<char> { ( unpacker( *this, std::move( args ) ), '\0' )... };
         return *this;
       }
 
@@ -5798,16 +5857,6 @@ namespace pgbar {
       }
     };
   } // namespace scope
-
-  namespace traits {
-    template<typename T>
-    using is_mutex = __details::traits::is_mutex<T>;
-
-# if __PGBAR_CXX14
-    template<typename T>
-    constexpr bool is_mutex_v = is_mutex<T>::value;
-# endif
-  } // namespace traits
 } // namespace pgbar
 
 # undef __PGBAR_TRAIT_REGISTER
