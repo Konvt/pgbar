@@ -4279,35 +4279,66 @@ namespace pgbar {
       __PGBAR_INHERIT_REGISTER( assets::CountdownTimer,
                                 __PGBAR_PACK( assets::TaskQuantity, assets::Timer ), );
 
-      // Following are the types of `option` that each `assets` can receive.
+      template<template<typename...> class Component>
+      struct ComponentTraits;
+      template<template<typename...> class Component>
+      using ComponentTraits_t = typename ComponentTraits<Component>::type;
 
-      using ListFonts        = TypeList<option::Colored, option::Bolded>;
-      using ListTaskQuantity = TypeList<option::Tasks>;
-      using ListDescription  = TypeList<option::Description,
-                                        option::TrueMesg,
-                                        option::FalseMesg,
-                                        option::DescColor,
-                                        option::TrueColor,
-                                        option::FalseColor>;
-      using ListSegment =
-        TypeList<option::Divider, option::LeftBorder, option::RightBorder, option::InfoColor>;
-      using ListSpeedMeter = TypeList<option::SpeedUnit>;
-      using ListBitOption  = TypeList<option::Style>;
+# define __PGBAR_COMPONENT_REGISTER( Component, ... ) \
+   template<>                                         \
+   struct ComponentTraits<Component> {                \
+     using type = TypeList<__VA_ARGS__>;              \
+   }
 
-      using ListBasicAnimation = TypeList<option::Shift, option::Lead, option::LeadColor>;
-      using ListBasicBar       = TypeList<option::Starting,
-                                          option::Ending,
-                                          option::StartColor,
-                                          option::EndColor,
-                                          option::BarLength,
-                                          option::FillerColor>;
+      __PGBAR_COMPONENT_REGISTER( assets::Fonts, option::Colored, option::Bolded );
+      __PGBAR_COMPONENT_REGISTER( assets::TaskQuantity, option::Tasks );
+      __PGBAR_COMPONENT_REGISTER( assets::Description,
+                                  option::Description,
+                                  option::TrueMesg,
+                                  option::FalseMesg,
+                                  option::DescColor,
+                                  option::TrueColor,
+                                  option::FalseColor );
+      __PGBAR_COMPONENT_REGISTER( assets::Segment,
+                                  option::Divider,
+                                  option::LeftBorder,
+                                  option::RightBorder,
+                                  option::InfoColor );
+      __PGBAR_COMPONENT_REGISTER( assets::PercentMeter, );
+      __PGBAR_COMPONENT_REGISTER( assets::SpeedMeter, option::SpeedUnit );
+      __PGBAR_COMPONENT_REGISTER( assets::ElapsedTimer, );
+      __PGBAR_COMPONENT_REGISTER( assets::CountdownTimer, );
+      __PGBAR_COMPONENT_REGISTER( assets::BasicAnimation, option::Shift, option::Lead, option::LeadColor );
+      __PGBAR_COMPONENT_REGISTER( assets::BasicIndicator,
+                                  option::Starting,
+                                  option::Ending,
+                                  option::StartColor,
+                                  option::EndColor,
+                                  option::BarLength,
+                                  option::FillerColor );
 
-      using ListCharIndicator  = Merge_t<ListBasicAnimation,
-                                         ListBasicBar,
-                                         TypeList<option::Remains, option::Filler, option::RemainsColor>>;
-      using ListBlockIndicator = ListBasicBar;
-      using ListSpinner        = ListBasicAnimation;
-      using ListScanner        = Merge_t<ListBasicAnimation, ListBasicBar, TypeList<option::Filler>>;
+      template<>
+      struct ComponentTraits<assets::CharIndicator> {
+        using type = Merge_t<ComponentTraits_t<assets::BasicAnimation>,
+                             ComponentTraits_t<assets::BasicIndicator>,
+                             TypeList<option::Remains, option::Filler, option::RemainsColor>>;
+      };
+      template<>
+      struct ComponentTraits<assets::BlockIndicator> {
+        using type = Merge_t<ComponentTraits_t<assets::BasicAnimation>,
+                             ComponentTraits_t<assets::BasicIndicator>,
+                             TypeList<option::Remains, option::Filler, option::RemainsColor>>;
+      };
+      template<>
+      struct ComponentTraits<assets::Spinner> {
+        using type = ComponentTraits_t<assets::BasicAnimation>;
+      };
+      template<>
+      struct ComponentTraits<assets::Scanner> {
+        using type = Merge_t<ComponentTraits_t<assets::BasicAnimation>,
+                             ComponentTraits_t<assets::BasicIndicator>,
+                             TypeList<option::Filler>>;
+      };
     } // namespace traits
 
     namespace render {
@@ -4368,7 +4399,7 @@ namespace pgbar {
     const bool Core::_stderr_in_tty     = __details::console::intty<Channel::Stderr>();
     __PGBAR_CXX20_CNSTXPR Core::~Core() = default;
 
-    template<template<typename...> class BarType, typename OptionConstraint>
+    template<template<typename...> class BarType>
     class BasicConfig
       : public __details::traits::LI_t<
           BarType,
@@ -4378,7 +4409,7 @@ namespace pgbar {
           __details::assets::SpeedMeter,
           __details::assets::CounterMeter,
           __details::assets::ElapsedTimer,
-          __details::assets::CountdownTimer>::template type<Core, BasicConfig<BarType, OptionConstraint>> {
+          __details::assets::CountdownTimer>::template type<Core, BasicConfig<BarType>> {
       // BarType must inherit from BasicIndicator or BasicAnimation
       static_assert(
         __details::traits::Contain<__details::traits::TopoSort_t<__details::traits::TemplateList<BarType>>,
@@ -4398,6 +4429,14 @@ namespace pgbar {
                                          __details::assets::CounterMeter,
                                          __details::assets::ElapsedTimer,
                                          __details::assets::CountdownTimer>::template type<Core, Self>;
+      using Constraint =
+        __details::traits::Merge_t<__details::traits::TypeList<option::Style>,
+                                   __details::traits::ComponentTraits_t<BarType>,
+                                   __details::traits::ComponentTraits_t<__details::assets::Description>,
+                                   __details::traits::ComponentTraits_t<__details::assets::TaskQuantity>,
+                                   __details::traits::ComponentTraits_t<__details::assets::Segment>,
+                                   __details::traits::ComponentTraits_t<__details::assets::SpeedMeter>,
+                                   __details::traits::ComponentTraits_t<__details::assets::CountdownTimer>>;
 
       template<typename, typename>
       friend struct __details::render::InfoAction;
@@ -4430,27 +4469,15 @@ namespace pgbar {
 
 # if __PGBAR_CXX20
       template<typename... Args>
-        requires( !__details::traits::Repeat<__details::traits::TypeList<Args...>>::value
-                  && __details::traits::AllBelongAny<__details::traits::TypeList<Args...>,
-                                                     __details::traits::ListFonts,
-                                                     __details::traits::ListTaskQuantity,
-                                                     OptionConstraint,
-                                                     __details::traits::ListDescription,
-                                                     __details::traits::ListSegment,
-                                                     __details::traits::ListSpeedMeter,
-                                                     __details::traits::ListBitOption>::value )
+        requires(
+          !__details::traits::Repeat<__details::traits::TypeList<Args...>>::value
+          && __details::traits::AllBelongAny<__details::traits::TypeList<Args...>, Constraint>::value )
 # else
-      template<typename... Args,
-               typename = typename std::enable_if<
-                 !__details::traits::Repeat<__details::traits::TypeList<Args...>>::value
-                 && __details::traits::AllBelongAny<__details::traits::TypeList<Args...>,
-                                                    __details::traits::ListFonts,
-                                                    __details::traits::ListTaskQuantity,
-                                                    OptionConstraint,
-                                                    __details::traits::ListDescription,
-                                                    __details::traits::ListSegment,
-                                                    __details::traits::ListSpeedMeter,
-                                                    __details::traits::ListBitOption>::value>::type>
+      template<
+        typename... Args,
+        typename = typename std::enable_if<
+          !__details::traits::Repeat<__details::traits::TypeList<Args...>>::value
+          && __details::traits::AllBelongAny<__details::traits::TypeList<Args...>, Constraint>::value>::type>
 # endif
       BasicConfig( Args... args )
       {
@@ -4506,27 +4533,15 @@ namespace pgbar {
 
       template<typename Arg, typename... Args>
 # if __PGBAR_CXX20
-        requires( !__details::traits::Repeat<__details::traits::TypeList<Arg, Args...>>::value
-                  && __details::traits::AllBelongAny<__details::traits::TypeList<Arg, Args...>,
-                                                     __details::traits::ListFonts,
-                                                     __details::traits::ListTaskQuantity,
-                                                     OptionConstraint,
-                                                     __details::traits::ListDescription,
-                                                     __details::traits::ListSegment,
-                                                     __details::traits::ListSpeedMeter,
-                                                     __details::traits::ListBitOption>::value )
+        requires(
+          !__details::traits::Repeat<__details::traits::TypeList<Arg, Args...>>::value
+          && __details::traits::AllBelongAny<__details::traits::TypeList<Arg, Args...>, Constraint>::value )
       Self&
 # else
-      typename std::enable_if<!__details::traits::Repeat<__details::traits::TypeList<Arg, Args...>>::value
-                                && __details::traits::AllBelongAny<__details::traits::TypeList<Arg, Args...>,
-                                                                   __details::traits::ListFonts,
-                                                                   __details::traits::ListTaskQuantity,
-                                                                   OptionConstraint,
-                                                                   __details::traits::ListDescription,
-                                                                   __details::traits::ListSegment,
-                                                                   __details::traits::ListSpeedMeter,
-                                                                   __details::traits::ListBitOption>::value,
-                              Self&>::type
+      typename std::enable_if<
+        !__details::traits::Repeat<__details::traits::TypeList<Arg, Args...>>::value
+          && __details::traits::AllBelongAny<__details::traits::TypeList<Arg, Args...>, Constraint>::value,
+        Self&>::type
 # endif
         set( Arg arg, Args... args ) &
       {
@@ -4547,10 +4562,10 @@ namespace pgbar {
       friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
     };
 
-    using CharBar = BasicConfig<__details::assets::CharIndicator, __details::traits::ListCharIndicator>;
-    using BlckBar = BasicConfig<__details::assets::BlockIndicator, __details::traits::ListBlockIndicator>;
-    using SpinBar = BasicConfig<__details::assets::Spinner, __details::traits::ListSpinner>;
-    using ScanBar = BasicConfig<__details::assets::Scanner, __details::traits::ListScanner>;
+    using CharBar = BasicConfig<__details::assets::CharIndicator>;
+    using BlckBar = BasicConfig<__details::assets::BlockIndicator>;
+    using SpinBar = BasicConfig<__details::assets::Spinner>;
+    using ScanBar = BasicConfig<__details::assets::Scanner>;
   } // namespace config
 
   namespace __details {
@@ -4558,12 +4573,12 @@ namespace pgbar {
       template<typename C>
       struct ConfigTrait;
       template<typename C>
-      using ConfigTrait_t = typename ConfigTrait<C>::TraitsList;
+      using ConfigTrait_t = typename ConfigTrait<C>::type;
 
 # define __PGBAR_TRAIT_REGISTER( ConfigType, ... ) \
    template<>                                      \
    struct ConfigTrait<ConfigType> {                \
-     using TraitsList = TemplateList<__VA_ARGS__>; \
+     using type = TemplateList<__VA_ARGS__>;       \
    }
 
       __PGBAR_TRAIT_REGISTER( config::CharBar, assets::TaskCounter, assets::FrameCounter );
@@ -5859,6 +5874,7 @@ namespace pgbar {
   } // namespace scope
 } // namespace pgbar
 
+# undef __PGBAR_COMPONENT_REGISTER
 # undef __PGBAR_TRAIT_REGISTER
 
 # undef __PGBAR_EMPTY_CLASS
