@@ -4319,23 +4319,27 @@ namespace pgbar {
 
       template<>
       struct ComponentTraits<assets::CharIndicator> {
-        using type = Merge_t<ComponentTraits_t<assets::BasicAnimation>,
+        using type = Merge_t<ComponentTraits_t<assets::TaskQuantity>,
+                             ComponentTraits_t<assets::BasicAnimation>,
                              ComponentTraits_t<assets::BasicIndicator>,
                              TypeList<option::Remains, option::Filler, option::RemainsColor>>;
       };
       template<>
       struct ComponentTraits<assets::BlockIndicator> {
-        using type = Merge_t<ComponentTraits_t<assets::BasicAnimation>,
+        using type = Merge_t<ComponentTraits_t<assets::TaskQuantity>,
+                             ComponentTraits_t<assets::BasicAnimation>,
                              ComponentTraits_t<assets::BasicIndicator>,
                              TypeList<option::Remains, option::Filler, option::RemainsColor>>;
       };
       template<>
       struct ComponentTraits<assets::Spinner> {
-        using type = ComponentTraits_t<assets::BasicAnimation>;
+        using type =
+          Merge_t<ComponentTraits_t<assets::TaskQuantity>, ComponentTraits_t<assets::BasicAnimation>>;
       };
       template<>
       struct ComponentTraits<assets::Scanner> {
-        using type = Merge_t<ComponentTraits_t<assets::BasicAnimation>,
+        using type = Merge_t<ComponentTraits_t<assets::TaskQuantity>,
+                             ComponentTraits_t<assets::BasicAnimation>,
                              ComponentTraits_t<assets::BasicIndicator>,
                              TypeList<option::Filler>>;
       };
@@ -4433,7 +4437,6 @@ namespace pgbar {
         __details::traits::Merge_t<__details::traits::TypeList<option::Style>,
                                    __details::traits::ComponentTraits_t<BarType>,
                                    __details::traits::ComponentTraits_t<__details::assets::Description>,
-                                   __details::traits::ComponentTraits_t<__details::assets::TaskQuantity>,
                                    __details::traits::ComponentTraits_t<__details::assets::Segment>,
                                    __details::traits::ComponentTraits_t<__details::assets::SpeedMeter>,
                                    __details::traits::ComponentTraits_t<__details::assets::CountdownTimer>>;
@@ -4571,13 +4574,13 @@ namespace pgbar {
   namespace __details {
     namespace traits {
       template<typename C>
-      struct ConfigTrait;
+      struct ConfigTraits;
       template<typename C>
-      using ConfigTrait_t = typename ConfigTrait<C>::type;
+      using ConfigTraits_t = typename ConfigTraits<C>::type;
 
 # define __PGBAR_TRAIT_REGISTER( ConfigType, ... ) \
    template<>                                      \
-   struct ConfigTrait<ConfigType> {                \
+   struct ConfigTraits<ConfigType> {               \
      using type = TemplateList<__VA_ARGS__>;       \
    }
 
@@ -5333,7 +5336,7 @@ namespace pgbar {
   template<typename ConfigType, typename MutexMode, Channel StreamType>
 # endif
   class BasicBar final
-    : public __details::traits::LI<__details::traits::ConfigTrait_t<ConfigType>>::
+    : public __details::traits::LI<__details::traits::ConfigTraits_t<ConfigType>>::
         template type<Indicator, BasicBar<ConfigType, MutexMode, StreamType>> {
     using Self = BasicBar;
     using Indicator::state;
