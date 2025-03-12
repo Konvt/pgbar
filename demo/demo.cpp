@@ -103,7 +103,7 @@ int main()
     pgbar::ProgressBar<> pbar { pgbar::option::Style( // Select a different progress bar information section
                                   pgbar::config::CharBar::Per | pgbar::config::CharBar::Elpsd ),
                                 // Change the color of the information section
-                                pgbar::option::InfoColor( pgbar::color::Red ),
+                                pgbar::option::InfoColor( "#7D7" ),
                                 pgbar::option::Tasks( 100 ) };
     for ( auto _ = 0; _ < 100; ++_ ) {
       pbar.tick();

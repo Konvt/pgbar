@@ -703,11 +703,11 @@ namespace pgbar {
       using UniqueFunction = std::move_only_function<Signature...>;
 # else
       template<typename... Signature>
-      class UniqueFunctionImpl;
+      class UniqueFnCore;
 
       template<typename Ret, typename... Args>
-      class UniqueFunctionImpl<Ret( Args... )> final {
-        using Self = UniqueFunctionImpl;
+      class UniqueFnCore<Ret( Args... )> final {
+        using Self = UniqueFnCore;
 
 #  if __PGBAR_CXX17
 #   define __PGBAR_LAUNDER( expr ) std::launder( expr )
@@ -724,7 +724,7 @@ namespace pgbar {
         struct FnContainer final : public AnyFn {
         private:
           static_assert( !std::is_reference<Fn>::value,
-                         "pgbar::__details::wrappers::UniqueFunction: Incomplete type" );
+                         "pgbar::__details::wrappers::UniqueFnCore: Incomplete type" );
 
           mutable Fn fntor_;
 
@@ -782,22 +782,22 @@ namespace pgbar {
         union {
           typename std::add_pointer<Ret( Args... )>::type fptr_;
           AnyFn* ftor_;
-          unsigned char soo_[16]; // small object optimization
+          unsigned char soo_[sizeof( void* ) * 2]; // small object optimization
         } data_;
         static_assert( sizeof data_ == sizeof data_.soo_,
-                       "pgbar::__details::wrappers::UniqueFunctionImpl: Unexpected type size mismatched" );
+                       "pgbar::__details::wrappers::UniqueFnCore: Unexpected type size mismatched" );
         enum class Tag : std::uint8_t { None, Fptr, FtorInline, FtorDync } tag_;
 
       public:
-        constexpr UniqueFunctionImpl() noexcept : data_ {}, tag_ { Tag::None } {}
-        constexpr UniqueFunctionImpl( std::nullptr_t ) noexcept : UniqueFunctionImpl() {}
+        constexpr UniqueFnCore() noexcept : data_ {}, tag_ { Tag::None } {}
+        constexpr UniqueFnCore( std::nullptr_t ) noexcept : UniqueFnCore() {}
 
         template<typename Fn,
                  typename = typename std::enable_if<
                    std::is_function<Fn>::value
                    && std::is_convertible<decltype( ( *std::declval<Fn>() )( std::declval<Args>()... ) ),
                                           Ret>::value>::type>
-        __PGBAR_CXX14_CNSTXPR UniqueFunctionImpl( Fn* function_ptr ) noexcept : UniqueFunctionImpl()
+        __PGBAR_CXX14_CNSTXPR UniqueFnCore( Fn* function_ptr ) noexcept : UniqueFnCore()
         {
           data_.fptr_ = function_ptr;
           tag_        = Tag::Fptr;
@@ -807,10 +807,10 @@ namespace pgbar {
                    std::is_class<Fn>::value
                    && std::is_convertible<decltype( ( std::declval<Fn>() )( std::declval<Args>()... ) ),
                                           Ret>::value>::type>
-        __PGBAR_CXX20_CNSTXPR UniqueFunctionImpl( Fn functor ) : UniqueFunctionImpl()
+        __PGBAR_CXX20_CNSTXPR UniqueFnCore( Fn functor ) : UniqueFnCore()
         {
           static_assert( std::is_move_constructible<Fn>::value,
-                         "pgbar::__details::wrappers::UniqueFunctionImpl: Invalid type" );
+                         "pgbar::__details::wrappers::UniqueFnCore: Invalid type" );
 
           if __PGBAR_CXX17_CNSTXPR ( sizeof( FnContainer<Fn> ) <= sizeof data_.soo_ ) {
             const auto fn = new ( &data_.soo_ ) FnContainer<Fn>( std::move( functor ) );
@@ -822,7 +822,7 @@ namespace pgbar {
           }
         }
 
-        __PGBAR_CXX20_CNSTXPR UniqueFunctionImpl( Self&& rhs ) noexcept : UniqueFunctionImpl()
+        __PGBAR_CXX20_CNSTXPR UniqueFnCore( Self&& rhs ) noexcept : UniqueFnCore()
         {
           operator=( std::move( rhs ) );
         }
@@ -845,7 +845,7 @@ namespace pgbar {
           return *this;
         }
 
-        __PGBAR_CXX20_CNSTXPR ~UniqueFunctionImpl() noexcept { ( *this ) = nullptr; }
+        __PGBAR_CXX20_CNSTXPR ~UniqueFnCore() noexcept { ( *this ) = nullptr; }
 
         __PGBAR_CXX20_CNSTXPR Ret operator()( Args... args ) const
         {
@@ -927,11 +927,10 @@ namespace pgbar {
 
         explicit operator bool() const noexcept { return tag_ != Tag::None; }
       };
-#  undef __PGBAR_LAUNDER
 
       // A simplified implementation of std::move_only_function
       template<typename... Signature>
-      using UniqueFunction = UniqueFunctionImpl<traits::RemoveNoexcept_t<Signature...>>;
+      using UniqueFunction = UniqueFnCore<traits::RemoveNoexcept_t<Signature...>>;
 # endif
     } // namespace wrappers
   } // namespace __details
@@ -2176,7 +2175,7 @@ namespace pgbar {
           return *this;
         }
 
-        // Pop up the head of the queue element and throw it as an exception.
+        // Rethrow the exception pointed if it is'nt null.
         __PGBAR_INLINE_FN void rethrow() noexcept( false )
         {
           std::lock_guard<SharedMutex> lock { rw_mtx_ };
@@ -5906,6 +5905,8 @@ namespace pgbar {
     };
   } // namespace scope
 } // namespace pgbar
+
+# undef __PGBAR_LAUNDER
 
 # undef __PGBAR_COMPONENT_REGISTER
 # undef __PGBAR_TRAIT_REGISTER
