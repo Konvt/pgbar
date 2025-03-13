@@ -23,7 +23,6 @@
 # include <memory>
 # include <mutex>
 # include <queue>
-# include <sstream>
 # include <string>
 # include <thread>
 # include <type_traits>
@@ -108,6 +107,7 @@
 #  define __PGBAR_CNSTEVAL constexpr
 # endif
 # if __PGBAR_CC_STD >= 201703L
+#  include <charconv>
 #  include <string_view>
 #  define __PGBAR_CXX17         1
 #  define __PGBAR_CXX17_CNSTXPR constexpr
@@ -1396,8 +1396,8 @@ namespace pgbar {
         case __PGBAR_CYAN:    return "\x1B[36m";
         case __PGBAR_WHITE:   return "\x1B[37m";
         default:
-          return "\x1B[38;2;" + std::to_string( ( rgb >> 16 ) & 0xFF ) + ";"
-               + std::to_string( ( rgb >> 8 ) & 0xFF ) + ";" + std::to_string( rgb & 0xFF ) + "m";
+          return "\x1B[38;2;" + std::to_string( ( rgb >> 16 ) & 0xFF ) + ';'
+               + std::to_string( ( rgb >> 8 ) & 0xFF ) + ';' + std::to_string( rgb & 0xFF ) + 'm';
         }
       }
 # endif
@@ -1814,12 +1814,49 @@ namespace pgbar {
       }
 
       // Format a floating point number.
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN types::String formatting( types::Float val, types::Size precision )
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN types::String formatting( types::Float val, int precision )
         noexcept( false )
       {
-        std::stringstream ss;
-        ss << std::fixed << std::setprecision( precision ) << val;
-        return std::move( ss ).str();
+        __PGBAR_ASSERT( std::isfinite( val ) );
+        __PGBAR_PURE_ASSUME( precision >= 0 );
+# if __PGBAR_CXX17
+        const auto abs_rounded_val = std::round( std::abs( val ) );
+        const auto int_digits =
+          ( abs_rounded_val != 0 ? static_cast<std::uint64_t>( std::log10( abs_rounded_val ) ) : 0 ) + 1;
+
+        constexpr auto specified_mark = '#';
+
+        auto formatted    = types::String( int_digits + precision + 2, specified_mark );
+        // The extra 2 is left for the decimal point and carry.
+        const auto result = std::to_chars( formatted.data(),
+                                           formatted.data() + formatted.size(),
+                                           val,
+                                           std::chars_format::fixed,
+                                           precision );
+        __PGBAR_PURE_ASSUME( result.ec == std::errc {} );
+        const auto mark_pos = formatted.find_last_not_of( specified_mark );
+        if ( mark_pos != types::String::npos )
+          formatted.erase( mark_pos + 1 );
+# else
+        const auto scale           = std::pow( 10, precision );
+        const auto abs_rounded_val = std::round( std::abs( val ) * scale ) / scale;
+        const auto integer         = static_cast<std::uint64_t>( abs_rounded_val );
+        const auto fraction =
+          static_cast<std::uint64_t>( std::round( ( abs_rounded_val - integer ) * scale ) );
+        const auto sign = std::signbit( val );
+
+        auto formatted = types::String( sign, '-' );
+        formatted.append( std::to_string( integer ) )
+          .reserve( static_cast<types::Size>( integer == 0 ? 0 : std::log10( integer ) ) + sign + 1 );
+        if ( precision > 0 ) {
+          formatted.push_back( '.' );
+          const auto fract_digits =
+            static_cast<types::Size>( ( fraction != 0 ? std::log10( fraction ) : 0 ) + 1 );
+          __PGBAR_PURE_ASSUME( fract_digits <= precision );
+          formatted.append( precision - fract_digits, '0' ).append( std::to_string( fraction ) );
+        }
+# endif
+        return formatted;
       }
 
       // A simple string buffer, unrelated to the `std::stringbuf` in the STL.
