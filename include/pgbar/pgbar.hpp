@@ -235,14 +235,6 @@ namespace pgbar {
     }
 
     namespace traits {
-      template<typename E>
-      __PGBAR_NODISCARD __PGBAR_CNSTEVAL __PGBAR_INLINE_FN
-        typename std::enable_if<std::is_enum<E>::value, typename std::underlying_type<E>::type>::type
-        as_val( E enum_val ) noexcept
-      {
-        return static_cast<typename std::underlying_type<E>::type>( enum_val );
-      }
-
       /**
        * A lightweight tuple type that stores multiple types.
        *
@@ -1021,11 +1013,14 @@ namespace pgbar {
        */
       __PGBAR_CXX20_CNSTXPR NumericSpan( N startpoint, N endpoint, N step ) noexcept( false ) : NumericSpan()
       {
-        __PGBAR_UNLIKELY if ( step > 0 && startpoint > endpoint ) throw exception::InvalidArgument(
-          "pgbar: 'end' is less than 'start' while 'step' is positive" );
-        else __PGBAR_UNLIKELY if ( step < 0 && startpoint < endpoint ) throw exception::InvalidArgument(
-          "pgbar: 'end' is greater than 'start' while 'step' is negative" );
-        __PGBAR_UNLIKELY if ( step == 0 ) throw exception::InvalidArgument( "pgbar: 'step' is zero" );
+        if ( step > 0 && startpoint > endpoint )
+          __PGBAR_UNLIKELY throw exception::InvalidArgument(
+            "pgbar: 'end' is less than 'start' while 'step' is positive" );
+        else if ( step < 0 && startpoint < endpoint )
+          __PGBAR_UNLIKELY throw exception::InvalidArgument(
+            "pgbar: 'end' is greater than 'start' while 'step' is negative" );
+        if ( step == 0 )
+          __PGBAR_UNLIKELY throw exception::InvalidArgument( "pgbar: 'step' is zero" );
 
         start_ = startpoint;
         step_  = step;
@@ -1066,11 +1061,14 @@ namespace pgbar {
        */
       __PGBAR_CXX20_CNSTXPR NumericSpan& step( N step ) noexcept( false )
       {
-        __PGBAR_UNLIKELY if ( step < 0 && start_ < end_ ) throw exception::InvalidArgument(
-          "pgbar: 'end' is greater than 'start' while 'step' is negative" );
-        else __PGBAR_UNLIKELY if ( step > 0 && start_ > end_ ) throw exception::InvalidArgument(
-          "pgbar: 'end' is less than 'start' while 'step' is positive" );
-        else __PGBAR_UNLIKELY if ( step == 0 ) throw exception::InvalidArgument( "pgbar: 'step' is zero" );
+        if ( step < 0 && start_ < end_ )
+          __PGBAR_UNLIKELY throw exception::InvalidArgument(
+            "pgbar: 'end' is greater than 'start' while 'step' is negative" );
+        else if ( step > 0 && start_ > end_ )
+          __PGBAR_UNLIKELY throw exception::InvalidArgument(
+            "pgbar: 'end' is less than 'start' while 'step' is positive" );
+        else if ( step == 0 )
+          __PGBAR_UNLIKELY throw exception::InvalidArgument( "pgbar: 'step' is zero" );
 
         step_ = step;
         return *this;
@@ -1083,10 +1081,12 @@ namespace pgbar {
        */
       __PGBAR_CXX20_CNSTXPR NumericSpan& start_value( N startpoint ) noexcept( false )
       {
-        __PGBAR_UNLIKELY if ( step_ < 0 && startpoint < end_ ) throw exception::InvalidArgument(
-          "pgbar: 'end' is greater than 'start' while 'step' is negative" );
-        else __PGBAR_UNLIKELY if ( step_ > 0 && startpoint > end_ ) throw exception::InvalidArgument(
-          "pgbar: 'end' is less than 'start' while 'step' is positive" );
+        if ( step_ < 0 && startpoint < end_ )
+          __PGBAR_UNLIKELY throw exception::InvalidArgument(
+            "pgbar: 'end' is greater than 'start' while 'step' is negative" );
+        else if ( step_ > 0 && startpoint > end_ )
+          __PGBAR_UNLIKELY throw exception::InvalidArgument(
+            "pgbar: 'end' is less than 'start' while 'step' is positive" );
 
         start_ = startpoint;
         return *this;
@@ -1099,10 +1099,12 @@ namespace pgbar {
        */
       __PGBAR_CXX20_CNSTXPR NumericSpan& end_value( N endpoint ) noexcept( false )
       {
-        __PGBAR_UNLIKELY if ( step_ < 0 && start_ < endpoint ) throw exception::InvalidArgument(
-          "pgbar: 'end' is greater than 'start' while 'step' is negative" );
-        else __PGBAR_UNLIKELY if ( step_ > 0 && start_ > endpoint ) throw exception::InvalidArgument(
-          "pgbar: 'end' is less than 'start' while 'step' is positive" );
+        if ( step_ < 0 && start_ < endpoint )
+          __PGBAR_UNLIKELY throw exception::InvalidArgument(
+            "pgbar: 'end' is greater than 'start' while 'step' is negative" );
+        else if ( step_ > 0 && start_ > endpoint )
+          __PGBAR_UNLIKELY throw exception::InvalidArgument(
+            "pgbar: 'end' is less than 'start' while 'step' is positive" );
 
         end_ = endpoint;
         return *this;
@@ -1305,8 +1307,8 @@ namespace pgbar {
       __PGBAR_CXX20_CNSTXPR IterSpan( P* startpoint, P* endpoint ) noexcept( false )
         : __details::wrappers::IterSpanBase<P*>( startpoint, endpoint )
       {
-        __PGBAR_UNLIKELY if ( startpoint == nullptr || endpoint == nullptr ) throw exception::InvalidArgument(
-          "pgbar: null pointer cannot generate a range" );
+        if ( startpoint == nullptr || endpoint == nullptr )
+          __PGBAR_UNLIKELY throw exception::InvalidArgument( "pgbar: null pointer cannot generate a range" );
       }
       __PGBAR_CXX20_CNSTXPR IterSpan( const IterSpan& )              = default;
       __PGBAR_CXX20_CNSTXPR IterSpan& operator=( const IterSpan& ) & = default;
@@ -1349,58 +1351,100 @@ namespace pgbar {
       };
     } // namespace traits
 
-    namespace console {
-      // escape codes
-      namespace escodes {
-# ifdef PGBAR_COLORLESS
-        constexpr types::LitStr reset_font = "";
-        constexpr types::LitStr bold_font  = "";
-# else
-        constexpr types::LitStr reset_font = "\x1B[0m";
-        constexpr types::LitStr bold_font  = "\x1B[1m";
-# endif
-        constexpr types::LitStr store_cursor   = "\x1B[s";
-        constexpr types::LitStr restore_cursor = "\x1B[u";
-
-        // Assembles an ANSI escape code that clears `__n` characters after the cursor.
-        __PGBAR_INLINE_FN types::String clear_next( types::Size __n = 1 )
-        {
-          return "\x1B[" + std::to_string( __n ) + 'X';
-        }
-      } // namespace escodes
-
-      /**
-       * Convert a hexidecimal RGB color value to an ANSI escape code.
-       *
-       * Return nothing if defined `PGBAR_COLORLESS`.
-       */
-      __PGBAR_CXX20_CNSTXPR types::String rgb2ansi( types::HexRGB rgb )
-# ifdef PGBAR_COLORLESS
-        noexcept( std::is_nothrow_default_constructible<types::String>::value )
+    namespace utils {
+      template<typename E>
+      __PGBAR_NODISCARD __PGBAR_CNSTEVAL __PGBAR_INLINE_FN
+        typename std::enable_if<std::is_enum<E>::value, typename std::underlying_type<E>::type>::type
+        as_val( E enum_val ) noexcept
       {
-        return {};
+        return static_cast<typename std::underlying_type<E>::type>( enum_val );
       }
-# else
-        noexcept( false )
-      {
-        if ( rgb == __PGBAR_DEFAULT )
-          return types::String( escodes::reset_font );
 
-        switch ( rgb & 0x00FFFFFF ) { // discard the high 8 bits
-        case __PGBAR_BLACK:   return "\x1B[30m";
-        case __PGBAR_RED:     return "\x1B[31m";
-        case __PGBAR_GREEN:   return "\x1B[32m";
-        case __PGBAR_YELLOW:  return "\x1B[33m";
-        case __PGBAR_BLUE:    return "\x1B[34m";
-        case __PGBAR_MAGENTA: return "\x1B[35m";
-        case __PGBAR_CYAN:    return "\x1B[36m";
-        case __PGBAR_WHITE:   return "\x1B[37m";
-        default:
-          return "\x1B[38;2;" + std::to_string( ( rgb >> 16 ) & 0xFF ) + ';'
-               + std::to_string( ( rgb >> 8 ) & 0xFF ) + ';' + std::to_string( rgb & 0xFF ) + 'm';
-        }
+      template<typename Numeric>
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN
+        typename std::enable_if<std::is_arithmetic<Numeric>::value, types::Size>::type
+        count_digits( Numeric val )
+      {
+        return ( val != 0 ? std::log10( val ) : 0 ) + 1;
+        // Integer division is faster only at the O2/O3 optimization level.
       }
+
+      // Format an integer number.
+      template<typename Integer>
+      __PGBAR_NODISCARD __PGBAR_CXX20_CNSTXPR __PGBAR_INLINE_FN
+        typename std::enable_if<std::is_integral<Integer>::value, types::String>::type
+        format( Integer val ) noexcept( noexcept( std::to_string( std::declval<Integer>() ) ) )
+      {
+        /* In some well-designed standard libraries,
+         * integer std::to_string has specialized implementations for different bit-length types;
+
+         * This includes directly constructing the destination string using the SOO/SSO nature of the string,
+         * optimizing the memory management strategy using internally private resize_and_overwrite, etc.
+
+         * Therefore, the functions of the standard library are called directly here,
+         * rather than providing a manual implementation like the other functions. */
+        return std::to_string( val );
+      }
+
+      // Format a finite floating point number.
+      template<typename Floating>
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN
+        typename std::enable_if<std::is_floating_point<Floating>::value, types::String>::type
+        format( Floating val, int precision ) noexcept( false )
+      {
+        /* Unlike the integer version,
+         * the std::to_string in the standard library does not provide a precision limit
+         * on floating-point numbers;
+
+         * So the implementation here is provided manually. */
+        __PGBAR_ASSERT( std::isfinite( val ) );
+        __PGBAR_PURE_ASSUME( precision >= 0 );
+# if __PGBAR_CXX17
+        const auto abs_rounded_val = std::round( std::abs( val ) );
+        const auto int_digits      = count_digits( abs_rounded_val );
+
+        types::String formatted;
+#  if __PGBAR_CXX23
+        formatted.resize_and_overwrite(
+          int_digits + precision + 2,
+          [val, precision]( types::Char* buf, types::Size n ) noexcept {
+            const auto result = std::to_chars( buf, buf + n, val, std::chars_format::fixed, precision );
+            __PGBAR_PURE_ASSUME( result.ec == std::errc {} );
+            __PGBAR_PURE_ASSUME( result.ptr >= buf );
+            return static_cast<types::Size>( result.ptr - buf );
+          } );
+#  else
+        formatted.resize( int_digits + precision + 2 );
+        // The extra 2 is left for the decimal point and carry.
+        const auto result = std::to_chars( formatted.data(),
+                                           formatted.data() + formatted.size(),
+                                           val,
+                                           std::chars_format::fixed,
+                                           precision );
+        __PGBAR_PURE_ASSUME( result.ec == std::errc {} );
+        __PGBAR_ASSERT( result.ptr >= formatted.data() );
+        formatted.resize( result.ptr - formatted.data() );
+#  endif
+# else
+        const auto scale           = std::pow( 10, precision );
+        const auto abs_rounded_val = std::round( std::abs( val ) * scale ) / scale;
+        __PGBAR_ASSERT( abs_rounded_val <= std::numeric_limits<std::uint64_t>::max() );
+        const auto integer = static_cast<std::uint64_t>( abs_rounded_val );
+        const auto fraction =
+          static_cast<std::uint64_t>( std::round( ( abs_rounded_val - integer ) * scale ) );
+        const auto sign = std::signbit( val );
+
+        auto formatted = types::String( sign, '-' );
+        formatted.append( format( integer ) ).reserve( count_digits( integer ) + sign );
+        if ( precision > 0 ) {
+          formatted.push_back( '.' );
+          const auto fract_digits = count_digits( fraction );
+          __PGBAR_PURE_ASSUME( fract_digits <= static_cast<types::Size>( precision ) );
+          formatted.append( precision - fract_digits, '0' ).append( format( fraction ) );
+        }
 # endif
+        return formatted;
+      }
 
       /**
        * Converts RGB color strings to hexidecimal values.
@@ -1450,13 +1494,102 @@ namespace pgbar {
 # endif
       }
 
-      template<Channel StreamType>
+      enum class TxtLayout { Left, Right, Center }; // text layout
+      // Format the `str`.
+      template<TxtLayout Style>
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::String format( types::Size width,
+                                                                                      types::Size len_str,
+                                                                                      types::ROStr str )
+        noexcept( false )
+      {
+        if ( width == 0 )
+          __PGBAR_UNLIKELY return {};
+        if ( len_str >= width )
+          return types::String( str );
+        if __PGBAR_CXX17_CNSTXPR ( Style == TxtLayout::Right ) {
+          auto tmp = types::String( width - len_str, constants::blank );
+          tmp.append( str );
+          return tmp;
+        } else if __PGBAR_CXX17_CNSTXPR ( Style == TxtLayout::Left ) {
+          auto tmp = types::String( str );
+          tmp.append( width - len_str, constants::blank );
+          return tmp;
+        } else {
+          width -= len_str;
+          const types::Size l_blank = width / 2;
+          return std::move( types::String( l_blank, constants::blank ).append( str ) )
+               + types::String( width - l_blank, constants::blank );
+        }
+      }
+      template<TxtLayout Style>
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::String format( types::Size width,
+                                                                                      types::ROStr __str )
+        noexcept( false )
+      {
+        return format<Style>( width, __str.size(), __str );
+      }
+    } // namespace utils
+
+    namespace console {
+      // escape codes
+      namespace escodes {
+# ifdef PGBAR_COLORLESS
+        constexpr types::LitStr reset_font = "";
+        constexpr types::LitStr bold_font  = "";
+# else
+        constexpr types::LitStr reset_font = "\x1B[0m";
+        constexpr types::LitStr bold_font  = "\x1B[1m";
+# endif
+        constexpr types::LitStr store_cursor   = "\x1B[s";
+        constexpr types::LitStr restore_cursor = "\x1B[u";
+
+        // Assembles an ANSI escape code that clears `__n` characters after the cursor.
+        __PGBAR_INLINE_FN types::String clear_next( types::Size __n = 1 )
+        {
+          return "\x1B[" + utils::format( __n ) + 'X';
+        }
+      } // namespace escodes
+
+      /**
+       * Convert a hexidecimal RGB color value to an ANSI escape code.
+       *
+       * Return nothing if defined `PGBAR_COLORLESS`.
+       */
+      __PGBAR_CXX20_CNSTXPR types::String rgb2ansi( types::HexRGB rgb )
+# ifdef PGBAR_COLORLESS
+        noexcept( std::is_nothrow_default_constructible<types::String>::value )
+      {
+        return {};
+      }
+# else
+        noexcept( false )
+      {
+        if ( rgb == __PGBAR_DEFAULT )
+          return types::String( escodes::reset_font );
+
+        switch ( rgb & 0x00FFFFFF ) { // discard the high 8 bits
+        case __PGBAR_BLACK:   return "\x1B[30m";
+        case __PGBAR_RED:     return "\x1B[31m";
+        case __PGBAR_GREEN:   return "\x1B[32m";
+        case __PGBAR_YELLOW:  return "\x1B[33m";
+        case __PGBAR_BLUE:    return "\x1B[34m";
+        case __PGBAR_MAGENTA: return "\x1B[35m";
+        case __PGBAR_CYAN:    return "\x1B[36m";
+        case __PGBAR_WHITE:   return "\x1B[37m";
+        default:
+          return "\x1B[38;2;" + utils::format( ( rgb >> 16 ) & 0xFF ) + ';'
+               + utils::format( ( rgb >> 8 ) & 0xFF ) + ';' + utils::format( rgb & 0xFF ) + 'm';
+        }
+      }
+# endif
+
       /**
        * Determine if the output stream is binded to the tty based on the platform api.
        *
        * Always returns true if defined `PGBAR_INTTY`,
        * or the local platform is neither `Windows` nor `unix-like`.
        */
+      template<Channel StreamType>
       __PGBAR_NODISCARD bool intty() noexcept
       {
 # if defined( PGBAR_INTTY ) || __PGBAR_UNKNOWN
@@ -1467,7 +1600,8 @@ namespace pgbar {
           stream_handle = GetStdHandle( STD_OUTPUT_HANDLE );
         else
           stream_handle = GetStdHandle( STD_ERROR_HANDLE );
-        __PGBAR_UNLIKELY if ( stream_handle == INVALID_HANDLE_VALUE ) return false;
+        if ( stream_handle == INVALID_HANDLE_VALUE )
+          __PGBAR_UNLIKELY return false;
         return GetFileType( stream_handle ) == FILE_TYPE_CHAR;
 
 # else
@@ -1770,95 +1904,17 @@ namespace pgbar {
       };
     } // namespace charcodes
 
-    namespace io {
-      enum class TxtLayout { Left, Right, Center }; // text layout
-      // Format the `str`.
+    namespace utils {
       template<TxtLayout Style>
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::String formatting( types::Size width,
-                                                                                          types::Size len_str,
-                                                                                          types::ROStr str )
-        noexcept( false )
-      {
-        __PGBAR_UNLIKELY if ( width == 0 ) return {};
-        if ( len_str >= width )
-          return types::String( str );
-        if __PGBAR_CXX17_CNSTXPR ( Style == TxtLayout::Right ) {
-          auto tmp = types::String( width - len_str, constants::blank );
-          tmp.append( str );
-          return tmp;
-        } else if __PGBAR_CXX17_CNSTXPR ( Style == TxtLayout::Left ) {
-          auto tmp = types::String( str );
-          tmp.append( width - len_str, constants::blank );
-          return tmp;
-        } else {
-          width -= len_str;
-          const types::Size l_blank = width / 2;
-          return std::move( types::String( l_blank, constants::blank ).append( str ) )
-               + types::String( width - l_blank, constants::blank );
-        }
-      }
-
-      template<TxtLayout Style>
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::String formatting( types::Size width,
-                                                                                          types::ROStr __str )
-        noexcept( false )
-      {
-        return formatting<Style>( width, __str.size(), __str );
-      }
-      template<TxtLayout Style>
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::String formatting(
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::String format(
         types::Size width,
         const charcodes::U8String& __str ) noexcept( false )
       {
-        return formatting<Style>( width, __str.size(), __str.str() );
+        return format<Style>( width, __str.size(), __str.str() );
       }
+    } // namespace utils
 
-      // Format a floating point number.
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN types::String formatting( types::Float val, int precision )
-        noexcept( false )
-      {
-        __PGBAR_ASSERT( std::isfinite( val ) );
-        __PGBAR_PURE_ASSUME( precision >= 0 );
-# if __PGBAR_CXX17
-        const auto abs_rounded_val = std::round( std::abs( val ) );
-        const auto int_digits =
-          ( abs_rounded_val != 0 ? static_cast<std::uint64_t>( std::log10( abs_rounded_val ) ) : 0 ) + 1;
-
-        constexpr auto specified_mark = '#';
-
-        auto formatted    = types::String( int_digits + precision + 2, specified_mark );
-        // The extra 2 is left for the decimal point and carry.
-        const auto result = std::to_chars( formatted.data(),
-                                           formatted.data() + formatted.size(),
-                                           val,
-                                           std::chars_format::fixed,
-                                           precision );
-        __PGBAR_PURE_ASSUME( result.ec == std::errc {} );
-        const auto mark_pos = formatted.find_last_not_of( specified_mark );
-        if ( mark_pos != types::String::npos )
-          formatted.erase( mark_pos + 1 );
-# else
-        const auto scale           = std::pow( 10, precision );
-        const auto abs_rounded_val = std::round( std::abs( val ) * scale ) / scale;
-        const auto integer         = static_cast<std::uint64_t>( abs_rounded_val );
-        const auto fraction =
-          static_cast<std::uint64_t>( std::round( ( abs_rounded_val - integer ) * scale ) );
-        const auto sign = std::signbit( val );
-
-        auto formatted = types::String( sign, '-' );
-        formatted.append( std::to_string( integer ) )
-          .reserve( static_cast<types::Size>( integer == 0 ? 0 : std::log10( integer ) ) + sign + 1 );
-        if ( precision > 0 ) {
-          formatted.push_back( '.' );
-          const auto fract_digits =
-            static_cast<types::Size>( ( fraction != 0 ? std::log10( fraction ) : 0 ) + 1 );
-          __PGBAR_PURE_ASSUME( fract_digits <= precision );
-          formatted.append( precision - fract_digits, '0' ).append( std::to_string( fraction ) );
-        }
-# endif
-        return formatted;
-      }
-
+    namespace io {
       // A simple string buffer, unrelated to the `std::stringbuf` in the STL.
       class Stringbuf {
         using Self = Stringbuf;
@@ -2015,13 +2071,14 @@ namespace pgbar {
           DWORD written = 0;
           if __PGBAR_CXX17_CNSTXPR ( StreamType == Channel::Stdout ) {
             auto h_stdout = GetStdHandle( STD_OUTPUT_HANDLE );
-            __PGBAR_UNLIKELY if ( h_stdout == INVALID_HANDLE_VALUE ) throw exception::SystemError(
-              "pgbar: cannot open the standard output stream" );
+            if ( h_stdout == INVALID_HANDLE_VALUE )
+              __PGBAR_UNLIKELY throw exception::SystemError(
+                "pgbar: cannot open the standard output stream" );
             WriteFile( h_stdout, buffer_.data(), static_cast<DWORD>( buffer_.size() ), &written, nullptr );
           } else {
             auto h_stderr = GetStdHandle( STD_ERROR_HANDLE );
-            __PGBAR_UNLIKELY if ( h_stderr == INVALID_HANDLE_VALUE ) throw exception::SystemError(
-              "pgbar: cannot open the standard error stream" );
+            if ( h_stderr == INVALID_HANDLE_VALUE )
+              __PGBAR_UNLIKELY throw exception::SystemError( "pgbar: cannot open the standard error stream" );
             WriteFile( h_stderr, buffer_.data(), static_cast<DWORD>( buffer_.size() ), &written, nullptr );
           }
 # elif __PGBAR_UNIX
@@ -2410,11 +2467,12 @@ namespace pgbar {
           };
           if ( try_update( state::Awake ) || try_update( state::Active ) ) {
             do {
-              __PGBAR_UNLIKELY if ( handle_->box_.empty() == false ) handle_->box_.rethrow();
+              if ( handle_->box_.empty() == false )
+                __PGBAR_UNLIKELY handle_->box_.rethrow();
             } while ( handle_->state_.load( std::memory_order_acquire ) == state::Halt
                       && handle_->state_.load( std::memory_order_acquire ) != state::Dead );
-          } else
-            __PGBAR_UNLIKELY if ( handle_->box_.empty() == false ) handle_->box_.rethrow();
+          } else if ( handle_->box_.empty() == false )
+            __PGBAR_UNLIKELY handle_->box_.rethrow();
         }
         // Stop and release everything.
         __PGBAR_INLINE_FN void drop() noexcept
@@ -2428,11 +2486,11 @@ namespace pgbar {
         // Release the `task` resource.
         __PGBAR_INLINE_FN void appoint() & noexcept
         {
-          __PGBAR_ASSERT( active() == false );
           if ( handle_ != nullptr ) {
             halt();
             handle_->task_ = nullptr;
           }
+          __PGBAR_ASSERT( active() == false );
         }
         // Reassign a new task to the thread object.
         __PGBAR_INLINE_FN
@@ -2457,11 +2515,12 @@ namespace pgbar {
         __PGBAR_INLINE_FN void activate() & noexcept( false )
         {
           __PGBAR_ASSERT( jobless() == false );
-          __PGBAR_UNLIKELY if ( handle_->state_.load( std::memory_order_acquire ) == state::Dead )
-          {
-            shutdown();
-            launch();
-          }
+          if ( handle_->state_.load( std::memory_order_acquire ) == state::Dead )
+            __PGBAR_UNLIKELY
+            {
+              shutdown();
+              launch();
+            }
           auto expected = state::Dormant;
           if ( handle_->state_.compare_exchange_strong( expected,
                                                         state::Awake,
@@ -2474,16 +2533,18 @@ namespace pgbar {
             // spin wait, ensure that the thread has moved to the new state
             do {
               // avoid deadlock and throw the exception the thread received
-              __PGBAR_UNLIKELY if ( handle_->box_.empty() == false ) handle_->box_.rethrow();
+              if ( handle_->box_.empty() == false )
+                __PGBAR_UNLIKELY handle_->box_.rethrow();
             } while ( handle_->state_.load( std::memory_order_acquire ) == state::Awake
                       && handle_->state_.load( std::memory_order_acquire ) != state::Dead );
-          } else
-            __PGBAR_UNLIKELY if ( handle_->box_.empty() == false ) handle_->box_.rethrow();
+          } else if ( handle_->box_.empty() == false )
+            __PGBAR_UNLIKELY handle_->box_.rethrow();
         }
         // Stop the thread object and wait for it to sleep.
         __PGBAR_INLINE_FN void suspend() & noexcept( false )
         {
-          __PGBAR_UNLIKELY if ( handle_ == nullptr ) return;
+          if ( handle_ == nullptr )
+            __PGBAR_UNLIKELY return;
           const auto self = handle_.get();
           auto try_update = [self]( state expected ) noexcept {
             return self->state_.compare_exchange_strong( expected,
@@ -2493,11 +2554,12 @@ namespace pgbar {
           };
           if ( try_update( state::Awake ) || try_update( state::Active ) ) {
             do {
-              __PGBAR_UNLIKELY if ( handle_->box_.empty() == false ) handle_->box_.rethrow();
+              if ( handle_->box_.empty() == false )
+                __PGBAR_UNLIKELY handle_->box_.rethrow();
             } while ( handle_->state_.load( std::memory_order_acquire ) == state::Suspend
                       && handle_->state_.load( std::memory_order_acquire ) != state::Dead );
-          } else
-            __PGBAR_UNLIKELY if ( handle_->box_.empty() == false ) handle_->box_.rethrow();
+          } else if ( handle_->box_.empty() == false )
+            __PGBAR_UNLIKELY handle_->box_.rethrow();
         }
 
         // Check whether there is a `task` assigned to the thread.
@@ -2810,17 +2872,17 @@ namespace pgbar {
     };
 
 # undef __PGBAR_OPTIONS_HELPER
-# define __PGBAR_OPTIONS_HELPER( StructName, ParamName )                                  \
-   __PGBAR_OPTIONS( StructName, __details::types::String )                                \
-   __PGBAR_CXX20_CNSTXPR StructName( __details::types::ROStr ParamName )                  \
-     : data_ { __details::console::rgb2ansi( __details::console::hex2rgb( ParamName ) ) } \
-   {}                                                                                     \
-   __PGBAR_CXX20_CNSTXPR StructName( __details::types::HexRGB ParamName )                 \
-     : data_ { __details::console::rgb2ansi( ParamName ) }                                \
-   {}                                                                                     \
-   __PGBAR_CXX20_CNSTXPR StructName( const StructName& )             = default;           \
-   __PGBAR_CXX20_CNSTXPR StructName( StructName&& )                  = default;           \
-   __PGBAR_CXX20_CNSTXPR StructName& operator=( const StructName& )& = default;           \
+# define __PGBAR_OPTIONS_HELPER( StructName, ParamName )                                \
+   __PGBAR_OPTIONS( StructName, __details::types::String )                              \
+   __PGBAR_CXX20_CNSTXPR StructName( __details::types::ROStr ParamName )                \
+     : data_ { __details::console::rgb2ansi( __details::utils::hex2rgb( ParamName ) ) } \
+   {}                                                                                   \
+   __PGBAR_CXX20_CNSTXPR StructName( __details::types::HexRGB ParamName )               \
+     : data_ { __details::console::rgb2ansi( ParamName ) }                              \
+   {}                                                                                   \
+   __PGBAR_CXX20_CNSTXPR StructName( const StructName& )             = default;         \
+   __PGBAR_CXX20_CNSTXPR StructName( StructName&& )                  = default;         \
+   __PGBAR_CXX20_CNSTXPR StructName& operator=( const StructName& )& = default;         \
    __PGBAR_CXX20_CNSTXPR StructName& operator=( StructName&& )&      = default;
 
     // A wrapper that stores the description text color.
@@ -2997,7 +3059,7 @@ namespace pgbar {
    friend __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR void unpacker( Fonts& cfg,                         \
                                                                  option::OptionName&& val ) noexcept \
    {                                                                                                 \
-     cfg.fonts_[traits::as_val( Mask::OptionName )] = val.value();                                   \
+     cfg.fonts_[utils::as_val( Mask::OptionName )] = val.value();                                    \
    }
         __PGBAR_UNPAKING( Colored, colored_ )
         __PGBAR_UNPAKING( Bolded, bolded_ )
@@ -3009,14 +3071,14 @@ namespace pgbar {
 
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::ROStr build_color( types::ROStr ansi_color ) const
         {
-          return fonts_[traits::as_val( Mask::Colored )] ? ansi_color : constants::nil_str;
+          return fonts_[utils::as_val( Mask::Colored )] ? ansi_color : constants::nil_str;
         }
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& build_font( io::Stringbuf& buffer,
                                                                            types::ROStr ansi_color ) const
         {
           return buffer << build_color( ansi_color )
-                        << ( fonts_[traits::as_val( Mask::Bolded )] ? console::escodes::bold_font
-                                                                    : constants::nil_str );
+                        << ( fonts_[utils::as_val( Mask::Bolded )] ? console::escodes::bold_font
+                                                                   : constants::nil_str );
         }
 
       public:
@@ -3043,7 +3105,7 @@ namespace pgbar {
 # undef __PGBAR_METHOD
 # define __PGBAR_METHOD( Offset )                                          \
    concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
-   return fonts_[traits::as_val( Mask::Offset )]
+   return fonts_[utils::as_val( Mask::Offset )]
 
         // Check whether the color effect is enabled.
         __PGBAR_NODISCARD bool colored() const { __PGBAR_METHOD( Colored ); }
@@ -3497,7 +3559,8 @@ namespace pgbar {
 
           buffer << console::escodes::reset_font;
           return this->build_font( buffer, this->lead_col_ )
-              << io::formatting<io::TxtLayout::Left>( this->size_longest_lead_, this->lead_[num_frame_cnt] );
+              << utils::format<utils::TxtLayout::Left>( this->size_longest_lead_,
+                                                        this->lead_[num_frame_cnt] );
         }
 
       public:
@@ -3832,12 +3895,13 @@ namespace pgbar {
           __PGBAR_PURE_ASSUME( num_percent >= 0.0 );
           __PGBAR_PURE_ASSUME( num_percent <= 1.0 );
 
-          __PGBAR_UNLIKELY if ( num_percent <= 0.0 ) return { __PGBAR_DEFAULT_PERCENT };
+          if ( num_percent <= 0.0 )
+            __PGBAR_UNLIKELY return { __PGBAR_DEFAULT_PERCENT };
 
-          auto str = io::formatting( num_percent * 100.0, 2 );
+          auto str = utils::format( num_percent * 100.0, 2 );
           str.push_back( '%' );
 
-          return io::formatting<io::TxtLayout::Right>( _fixed_length, str );
+          return utils::format<utils::TxtLayout::Right>( _fixed_length, str );
         }
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr types::Size fixed_len_percent() const noexcept
@@ -3879,9 +3943,9 @@ namespace pgbar {
                                                                        types::Size num_all_tasks ) const
         {
           __PGBAR_PURE_ASSUME( num_task_done <= num_all_tasks );
-          __PGBAR_UNLIKELY if ( num_all_tasks == 0 ) return io::formatting<io::TxtLayout::Right>(
-            _fixed_length + longest_unit_,
-            "-- " + units_.front() );
+          if ( num_all_tasks == 0 )
+            __PGBAR_UNLIKELY return utils::format<utils::TxtLayout::Right>( _fixed_length + longest_unit_,
+                                                                            "-- " + units_.front() );
 
           const auto seconds_passed    = std::chrono::duration<types::Float>( time_passed ).count();
           // zero or negetive is invalid
@@ -3897,18 +3961,20 @@ namespace pgbar {
           // tier0 is magnitude_ itself
 
           if ( frequency < magnitude_ )
-            rate_str = io::formatting( frequency, 2 ) + ' ' + units_[0];
+            rate_str = utils::format( frequency, 2 ) + ' ' + units_[0];
           else if ( frequency < tier1 ) // "kilo"
-            rate_str = io::formatting( frequency / magnitude_, 2 ) + ' ' + units_[1];
+            rate_str = utils::format( frequency / magnitude_, 2 ) + ' ' + units_[1];
           else if ( frequency < tier2 ) // "Mega"
-            rate_str = io::formatting( frequency / tier1, 2 ) + ' ' + units_[2];
+            rate_str = utils::format( frequency / tier1, 2 ) + ' ' + units_[2];
           else { // "Giga" or "infinity"
-            const types::Float remains                            = frequency / tier2;
-            __PGBAR_UNLIKELY if ( remains > magnitude_ ) rate_str = __PGBAR_DEFAULT_SPEED + units_[3];
-            else rate_str = io::formatting( remains, 2 ) + ' ' + units_[3];
+            const types::Float remains = frequency / tier2;
+            if ( remains > magnitude_ )
+              __PGBAR_UNLIKELY rate_str = __PGBAR_DEFAULT_SPEED + units_[3];
+            else
+              rate_str = utils::format( remains, 2 ) + ' ' + units_[3];
           }
 
-          return io::formatting<io::TxtLayout::Right>( _fixed_length + longest_unit_, rate_str );
+          return utils::format<utils::TxtLayout::Right>( _fixed_length + longest_unit_, rate_str );
         }
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr types::Size fixed_len_speed() const noexcept
@@ -3978,21 +4044,16 @@ namespace pgbar {
           if ( num_all_tasks == 0 )
             return { "-/-" };
 
-          auto str = io::formatting<io::TxtLayout::Right>( std::log10( num_all_tasks ) + 1,
-                                                           std::to_string( num_task_done ) );
-          str.append( 1, '/' ).append( std::to_string( num_all_tasks ) );
+          auto str = utils::format<utils::TxtLayout::Right>( utils::count_digits( num_all_tasks ) + 1,
+                                                             utils::format( num_task_done ) );
+          str.append( 1, '/' ).append( utils::format( num_all_tasks ) );
 
           return str;
         }
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN types::Size fixed_len_counter() const noexcept
         {
-          return ( ( this->task_range_.end_value() == 0
-                       ? 0
-                       : static_cast<types::Size>( std::log10( this->task_range_.end_value() ) ) )
-                   + 1 )
-                 * 2
-               + 1;
+          return utils::count_digits( this->task_range_.end_value() ) * 2 + 1;
         }
 
       public:
@@ -4004,13 +4065,13 @@ namespace pgbar {
       template<typename Base, typename Derived>
       class Timer : public Base {
 # define __PGBAR_DEFAULT_TIMER "--:--:--"
+# define __PGBAR_TIMER_SEGMENT " < "
 
-      protected:
         __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::String time_formatter(
           types::TimeUnit duration ) const
         {
           const auto time2str = []( std::int64_t num_time ) -> types::String {
-            auto ret = std::to_string( num_time );
+            auto ret = utils::format( num_time );
             if ( ret.size() < 2 )
               ret.insert( 0, 1, '0' );
             return ret;
@@ -4019,39 +4080,21 @@ namespace pgbar {
           duration -= hours;
           const auto minutes = std::chrono::duration_cast<std::chrono::minutes>( duration );
           duration -= minutes;
-          return ( ( ( hours.count() > 99 ? types::String( "--" ) : time2str( hours.count() ) ) + ':' )
+          return ( ( ( hours.count() > 99 ? types::String( 2, '-' ) : time2str( hours.count() ) ) + ':' )
                    + ( time2str( minutes.count() ) + ':' )
                    + time2str( std::chrono::duration_cast<std::chrono::seconds>( duration ).count() ) );
         }
 
-      public:
-        __PGBAR_EMPTY_CLASS( Timer )
-      };
-      template<typename Base, typename Derived>
-      __PGBAR_CXX20_CNSTXPR Timer<Base, Derived>::~Timer() = default;
-
-      template<typename Base, typename Derived>
-      class ElapsedTimer : public Base {
       protected:
         __PGBAR_NODISCARD __PGBAR_INLINE_FN types::String build_elapsed( types::TimeUnit time_passed ) const
         {
-          return this->time_formatter( std::move( time_passed ) );
+          return time_formatter( std::move( time_passed ) );
         }
-
         __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr types::Size fixed_len_elapsed() const noexcept
         {
           return sizeof( __PGBAR_DEFAULT_TIMER ) - 1;
         }
 
-      public:
-        __PGBAR_EMPTY_CLASS( ElapsedTimer )
-      };
-      template<typename Base, typename Derived>
-      __PGBAR_CXX20_CNSTXPR ElapsedTimer<Base, Derived>::~ElapsedTimer() = default;
-
-      template<typename Base, typename Derived>
-      class CountdownTimer : public Base {
-      protected:
         __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::String build_countdown(
           const types::TimeUnit& time_passed,
           types::Size num_task_done,
@@ -4070,19 +4113,32 @@ namespace pgbar {
           if ( remaining_tasks > std::numeric_limits<std::int64_t>::max() / time_per_task.count() )
             return { __PGBAR_DEFAULT_TIMER };
           else
-            return this->time_formatter( time_per_task * remaining_tasks );
+            return time_formatter( time_per_task * remaining_tasks );
         }
-
         __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr types::Size fixed_len_countdown() const noexcept
         {
           return sizeof( __PGBAR_DEFAULT_TIMER ) - 1;
         }
 
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& build_hybird(
+          io::Stringbuf& buffer,
+          const types::TimeUnit& time_passed,
+          types::Size num_task_done,
+          types::Size num_all_tasks ) const
+        {
+          return buffer << build_elapsed( time_passed ) << __PGBAR_TIMER_SEGMENT
+                        << build_countdown( time_passed, num_task_done, num_all_tasks );
+        }
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr types::Size fixed_len_hybird() const noexcept
+        {
+          return fixed_len_elapsed() + fixed_len_countdown() + sizeof( __PGBAR_TIMER_SEGMENT ) - 1;
+        }
+
       public:
-        __PGBAR_EMPTY_CLASS( CountdownTimer )
+        __PGBAR_EMPTY_CLASS( Timer )
       };
       template<typename Base, typename Derived>
-      __PGBAR_CXX20_CNSTXPR CountdownTimer<Base, Derived>::~CountdownTimer() = default;
+      __PGBAR_CXX20_CNSTXPR Timer<Base, Derived>::~Timer() = default;
 
       template<typename Base, typename Derived>
       class TaskCounter : public Base {
@@ -4343,12 +4399,12 @@ namespace pgbar {
       __PGBAR_INHERIT_REGISTER( assets::SpeedMeter, assets::TaskQuantity, );
       __PGBAR_INHERIT_REGISTER( assets::CounterMeter, assets::TaskQuantity, );
 
-      __PGBAR_INHERIT_REGISTER( assets::ElapsedTimer, assets::Timer, );
-      __PGBAR_INHERIT_REGISTER( assets::CountdownTimer,
-                                __PGBAR_PACK( assets::TaskQuantity, assets::Timer ), );
+      __PGBAR_INHERIT_REGISTER( assets::Timer, assets::TaskQuantity, );
 
       template<template<typename...> class Component>
-      struct ComponentTraits;
+      struct ComponentTraits {
+        using type = TypeList<>;
+      };
       template<template<typename...> class Component>
       using ComponentTraits_t = typename ComponentTraits<Component>::type;
 
@@ -4374,8 +4430,6 @@ namespace pgbar {
                                   option::InfoColor );
       __PGBAR_COMPONENT_REGISTER( assets::PercentMeter, );
       __PGBAR_COMPONENT_REGISTER( assets::SpeedMeter, option::SpeedUnit );
-      __PGBAR_COMPONENT_REGISTER( assets::ElapsedTimer, );
-      __PGBAR_COMPONENT_REGISTER( assets::CountdownTimer, );
       __PGBAR_COMPONENT_REGISTER( assets::BasicAnimation, option::Shift, option::Lead, option::LeadColor );
       __PGBAR_COMPONENT_REGISTER( assets::BasicIndicator,
                                   option::Starting,
@@ -4471,15 +4525,13 @@ namespace pgbar {
 
     template<template<typename...> class BarType>
     class BasicConfig
-      : public __details::traits::LI_t<
-          BarType,
-          __details::assets::Description,
-          __details::assets::Segment,
-          __details::assets::PercentMeter,
-          __details::assets::SpeedMeter,
-          __details::assets::CounterMeter,
-          __details::assets::ElapsedTimer,
-          __details::assets::CountdownTimer>::template type<Core, BasicConfig<BarType>> {
+      : public __details::traits::LI_t<BarType,
+                                       __details::assets::Description,
+                                       __details::assets::Segment,
+                                       __details::assets::PercentMeter,
+                                       __details::assets::SpeedMeter,
+                                       __details::assets::CounterMeter,
+                                       __details::assets::Timer>::template type<Core, BasicConfig<BarType>> {
       // BarType must inherit from BasicIndicator or BasicAnimation
       static_assert(
         __details::traits::Contain<__details::traits::TopoSort_t<__details::traits::TemplateList<BarType>>,
@@ -4490,22 +4542,20 @@ namespace pgbar {
         "pgbar::config::BasicConfig: Invalid progress bar type" );
 
       using Self = BasicConfig;
-      using Base =
-        typename __details::traits::LI_t<BarType,
-                                         __details::assets::Description,
-                                         __details::assets::Segment,
-                                         __details::assets::PercentMeter,
-                                         __details::assets::SpeedMeter,
-                                         __details::assets::CounterMeter,
-                                         __details::assets::ElapsedTimer,
-                                         __details::assets::CountdownTimer>::template type<Core, Self>;
+      using Base = typename __details::traits::LI_t<BarType,
+                                                    __details::assets::Description,
+                                                    __details::assets::Segment,
+                                                    __details::assets::PercentMeter,
+                                                    __details::assets::SpeedMeter,
+                                                    __details::assets::CounterMeter,
+                                                    __details::assets::Timer>::template type<Core, Self>;
       using Constraint =
         __details::traits::Merge_t<__details::traits::TypeList<option::Style>,
                                    __details::traits::ComponentTraits_t<BarType>,
                                    __details::traits::ComponentTraits_t<__details::assets::Description>,
                                    __details::traits::ComponentTraits_t<__details::assets::Segment>,
                                    __details::traits::ComponentTraits_t<__details::assets::SpeedMeter>,
-                                   __details::traits::ComponentTraits_t<__details::assets::CountdownTimer>>;
+                                   __details::traits::ComponentTraits_t<__details::assets::Timer>>;
 
       template<typename, typename>
       friend struct __details::render::InfoAction;
@@ -4782,20 +4832,26 @@ namespace pgbar {
         {
           using Self = ConfigType;
           return cfg.fixed_len_description()
-               + ( cfg.visual_masks_[traits::as_val( Self::Mask::Per )] ? cfg.fixed_len_percent() : 0 )
-               + ( cfg.visual_masks_[traits::as_val( Self::Mask::Ani )] ? cfg.fixed_len_bar() : 0 )
-               + ( cfg.visual_masks_[traits::as_val( Self::Mask::Cnt )] ? cfg.fixed_len_counter() : 0 )
-               + ( cfg.visual_masks_[traits::as_val( Self::Mask::Sped )] ? cfg.fixed_len_speed() : 0 )
-               + ( cfg.visual_masks_[traits::as_val( Self::Mask::Elpsd )] ? cfg.fixed_len_elapsed() : 0 )
-               + ( cfg.visual_masks_[traits::as_val( Self::Mask::Cntdwn )] ? cfg.fixed_len_countdown() : 0 )
-               + ( cfg.visual_masks_[traits::as_val( Self::Mask::Elpsd )]
-                       && cfg.visual_masks_[traits::as_val( Self::Mask::Cntdwn )]
+               + ( cfg.visual_masks_[utils::as_val( Self::Mask::Per )] ? cfg.fixed_len_percent() : 0 )
+               + ( cfg.visual_masks_[utils::as_val( Self::Mask::Ani )] ? cfg.fixed_len_bar() : 0 )
+               + ( cfg.visual_masks_[utils::as_val( Self::Mask::Cnt )] ? cfg.fixed_len_counter() : 0 )
+               + ( cfg.visual_masks_[utils::as_val( Self::Mask::Sped )] ? cfg.fixed_len_speed() : 0 )
+               + ( cfg.visual_masks_[utils::as_val( Self::Mask::Elpsd )]
+                       && cfg.visual_masks_[utils::as_val( Self::Mask::Cntdwn )]
+                     ? cfg.fixed_len_hybird()
+                     : ( cfg.visual_masks_[utils::as_val( Self::Mask::Elpsd )]
+                           ? cfg.fixed_len_elapsed()
+                           : ( cfg.visual_masks_[utils::as_val( Self::Mask::Cntdwn )]
+                                 ? cfg.fixed_len_countdown()
+                                 : 0 ) ) )
+               + ( cfg.visual_masks_[utils::as_val( Self::Mask::Elpsd )]
+                       && cfg.visual_masks_[utils::as_val( Self::Mask::Cntdwn )]
                      ? 3
                      : 0 )
                + cfg.fixed_len_segment(
                  cfg.visual_masks_.count()
-                 - ( cfg.visual_masks_[traits::as_val( Self::Mask::Cntdwn )]
-                     && cfg.visual_masks_[traits::as_val( Self::Mask::Elpsd )] )
+                 - ( cfg.visual_masks_[utils::as_val( Self::Mask::Cntdwn )]
+                     && cfg.visual_masks_[utils::as_val( Self::Mask::Elpsd )] )
                  + ( !cfg.true_mesg_.empty() || !cfg.false_mesg_.empty() || !cfg.description_.empty() ) )
                + 1;
         }
@@ -4806,23 +4862,29 @@ namespace pgbar {
           const config::SpinBar& cfg ) noexcept
         {
           using Self = config::SpinBar;
-          return ( cfg.visual_masks_[traits::as_val( Self::Mask::Ani )]
+          return ( cfg.visual_masks_[utils::as_val( Self::Mask::Ani )]
                      ? cfg.fixed_len_animation() + cfg.fixed_len_description()
                          + ( !cfg.true_mesg_.empty() || !cfg.false_mesg_.empty()
                              || !cfg.description_.empty() )
                      : 0 )
-               + ( cfg.visual_masks_[traits::as_val( Self::Mask::Per )] ? cfg.fixed_len_percent() : 0 )
-               + ( cfg.visual_masks_[traits::as_val( Self::Mask::Cnt )] ? cfg.fixed_len_counter() : 0 )
-               + ( cfg.visual_masks_[traits::as_val( Self::Mask::Sped )] ? cfg.fixed_len_speed() : 0 )
-               + ( cfg.visual_masks_[traits::as_val( Self::Mask::Elpsd )] ? cfg.fixed_len_elapsed() : 0 )
-               + ( cfg.visual_masks_[traits::as_val( Self::Mask::Cntdwn )] ? cfg.fixed_len_countdown() : 0 )
-               + ( cfg.visual_masks_[traits::as_val( Self::Mask::Elpsd )]
-                       && cfg.visual_masks_[traits::as_val( Self::Mask::Cntdwn )]
+               + ( cfg.visual_masks_[utils::as_val( Self::Mask::Per )] ? cfg.fixed_len_percent() : 0 )
+               + ( cfg.visual_masks_[utils::as_val( Self::Mask::Cnt )] ? cfg.fixed_len_counter() : 0 )
+               + ( cfg.visual_masks_[utils::as_val( Self::Mask::Sped )] ? cfg.fixed_len_speed() : 0 )
+               + ( cfg.visual_masks_[utils::as_val( Self::Mask::Elpsd )]
+                       && cfg.visual_masks_[utils::as_val( Self::Mask::Cntdwn )]
+                     ? cfg.fixed_len_hybird()
+                     : ( cfg.visual_masks_[utils::as_val( Self::Mask::Elpsd )]
+                           ? cfg.fixed_len_elapsed()
+                           : ( cfg.visual_masks_[utils::as_val( Self::Mask::Cntdwn )]
+                                 ? cfg.fixed_len_countdown()
+                                 : 0 ) ) )
+               + ( cfg.visual_masks_[utils::as_val( Self::Mask::Elpsd )]
+                       && cfg.visual_masks_[utils::as_val( Self::Mask::Cntdwn )]
                      ? 3
                      : 0 )
                + cfg.fixed_len_segment( cfg.visual_masks_.count()
-                                        - ( cfg.visual_masks_[traits::as_val( Self::Mask::Cntdwn )]
-                                            && cfg.visual_masks_[traits::as_val( Self::Mask::Elpsd )] ) )
+                                        - ( cfg.visual_masks_[utils::as_val( Self::Mask::Cntdwn )]
+                                            && cfg.visual_masks_[utils::as_val( Self::Mask::Elpsd )] ) )
                + 1;
         }
       };
@@ -4851,32 +4913,32 @@ namespace pgbar {
         {
           __PGBAR_PURE_ASSUME( num_task_done <= num_all_tasks );
           using Self = ConfigType;
-          if ( this->visual_masks_[traits::as_val( Self::Mask::Cnt )]
-               || this->visual_masks_[traits::as_val( Self::Mask::Sped )]
-               || this->visual_masks_[traits::as_val( Self::Mask::Elpsd )]
-               || this->visual_masks_[traits::as_val( Self::Mask::Cntdwn )] ) {
+          if ( this->visual_masks_[utils::as_val( Self::Mask::Cnt )]
+               || this->visual_masks_[utils::as_val( Self::Mask::Sped )]
+               || this->visual_masks_[utils::as_val( Self::Mask::Elpsd )]
+               || this->visual_masks_[utils::as_val( Self::Mask::Cntdwn )] ) {
             buffer << console::escodes::reset_font;
             this->build_font( buffer, this->info_col_ );
-            if ( this->visual_masks_[traits::as_val( Self::Mask::Cnt )] ) {
+            if ( this->visual_masks_[utils::as_val( Self::Mask::Cnt )] ) {
               buffer << this->build_counter( num_task_done, num_all_tasks );
-              if ( this->visual_masks_[traits::as_val( Self::Mask::Sped )]
-                   || this->visual_masks_[traits::as_val( Self::Mask::Elpsd )]
-                   || this->visual_masks_[traits::as_val( Self::Mask::Cntdwn )] )
+              if ( this->visual_masks_[utils::as_val( Self::Mask::Sped )]
+                   || this->visual_masks_[utils::as_val( Self::Mask::Elpsd )]
+                   || this->visual_masks_[utils::as_val( Self::Mask::Cntdwn )] )
                 this->build_divider( buffer );
             }
             const auto time_passed = std::chrono::steady_clock::now() - zero_point;
-            if ( this->visual_masks_[traits::as_val( Self::Mask::Sped )] ) {
+            if ( this->visual_masks_[utils::as_val( Self::Mask::Sped )] ) {
               buffer << this->build_speed( time_passed, num_task_done, num_all_tasks );
-              if ( this->visual_masks_[traits::as_val( Self::Mask::Elpsd )]
-                   || this->visual_masks_[traits::as_val( Self::Mask::Cntdwn )] )
+              if ( this->visual_masks_[utils::as_val( Self::Mask::Elpsd )]
+                   || this->visual_masks_[utils::as_val( Self::Mask::Cntdwn )] )
                 this->build_divider( buffer );
             }
-            if ( this->visual_masks_[traits::as_val( Self::Mask::Elpsd )] ) {
+            if ( this->visual_masks_[utils::as_val( Self::Mask::Elpsd )] ) {
               buffer << this->build_elapsed( time_passed );
-              if ( this->visual_masks_[traits::as_val( Self::Mask::Cntdwn )] )
+              if ( this->visual_masks_[utils::as_val( Self::Mask::Cntdwn )] )
                 buffer << " < ";
             }
-            if ( this->visual_masks_[traits::as_val( Self::Mask::Cntdwn )] )
+            if ( this->visual_masks_[utils::as_val( Self::Mask::Cntdwn )] )
               buffer << this->build_countdown( time_passed, num_task_done, num_all_tasks );
           }
           return buffer;
@@ -4908,18 +4970,18 @@ namespace pgbar {
           this->build_description( buffer );
           if ( !this->description_.empty() && this->visual_masks_.any() )
             this->build_divider( buffer );
-          if ( this->visual_masks_[traits::as_val( Self::Mask::Per )] ) {
+          if ( this->visual_masks_[utils::as_val( Self::Mask::Per )] ) {
             this->build_font( buffer, this->info_col_ );
             buffer << this->build_percent( num_percent );
             auto masks = this->visual_masks_;
-            if ( masks.reset( traits::as_val( Self::Mask::Per ) ).any() )
+            if ( masks.reset( utils::as_val( Self::Mask::Per ) ).any() )
               this->build_divider( buffer );
           }
-          if ( this->visual_masks_[traits::as_val( Self::Mask::Ani )] ) {
+          if ( this->visual_masks_[utils::as_val( Self::Mask::Ani )] ) {
             this->build_char( buffer, num_frame_cnt, num_percent );
             auto masks = this->visual_masks_;
-            if ( masks.reset( traits::as_val( Self::Mask::Ani ) )
-                   .reset( traits::as_val( Self::Mask::Per ) )
+            if ( masks.reset( utils::as_val( Self::Mask::Ani ) )
+                   .reset( utils::as_val( Self::Mask::Per ) )
                    .any() )
               this->build_divider( buffer );
           }
@@ -4951,19 +5013,19 @@ namespace pgbar {
                  || !this->description_.empty() )
                && this->visual_masks_.any() )
             this->build_divider( buffer );
-          if ( this->visual_masks_[traits::as_val( Self::Mask::Per )] ) {
+          if ( this->visual_masks_[utils::as_val( Self::Mask::Per )] ) {
             buffer << console::escodes::reset_font;
             this->build_font( buffer, this->info_col_ );
             buffer << this->build_percent( num_percent );
             auto masks = this->visual_masks_;
-            if ( masks.reset( traits::as_val( Self::Mask::Per ) ).any() )
+            if ( masks.reset( utils::as_val( Self::Mask::Per ) ).any() )
               this->build_divider( buffer );
           }
-          if ( this->visual_masks_[traits::as_val( Self::Mask::Ani )] ) {
+          if ( this->visual_masks_[utils::as_val( Self::Mask::Ani )] ) {
             this->build_char( buffer, num_frame_cnt, num_percent );
             auto masks = this->visual_masks_;
-            if ( masks.reset( traits::as_val( Self::Mask::Ani ) )
-                   .reset( traits::as_val( Self::Mask::Per ) )
+            if ( masks.reset( utils::as_val( Self::Mask::Ani ) )
+                   .reset( utils::as_val( Self::Mask::Per ) )
                    .any() )
               this->build_divider( buffer );
           }
@@ -4979,7 +5041,7 @@ namespace pgbar {
         {
           concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
           return InfoAction<Self>::fixed_render_size( *this )
-               + ( this->visual_masks_[traits::as_val( Self::Mask::Ani )] ? this->bar_length_ : 0 );
+               + ( this->visual_masks_[utils::as_val( Self::Mask::Ani )] ? this->bar_length_ : 0 );
         }
       };
 
@@ -5005,19 +5067,19 @@ namespace pgbar {
           this->build_description( buffer );
           if ( !this->description_.empty() && this->visual_masks_.any() )
             this->build_divider( buffer );
-          if ( this->visual_masks_[traits::as_val( Self::Mask::Per )] ) {
+          if ( this->visual_masks_[utils::as_val( Self::Mask::Per )] ) {
             buffer << console::escodes::reset_font;
             this->build_font( buffer, this->info_col_ );
             buffer << this->build_percent( num_percent );
             auto masks = this->visual_masks_;
-            if ( masks.reset( traits::as_val( Self::Mask::Per ) ).any() )
+            if ( masks.reset( utils::as_val( Self::Mask::Per ) ).any() )
               this->build_divider( buffer );
           }
-          if ( this->visual_masks_[traits::as_val( Self::Mask::Ani )] ) {
+          if ( this->visual_masks_[utils::as_val( Self::Mask::Ani )] ) {
             this->build_block( buffer, num_percent );
             auto masks = this->visual_masks_;
-            if ( masks.reset( traits::as_val( Self::Mask::Ani ) )
-                   .reset( traits::as_val( Self::Mask::Per ) )
+            if ( masks.reset( utils::as_val( Self::Mask::Ani ) )
+                   .reset( utils::as_val( Self::Mask::Per ) )
                    .any() )
               this->build_divider( buffer );
           }
@@ -5048,19 +5110,19 @@ namespace pgbar {
                  || !this->description_.empty() )
                && this->visual_masks_.any() )
             this->build_divider( buffer );
-          if ( this->visual_masks_[traits::as_val( Self::Mask::Per )] ) {
+          if ( this->visual_masks_[utils::as_val( Self::Mask::Per )] ) {
             buffer << console::escodes::reset_font;
             this->build_font( buffer, this->info_col_ );
             buffer << this->build_percent( num_percent );
             auto masks = this->visual_masks_;
-            if ( masks.reset( traits::as_val( Self::Mask::Per ) ).any() )
+            if ( masks.reset( utils::as_val( Self::Mask::Per ) ).any() )
               this->build_divider( buffer );
           }
-          if ( this->visual_masks_[traits::as_val( Self::Mask::Ani )] ) {
+          if ( this->visual_masks_[utils::as_val( Self::Mask::Ani )] ) {
             this->build_block( buffer, num_percent );
             auto masks = this->visual_masks_;
-            if ( masks.reset( traits::as_val( Self::Mask::Ani ) )
-                   .reset( traits::as_val( Self::Mask::Per ) )
+            if ( masks.reset( utils::as_val( Self::Mask::Ani ) )
+                   .reset( utils::as_val( Self::Mask::Per ) )
                    .any() )
               this->build_divider( buffer );
           }
@@ -5076,7 +5138,7 @@ namespace pgbar {
         {
           concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
           return InfoAction<Self>::fixed_render_size( *this )
-               + ( this->visual_masks_[traits::as_val( Self::Mask::Ani )] ? this->bar_length_ : 0 );
+               + ( this->visual_masks_[utils::as_val( Self::Mask::Ani )] ? this->bar_length_ : 0 );
         }
       };
 
@@ -5100,23 +5162,23 @@ namespace pgbar {
           if ( this->visual_masks_.any() )
             this->build_lborder( buffer );
 
-          if ( this->visual_masks_[traits::as_val( Self::Mask::Ani )] ) {
+          if ( this->visual_masks_[utils::as_val( Self::Mask::Ani )] ) {
             this->build_spinner( buffer, num_frame_cnt );
             if ( !this->description_.empty() ) {
               buffer << constants::blank;
               this->build_description( buffer );
             }
             auto masks = this->visual_masks_;
-            if ( masks.reset( traits::as_val( Self::Mask::Ani ) ).any() )
+            if ( masks.reset( utils::as_val( Self::Mask::Ani ) ).any() )
               this->build_divider( buffer );
           }
-          if ( this->visual_masks_[traits::as_val( Self::Mask::Per )] ) {
+          if ( this->visual_masks_[utils::as_val( Self::Mask::Per )] ) {
             buffer << console::escodes::reset_font;
             this->build_font( buffer, this->info_col_ );
             buffer << this->build_percent( num_percent );
             auto masks = this->visual_masks_;
-            if ( masks.reset( traits::as_val( Self::Mask::Ani ) )
-                   .reset( traits::as_val( Self::Mask::Per ) )
+            if ( masks.reset( utils::as_val( Self::Mask::Ani ) )
+                   .reset( utils::as_val( Self::Mask::Per ) )
                    .any() )
               this->build_divider( buffer );
           }
@@ -5141,7 +5203,7 @@ namespace pgbar {
           if ( this->visual_masks_.any() )
             this->build_lborder( buffer );
 
-          if ( this->visual_masks_[traits::as_val( Self::Mask::Ani )] ) {
+          if ( this->visual_masks_[utils::as_val( Self::Mask::Ani )] ) {
             if ( ( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() ) {
               this->build_spinner( buffer, num_frame_cnt );
               if ( !this->description_.empty() )
@@ -5149,16 +5211,16 @@ namespace pgbar {
             }
             this->build_description( buffer, final_mesg );
             auto masks = this->visual_masks_;
-            if ( masks.reset( traits::as_val( Self::Mask::Ani ) ).any() )
+            if ( masks.reset( utils::as_val( Self::Mask::Ani ) ).any() )
               this->build_divider( buffer );
           }
-          if ( this->visual_masks_[traits::as_val( Self::Mask::Per )] ) {
+          if ( this->visual_masks_[utils::as_val( Self::Mask::Per )] ) {
             buffer << console::escodes::reset_font;
             this->build_font( buffer, this->info_col_ );
             buffer << this->build_percent( num_percent );
             auto masks = this->visual_masks_;
-            if ( masks.reset( traits::as_val( Self::Mask::Ani ) )
-                   .reset( traits::as_val( Self::Mask::Per ) )
+            if ( masks.reset( utils::as_val( Self::Mask::Ani ) )
+                   .reset( utils::as_val( Self::Mask::Per ) )
                    .any() )
               this->build_divider( buffer );
           }
@@ -5198,19 +5260,19 @@ namespace pgbar {
           this->build_description( buffer );
           if ( !this->description_.empty() && this->visual_masks_.any() )
             this->build_divider( buffer );
-          if ( this->visual_masks_[traits::as_val( Self::Mask::Per )] ) {
+          if ( this->visual_masks_[utils::as_val( Self::Mask::Per )] ) {
             buffer << console::escodes::reset_font;
             this->build_font( buffer, this->info_col_ );
             buffer << this->build_percent( num_percent );
             auto masks = this->visual_masks_;
-            if ( masks.reset( traits::as_val( Self::Mask::Per ) ).any() )
+            if ( masks.reset( utils::as_val( Self::Mask::Per ) ).any() )
               this->build_divider( buffer );
           }
-          if ( this->visual_masks_[traits::as_val( Self::Mask::Ani )] ) {
+          if ( this->visual_masks_[utils::as_val( Self::Mask::Ani )] ) {
             this->build_scanner( buffer, num_frame_cnt );
             auto masks = this->visual_masks_;
-            if ( masks.reset( traits::as_val( Self::Mask::Ani ) )
-                   .reset( traits::as_val( Self::Mask::Per ) )
+            if ( masks.reset( utils::as_val( Self::Mask::Ani ) )
+                   .reset( utils::as_val( Self::Mask::Per ) )
                    .any() )
               this->build_divider( buffer );
           }
@@ -5242,19 +5304,19 @@ namespace pgbar {
                  || !this->description_.empty() )
                && this->visual_masks_.any() )
             this->build_divider( buffer );
-          if ( this->visual_masks_[traits::as_val( Self::Mask::Per )] ) {
+          if ( this->visual_masks_[utils::as_val( Self::Mask::Per )] ) {
             buffer << console::escodes::reset_font;
             this->build_font( buffer, this->info_col_ );
             buffer << this->build_percent( num_percent );
             auto masks = this->visual_masks_;
-            if ( masks.reset( traits::as_val( Self::Mask::Per ) ).any() )
+            if ( masks.reset( utils::as_val( Self::Mask::Per ) ).any() )
               this->build_divider( buffer );
           }
-          if ( this->visual_masks_[traits::as_val( Self::Mask::Ani )] ) {
+          if ( this->visual_masks_[utils::as_val( Self::Mask::Ani )] ) {
             this->build_scanner( buffer, num_frame_cnt );
             auto masks = this->visual_masks_;
-            if ( masks.reset( traits::as_val( Self::Mask::Ani ) )
-                   .reset( traits::as_val( Self::Mask::Per ) )
+            if ( masks.reset( utils::as_val( Self::Mask::Ani ) )
+                   .reset( utils::as_val( Self::Mask::Per ) )
                    .any() )
               this->build_divider( buffer );
           }
@@ -5270,7 +5332,7 @@ namespace pgbar {
         {
           concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
           return InfoAction<Self>::fixed_render_size( *this )
-               + ( this->visual_masks_[traits::as_val( Self::Mask::Ani )] ? this->bar_length_ : 0 );
+               + ( this->visual_masks_[utils::as_val( Self::Mask::Ani )] ? this->bar_length_ : 0 );
         }
       };
 
@@ -5705,8 +5767,8 @@ namespace pgbar {
           case BarType::state::Stopped: {
             __PGBAR_ASSERT( bar.executor_.active() == false );
             bar.task_end_.store( bar.config_.tasks(), std::memory_order_release );
-            __PGBAR_UNLIKELY if ( bar.task_end_.load( std::memory_order_acquire ) == 0 ) throw exception::
-              InvalidState( "pgbar: the number of tasks is zero" );
+            if ( bar.task_end_.load( std::memory_order_acquire ) == 0 )
+              __PGBAR_UNLIKELY throw exception::InvalidState( "pgbar: the number of tasks is zero" );
 
             bar.task_cnt_.store( 0, std::memory_order_release );
             bar.zero_point_ = std::chrono::steady_clock::now();
@@ -5728,8 +5790,9 @@ namespace pgbar {
           case BarType::state::Refresh2: {
             action();
 
-            __PGBAR_UNLIKELY if ( bar.task_cnt_.load( std::memory_order_acquire ) >= bar.task_end_.load(
-                                    std::memory_order_acquire ) ) bar.unlock_reset( true );
+            if ( bar.task_cnt_.load( std::memory_order_acquire )
+                 >= bar.task_end_.load( std::memory_order_acquire ) )
+              __PGBAR_UNLIKELY bar.unlock_reset( true );
           } break;
 
           default: return;
@@ -5772,8 +5835,9 @@ namespace pgbar {
           case BarType::state::Refresh2: {
             action();
 
-            __PGBAR_UNLIKELY if ( bar.task_cnt_.load( std::memory_order_acquire ) >= bar.task_end_.load(
-                                    std::memory_order_acquire ) ) bar.unlock_reset( true );
+            if ( bar.task_cnt_.load( std::memory_order_acquire )
+                 >= bar.task_end_.load( std::memory_order_acquire ) )
+              __PGBAR_UNLIKELY bar.unlock_reset( true );
           } break;
 
           default: return;
@@ -5951,6 +6015,7 @@ namespace pgbar {
 # undef __PGBAR_EMPTY_CLASS
 # undef __PGBAR_NONEMPTY_CLASS
 
+# undef __PGBAR_TIMER_SEGMENT
 # undef __PGBAR_DEFAULT_TIMER
 # undef __PGBAR_DEFAULT_SPEED
 # undef __PGBAR_DEFAULT_PERCENT

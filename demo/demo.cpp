@@ -8,6 +8,10 @@
 
 int main()
 {
+#if _WIN32
+  system( "chcp 65001" );
+#endif
+
   {
     std::cout << "Basic user guide." << std::endl;
     // All progress bar objects can be constructed by default without parameters
