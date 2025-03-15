@@ -1361,17 +1361,32 @@ namespace pgbar {
       }
 
       template<typename Numeric>
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN
-        typename std::enable_if<std::is_arithmetic<Numeric>::value, types::Size>::type
+      __PGBAR_NODISCARD __PGBAR_CXX23_CNSTXPR __PGBAR_INLINE_FN
+        typename std::enable_if<std::is_arithmetic<Numeric>::value && !std::is_unsigned<Numeric>::value,
+                                types::Size>::type
         count_digits( Numeric val )
       {
-        return ( val != 0 ? std::log10( val ) : 0 ) + 1;
-        // Integer division is faster only at the O2/O3 optimization level.
+        auto abs_val       = static_cast<std::uint64_t>( std::abs( val ) );
+        types::Size digits = abs_val == 0;
+        for ( ; abs_val > 0; abs_val /= 10 )
+          ++digits;
+        return digits;
+      }
+      template<typename Unsigned>
+      __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR __PGBAR_INLINE_FN
+        typename std::enable_if<std::is_unsigned<Unsigned>::value, types::Size>::type
+        count_digits( Unsigned val )
+      {
+        auto abs_val       = static_cast<std::uint64_t>( val );
+        types::Size digits = abs_val == 0;
+        for ( ; abs_val > 0; abs_val /= 10 )
+          ++digits;
+        return digits;
       }
 
       // Format an integer number.
       template<typename Integer>
-      __PGBAR_NODISCARD __PGBAR_CXX20_CNSTXPR __PGBAR_INLINE_FN
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN
         typename std::enable_if<std::is_integral<Integer>::value, types::String>::type
         format( Integer val ) noexcept( noexcept( std::to_string( std::declval<Integer>() ) ) )
       {
@@ -1384,6 +1399,7 @@ namespace pgbar {
          * Therefore, the functions of the standard library are called directly here,
          * rather than providing a manual implementation like the other functions. */
         return std::to_string( val );
+        // Although, unfortunately, std::to_string is not labeled constexpr.
       }
 
       // Format a finite floating point number.
@@ -1555,7 +1571,7 @@ namespace pgbar {
        *
        * Return nothing if defined `PGBAR_COLORLESS`.
        */
-      __PGBAR_CXX20_CNSTXPR types::String rgb2ansi( types::HexRGB rgb )
+      types::String rgb2ansi( types::HexRGB rgb )
 # ifdef PGBAR_COLORLESS
         noexcept( std::is_nothrow_default_constructible<types::String>::value )
       {
@@ -2872,17 +2888,15 @@ namespace pgbar {
     };
 
 # undef __PGBAR_OPTIONS_HELPER
-# define __PGBAR_OPTIONS_HELPER( StructName, ParamName )                                \
-   __PGBAR_OPTIONS( StructName, __details::types::String )                              \
-   __PGBAR_CXX20_CNSTXPR StructName( __details::types::ROStr ParamName )                \
-     : data_ { __details::console::rgb2ansi( __details::utils::hex2rgb( ParamName ) ) } \
-   {}                                                                                   \
-   __PGBAR_CXX20_CNSTXPR StructName( __details::types::HexRGB ParamName )               \
-     : data_ { __details::console::rgb2ansi( ParamName ) }                              \
-   {}                                                                                   \
-   __PGBAR_CXX20_CNSTXPR StructName( const StructName& )             = default;         \
-   __PGBAR_CXX20_CNSTXPR StructName( StructName&& )                  = default;         \
-   __PGBAR_CXX20_CNSTXPR StructName& operator=( const StructName& )& = default;         \
+# define __PGBAR_OPTIONS_HELPER( StructName, ParamName )                                                     \
+   __PGBAR_OPTIONS( StructName, __details::types::String )                                                   \
+   StructName( __details::types::ROStr ParamName )                                                           \
+     : data_ { __details::console::rgb2ansi( __details::utils::hex2rgb( ParamName ) ) }                      \
+   {}                                                                                                        \
+   StructName( __details::types::HexRGB ParamName ) : data_ { __details::console::rgb2ansi( ParamName ) } {} \
+   StructName( const StructName& )                                   = default;                              \
+   StructName( StructName&& )                                        = default;                              \
+   __PGBAR_CXX20_CNSTXPR StructName& operator=( const StructName& )& = default;                              \
    __PGBAR_CXX20_CNSTXPR StructName& operator=( StructName&& )&      = default;
 
     // A wrapper that stores the description text color.
@@ -3162,8 +3176,7 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class BasicAnimation : public Base {
-        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( BasicAnimation& cfg,
-                                                                      option::LeadColor&& val ) noexcept
+        friend __PGBAR_INLINE_FN void unpacker( BasicAnimation& cfg, option::LeadColor&& val ) noexcept
         {
           cfg.lead_col_ = std::move( val.value() );
         }
@@ -3267,18 +3280,18 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class BasicIndicator : public Base {
-# define __PGBAR_UNPAKING( OptionName, MemberName )                                                  \
-   friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( BasicIndicator& cfg,                \
-                                                                 option::OptionName&& val ) noexcept \
-   {                                                                                                 \
-     cfg.MemberName = std::move( val.value() );                                                      \
+# define __PGBAR_UNPAKING( OptionName, MemberName, Constexpr )                           \
+   friend __PGBAR_INLINE_FN Constexpr void unpacker( BasicIndicator& cfg,                \
+                                                     option::OptionName&& val ) noexcept \
+   {                                                                                     \
+     cfg.MemberName = std::move( val.value() );                                          \
    }
-        __PGBAR_UNPAKING( Starting, starting_ )
-        __PGBAR_UNPAKING( Ending, ending_ )
-        __PGBAR_UNPAKING( BarLength, bar_length_ )
-        __PGBAR_UNPAKING( StartColor, start_col_ )
-        __PGBAR_UNPAKING( EndColor, end_col_ )
-        __PGBAR_UNPAKING( FillerColor, filler_col_ )
+        __PGBAR_UNPAKING( Starting, starting_, __PGBAR_CXX20_CNSTXPR )
+        __PGBAR_UNPAKING( Ending, ending_, __PGBAR_CXX20_CNSTXPR )
+        __PGBAR_UNPAKING( BarLength, bar_length_, __PGBAR_CXX20_CNSTXPR )
+        __PGBAR_UNPAKING( StartColor, start_col_, )
+        __PGBAR_UNPAKING( EndColor, end_col_, )
+        __PGBAR_UNPAKING( FillerColor, filler_col_, )
 # undef __PGBAR_UNPAKING
 
       protected:
@@ -3371,15 +3384,14 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class CharIndicator : public Base {
-# define __PGBAR_UNPAKING( OptionName, MemberName )                                                  \
-   friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( CharIndicator& cfg,                 \
-                                                                 option::OptionName&& val ) noexcept \
-   {                                                                                                 \
-     cfg.MemberName = std::move( val.value() );                                                      \
+# define __PGBAR_UNPAKING( OptionName, MemberName, Constexpr )                                               \
+   friend __PGBAR_INLINE_FN Constexpr void unpacker( CharIndicator& cfg, option::OptionName&& val ) noexcept \
+   {                                                                                                         \
+     cfg.MemberName = std::move( val.value() );                                                              \
    }
-        __PGBAR_UNPAKING( Remains, remains_ )
-        __PGBAR_UNPAKING( RemainsColor, remains_col_ )
-        __PGBAR_UNPAKING( Filler, filler_ )
+        __PGBAR_UNPAKING( Remains, remains_, __PGBAR_CXX20_CNSTXPR )
+        __PGBAR_UNPAKING( RemainsColor, remains_col_, )
+        __PGBAR_UNPAKING( Filler, filler_, __PGBAR_CXX20_CNSTXPR )
 # undef __PGBAR_UNPAKING
 
       protected:
@@ -3648,18 +3660,17 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class Description : public Base {
-# define __PGBAR_UNPAKING( OptionName, MemberName )                                                  \
-   friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( Description& cfg,                   \
-                                                                 option::OptionName&& val ) noexcept \
-   {                                                                                                 \
-     cfg.MemberName = std::move( val.value() );                                                      \
+# define __PGBAR_UNPAKING( OptionName, MemberName, Constexpr )                                             \
+   friend __PGBAR_INLINE_FN Constexpr void unpacker( Description& cfg, option::OptionName&& val ) noexcept \
+   {                                                                                                       \
+     cfg.MemberName = std::move( val.value() );                                                            \
    }
-        __PGBAR_UNPAKING( Description, description_ )
-        __PGBAR_UNPAKING( TrueMesg, true_mesg_ )
-        __PGBAR_UNPAKING( FalseMesg, false_mesg_ )
-        __PGBAR_UNPAKING( DescColor, desc_col_ )
-        __PGBAR_UNPAKING( TrueColor, true_col_ )
-        __PGBAR_UNPAKING( FalseColor, false_col_ )
+        __PGBAR_UNPAKING( Description, description_, __PGBAR_CXX20_CNSTXPR )
+        __PGBAR_UNPAKING( TrueMesg, true_mesg_, __PGBAR_CXX20_CNSTXPR )
+        __PGBAR_UNPAKING( FalseMesg, false_mesg_, __PGBAR_CXX20_CNSTXPR )
+        __PGBAR_UNPAKING( DescColor, desc_col_, )
+        __PGBAR_UNPAKING( TrueColor, true_col_, )
+        __PGBAR_UNPAKING( FalseColor, false_col_, )
 # undef __PGBAR_UNPAKING
 
       protected:
@@ -3774,17 +3785,16 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class Segment : public Base {
-# define __PGBAR_UNPAKING( OptionName, MemberName, Operation )                                       \
-   friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( Segment& cfg,                       \
-                                                                 option::OptionName&& val ) noexcept \
-   {                                                                                                 \
-     cfg.MemberName = Operation( val.value() );                                                      \
+# define __PGBAR_UNPAKING( OptionName, MemberName, Operation, Constexpr )                              \
+   friend __PGBAR_INLINE_FN Constexpr void unpacker( Segment& cfg, option::OptionName&& val ) noexcept \
+   {                                                                                                   \
+     cfg.MemberName = Operation( val.value() );                                                        \
    }
-        __PGBAR_UNPAKING( Style, visibilities_, )
-        __PGBAR_UNPAKING( InfoColor, info_col_, std::move )
-        __PGBAR_UNPAKING( Divider, divider_, std::move )
-        __PGBAR_UNPAKING( LeftBorder, l_border_, std::move )
-        __PGBAR_UNPAKING( RightBorder, r_border_, std::move )
+        __PGBAR_UNPAKING( Style, visibilities_, , __PGBAR_CXX20_CNSTXPR )
+        __PGBAR_UNPAKING( InfoColor, info_col_, std::move, )
+        __PGBAR_UNPAKING( Divider, divider_, std::move, __PGBAR_CXX20_CNSTXPR )
+        __PGBAR_UNPAKING( LeftBorder, l_border_, std::move, __PGBAR_CXX20_CNSTXPR )
+        __PGBAR_UNPAKING( RightBorder, r_border_, std::move, __PGBAR_CXX20_CNSTXPR )
 # undef __PGBAR_UNPAKING
 
       protected:
@@ -4051,7 +4061,8 @@ namespace pgbar {
           return str;
         }
 
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN types::Size fixed_len_counter() const noexcept
+        __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR __PGBAR_INLINE_FN types::Size fixed_len_counter()
+          const noexcept
         {
           return utils::count_digits( this->task_range_.end_value() ) * 2 + 1;
         }
@@ -4067,8 +4078,7 @@ namespace pgbar {
 # define __PGBAR_DEFAULT_TIMER "--:--:--"
 # define __PGBAR_TIMER_SEGMENT " < "
 
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::String time_formatter(
-          types::TimeUnit duration ) const
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN types::String time_formatter( types::TimeUnit duration ) const
         {
           const auto time2str = []( std::int64_t num_time ) -> types::String {
             auto ret = utils::format( num_time );
@@ -4715,7 +4725,7 @@ namespace pgbar {
          * and initializes only those members that do not.
          */
         template<typename... Options>
-        static __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void make( config::CharBar& cfg )
+        static __PGBAR_INLINE_FN void make( config::CharBar& cfg )
         {
           // The types in the tuple are never repeated.
           using ParamList = traits::TypeList<Options...>;
@@ -4749,7 +4759,7 @@ namespace pgbar {
       template<>
       struct InitAction<config::BlckBar> final {
         template<typename... Options>
-        static __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void make( config::BlckBar& cfg )
+        static __PGBAR_INLINE_FN void make( config::BlckBar& cfg )
         {
           using ParamList = traits::TypeList<Options...>;
           if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::BarLength, ParamList>::value )
@@ -4770,7 +4780,7 @@ namespace pgbar {
       template<>
       struct InitAction<config::SpinBar> final {
         template<typename... Options>
-        static __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void make( config::SpinBar& cfg )
+        static __PGBAR_INLINE_FN void make( config::SpinBar& cfg )
         {
           using ParamList = traits::TypeList<Options...>;
           if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Shift, ParamList>::value )
@@ -4793,7 +4803,7 @@ namespace pgbar {
       template<>
       struct InitAction<config::ScanBar> final {
         template<typename... Options>
-        static __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void make( config::ScanBar& cfg )
+        static __PGBAR_INLINE_FN void make( config::ScanBar& cfg )
         {
           using ParamList = traits::TypeList<Options...>;
           if __PGBAR_CXX17_CNSTXPR ( !traits::Belong<option::Shift, ParamList>::value )
@@ -5555,11 +5565,7 @@ namespace pgbar {
      * Reset the state of the object,
      * it will immediately TERMINATE the current make.
      */
-    void reset() override final
-    {
-      std::lock_guard<MutexMode> lock { mtx_ };
-      this->unlock_reset( true );
-    }
+    void reset() override final { reset( true ); }
     void reset( bool final_mesg ) override final
     {
       std::lock_guard<MutexMode> lock { mtx_ };
