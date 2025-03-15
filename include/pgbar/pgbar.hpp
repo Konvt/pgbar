@@ -2602,54 +2602,47 @@ namespace pgbar {
         std::chrono::duration_cast<types::TimeUnit>( std::chrono::milliseconds( 40 ) );
       SharedMutex StateThread::_rw_mtx {};
 
-      // A fixed length ring queue.
+      // A fixed-length ring queue that will be prefilled with objects at construction time.
       template<typename T, types::Size Capacity>
-      class RingQueue final {
-        using Self = RingQueue;
+      class ObjectPool final {
+        using Self = ObjectPool;
 
         static_assert( std::is_default_constructible<T>::value,
-                       "pgbar::__details::concurrent::RingQueue: T must be default constructible" );
-        static_assert( std::is_move_constructible<T>::value,
-                       "pgbar::__details::concurrent::RingQueue: T must be move constructible" );
+                       "pgbar::__details::concurrent::ObjectPool: T must be default constructible" );
         static_assert( std::is_move_assignable<T>::value,
-                       "pgbar::__details::concurrent::RingQueue: T must be move assignable" );
+                       "pgbar::__details::concurrent::ObjectPool: T must be move assignable" );
 
         std::array<T, Capacity> buffer_;
         types::Size read_idx_, write_idx_, count_;
 
         mutable SharedMutex rw_mtx_;
 
-      public:
-        RingQueue() noexcept { read_idx_ = write_idx_ = count_ = 0; }
-
-        RingQueue( const T& __value, types::Size __n = 1 )
-          noexcept( std::is_nothrow_copy_assignable<T>::value )
-          : RingQueue()
+        ObjectPool() noexcept( std::is_nothrow_default_constructible<T>::value ) : buffer_ {}
         {
-          __PGBAR_PURE_ASSUME( __n <= Capacity );
-          for ( types::Size i = 0; i < __n; ++i ) {
-            buffer_[write_idx_] = __value;
-            write_idx_          = ( write_idx_ + 1 ) % Capacity;
-            ++count_;
-          }
+          read_idx_ = write_idx_ = count_ = 0;
         }
 
-        RingQueue( const Self& rhs )         = delete;
+      public:
+        __PGBAR_INLINE_FN static Self& itself() noexcept
+        {
+          static ObjectPool instance;
+          return instance;
+        }
+
+        ObjectPool( const Self& rhs )        = delete;
         Self& operator=( const Self& rhs ) & = delete;
 
-        ~RingQueue() = default;
+        ~ObjectPool() = default;
 
         // Insert the item into the queue and discard it if the queue is full.
         bool push( T item ) & noexcept( std::is_nothrow_move_assignable<T>::value )
         {
-          {
-            std::lock_guard<SharedMutex> lock { rw_mtx_ };
-            if ( count_ == Capacity )
-              return false;
-            buffer_[write_idx_] = std::move( item );
-            write_idx_          = ( write_idx_ + 1 ) % Capacity;
-            ++count_;
-          }
+          std::lock_guard<SharedMutex> lock { rw_mtx_ };
+          if ( count_ == Capacity )
+            return false;
+          buffer_[write_idx_] = std::move( item );
+          write_idx_          = ( write_idx_ + 1 ) % Capacity;
+          ++count_;
           return true;
         }
 
@@ -2673,7 +2666,7 @@ namespace pgbar {
         }
 
         // Reset the read and write pointers.
-        void clear() & noexcept
+        __PGBAR_INLINE_FN void clear() & noexcept
         {
           std::lock_guard<SharedMutex> lock { rw_mtx_ };
           read_idx_ = write_idx_ = count_ = 0;
@@ -2714,7 +2707,7 @@ namespace pgbar {
       };
 
       // Global `StateThread` repository.
-      __PGBAR_CXX17_INLINE RingQueue<StateThread, 4> thread_repo;
+      using ThreadRepo = ObjectPool<StateThread, 4>;
     } // namespace concurrent
   } // namespace __details
 
@@ -5355,7 +5348,7 @@ namespace pgbar {
         Renderer( const Self& )          = delete;
         Self& operator=( const Self& ) & = delete;
 
-        Renderer() noexcept : state_td_ { concurrent::thread_repo.pop() }
+        Renderer() noexcept : state_td_ { concurrent::ThreadRepo::itself().pop() }
         {
           __PGBAR_ASSERT( state_td_.active() == false );
           __PGBAR_ASSERT( state_td_.jobless() );
@@ -5365,7 +5358,7 @@ namespace pgbar {
           reset();
           __PGBAR_ASSERT( state_td_.active() == false );
           __PGBAR_ASSERT( state_td_.jobless() );
-          concurrent::thread_repo.push( std::move( state_td_ ) );
+          concurrent::ThreadRepo::itself().push( std::move( state_td_ ) );
         }
 
         __PGBAR_INLINE_FN void reset( wrappers::UniqueFunction<void()> task )
