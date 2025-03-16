@@ -14,15 +14,12 @@
 # include <cmath>
 # include <condition_variable>
 # include <cstdint>
-# include <cstring>
 # include <exception>
 # include <initializer_list>
-# include <iomanip>
 # include <iterator>
 # include <limits>
 # include <memory>
 # include <mutex>
-# include <queue>
 # include <string>
 # include <thread>
 # include <type_traits>
