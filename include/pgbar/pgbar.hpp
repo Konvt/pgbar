@@ -2886,8 +2886,8 @@ namespace pgbar {
    StructName( __details::types::HexRGB ParamName ) : data_ { __details::console::rgb2ansi( ParamName ) } {} \
    StructName( const StructName& )                                   = default;                              \
    StructName( StructName&& )                                        = default;                              \
-   __PGBAR_CXX20_CNSTXPR StructName& operator=( const StructName& )& = default;                              \
-   __PGBAR_CXX20_CNSTXPR StructName& operator=( StructName&& )&      = default;
+   __PGBAR_CXX23_CNSTXPR StructName& operator=( const StructName& )& = default;                              \
+   __PGBAR_CXX23_CNSTXPR StructName& operator=( StructName&& )&      = default;
 
     // A wrapper that stores the description text color.
     struct DescColor final {
