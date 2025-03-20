@@ -539,7 +539,7 @@ pgbar::ScannerBar<pgbar::Threadunsafe, pgbar::Channel::Stdout> scnbar;
 ## 进度条类型与配置的实现原理
 如前文所说，不同类型的进度条的功能是高度相似的，只是它们在运行时的语义表达和渲染样式不同。
 
-实际上，所有进度条类型都是模板类 `pgbar::BasicBar` 的别名；同理，所有的配置类型都是 `pgbar::config::BasicConfig` 的别名。
+实际上，所有进度条类型都是模板类 `pgbar::__details::assets::BasicBar` 的别名；同理，所有的配置类型都是 `pgbar::__details::assets::BasicConfig` 的别名。
 
 受到[这篇文章](https://zhuanlan.zhihu.com/p/106672814)的启发，进度条遵循 Mixin 模式组合继承自 `pgbar::__details::assets` 中的不同模板基类；而 `pgbar::__details::assets` 内的所有模板类都按照 CRTP 模式设计，因此在最终使用时可以通过 `config()` 方法链式调用一大堆用于配置数据的方法。
 
