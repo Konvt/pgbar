@@ -542,7 +542,7 @@ In the `dead` state, recalling the thread manager's `activate()` method (i.e. re
 ## Implementation principle of progress bar type and configuration
 As mentioned earlier, the functionality of the different types of progress bars is highly similar, except that their semantic expression and rendering styles differ at runtime.
 
-In fact, all progress bar types are aliases of the template class `pgbar::BasicBar`; Similarly, all configuration type is `pgbar::config::BasicConfig` alias.
+In fact, all progress bar types are aliases of the template class `pgbar::__details::assets::BasicBar`; Similarly, all configuration type is `pgbar::__details::assets::BasicConfig` alias.
 
 By [this article](https://zhuanlan.zhihu.com/p/106672814), the progress bar follow a Mixin pattern combination inherited from `pgbar::__details::assets` the different template base class; All template classes in `pgbar::__details::assets` are designed in CRTP mode, so a whole bunch of methods for configuring data can be called through the `config()` method chain for final use.
 
