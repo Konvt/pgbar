@@ -4472,24 +4472,27 @@ namespace pgbar {
         template<bool Enable>
         class Modifier final {
           friend Self;
-
           Self& myself_;
-# if !__PGBAR_CXX17
-          // There was not standard NRVO support before C++17.
-          std::atomic<bool> is_owner_ = true;
-# endif
 
+# if __PGBAR_CXX17
           Modifier( Self& myself ) noexcept : myself_ { myself } { myself_.rw_mtx_.lock(); }
 
         public:
-# if __PGBAR_CXX17
           ~Modifier() noexcept { myself_.rw_mtx_.unlock(); }
 # else
-          Modifier( Modifier&& rhs ) noexcept : myself_ { rhs.myself_ }
-          { // For semantically consistent purposes, this constructor is public.
+          // There was not standard NRVO support before C++17.
+          std::atomic<bool> is_owner_;
+
+          Modifier( Modifier&& rhs ) noexcept : myself_ { rhs.myself_ }, is_owner_ { true }
+          {
             rhs.is_owner_.store( false, std::memory_order_release );
           }
+          Modifier( Self& myself ) noexcept : myself_ { myself }, is_owner_ { true }
+          {
+            myself_.rw_mtx_.lock();
+          }
 
+        public:
           ~Modifier() noexcept
           {
             if ( is_owner_.load( std::memory_order_acquire ) )
@@ -5344,11 +5347,17 @@ namespace pgbar {
         render::Builder<Config> config_;
         __PGBAR_NOUNIQUEADDR mutable MutexMode mtx_;
 
-        virtual void lockfree_reset( bool soft_reset = true ) noexcept
+        virtual void do_reset( bool forced = false ) noexcept
         {
           auto& executor = render::Renderer<Outlet>::itself();
           if ( this->is_running() && !executor.empty() ) {
-            if ( soft_reset ) {
+            if ( !forced )
+              __PGBAR_UNLIKELY
+              {
+                executor.appoint();
+                this->state_.store( Indicator::State::Stopped, std::memory_order_release );
+              }
+            else {
               auto try_update = [this]( Indicator::State expected ) noexcept {
                 return this->state_.compare_exchange_strong( expected,
                                                              Indicator::State::Finish,
@@ -5359,58 +5368,57 @@ namespace pgbar {
                 || try_update( Indicator::State::LenientRefresh );
               executor.suspend();
               executor.appoint();
-            } else
-              __PGBAR_UNLIKELY
-              {
-                executor.appoint();
-                this->state_.store( Indicator::State::Stopped, std::memory_order_release );
-              }
+            }
           } else
             this->state_.store( Indicator::State::Stopped, std::memory_order_release );
         }
-
-        virtual void do_tick( types::Size next_step ) &
+        virtual void do_setup() noexcept( false )
         {
           auto& executor = render::Renderer<Outlet>::itself();
+          if ( !executor.try_appoint( [this]() {
+                 auto& ostream = io::OStream<Outlet>::itself();
+                 switch ( this->state_.load( std::memory_order_acquire ) ) {
+                 case Self::State::Begin: {
+                   ostream << console::escodes::store_cursor;
+                   render::RenderAction<Config>::boot( *this );
+                   ostream << io::flush;
+                 }
+                   __PGBAR_FALLTHROUGH;
+                 case Self::State::StrictRefresh:  __PGBAR_FALLTHROUGH;
+                 case Self::State::LenientRefresh: {
+                   ostream << console::escodes::restore_cursor;
+                   render::RenderAction<Config>::process( *this );
+                   ostream << io::flush;
+                 } break;
+                 case Self::State::Finish: {
+                   ostream << console::escodes::restore_cursor;
+                   render::RenderAction<Config>::finish( *this );
+                   ostream << '\n';
+                   ostream << io::flush << io::release;
+                 } break;
+                 default: return;
+                 }
+               } ) )
+            __PGBAR_UNLIKELY throw exception::InvalidState(
+              "pgbar: another progress bar instance is already running" );
+
+          executor.activate();
+        }
+
+        __PGBAR_INLINE_FN void do_tick( types::Size next_step ) & noexcept( false )
+        {
           switch ( this->state_.load( std::memory_order_acquire ) ) {
           case Indicator::State::Stopped: {
-            this->task_end_.store( this->config_.tasks(), std::memory_order_release );
+            this->task_end_.store( config_.tasks(), std::memory_order_release );
             if __PGBAR_CXX17_CNSTXPR ( std::is_same<Config, config::CharBar>::value
                                        || std::is_same<Config, config::BlckBar>::value )
               if ( this->task_end_.load( std::memory_order_acquire ) == 0 )
                 __PGBAR_UNLIKELY throw exception::InvalidState( "pgbar: the number of tasks is zero" );
 
-            if ( !executor.try_appoint( [this]() {
-                   auto& ostream = io::OStream<Outlet>::itself();
-                   switch ( this->state_.load( std::memory_order_acquire ) ) {
-                   case Base::State::Begin: {
-                     ostream << console::escodes::store_cursor;
-                     render::RenderAction<Config>::boot( *this );
-                     ostream << io::flush;
-                   }
-                     __PGBAR_FALLTHROUGH;
-                   case Self::State::StrictRefresh:  __PGBAR_FALLTHROUGH;
-                   case Self::State::LenientRefresh: {
-                     ostream << console::escodes::restore_cursor;
-                     render::RenderAction<Config>::process( *this );
-                     ostream << io::flush;
-                   } break;
-                   case Self::State::Finish: {
-                     ostream << console::escodes::restore_cursor;
-                     render::RenderAction<Config>::finish( *this );
-                     ostream << '\n';
-                     ostream << io::flush << io::release;
-                   } break;
-                   default: return;
-                   }
-                 } ) )
-              __PGBAR_UNLIKELY throw exception::InvalidState(
-                "pgbar: another progress bar instance is already running" );
-
-            this->state_.store( Indicator::State::Begin, std::memory_order_release );
+            do_setup();
             this->task_cnt_.store( 0, std::memory_order_release );
             this->zero_point_ = std::chrono::steady_clock::now();
-            executor.activate();
+            this->state_.store( Indicator::State::Begin, std::memory_order_release );
           }
             __PGBAR_FALLTHROUGH;
           case Indicator::State::Begin: {
@@ -5428,7 +5436,7 @@ namespace pgbar {
               __PGBAR_UNLIKELY
               {
                 this->final_mesg_ = true;
-                lockfree_reset();
+                do_reset();
               }
           } break;
 
@@ -5459,7 +5467,7 @@ namespace pgbar {
           config_ = std::move( rhs.config_ );
           return *this;
         }
-        virtual ~BasicBar() noexcept { lockfree_reset( false ); }
+        virtual ~BasicBar() noexcept { do_reset( true ); }
 
         void tick() & override final
         {
@@ -5503,7 +5511,7 @@ namespace pgbar {
         {
           std::lock_guard<MutexMode> lock { this->mtx_ };
           this->final_mesg_ = final_mesg;
-          lockfree_reset();
+          do_reset();
         }
 
         Config& config() & noexcept { return config_; }
