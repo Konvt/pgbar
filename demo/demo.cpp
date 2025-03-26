@@ -147,7 +147,12 @@ int main()
       .divider( " >< " )
       .left_border( "< " )
       .right_border( " >" )
-      .tasks( 1000 );
+      .tasks( 1000 )
+      .enable()
+      .counter()
+      .countdown()
+      .elapsed();
+    spibar.config().disable().animation();
     for ( auto i = 0; i < 1000; ++i ) {
       spibar.tick();
       if ( i == 499 )
@@ -177,13 +182,10 @@ int main()
     pbar.config() = { pgbar::option::InfoColor( pgbar::color::Red ), pgbar::option::Tasks( 100 ) };
     // This is equivalent to pbar.config().swap( another_config )
 
-    // These types are derived from pgbar::config::Core
-    pgbar::config::Core& base_ref = pbar_cfg;
-    // This base class also stores some configuration data related to the underlying settings
-    // For example, the refresh rate of progress bar objects in the terminal interface is controlled
-    // by the return value of pgbar::config::Core::refresh_interval()
-    // and pgbar::config::Core allows you to modify the basic configuration data at run time
-    pgbar::config::Core::refresh_interval(
+    // The refresh rate of progress bar objects in the terminal interface is controlled
+    // by the return value of pgbar::config::refresh_interval()
+    // and you can modify it at run time
+    pgbar::config::refresh_interval<pgbar::Channel::Stderr>(
       std::chrono::milliseconds( 20 ) ); // Increase the refresh rate from the default 25 Hz to 60 Hz
     // This method actually requires the progress bar object to sleep for 20 milliseconds after
     // each output to the console
@@ -192,17 +194,17 @@ int main()
     // this method is essentially controlling the minimum interval of rendering output
     // can not be lower than the given value
 
-    // You can also use pgbar::config::Core::intty() method
+    // You can also use pgbar::config::intty() method
     // to learn the standard output stream of the current process is binding on the terminal
     // it need to combine the enumeration pgbar::Channel values to determine
     // which is you need to check the output stream
     // For example, check the standard output stream `stdout`
-    if ( pgbar::config::Core::intty( pgbar::Channel::Stdout ) )
+    if ( pgbar::config::intty( pgbar::Channel::Stdout ) )
       std::cout << "Standard output is bound to a terminal." << std::endl;
     else
       std::cout << "Standard output is not bound to a terminal." << std::endl;
     // You can define a PGBAR_INTTY macro before the include file
-    // to force the pgbar::config::Core::intty() method to always return true
+    // to force the pgbar::config::intty() method to always return true
   }
   {
     std::cout << "Insight into the progress bar types." << std::endl;
