@@ -5943,9 +5943,7 @@ namespace pgbar {
         void do_setup() & override final
         {
           std::lock_guard<concurrent::Mutex> lock { cb_mtx_ };
-          alive_cnt_.fetch_add( 1, std::memory_order_release );
-          switch ( cb_state_.load( std::memory_order_acquire ) ) {
-          case CBState::Stopped: {
+          if ( cb_state_.load( std::memory_order_acquire ) == CBState::Stopped ) {
             auto& executor = render::Renderer<Outlet>::itself();
             if ( !executor.try_appoint( [this]() {
                    auto& ostream = io::OStream<Outlet>::itself();
@@ -5972,12 +5970,10 @@ namespace pgbar {
                  } ) )
               throw exception::InvalidState( "pgbar: another progress bar instance is already running" );
 
-            cb_state_.store( CBState::Awake, std::memory_order_release );
             executor.activate();
-          } break;
-
-          default: break;
+            cb_state_.store( CBState::Awake, std::memory_order_release );
           }
+          alive_cnt_.fetch_add( 1, std::memory_order_release );
         }
 
         template<typename Tuple, types::Size... Is>
