@@ -22,6 +22,7 @@
 # include <mutex>
 # include <string>
 # include <thread>
+# include <tuple>
 # include <type_traits>
 # include <utility>
 # include <vector>
@@ -106,16 +107,18 @@
 # if __PGBAR_CC_STD >= 201703L
 #  include <charconv>
 #  include <string_view>
-#  define __PGBAR_CXX17         1
-#  define __PGBAR_CXX17_CNSTXPR constexpr
-#  define __PGBAR_CXX17_INLINE  inline
-#  define __PGBAR_FALLTHROUGH   [[fallthrough]]
-#  define __PGBAR_NODISCARD     [[nodiscard]]
+#  define __PGBAR_CXX17           1
+#  define __PGBAR_CXX17_CNSTXPR   constexpr
+#  define __PGBAR_CXX17_INLINE    inline
+#  define __PGBAR_FALLTHROUGH     [[fallthrough]]
+#  define __PGBAR_NODISCARD       [[nodiscard]]
+#  define __PGBAR_LAUNDER( expr ) std::launder( expr )
 # else
 #  define __PGBAR_CXX17 0
 #  define __PGBAR_CXX17_CNSTXPR
 #  define __PGBAR_CXX17_INLINE
 #  define __PGBAR_FALLTHROUGH
+#  define __PGBAR_LAUNDER( expr ) expr
 #  if defined( _MSC_VER )
 #   define __PGBAR_NODISCARD _Check_return_
 #  elif defined( __clang__ ) || defined( __GNUC__ )
@@ -232,6 +235,106 @@ namespace pgbar {
     }
 
     namespace traits {
+# if __PGBAR_CXX14
+      template<types::Size... Ns>
+      using IndexSeq = std::integer_sequence<types::Size, Ns...>;
+
+      template<types::Size N>
+      using MakeIndexSeq = std::make_index_sequence<N>;
+# else
+      template<types::Size... Ns>
+      struct IndexSeq {};
+
+      // This is an internal implementation and should not be used outside of this preprocessing block.
+      template<typename HeadSeq, typename TailSeq>
+      struct ConcatSeq;
+      template<typename HeadSeq, typename TailSeq>
+      using ConcatSeq_t = typename ConcatSeq<HeadSeq, TailSeq>::type;
+
+      template<types::Size... HeadI, types::Size... TailI>
+      struct ConcatSeq<IndexSeq<HeadI...>, IndexSeq<TailI...>> {
+        using type = IndexSeq<HeadI..., ( sizeof...( HeadI ) + TailI )...>;
+      };
+
+      // Internal implementation, it should not be used outside of this preprocessing block.
+      template<types::Size N>
+      struct MakeIndexSeqHelper {
+        using type =
+          ConcatSeq_t<typename MakeIndexSeqHelper<N / 2>::type, typename MakeIndexSeqHelper<N - N / 2>::type>;
+      };
+      template<>
+      struct MakeIndexSeqHelper<0> {
+        using type = IndexSeq<>;
+      };
+      template<>
+      struct MakeIndexSeqHelper<1> {
+        using type = IndexSeq<0>;
+      };
+
+      template<types::Size N>
+      using MakeIndexSeq = typename MakeIndexSeqHelper<N>::type;
+# endif
+
+# if __PGBAR_CXX17
+      template<typename... Preds>
+      using AllOf = std::conjunction<Preds...>;
+
+      template<typename... Preds>
+      using AnyOf = std::disjunction<Preds...>;
+
+      template<typename Pred>
+      using Not = std::negation<Pred>;
+# else
+      template<typename... Preds>
+      struct AllOf : std::true_type {};
+      template<typename Pred>
+      struct AllOf<Pred> : Pred {};
+      template<typename Pred, typename... Preds>
+      struct AllOf<Pred, Preds...> : std::conditional<bool( Pred::value ), AllOf<Preds...>, Pred>::type {};
+
+      template<typename... Preds>
+      struct AnyOf : std::false_type {};
+      template<typename Pred>
+      struct AnyOf<Pred> : Pred {};
+      template<typename Pred, typename... Preds>
+      struct AnyOf<Pred, Preds...> : std::conditional<bool( Pred::value ), Pred, AnyOf<Preds...>>::type {};
+
+      template<typename Pred>
+      struct Not : std::integral_constant<bool, !bool( Pred::value )> {};
+# endif
+
+      template<typename T, template<typename...> class Template, types::Size N>
+      struct FillTemplate {
+      private:
+        template<typename U, template<typename...> class Tmp, std::size_t M, typename... Us>
+        struct Helper : Helper<U, Tmp, M - 1, Us..., U> {};
+        template<typename U, template<typename...> class Tmp, typename... Us>
+        struct Helper<U, Tmp, 0, Us...> {
+          using type = Tmp<Us...>;
+        };
+
+      public:
+        using type = typename Helper<T, Template, N>::type;
+      };
+      template<typename T, template<typename...> class Template, types::Size N>
+      using FillTemplate_t = typename FillTemplate<T, Template, N>::type;
+
+      template<types::Size Pos, typename... Ts>
+      struct TypeAt {
+        static_assert( static_cast<bool>( Pos ^ Pos ),
+                       "pgbar::__details::traits::TypeAt: Position overflow" );
+      };
+      template<types::Size Pos, typename... Ts>
+      using TypeAt_t = typename TypeAt<Pos, Ts...>::type;
+      // After C++26, we can use `Ts...[Pos]`.
+
+      template<types::Size Pos, typename T, typename... Ts>
+      struct TypeAt<Pos, T, Ts...> : TypeAt<Pos - 1, Ts...> {};
+      template<typename T, typename... Ts>
+      struct TypeAt<0, T, Ts...> {
+        using type = T;
+      };
+
       /**
        * A lightweight tuple type that stores multiple types.
        *
@@ -240,6 +343,19 @@ namespace pgbar {
        */
       template<typename... Ts>
       struct TypeList;
+
+      // Checks if a TypeList starts with the specified type sequence.
+      template<typename TpList, typename... Ts>
+      struct StartsWith;
+      template<typename... Ts>
+      struct StartsWith<TypeList<>, Ts...> : std::true_type {};
+      template<typename Head, typename... Tail>
+      struct StartsWith<TypeList<Head, Tail...>> : std::false_type {};
+      template<typename Head, typename... Tail, typename T, typename... Ts>
+      struct StartsWith<TypeList<Head, Tail...>, T, Ts...>
+        : std::conditional<std::is_same<Head, T>::value,
+                           StartsWith<TypeList<Tail...>, Ts...>,
+                           std::false_type>::type {};
 
       template<typename HeadTpList, typename TailTpList>
       struct Join;
@@ -252,9 +368,7 @@ namespace pgbar {
       };
 
       template<typename HeadTpList, typename... TailTpList>
-      struct Merge {
-        using type = Join_t<HeadTpList, typename Merge<TailTpList...>::type>;
-      };
+      struct Merge : Join<HeadTpList, typename Merge<TailTpList...>::type> {};
       template<typename HeadTpList, typename... TailTpList>
       using Merge_t = typename Merge<HeadTpList, TailTpList...>::type;
 
@@ -365,7 +479,7 @@ namespace pgbar {
       template<template<typename...> class Node>
       using InheritFrom_nvbt = typename InheritFrom<Node>::NVBs;
 
-// Pack multiple macro parameters into a single one.
+      // Pack multiple macro parameters into a single one.
 # define __PGBAR_PACK( ... ) __VA_ARGS__
 // A helper macro to register the inheritance structure of a template class.
 # define __PGBAR_INHERIT_REGISTER( Node, VBList, NVBList ) \
@@ -436,7 +550,7 @@ namespace pgbar {
         public:
           using path = Prepend_t<MarkNVB_t, Head>;
           using type =
-            typename std::conditional<Contain<VisitedVBs, Head>::value || Contain<MarkTail_t, Head>::value,
+            typename std::conditional<AnyOf<Contain<VisitedVBs, Head>, Contain<MarkTail_t, Head>>::value,
                                       Helper_tp<true, TemplateList<Tail...>, SortedList, VisitedVBs>,
                                       Prepend_t<SortNVB_t, Head>>::type;
         };
@@ -535,21 +649,20 @@ namespace pgbar {
       using IteratorTrait_t = typename IteratorTrait<T>::type;
 
       template<typename T>
-      struct IteratorTrait<
-        T,
-        typename std::enable_if<
-          !std::is_const<typename std::remove_reference<T>::type>::value
-          && std::is_same<typename std::remove_reference<T>::type::iterator,
-                          typename std::remove_reference<T>::type::iterator>::value>::type> {
+      struct IteratorTrait<T,
+                           typename std::enable_if<AllOf<
+                             Not<std::is_const<typename std::remove_reference<T>::type>>,
+                             std::is_same<typename std::remove_reference<T>::type::iterator,
+                                          typename std::remove_reference<T>::type::iterator>>::value>::type> {
         using type = typename std::remove_reference<T>::type::iterator;
       };
       template<typename T>
       struct IteratorTrait<
         T,
         typename std::enable_if<
-          std::is_const<typename std::remove_reference<T>::type>::value
-          && std::is_same<typename std::remove_reference<T>::type::const_iterator,
-                          typename std::remove_reference<T>::type::const_iterator>::value>::type> {
+          AllOf<std::is_const<typename std::remove_reference<T>::type>,
+                std::is_same<typename std::remove_reference<T>::type::const_iterator,
+                             typename std::remove_reference<T>::type::const_iterator>>::value>::type> {
         using type = typename std::remove_reference<T>::type::const_iterator;
       };
 
@@ -579,38 +692,22 @@ namespace pgbar {
 # undef __PGBAR_REMOVE_NOEXCEPT
 
 # if __PGBAR_CXX20
-      template<typename F>
-      concept TaskFunctor = requires( F fn ) {
-        { fn() } -> std::same_as<void>;
-      };
-      template<typename F>
-      struct is_void_functor : std::bool_constant<TaskFunctor<F>> {};
-
       template<typename M>
-      concept Mutex = requires( M mtx ) {
-        requires !std::is_reference_v<M>;
+      concept MutexLike = requires( M& mtx ) {
         { mtx.lock() } -> std::same_as<void>;
         { mtx.unlock() } -> std::same_as<void>;
       };
       template<typename M>
-      struct is_mutex : std::bool_constant<Mutex<M>> {};
+      struct is_mutex : std::bool_constant<MutexLike<M>> {};
 # else
-      template<typename, typename = void>
-      struct is_void_functor : std::false_type {};
-      template<typename F>
-      struct is_void_functor<
-        F,
-        typename std::enable_if<std::is_void<decltype( std::declval<F>()() )>::value>::type>
-        : std::true_type {};
-
       template<typename, typename = void>
       struct is_mutex : std::false_type {};
       template<typename M>
       struct is_mutex<
         M,
-        typename std::enable_if<!std::is_reference<M>::value
-                                && std::is_void<decltype( std::declval<M&>().lock() )>::value
-                                && std::is_void<decltype( std::declval<M&>().unlock() )>::value>::type>
+        typename std::enable_if<AllOf<Not<std::is_reference<M>>,
+                                      std::is_void<decltype( std::declval<M&>().lock() )>,
+                                      std::is_void<decltype( std::declval<M&>().unlock() )>>::value>::type>
         : std::true_type {};
 # endif
     } // namespace traits
@@ -618,13 +715,13 @@ namespace pgbar {
     namespace wrappers {
       template<typename I>
       class IterSpanBase {
-        static_assert( std::is_class<I>::value || std::is_pointer<I>::value,
+        static_assert( traits::AnyOf<std::is_class<I>, std::is_pointer<I>>::value,
                        "pgbar::__details::wrappers::IterSpanBase: Only available for iterator types" );
         static_assert( !std::is_void<typename std::iterator_traits<I>::difference_type>::value,
                        "pgbar::__details::wrappers::IterSpanBase: The 'difference_type' of the given "
                        "iterators cannot be 'void'" );
         static_assert(
-          std::is_copy_constructible<I>::value || std::is_move_constructible<I>::value,
+          traits::AnyOf<std::is_copy_constructible<I>, std::is_move_constructible<I>>::value,
           "pgbar::__details::wrappers::IterSpanBase: The given iterators must be copyable or movable " );
 
         // Measure the length of the iteration range.
@@ -707,16 +804,10 @@ namespace pgbar {
       class UniqueFnCore<Ret( Args... )> final {
         using Self = UniqueFnCore;
 
-#  if __PGBAR_CXX17
-#   define __PGBAR_LAUNDER( expr ) std::launder( expr )
-#  else
-#   define __PGBAR_LAUNDER( expr ) expr
-#  endif
-
         struct AnyFn {
           __PGBAR_CXX20_CNSTXPR virtual ~AnyFn()       = default;
           virtual Ret operator()( Args... args ) const = 0;
-          virtual void move_to( void* const dest_mem ) = 0;
+          virtual void move_to( void* const dest )     = 0;
         };
         template<typename Fn, typename = void>
         struct FnContainer final : public AnyFn {
@@ -737,15 +828,15 @@ namespace pgbar {
           __PGBAR_CXX20_CNSTXPR virtual ~FnContainer()   = default;
 
           Ret operator()( Args... args ) const
-            noexcept( noexcept( std::declval<Fn>()( std::declval<Args>()... ) ) ) override
+            noexcept( noexcept( std::declval<Fn>()( std::forward<Args>( args )... ) ) ) override
           {
             return fntor_( std::forward<Args>( args )... );
           }
-          void move_to( void* const dest_mem ) noexcept override
+          void move_to( void* const dest ) noexcept override
           {
-            __PGBAR_PURE_ASSUME( dest_mem != nullptr );
+            __PGBAR_PURE_ASSUME( dest != nullptr );
             // After C++26, placement new is constexpr.
-            new ( dest_mem ) FnContainer( std::move( fntor_ ) );
+            new ( dest ) FnContainer( std::move( fntor_ ) );
           }
         };
 
@@ -764,15 +855,15 @@ namespace pgbar {
           __PGBAR_CXX20_CNSTXPR virtual ~FnContainer()   = default;
 
           Ret operator()( Args... args ) const
-            noexcept( noexcept( std::declval<Fn>()( std::declval<Args>()... ) ) ) override
+            noexcept( noexcept( std::declval<Fn>()( std::forward<Args>( args )... ) ) ) override
           {
             return ( ( static_cast<Fn&>( const_cast<FnContainer&>( *this ) ) ) )(
               std::forward<Args>( args )... );
           }
-          void move_to( void* const dest_mem ) noexcept override
+          void move_to( void* const dest ) noexcept override
           {
-            __PGBAR_PURE_ASSUME( dest_mem != nullptr );
-            new ( dest_mem ) FnContainer( std::move( static_cast<Fn&>( *this ) ) );
+            __PGBAR_PURE_ASSUME( dest != nullptr );
+            new ( dest ) FnContainer( std::move( static_cast<Fn&>( *this ) ) );
           }
         };
 #  endif
@@ -783,7 +874,7 @@ namespace pgbar {
           unsigned char soo_[sizeof( void* ) * 2]; // small object optimization
         } data_;
         static_assert( sizeof data_ == sizeof data_.soo_,
-                       "pgbar::__details::wrappers::UniqueFnCore: Unexpected type size mismatched" );
+                       "pgbar::__details::wrappers::UniqueFnCore: Unexpected type size mismatch" );
         enum class Tag : types::Byte { None, Fptr, FtorInline, FtorDync } tag_;
 
       public:
@@ -791,20 +882,20 @@ namespace pgbar {
         constexpr UniqueFnCore( std::nullptr_t ) noexcept : UniqueFnCore() {}
 
         template<typename Fn,
-                 typename = typename std::enable_if<
-                   std::is_function<Fn>::value
-                   && std::is_convertible<decltype( ( *std::declval<Fn>() )( std::declval<Args>()... ) ),
-                                          Ret>::value>::type>
+                 typename = typename std::enable_if<traits::AllOf<
+                   std::is_function<Fn>,
+                   std::is_convertible<decltype( ( *std::declval<Fn>() )( std::declval<Args>()... ) ),
+                                       Ret>>::value>::type>
         __PGBAR_CXX14_CNSTXPR UniqueFnCore( Fn* function_ptr ) noexcept : UniqueFnCore()
         {
           data_.fptr_ = function_ptr;
           tag_        = Tag::Fptr;
         }
         template<typename Fn,
-                 typename = typename std::enable_if<
-                   std::is_class<Fn>::value
-                   && std::is_convertible<decltype( ( std::declval<Fn>() )( std::declval<Args>()... ) ),
-                                          Ret>::value>::type>
+                 typename = typename std::enable_if<traits::AllOf<
+                   std::is_class<Fn>,
+                   std::is_convertible<decltype( ( std::declval<Fn>() )( std::declval<Args>()... ) ),
+                                       Ret>>::value>::type>
         __PGBAR_CXX20_CNSTXPR UniqueFnCore( Fn functor ) : UniqueFnCore()
         {
           static_assert( std::is_move_constructible<Fn>::value,
@@ -1221,14 +1312,14 @@ namespace pgbar {
       __PGBAR_CXX20_CNSTXPR virtual ~IterSpan()                      = default;
 
       __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr iterator begin() const
-        noexcept( std::is_nothrow_move_constructible<I>::value
-                  && std::is_nothrow_copy_constructible<I>::value )
+        noexcept( __details::traits::AllOf<std::is_nothrow_move_constructible<I>,
+                                           std::is_nothrow_copy_constructible<I>>::value )
       {
         return iterator( this->start_ );
       }
       __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr iterator end() const
-        noexcept( std::is_nothrow_move_constructible<I>::value
-                  && std::is_nothrow_copy_constructible<I>::value )
+        noexcept( __details::traits::AllOf<std::is_nothrow_move_constructible<I>,
+                                           std::is_nothrow_copy_constructible<I>>::value )
       {
         return iterator( this->end_ );
       }
@@ -1335,12 +1426,11 @@ namespace pgbar {
   } // namespace scope
 
   // A enum that specifies the type of the output stream.
-  enum class Channel : __details::types::Byte { Stdout = STDOUT_FILENO, Stderr };
+  enum class Channel : __details::types::Byte { Stdout = 1, Stderr };
 
   class Indicator {
   protected:
     std::chrono::steady_clock::time_point zero_point_;
-    __details::types::Size max_bar_size_;
     bool final_mesg_;
 
     enum class State : __details::types::Byte { Begin, StrictRefresh, LenientRefresh, Finish, Stopped };
@@ -1357,6 +1447,7 @@ namespace pgbar {
     {
       __PGBAR_PURE_ASSUME( this != &rhs );
       __PGBAR_ASSERT( is_running() == false );
+      __PGBAR_ASSERT( rhs.is_running() == false );
       return *this;
     }
 
@@ -1365,18 +1456,17 @@ namespace pgbar {
     virtual void tick() &                                   = 0;
     virtual void tick( __details::types::Size next_step ) & = 0;
     virtual void tick_to( std::uint8_t percentage ) &       = 0;
-    virtual void reset()                                    = 0;
-    virtual void reset( bool final_mesg )                   = 0;
+    virtual void reset( bool final_mesg = true )            = 0;
 
     // Wait until the indicator is stopped.
-    void wait() const
+    void wait() const noexcept
     {
       while ( is_running() )
         std::this_thread::yield();
     }
     // Wait for the indicator is stopped or timed out.
     template<class Rep, class Period>
-    bool wait_for( const std::chrono::duration<Rep, Period>& time_duration ) const
+    __PGBAR_NODISCARD bool wait_for( const std::chrono::duration<Rep, Period>& time_duration ) const noexcept
     {
       for ( const auto ending = std::chrono::steady_clock::now() + time_duration;
             std::chrono::steady_clock::now() < ending; ) {
@@ -1409,7 +1499,7 @@ namespace pgbar {
           std::conditional<std::is_reference<T>::value,
                            std::false_type,
                            decltype( check(
-                             std::declval<typename std::remove_volatile<T>::type>() ) )>::type ::value;
+                             std::declval<typename std::remove_volatile<T>::type>() ) )>::type::value;
       };
     } // namespace traits
 
@@ -1422,11 +1512,48 @@ namespace pgbar {
         return static_cast<typename std::underlying_type<E>::type>( enum_val );
       }
 
+      // Perfectly forwards the I-th element of a tuple.
+      template<types::Size I, typename Tuple>
+      constexpr auto forward_get( Tuple&& tup ) noexcept
+        -> decltype( std::forward<
+                     typename std::tuple_element<I, typename std::remove_reference<Tuple>::type>::type>(
+          std::get<I>( std::forward<Tuple>( tup ) ) ) )
+      {
+        return std::forward<
+          typename std::tuple_element<I, typename std::remove_reference<Tuple>::type>::type>(
+          std::get<I>( std::forward<Tuple>( tup ) ) );
+      }
+
+      // Internal implementation.
+      template<types::Size I, typename T, typename Tuple>
+      constexpr T forward_or( Tuple&& tup, const std::true_type& ) noexcept(
+        std::is_nothrow_constructible<T, decltype( forward_get<I>( std::forward<Tuple>( tup ) ) )>::value )
+      {
+        return T( forward_get<I>( std::forward<Tuple>( tup ) ) );
+      }
+      // Internal implementation.
+      template<types::Size, typename T, typename Tuple>
+      constexpr T forward_or( Tuple&&, const std::false_type& )
+        noexcept( std::is_nothrow_default_constructible<T>::value )
+      {
+        return T();
+      }
+      // Conditionally constructs an object of type T using either the I-th element of a tuple or default
+      // initialization.
+      template<types::Size I, typename T, typename Tuple>
+      constexpr typename std::enable_if<std::is_default_constructible<T>::value, T>::type forward_or(
+        Tuple&& tup )
+      {
+        return forward_or<I, T>(
+          std::forward<Tuple>( tup ),
+          std::integral_constant<bool, ( I < std::tuple_size<typename std::decay<Tuple>::type>::value )>() );
+      }
+
       template<typename Numeric>
-      __PGBAR_NODISCARD __PGBAR_CXX23_CNSTXPR __PGBAR_INLINE_FN
-        typename std::enable_if<std::is_arithmetic<Numeric>::value && !std::is_unsigned<Numeric>::value,
-                                types::Size>::type
-        count_digits( Numeric val )
+      __PGBAR_NODISCARD __PGBAR_CXX23_CNSTXPR __PGBAR_INLINE_FN typename std::enable_if<
+        traits::AllOf<std::is_arithmetic<Numeric>, traits::Not<std::is_unsigned<Numeric>>>::value,
+        types::Size>::type
+        count_digits( Numeric val ) noexcept
       {
         auto abs_val       = static_cast<std::uint64_t>( std::abs( val ) );
         types::Size digits = abs_val == 0;
@@ -1437,7 +1564,7 @@ namespace pgbar {
       template<typename Unsigned>
       __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR __PGBAR_INLINE_FN
         typename std::enable_if<std::is_unsigned<Unsigned>::value, types::Size>::type
-        count_digits( Unsigned val )
+        count_digits( Unsigned val ) noexcept
       {
         auto abs_val       = static_cast<std::uint64_t>( val );
         types::Size digits = abs_val == 0;
@@ -1450,7 +1577,7 @@ namespace pgbar {
       template<typename Integer>
       __PGBAR_NODISCARD __PGBAR_INLINE_FN
         typename std::enable_if<std::is_integral<Integer>::value, types::String>::type
-        format( Integer val ) noexcept( noexcept( std::to_string( std::declval<Integer>() ) ) )
+        format( Integer val ) noexcept( noexcept( std::to_string( val ) ) )
       {
         /* In some well-designed standard libraries,
          * integer std::to_string has specialized implementations for different bit-length types;
@@ -1620,46 +1747,47 @@ namespace pgbar {
 # endif
         constexpr types::LitStr store_cursor   = "\x1B[s";
         constexpr types::LitStr restore_cursor = "\x1B[u";
+        constexpr types::LitStr clear_suffix   = "\x1B[K";
 
         // Assembles an ANSI escape code that clears `__n` characters after the cursor.
         __PGBAR_INLINE_FN types::String clear_next( types::Size __n = 1 )
         {
           return "\x1B[" + utils::format( __n ) + 'X';
         }
-      } // namespace escodes
 
-      /**
-       * Convert a hexidecimal RGB color value to an ANSI escape code.
-       *
-       * Return nothing if defined `PGBAR_COLORLESS`.
-       */
-      types::String rgb2ansi( types::HexRGB rgb )
+        /**
+         * Convert a hexidecimal RGB color value to an ANSI escape code.
+         *
+         * Return nothing if defined `PGBAR_COLORLESS`.
+         */
+        types::String rgb2ansi( types::HexRGB rgb )
 # ifdef PGBAR_COLORLESS
-        noexcept( std::is_nothrow_default_constructible<types::String>::value )
-      {
-        return {};
-      }
-# else
-        noexcept( false )
-      {
-        if ( rgb == __PGBAR_DEFAULT )
-          return types::String( escodes::reset_font );
-
-        switch ( rgb & 0x00FFFFFF ) { // discard the high 8 bits
-        case __PGBAR_BLACK:   return "\x1B[30m";
-        case __PGBAR_RED:     return "\x1B[31m";
-        case __PGBAR_GREEN:   return "\x1B[32m";
-        case __PGBAR_YELLOW:  return "\x1B[33m";
-        case __PGBAR_BLUE:    return "\x1B[34m";
-        case __PGBAR_MAGENTA: return "\x1B[35m";
-        case __PGBAR_CYAN:    return "\x1B[36m";
-        case __PGBAR_WHITE:   return "\x1B[37m";
-        default:
-          return "\x1B[38;2;" + utils::format( ( rgb >> 16 ) & 0xFF ) + ';'
-               + utils::format( ( rgb >> 8 ) & 0xFF ) + ';' + utils::format( rgb & 0xFF ) + 'm';
+          noexcept( std::is_nothrow_default_constructible<types::String>::value )
+        {
+          return {};
         }
-      }
+# else
+          noexcept( false )
+        {
+          if ( rgb == __PGBAR_DEFAULT )
+            return types::String( escodes::reset_font );
+
+          switch ( rgb & 0x00FFFFFF ) { // discard the high 8 bits
+          case __PGBAR_BLACK:   return "\x1B[30m";
+          case __PGBAR_RED:     return "\x1B[31m";
+          case __PGBAR_GREEN:   return "\x1B[32m";
+          case __PGBAR_YELLOW:  return "\x1B[33m";
+          case __PGBAR_BLUE:    return "\x1B[34m";
+          case __PGBAR_MAGENTA: return "\x1B[35m";
+          case __PGBAR_CYAN:    return "\x1B[36m";
+          case __PGBAR_WHITE:   return "\x1B[37m";
+          default:
+            return "\x1B[38;2;" + utils::format( ( rgb >> 16 ) & 0xFF ) + ';'
+                 + utils::format( ( rgb >> 8 ) & 0xFF ) + ';' + utils::format( rgb & 0xFF ) + 'm';
+          }
+        }
 # endif
+      } // namespace escodes
 
       /**
        * Determine if the output stream is binded to the tty based on the platform api.
@@ -1802,7 +1930,7 @@ namespace pgbar {
             const auto start_point = raw_u8_str + i;
             // After RFC 3629, the maximum length of each standard UTF-8 character is 4 bytes.
             const auto first_byte  = static_cast<types::UCodePoint>( *start_point );
-            auto integrity_checker = [start_point, raw_u8_str, &u8_str]( types::Size expected_len ) -> void {
+            auto validator         = [start_point, raw_u8_str, &u8_str]( types::Size expected_len ) -> void {
               __PGBAR_PURE_ASSUME( start_point >= raw_u8_str );
               if ( u8_str.size() - ( start_point - raw_u8_str ) < expected_len )
                 throw exception::InvalidArgument( "pgbar: incomplete UTF-8 string" );
@@ -1817,18 +1945,18 @@ namespace pgbar {
               utf_codepoint = first_byte;
               i += 1;
             } else if ( ( ( first_byte & 0xE0 ) == 0xC0 ) ) {
-              integrity_checker( 2 );
+              validator( 2 );
               utf_codepoint =
                 ( ( first_byte & 0x1F ) << 6 ) | ( static_cast<types::UCodePoint>( start_point[1] ) & 0x3F );
               i += 2;
             } else if ( ( first_byte & 0xF0 ) == 0xE0 ) {
-              integrity_checker( 3 );
+              validator( 3 );
               utf_codepoint = ( ( first_byte & 0xF ) << 12 )
                             | ( ( static_cast<types::UCodePoint>( start_point[1] ) & 0x3F ) << 6 )
                             | ( static_cast<types::UCodePoint>( start_point[2] ) & 0x3F );
               i += 3;
             } else if ( ( first_byte & 0xF8 ) == 0xF0 ) {
-              integrity_checker( 4 );
+              validator( 4 );
               utf_codepoint = ( ( first_byte & 0x7 ) << 18 )
                             | ( ( static_cast<types::UCodePoint>( start_point[1] ) & 0x3F ) << 12 )
                             | ( ( static_cast<types::UCodePoint>( start_point[2] ) & 0x3F ) << 6 )
@@ -1882,8 +2010,7 @@ namespace pgbar {
           bytes_.clear();
           width_ = 0;
         }
-        __PGBAR_CXX20_CNSTXPR void shrink_to_fit()
-          noexcept( noexcept( std::declval<types::String&>().shrink_to_fit() ) )
+        __PGBAR_CXX20_CNSTXPR void shrink_to_fit() noexcept( noexcept( bytes_.shrink_to_fit() ) )
         { // The standard does not seem to specify whether the function is noexcept,
           // so let's make a judgment here.
           // At least I didn't see it on cppreference.
@@ -2049,7 +2176,6 @@ namespace pgbar {
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& append( const char ( &info )[N],
                                                               types::Size __num = 1 ) &
         {
-          static_assert( N != 0, "pgbar::__details::io::Stringbuf: Invalid compile-time paramter" );
           for ( types::Size _ = 0; _ < __num; ++_ )
             buffer_.insert( buffer_.end(), info, info + N );
           return *this;
@@ -2067,11 +2193,11 @@ namespace pgbar {
         }
 
         template<typename T>
-        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR
-          typename std::enable_if<std::is_same<typename std::decay<T>::type, types::Char>::value
-                                    || std::is_same<typename std::decay<T>::type, types::String>::value
-                                    || std::is_same<typename std::decay<T>::type, charcodes::U8String>::value,
-                                  Self&>::type
+        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR typename std::enable_if<
+          traits::AnyOf<std::is_same<typename std::decay<T>::type, types::Char>,
+                        std::is_same<typename std::decay<T>::type, types::String>,
+                        std::is_same<typename std::decay<T>::type, charcodes::U8String>>::value,
+          Self&>::type
           operator<<( Self& stream, T&& info )
         {
           return stream.append( std::forward<T>( info ) );
@@ -2308,8 +2434,7 @@ namespace pgbar {
       public:
         using mutex_type = Mtx;
 
-        SharedLock( mutex_type& m ) noexcept( noexcept( std::declval<mutex_type&>().lock_shared() ) )
-          : mtx_ { m }
+        SharedLock( mutex_type& m ) noexcept( noexcept( mtx_.lock_shared() ) ) : mtx_ { m }
         {
           mtx_.lock_shared();
         }
@@ -2485,7 +2610,7 @@ namespace pgbar {
                     if ( exception )
                       box_.store( exception );
                   } else {
-                    state_.store( State::Dead, std::memory_order_relaxed );
+                    state_.store( State::Dead, std::memory_order_release );
                     throw; // Rethrow it, and let the current thread crash.
                   }
                 }
@@ -2655,26 +2780,6 @@ namespace pgbar {
       concurrent::SharedMutex Renderer<Tag>::_rw_mtx {};
     } // namespace render
   } // namespace __details
-
-  namespace config {
-    using TimeUnit = __details::types::TimeUnit;
-    // Get the current output interval.
-    template<Channel Outlet>
-    __PGBAR_NODISCARD TimeUnit refresh_interval()
-    {
-      return __details::render::Renderer<Outlet>::working_interval();
-    }
-    // Set the new output interval.
-    template<Channel Outlet>
-    void refresh_interval( TimeUnit new_rate )
-    {
-      __details::render::Renderer<Outlet>::working_interval( std::move( new_rate ) );
-    }
-    __PGBAR_NODISCARD __PGBAR_INLINE_FN bool intty( Channel channel ) noexcept
-    {
-      return __details::console::intty( channel );
-    }
-  } // namespace config
 
   namespace color {
     constexpr __details::types::HexRGB None    = __PGBAR_DEFAULT;
@@ -2846,15 +2951,17 @@ namespace pgbar {
     };
 
 # undef __PGBAR_OPTIONS_HELPER
-# define __PGBAR_OPTIONS_HELPER( StructName, ParamName )                                                     \
-   __PGBAR_OPTIONS( StructName, __details::types::String )                                                   \
-   StructName( __details::types::ROStr ParamName )                                                           \
-     : data_ { __details::console::rgb2ansi( __details::utils::hex2rgb( ParamName ) ) }                      \
-   {}                                                                                                        \
-   StructName( __details::types::HexRGB ParamName ) : data_ { __details::console::rgb2ansi( ParamName ) } {} \
-   StructName( const StructName& )                                   = default;                              \
-   StructName( StructName&& )                                        = default;                              \
-   __PGBAR_CXX23_CNSTXPR StructName& operator=( const StructName& )& = default;                              \
+# define __PGBAR_OPTIONS_HELPER( StructName, ParamName )                                         \
+   __PGBAR_OPTIONS( StructName, __details::types::String )                                       \
+   StructName( __details::types::ROStr ParamName )                                               \
+     : data_ { __details::console::escodes::rgb2ansi( __details::utils::hex2rgb( ParamName ) ) } \
+   {}                                                                                            \
+   StructName( __details::types::HexRGB ParamName )                                              \
+     : data_ { __details::console::escodes::rgb2ansi( ParamName ) }                              \
+   {}                                                                                            \
+   StructName( const StructName& )                                   = default;                  \
+   StructName( StructName&& )                                        = default;                  \
+   __PGBAR_CXX23_CNSTXPR StructName& operator=( const StructName& )& = default;                  \
    __PGBAR_CXX23_CNSTXPR StructName& operator=( StructName&& )&      = default;
 
     // A wrapper that stores the description text color.
@@ -4272,8 +4379,8 @@ namespace pgbar {
           typename std::enable_if<!std::is_arithmetic<I>::value,
                                   scope::ProxySpan<scope::IterSpan<I>, Derived>>::type
 # endif
-          iterate( I startpoint, I endpoint ) & noexcept( std::is_pointer<I>::value
-                                                          || std::is_nothrow_move_constructible<I>::value )
+          iterate( I startpoint, I endpoint ) & noexcept(
+            traits::AnyOf<std::is_pointer<I>, std::is_nothrow_move_constructible<I>>::value )
         {
           return { scope::IterSpan<I>( std::move( startpoint ), std::move( endpoint ) ),
                    static_cast<Derived&>( *this ) };
@@ -4301,9 +4408,9 @@ namespace pgbar {
           scope::ProxySpan<scope::IterSpan<traits::IteratorTrait_t<R>>, Derived>
 # else
         __PGBAR_NODISCARD __PGBAR_CXX17_CNSTXPR typename std::enable_if<
-          ( std::is_class<typename std::decay<R>::type>::value
-            || std::is_array<typename std::remove_reference<R>::type>::value )
-            && std::is_lvalue_reference<R>::value,
+          traits::AllOf<traits::AnyOf<std::is_class<typename std::decay<R>::type>,
+                                      std::is_array<typename std::remove_reference<R>::type>>,
+                        std::is_lvalue_reference<R>>::value,
           scope::ProxySpan<scope::IterSpan<traits::IteratorTrait_t<R>>, Derived>>::type
 # endif
           iterate( R&& container ) &
@@ -4322,10 +4429,10 @@ namespace pgbar {
                     && std::is_lvalue_reference_v<R> )
         __PGBAR_CXX17_CNSTXPR void
 # else
-        __PGBAR_CXX17_CNSTXPR
-          typename std::enable_if<( std::is_class<typename std::decay<R>::type>::value
-                                    || std::is_array<typename std::remove_reference<R>::type>::value )
-                                  && std::is_lvalue_reference<R>::value>::type
+        __PGBAR_CXX17_CNSTXPR typename std::enable_if<
+          traits::AllOf<traits::AnyOf<std::is_class<typename std::decay<R>::type>,
+                                      std::is_array<typename std::remove_reference<R>::type>>,
+                        std::is_lvalue_reference<R>>::value>::type
 # endif
           iterate( R&& container, F&& unary_fn )
         {
@@ -4442,11 +4549,11 @@ namespace pgbar {
                               assets::CounterMeter,
                               assets::Timer>::template type<assets::Core<Derived>, Derived> {
         // BarType must inherit from BasicIndicator or BasicAnimation
-        static_assert(
-          traits::Contain<traits::TopoSort_t<traits::TemplateList<BarType>>, assets::BasicIndicator>::value
-            || traits::Contain<traits::TopoSort_t<traits::TemplateList<BarType>>,
-                               assets::BasicAnimation>::value,
-          "pgbar::__details::prefabs::BasicConfig: Invalid progress bar type" );
+        static_assert( traits::AnyOf<traits::Contain<traits::TopoSort_t<traits::TemplateList<BarType>>,
+                                                     assets::BasicIndicator>,
+                                     traits::Contain<traits::TopoSort_t<traits::TemplateList<BarType>>,
+                                                     assets::BasicAnimation>>::value,
+                       "pgbar::__details::prefabs::BasicConfig: Invalid progress bar type" );
 
         using Self       = BasicConfig;
         using Base       = typename traits::LI_t<BarType,
@@ -4570,8 +4677,8 @@ namespace pgbar {
 # else
         template<typename... Args,
                  typename = typename std::enable_if<
-                   !traits::Repeat<traits::TypeList<Args...>>::value
-                   && traits::AllBelongAny<traits::TypeList<Args...>, Constraint>::value>::type>
+                   traits::AllOf<traits::Not<traits::Repeat<traits::TypeList<Args...>>>,
+                                 traits::AllBelongAny<traits::TypeList<Args...>, Constraint>>::value>::type>
 # endif
         BasicConfig( Args... args )
         {
@@ -4579,8 +4686,8 @@ namespace pgbar {
           (void)std::initializer_list<char> { ( unpacker( *this, std::move( args ) ), '\0' )... };
         }
 
-        BasicConfig( const Self& lhs ) noexcept( std::is_nothrow_default_constructible<Base>::value
-                                                 && std::is_nothrow_copy_assignable<Base>::value )
+        BasicConfig( const Self& lhs ) noexcept( traits::AllOf<std::is_nothrow_default_constructible<Base>,
+                                                               std::is_nothrow_copy_assignable<Base>>::value )
           : Base()
         {
           concurrent::SharedLock<concurrent::SharedMutex> lock { lhs.rw_mtx_ };
@@ -4628,9 +4735,10 @@ namespace pgbar {
                     && traits::AllBelongAny<traits::TypeList<Arg, Args...>, Constraint>::value )
         Derived&
 # else
-        typename std::enable_if<!traits::Repeat<traits::TypeList<Arg, Args...>>::value
-                                  && traits::AllBelongAny<traits::TypeList<Arg, Args...>, Constraint>::value,
-                                Derived&>::type
+        typename std::enable_if<
+          traits::AllOf<traits::Not<traits::Repeat<traits::TypeList<Arg, Args...>>>,
+                        traits::AllBelongAny<traits::TypeList<Arg, Args...>, Constraint>>::value,
+          Derived&>::type
 # endif
           set( Arg arg, Args... args ) &
         {
@@ -4666,6 +4774,24 @@ namespace pgbar {
   } // namespace __details
 
   namespace config {
+    using TimeUnit = __details::types::TimeUnit;
+    // Get the current output interval.
+    template<Channel Outlet>
+    __PGBAR_NODISCARD TimeUnit refresh_interval()
+    {
+      return __details::render::Renderer<Outlet>::working_interval();
+    }
+    // Set the new output interval.
+    template<Channel Outlet>
+    void refresh_interval( TimeUnit new_rate )
+    {
+      __details::render::Renderer<Outlet>::working_interval( std::move( new_rate ) );
+    }
+    __PGBAR_NODISCARD __PGBAR_INLINE_FN bool intty( Channel channel ) noexcept
+    {
+      return __details::console::intty( channel );
+    }
+
     class CharBar : public __details::prefabs::BasicConfig<__details::assets::CharIndicator, CharBar> {
       using Base = __details::prefabs::BasicConfig<__details::assets::CharIndicator, CharBar>;
       friend Base;
@@ -4881,14 +5007,23 @@ namespace pgbar {
   namespace __details {
     namespace traits {
       template<typename C>
+      struct is_config
+        : AnyOf<std::is_same<C, config::CharBar>,
+                std::is_same<C, config::BlckBar>,
+                std::is_same<C, config::SpinBar>,
+                std::is_same<C, config::ScanBar>> {};
+
+      template<typename C>
       struct ConfigTraits;
       template<typename C>
       using ConfigTraits_t = typename ConfigTraits<C>::type;
 
-# define __PGBAR_TRAIT_REGISTER( Config, ... ) \
-   template<>                                  \
-   struct ConfigTraits<Config> {               \
-     using type = TemplateList<__VA_ARGS__>;   \
+# define __PGBAR_TRAIT_REGISTER( Config, ... )                                            \
+   template<>                                                                             \
+   struct ConfigTraits<Config> {                                                          \
+     static_assert( is_config<Config>::value,                                             \
+                    "pgbar::__details::traits::ConfigTraits: Unexpected type mismatch" ); \
+     using type = TemplateList<__VA_ARGS__>;                                              \
    }
 
       __PGBAR_TRAIT_REGISTER( config::CharBar, assets::TaskCounter, assets::FrameCounter );
@@ -5055,12 +5190,6 @@ namespace pgbar {
 
       public:
         using Base::Base;
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN types::Size full_render_size() const
-        {
-          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          return this->fixed_render_size()
-               + ( this->visual_masks_[utils::as_val( Self::Mask::Ani )] ? this->bar_length_ : 0 );
-        }
       };
 
       template<typename Config>
@@ -5315,11 +5444,6 @@ namespace pgbar {
             this->build_rborder( buffer );
           return buffer << console::escodes::reset_font;
         }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN types::Size full_render_size() const
-        {
-          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          return this->fixed_render_size();
-        }
       };
 
       template<typename Config, typename Enable = void>
@@ -5328,7 +5452,7 @@ namespace pgbar {
 
     namespace prefabs {
 # if __PGBAR_CXX20
-      template<typename Config, traits::Mutex MutexMode, Channel Outlet>
+      template<typename Config, traits::MutexLike MutexMode, Channel Outlet>
 # else
       template<typename Config, typename MutexMode, Channel Outlet>
 # endif
@@ -5337,42 +5461,30 @@ namespace pgbar {
             traits::ConfigTraits_t<Config>>::template type<Indicator, BasicBar<Config, MutexMode, Outlet>> {
         static_assert( traits::Contain<traits::ConfigTraits_t<Config>, assets::TaskCounter>::value,
                        "pgbar::__details::prefabs::BasicBar: Invalid config type" );
+# if !__PGBAR_CXX20
+        static_assert( traits::is_mutex<MutexMode>::value,
+                       "pgbar::__details::prefabs::BasicBar: Invalid mutex type" );
+# endif
         using Self = BasicBar;
         using Base = typename traits::LI<traits::ConfigTraits_t<Config>>::template type<Indicator, Self>;
 
         template<typename, typename>
         friend struct render::RenderAction;
 
-      protected:
         render::Builder<Config> config_;
         __PGBAR_NOUNIQUEADDR mutable MutexMode mtx_;
 
-        virtual void do_reset( bool forced = false ) noexcept
+      protected:
+        virtual void do_terminate( bool forced = false ) noexcept
         {
           auto& executor = render::Renderer<Outlet>::itself();
-          if ( this->is_running() && !executor.empty() ) {
+          if ( !executor.empty() ) {
             if ( !forced )
-              __PGBAR_UNLIKELY
-              {
-                executor.appoint();
-                this->state_.store( Indicator::State::Stopped, std::memory_order_release );
-              }
-            else {
-              auto try_update = [this]( Indicator::State expected ) noexcept {
-                return this->state_.compare_exchange_strong( expected,
-                                                             Indicator::State::Finish,
-                                                             std::memory_order_acq_rel,
-                                                             std::memory_order_relaxed );
-              };
-              try_update( Indicator::State::Begin ) || try_update( Indicator::State::StrictRefresh )
-                || try_update( Indicator::State::LenientRefresh );
               executor.suspend();
-              executor.appoint();
-            }
-          } else
-            this->state_.store( Indicator::State::Stopped, std::memory_order_release );
+            executor.appoint();
+          }
         }
-        virtual void do_setup() noexcept( false )
+        virtual void do_setup() & noexcept( false )
         {
           auto& executor = render::Renderer<Outlet>::itself();
           if ( !executor.try_appoint( [this]() {
@@ -5405,6 +5517,27 @@ namespace pgbar {
           executor.activate();
         }
 
+        __PGBAR_INLINE_FN void do_reset( bool forced = false ) noexcept
+        {
+          if ( this->is_running() ) {
+            if ( forced )
+              __PGBAR_UNLIKELY
+            this->state_.store( Indicator::State::Stopped, std::memory_order_release );
+            else
+            {
+              auto try_update = [this]( Indicator::State expected ) noexcept {
+                return this->state_.compare_exchange_strong( expected,
+                                                             Indicator::State::Finish,
+                                                             std::memory_order_acq_rel,
+                                                             std::memory_order_relaxed );
+              };
+              try_update( Indicator::State::Begin ) || try_update( Indicator::State::StrictRefresh )
+                || try_update( Indicator::State::LenientRefresh );
+            }
+            do_terminate( forced );
+          } else
+            this->state_.store( Indicator::State::Stopped, std::memory_order_release );
+        }
         __PGBAR_INLINE_FN void do_tick( types::Size next_step ) & noexcept( false )
         {
           switch ( this->state_.load( std::memory_order_acquire ) ) {
@@ -5445,6 +5578,10 @@ namespace pgbar {
         }
 
       public:
+        using ConfigType                = Config;
+        using MutexType                 = MutexMode;
+        static constexpr Channel stream = Outlet;
+
         BasicBar( Config config = Config() )
           noexcept( std::is_nothrow_default_constructible<MutexMode>::value )
           : config_ { std::move( config ) }
@@ -5477,6 +5614,10 @@ namespace pgbar {
         void tick( types::Size next_step ) & override final
         {
           std::lock_guard<MutexMode> lock { this->mtx_ };
+          switch ( this->state_.load( std::memory_order_acquire ) ) {
+          case Base::State::Stopped: do_tick( 0 ); __PGBAR_FALLTHROUGH;
+          default:                   break;
+          }
           const auto task_cnt = this->task_cnt_.load( std::memory_order_acquire );
           const auto task_end = this->task_end_.load( std::memory_order_acquire );
           do_tick( next_step + task_cnt > task_end ? task_end - task_cnt : next_step );
@@ -5493,7 +5634,7 @@ namespace pgbar {
           std::lock_guard<MutexMode> lock { this->mtx_ };
           const auto task_cnt = this->task_cnt_.load( std::memory_order_acquire );
           const auto task_end = this->task_end_.load( std::memory_order_acquire );
-          if ( percentage < 100 ) {
+          if ( percentage <= 100 ) {
             const auto target_progress = static_cast<types::Size>( task_end * percentage * 0.01 );
             __PGBAR_ASSERT( target_progress <= task_end );
             if ( target_progress > task_cnt )
@@ -5502,12 +5643,7 @@ namespace pgbar {
             do_tick( task_end - task_cnt );
         }
 
-        /**
-         * Reset the state of the object,
-         * it will immediately TERMINATE the current make.
-         */
-        void reset() override final { reset( true ); }
-        void reset( bool final_mesg ) override final
+        void reset( bool final_mesg = true ) override final
         {
           std::lock_guard<MutexMode> lock { this->mtx_ };
           this->final_mesg_ = final_mesg;
@@ -5521,12 +5657,21 @@ namespace pgbar {
         __PGBAR_CXX20_CNSTXPR void swap( BasicBar& lhs ) noexcept
         {
           __PGBAR_PURE_ASSUME( this != &lhs );
+          __PGBAR_ASSERT( this->is_running() == false );
+          __PGBAR_ASSERT( lhs.is_running() == false );
           Base::swap( lhs );
           config_.swap( lhs.config_ );
         }
         friend __PGBAR_CXX20_CNSTXPR void swap( BasicBar& a, BasicBar& b ) noexcept { a.swap( b ); }
       };
     } // namespace prefabs
+
+    namespace traits {
+      template<typename B>
+      struct is_bar : std::false_type {};
+      template<typename Cfg, typename Mtx, Channel Olt>
+      struct is_bar<prefabs::BasicBar<Cfg, Mtx, Olt>> : std::true_type {};
+    }
   } // namespace __details
 
   using Threadsafe = __details::concurrent::Mutex;
@@ -5575,18 +5720,18 @@ namespace pgbar {
   namespace __details {
     namespace render {
       template<typename Config>
-      struct RenderAction<Config,
-                          typename std::enable_if<std::is_same<Config, config::CharBar>::value
-                                                  || std::is_same<Config, config::SpinBar>::value
-                                                  || std::is_same<Config, config::ScanBar>::value>::type> {
+      struct RenderAction<
+        Config,
+        typename std::enable_if<traits::AnyOf<std::is_same<Config, config::CharBar>,
+                                              std::is_same<Config, config::SpinBar>,
+                                              std::is_same<Config, config::ScanBar>>::value>::type> {
         template<typename Mutex, Channel Outlet>
         static __PGBAR_INLINE_FN void boot( prefabs::BasicBar<Config, Mutex, Outlet>& bar )
         {
           using Self = prefabs::BasicBar<Config, Mutex, Outlet>;
           __PGBAR_ASSERT( io::OStream<Outlet>::itself().empty() == false );
           __PGBAR_ASSERT( bar.task_cnt_ <= bar.task_end_ );
-          bar.idx_frame_    = 0;
-          bar.max_bar_size_ = bar.config_.full_render_size();
+          bar.idx_frame_ = 0;
           bar.config_.build( io::OStream<Outlet>::itself(),
                              bar.idx_frame_,
                              bar.task_cnt_.load( std::memory_order_acquire ),
@@ -5610,10 +5755,9 @@ namespace pgbar {
         static __PGBAR_INLINE_FN void process( prefabs::BasicBar<Config, Mutex, Outlet>& bar )
         {
           __PGBAR_ASSERT( bar.task_cnt_ <= bar.task_end_ );
-          bar.max_bar_size_ = std::max( bar.max_bar_size_, bar.config_.full_render_size() );
-          auto& buffer      = io::OStream<Outlet>::itself();
+          auto& buffer = io::OStream<Outlet>::itself();
           __PGBAR_ASSERT( buffer.empty() == false );
-          buffer << console::escodes::clear_next( bar.max_bar_size_ );
+          buffer << console::escodes::clear_suffix;
 
           bar.config_.build( buffer,
                              bar.idx_frame_,
@@ -5627,10 +5771,9 @@ namespace pgbar {
         {
           using Self = prefabs::BasicBar<Config, Mutex, Outlet>;
           __PGBAR_ASSERT( bar.task_cnt_ <= bar.task_end_ );
-          bar.max_bar_size_ = std::max( bar.max_bar_size_, bar.config_.full_render_size() );
-          auto& buffer      = io::OStream<Outlet>::itself();
+          auto& buffer = io::OStream<Outlet>::itself();
           __PGBAR_ASSERT( buffer.empty() == false );
-          buffer << console::escodes::clear_next( bar.max_bar_size_ );
+          buffer << console::escodes::clear_suffix;
 
           bar.config_.build( buffer,
                              bar.idx_frame_,
@@ -5649,7 +5792,6 @@ namespace pgbar {
         {
           using Self = prefabs::BasicBar<config::BlckBar, Mutex, Outlet>;
           __PGBAR_ASSERT( io::OStream<Outlet>::itself().empty() == false );
-          bar.max_bar_size_ = bar.config_.full_render_size();
           bar.config_.build( io::OStream<Outlet>::itself(),
                              bar.task_cnt_.load( std::memory_order_acquire ),
                              bar.task_end_.load( std::memory_order_acquire ),
@@ -5665,10 +5807,9 @@ namespace pgbar {
         static __PGBAR_INLINE_FN void process( prefabs::BasicBar<config::BlckBar, Mutex, Outlet>& bar )
         {
           __PGBAR_ASSERT( bar.task_cnt_ <= bar.task_end_ );
-          bar.max_bar_size_ = std::max( bar.max_bar_size_, bar.config_.full_render_size() );
-          auto& buffer      = io::OStream<Outlet>::itself();
+          auto& buffer = io::OStream<Outlet>::itself();
           __PGBAR_ASSERT( buffer.empty() == false );
-          buffer << console::escodes::clear_next( bar.max_bar_size_ );
+          buffer << console::escodes::clear_suffix;
 
           bar.config_.build( buffer,
                              bar.task_cnt_.load( std::memory_order_acquire ),
@@ -5680,10 +5821,9 @@ namespace pgbar {
         {
           using Self = prefabs::BasicBar<config::BlckBar, Mutex, Outlet>;
           __PGBAR_ASSERT( bar.task_cnt_ <= bar.task_end_ );
-          bar.max_bar_size_ = std::max( bar.max_bar_size_, bar.config_.full_render_size() );
-          auto& buffer      = io::OStream<Outlet>::itself();
+          auto& buffer = io::OStream<Outlet>::itself();
           __PGBAR_ASSERT( buffer.empty() == false );
-          buffer << console::escodes::clear_next( bar.max_bar_size_ );
+          buffer << console::escodes::clear_suffix;
 
           bar.config_.build( buffer,
                              bar.task_cnt_.load( std::memory_order_acquire ),
@@ -5703,8 +5843,7 @@ namespace pgbar {
           switch ( bar.state_.load( std::memory_order_acquire ) ) {
           case Self::State::Begin: {
             RenderAction<Config>::boot( bar );
-          }
-            __PGBAR_FALLTHROUGH;
+          } break;
           case Self::State::StrictRefresh:  __PGBAR_FALLTHROUGH;
           case Self::State::LenientRefresh: {
             RenderAction<Config>::process( bar );
@@ -5725,16 +5864,572 @@ namespace pgbar {
       struct is_iterable_bar<
         B,
         typename std::enable_if<
-          !std::is_reference<B>::value
-          && std::is_void<decltype( std::declval<B&>().config().tasks( std::declval<types::Size>() ),
-                                    void() )>::value>::type> : std::true_type {};
+          AllOf<Not<std::is_reference<B>>,
+                std::is_void<decltype( std::declval<B&>().config().tasks( std::declval<types::Size>() ),
+                                       void() )>>::value>::type> : std::true_type {};
+    } // namespace traits
+
+    namespace assets {
+      template<types::Size, typename Base>
+      struct TupleSlot : public Base {
+        using Base::Base;
+        TupleSlot( TupleSlot&& )              = default;
+        TupleSlot& operator=( TupleSlot&& ) & = default;
+        TupleSlot( Base&& rhs ) noexcept : Base( std::move( rhs ) ) {}
+        TupleSlot& operator=( Base&& rhs ) & noexcept
+        {
+          __PGBAR_ASSERT( this != std::addressof( rhs ) );
+          Base::operator=( std::move( rhs ) );
+          return *this;
+        }
+      };
+
+      template<typename Seq, typename... Bars>
+      class TupleBar;
+      template<types::Size... Tags,
+               typename Mutex,
+               Channel Outlet,
+               typename... Configs,
+               template<typename, typename, Channel>
+               class... Bars>
+      class TupleBar<traits::IndexSeq<Tags...>, Bars<Configs, Mutex, Outlet>...> final
+        : public TupleSlot<Tags, prefabs::BasicBar<Configs, Mutex, Outlet>>... {
+        static_assert( sizeof...( Tags ) == sizeof...( Bars ),
+                       "pgbar::__details::assets::TupleBar: Unexpected type mismatch" );
+        static_assert( sizeof...( Bars ) > 0,
+                       "pgbar::__details::assets::TupleBar: The number of progress bars cannot be zero" );
+
+        std::atomic<types::Size> alive_cnt_;
+        // cb: CombinedBar
+        enum class CBState : types::Byte { Stopped, Awake, Refresh };
+        std::atomic<CBState> cb_state_;
+        mutable concurrent::Mutex cb_mtx_;
+
+        std::bitset<sizeof...( Bars )> output_tag_;
+
+        template<types::Size Pos>
+        __PGBAR_INLINE_FN typename std::enable_if<( Pos >= sizeof...( Bars ) )>::type do_render() &
+        {}
+        template<types::Size Pos = 0>
+        inline typename std::enable_if<( Pos < sizeof...( Bars ) )>::type do_render() &
+        {
+          using std::get;
+          __PGBAR_ASSERT( active() );
+          if ( get<Pos>( *this ).is_running() ) {
+            output_tag_.set( Pos );
+            render::RenderAction<void>::automate( get<Pos>( *this ) );
+          }
+          if ( output_tag_[Pos] )
+            io::OStream<Outlet>::itself() << '\n';
+          return do_render<Pos + 1>(); // tail recursive
+        }
+
+        void do_terminate( bool ) noexcept override final
+        { // This virtual function is invoked only via the vtable,
+          // hence the default arguments from the base class declaration are always used.
+          // Any default arguments provided in the derived class are ignored.
+          auto& executor = render::Renderer<Outlet>::itself();
+          if ( !executor.empty() && active() && alive_cnt_.fetch_sub( 1, std::memory_order_acq_rel ) == 1 ) {
+            std::lock_guard<concurrent::Mutex> lock { cb_mtx_ };
+            if ( alive_cnt_.load( std::memory_order_acquire ) == 0 ) {
+              // double check
+              executor.suspend();
+              executor.appoint();
+              io::OStream<Outlet>::itself() << io::release;
+              cb_state_.store( CBState::Stopped, std::memory_order_release );
+            }
+          }
+        }
+        void do_setup() & override final
+        {
+          std::lock_guard<concurrent::Mutex> lock { cb_mtx_ };
+          alive_cnt_.fetch_add( 1, std::memory_order_release );
+          switch ( cb_state_.load( std::memory_order_acquire ) ) {
+          case CBState::Stopped: {
+            auto& executor = render::Renderer<Outlet>::itself();
+            if ( !executor.try_appoint( [this]() {
+                   auto& ostream = io::OStream<Outlet>::itself();
+                   switch ( cb_state_.load( std::memory_order_acquire ) ) {
+                   case CBState::Awake: {
+                     output_tag_.reset();
+                     ostream << console::escodes::store_cursor;
+                     do_render();
+                     ostream << io::flush;
+
+                     auto expected = CBState::Awake;
+                     cb_state_.compare_exchange_strong( expected,
+                                                        CBState::Refresh,
+                                                        std::memory_order_acq_rel,
+                                                        std::memory_order_relaxed );
+                   } break;
+                   case CBState::Refresh: {
+                     ostream << console::escodes::restore_cursor;
+                     do_render();
+                     ostream << io::flush;
+                   } break;
+                   default: break;
+                   }
+                 } ) )
+              throw exception::InvalidState( "pgbar: another progress bar instance is already running" );
+
+            cb_state_.store( CBState::Awake, std::memory_order_release );
+            executor.activate();
+          } break;
+
+          default: break;
+          }
+        }
+
+        template<typename Tuple, types::Size... Is>
+        TupleBar( Tuple&& tup, const traits::IndexSeq<Is...>& )
+          noexcept( std::tuple_size<typename std::decay<Tuple>::type>::value == sizeof...( Bars ) )
+          : ElementAt_t<Is>( utils::forward_or<Is, ElementAt_t<Is>>( std::forward<Tuple>( tup ) ) )...
+          , alive_cnt_ { 0 }
+          , cb_state_ { CBState::Stopped }
+        {}
+
+      public:
+        template<types::Size Pos>
+        using ElementAt_t =
+          traits::TypeAt_t<Pos, TupleSlot<Tags, prefabs::BasicBar<Configs, Mutex, Outlet>>...>;
+
+        // SFINAE is used here to prevent infinite recursive matching of errors.
+        template<typename... Cfgs,
+                 typename = typename std::enable_if<traits::AllOf<traits::is_config<Cfgs>...>::value>::type>
+        TupleBar( Cfgs&&... cfgs ) noexcept( sizeof...( Cfgs ) == sizeof...( Bars ) )
+          : TupleBar( std::forward_as_tuple( std::forward<Cfgs>( cfgs )... ),
+                      traits::MakeIndexSeq<sizeof...( Configs )>() )
+        {}
+        TupleBar( TupleBar&& rhs ) noexcept
+          : TupleSlot<Tags, prefabs::BasicBar<Configs, Mutex, Outlet>>( std::move( rhs ) )...
+          , alive_cnt_ { 0 }
+          , cb_state_ { CBState::Stopped }
+        {}
+        TupleBar& operator=( TupleBar&& ) & = default;
+        ~TupleBar()                         = default;
+
+        void halt() noexcept
+        {
+          std::lock_guard<__details::concurrent::Mutex> lock { cb_mtx_ };
+          auto try_update = [this]( CBState expected ) noexcept -> bool {
+            return cb_state_.compare_exchange_strong( expected,
+                                                      CBState::Stopped,
+                                                      std::memory_order_acq_rel,
+                                                      std::memory_order_relaxed );
+          };
+          auto& executor = __details::render::Renderer<Outlet>::itself();
+          if ( ( try_update( CBState::Awake ) || try_update( CBState::Refresh ) ) && !executor.empty() )
+            executor.appoint();
+          alive_cnt_.store( 0, std::memory_order_release );
+        }
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool active() const noexcept
+        {
+          return cb_state_.load( std::memory_order_acquire ) != CBState::Stopped;
+        }
+
+        void swap( TupleBar& rhs ) noexcept
+        {
+          __PGBAR_PURE_ASSUME( this != &rhs );
+          __PGBAR_ASSERT( active() == false );
+          __PGBAR_ASSERT( rhs.active() == false );
+          (void)std::initializer_list<char> { (
+            static_cast<TupleSlot<Tags, prefabs::BasicBar<Configs, Mutex, Outlet>>&>( *this ).swap(
+              static_cast<TupleSlot<Tags, prefabs::BasicBar<Configs, Mutex, Outlet>>&>( rhs ) ),
+            '\0' )... };
+        }
+
+        template<types::Size Pos>
+        friend ElementAt_t<Pos>& get( TupleBar& tup ) noexcept
+        {
+          return static_cast<ElementAt_t<Pos>&>( tup );
+        }
+        template<types::Size Pos>
+        friend const ElementAt_t<Pos>& get( const TupleBar& tup ) noexcept
+        {
+          return static_cast<const ElementAt_t<Pos>&>( tup );
+        }
+        template<types::Size Pos>
+        friend ElementAt_t<Pos>&& get( TupleBar&& tup ) noexcept
+        {
+          return static_cast<ElementAt_t<Pos>&&>( tup );
+        }
+      };
+    } // namespace assets
+  } // namespace __details
+
+  template<typename Bar, typename... Bars>
+  class MultiBar;
+  template<typename Mutex,
+           Channel Outlet,
+           typename Config,
+           typename... Configs,
+           template<typename, typename, Channel>
+           class Bar,
+           template<typename, typename, Channel>
+           class... Bars>
+  class MultiBar<Bar<Config, Mutex, Outlet>, Bars<Configs, Mutex, Outlet>...> final {
+    static_assert(
+      __details::traits::AllOf<
+        __details::traits::AllOf<
+          std::is_same<Bar<Config, Mutex, Outlet>, __details::prefabs::BasicBar<Config, Mutex, Outlet>>,
+          std::is_same<Bars<Configs, Mutex, Outlet>,
+                       __details::prefabs::BasicBar<Configs, Mutex, Outlet>>...>,
+        __details::traits::AllOf<__details::traits::is_config<Config>,
+                                 __details::traits::is_config<Configs>...>>::value,
+      "pgbar::MultiBar: Invalid type" );
+    using Self    = MultiBar;
+    using Package = __details::assets::TupleBar<__details::traits::MakeIndexSeq<sizeof...( Bars ) + 1>,
+                                                Bar<Config, Mutex, Outlet>,
+                                                Bars<Configs, Mutex, Outlet>...>;
+
+    template<__details::types::Size Pos>
+    using ConfigAt_t = __details::traits::TypeAt_t<Pos, Config, Configs...>;
+    template<__details::types::Size Pos>
+    using BarAt_t = typename Package::template ElementAt_t<Pos>;
+
+    Package tuple_;
+
+  public:
+    MultiBar( Config cfg, Configs... cfgs ) noexcept : tuple_ { std::move( cfg ), std::move( cfgs )... } {}
+
+# if __PGBAR_CXX20
+    template<typename... Cfgs>
+      requires(
+        sizeof...( Cfgs ) <= sizeof...( Configs )
+        && __details::traits::StartsWith<__details::traits::TypeList<Cfgs...>, Config, Configs...>::value )
+# else
+    template<typename... Cfgs,
+             typename = typename std::enable_if<__details::traits::AllOf<
+               std::integral_constant<bool, ( sizeof...( Cfgs ) <= sizeof...( Configs ) + 1 )>,
+               __details::traits::StartsWith<__details::traits::TypeList<Cfgs...>, Config, Configs...>>::
+                                                  value>::type>
+# endif
+    MultiBar( Cfgs... args ) noexcept( sizeof...( Cfgs ) == sizeof...( Bars ) + 1 )
+      : tuple_ { std::move( args )... }
+    {}
+
+# if __PGBAR_CXX20
+    template<typename... BarObjs>
+      requires( sizeof...( BarObjs ) <= sizeof...( Bars ) + 1
+                && ( __details::traits::is_bar<std::decay_t<BarObjs>>::value && ... ) )
+# else
+    template<typename... BarObjs,
+             typename = typename std::enable_if<__details::traits::AllOf<
+               std::integral_constant<bool, ( sizeof...( BarObjs ) <= sizeof...( Bars ) + 1 )>,
+               __details::traits::AllOf<__details::traits::is_bar<typename std::decay<BarObjs>::type>...>>::
+                                                  value>::type>
+# endif
+    MultiBar( BarObjs&&... args ) noexcept(
+      __details::traits::AllOf<
+        std::integral_constant<bool, sizeof...( BarObjs ) == sizeof...( Bars ) + 1>,
+        __details::traits::Not<__details::traits::AnyOf<std::is_lvalue_reference<BarObjs>...>>>::value )
+      : MultiBar( std::forward<BarObjs>( args ).config()... )
+    {}
+
+    MultiBar( Self&& rhs ) noexcept : tuple_ { std::move( rhs.tuple_ ) }
+    {
+      __PGBAR_ASSERT( rhs.is_running() == false );
+    }
+    Self& operator=( Self&& rhs ) & noexcept
+    {
+      __PGBAR_PURE_ASSUME( this != &rhs );
+      __PGBAR_ASSERT( is_running() == false );
+      __PGBAR_ASSERT( rhs.is_running() == false );
+      tuple_ = std::move( rhs );
+      return *this;
+    }
+    ~MultiBar() noexcept { reset(); }
+
+    __PGBAR_NODISCARD __PGBAR_INLINE_FN bool is_running() const noexcept { return tuple_.active(); }
+    __PGBAR_INLINE_FN void reset() noexcept { tuple_.halt(); }
+    void wait() const noexcept
+    {
+      while ( is_running() )
+        std::this_thread::yield();
+    }
+    template<class Rep, class Period>
+    __PGBAR_NODISCARD bool wait_for( const std::chrono::duration<Rep, Period>& time_duration ) const noexcept
+    {
+      for ( const auto ending = std::chrono::steady_clock::now() + time_duration;
+            std::chrono::steady_clock::now() < ending; ) {
+        if ( !is_running() )
+          return true;
+        std::this_thread::yield();
+      }
+      return false;
     }
 
-    namespace prefabs {
-      template<typename Config, typename Mutex, Channel Outlet>
-      class CombinedBar : public BasicBar<Config, Mutex, Outlet> {};
+    template<__details::types::Size Pos>
+    __PGBAR_INLINE_FN void tick() &
+    {
+      using std::get;
+      get<Pos>( tuple_ ).tick();
+    }
+    template<__details::types::Size Pos>
+    __PGBAR_INLINE_FN void tick( __details::types::Size next_step ) &
+    {
+      using std::get;
+      get<Pos>( tuple_ ).tick( next_step );
+    }
+    template<__details::types::Size Pos>
+    __PGBAR_INLINE_FN void tick_to( std::uint8_t percentage ) &
+    {
+      using std::get;
+      get<Pos>( tuple_ ).tick_to( percentage );
+    }
+    template<__details::types::Size Pos>
+    __PGBAR_INLINE_FN void reset( bool final_mesg = true )
+    {
+      using std::get;
+      get<Pos>( tuple_ ).reset( final_mesg );
+    }
+    template<__details::types::Size Pos>
+    __PGBAR_INLINE_FN void wait() const noexcept
+    {
+      using std::get;
+      get<Pos>( tuple_ ).wait();
+    }
+    template<__details::types::Size Pos, class Rep, class Period>
+    __PGBAR_NODISCARD __PGBAR_INLINE_FN bool wait_for(
+      const std::chrono::duration<Rep, Period>& time_duration ) const noexcept
+    {
+      using std::get;
+      return get<Pos>( tuple_ ).wait_for( time_duration );
+    }
+    template<__details::types::Size Pos>
+    __PGBAR_NODISCARD __PGBAR_INLINE_FN bool is_running() const noexcept
+    {
+      using std::get;
+      return get<Pos>( tuple_ )->is_running();
+    }
+    template<__details::types::Size Pos>
+    __PGBAR_INLINE_FN ConfigAt_t<Pos>& config() &
+    {
+      using std::get;
+      return get<Pos>( tuple_ ).config();
+    }
+    template<__details::types::Size Pos>
+    __PGBAR_INLINE_FN const ConfigAt_t<Pos>& config() const&
+    {
+      using std::get;
+      return get<Pos>( tuple_ ).config();
+    }
+    template<__details::types::Size Pos>
+    __PGBAR_INLINE_FN ConfigAt_t<Pos> config() &&
+    {
+      using std::get;
+      return get<Pos>( tuple_ ).config();
+    }
+
+# if __PGBAR_CXX20
+    template<__details::types::Size Pos, typename... Args>
+      requires requires( BarAt_t<Pos>& bar, Args&&... args ) {
+        { bar.iterate( std::forward<Args>( args )... ) };
+      }
+# else
+    template<
+      __details::types::Size Pos,
+      typename... Args,
+      typename = typename std::enable_if<std::is_void<
+        decltype( std::declval<BarAt_t<Pos>&>().iterate( std::declval<Args>()... ), void() )>::value>::type>
+# endif
+    __PGBAR_INLINE_FN auto iterate( Args&&... args ) & noexcept(
+      noexcept( std::declval<BarAt_t<Pos>&>().iterate( std::forward<Args>( args )... ) ) )
+      -> decltype( std::declval<BarAt_t<Pos>&>().iterate( std::forward<Args>( args )... ) )
+    {
+      using std::get;
+      return get<Pos>( tuple_ ).iterate( std::forward<Args>( args )... );
+    }
+
+    void swap( Self& rhs ) noexcept { tuple_.swap( rhs.tuple_ ); }
+    friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
+  };
+
+# if __PGBAR_CXX17
+  // CTAD, only generates the default version,
+  // which means the MutexMode is `Threadunsafe` and the Outlet is `Channel::Stderr`.
+#  if __PGBAR_CXX20
+  template<typename Config, typename... Configs>
+    requires( __details::traits::is_config<Config>::value
+              && ( __details::traits::is_config<Configs>::value && ... ) )
+#  else
+  template<
+    typename Config,
+    typename... Configs,
+    typename = std::enable_if_t<__details::traits::AllOf<__details::traits::is_config<Config>,
+                                                         __details::traits::is_config<Configs>...>::value>>
+#  endif
+  MultiBar( Config,
+            Configs... ) -> MultiBar<__details::prefabs::BasicBar<Config, Threadunsafe, Channel::Stderr>,
+                                     __details::prefabs::BasicBar<Configs, Threadunsafe, Channel::Stderr>...>;
+# endif
+
+  // Creates a MultiBar using existing bar instances.
+  template<typename Mutex = Threadunsafe, Channel Outlet = Channel::Stderr, typename Bar, typename... Bars>
+# if __PGBAR_CXX20
+    requires( __details::traits::is_bar<std::decay_t<Bar>>::value
+              && ( __details::traits::is_bar<std::decay_t<Bars>>::value && ... ) )
+  __PGBAR_NODISCARD __PGBAR_INLINE_FN
+    MultiBar<__details::prefabs::BasicBar<typename Bar::ConfigType, Mutex, Outlet>,
+             __details::prefabs::BasicBar<typename Bars::ConfigType, Mutex, Outlet>...>
+# else
+  __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
+    __details::traits::AllOf<__details::traits::is_bar<typename std::decay<Bar>::type>,
+                             __details::traits::is_bar<typename std::decay<Bars>::type>...>::value,
+    MultiBar<__details::prefabs::BasicBar<typename Bar::ConfigType, Mutex, Outlet>,
+             __details::prefabs::BasicBar<typename Bars::ConfigType, Mutex, Outlet>...>>::type
+# endif
+    make_multi( Bar&& bar, Bars&&... bars ) noexcept(
+      __details::traits::Not<
+        __details::traits::AnyOf<std::is_lvalue_reference<Bar>, std::is_lvalue_reference<Bars>...>>::value )
+  {
+    return { std::forward<Bar>( bar ), std::forward<Bars>( bars )... };
+  }
+  // Creates a MultiBar using configuration objects.
+  template<typename Mutex = Threadunsafe,
+           Channel Outlet = Channel::Stderr,
+           typename Config,
+           typename... Configs>
+# if __PGBAR_CXX20
+    requires( __details::traits::is_config<Config>::value
+              && ( __details::traits::is_config<Configs>::value && ... ) )
+  MultiBar<__details::prefabs::BasicBar<Config, Mutex, Outlet>,
+           __details::prefabs::BasicBar<Configs, Mutex, Outlet>...>
+# else
+  __PGBAR_NODISCARD __PGBAR_INLINE_FN
+    typename std::enable_if<__details::traits::AllOf<__details::traits::is_config<Config>,
+                                                     __details::traits::is_config<Configs>...>::value,
+                            MultiBar<__details::prefabs::BasicBar<Config, Mutex, Outlet>,
+                                     __details::prefabs::BasicBar<Configs, Mutex, Outlet>...>>::type
+# endif
+    make_multi( Config cfg, Configs... cfgs ) noexcept
+  {
+    return { std::move( cfg ), std::move( cfgs )... };
+  }
+
+  namespace __details {
+    namespace assets {
+      template<types::Size Cnt, typename M, Channel O, typename C, types::Size... Is>
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN traits::FillTemplate_t<prefabs::BasicBar<C, M, O>, MultiBar, Cnt>
+        make_multi_helper( C& cfg, const traits::IndexSeq<Is...>& ) noexcept( Cnt == 1 )
+      {
+        std::array<C, Cnt - 1> cfgs { { ( (void)( Is ), cfg )... } };
+        return { std::move( cfg ), std::move( cfgs[Is] )... };
+      }
     }
   } // namespace __details
+
+  /**
+   * Creates a MultiBar with a fixed number of BasicBar instances using a single bar object.
+   * **All BasicBar instances are initialized using the same configuration.**
+   */
+  template<__details::types::Size Cnt,
+           typename Mutex = Threadunsafe,
+           Channel Outlet = Channel::Stderr,
+           typename Bar>
+# if __PGBAR_CXX20
+    requires( Cnt > 0 && __details::traits::is_bar<typename std::decay<Bar>::type>::value )
+  __PGBAR_NODISCARD __PGBAR_INLINE_FN __details::traits::FillTemplate_t<
+    __details::prefabs::BasicBar<typename std::decay<Bar>::type::ConfigType, Mutex, Outlet>,
+    MultiBar,
+    Cnt>
+# else
+  __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
+    __details::traits::AllOf<std::integral_constant<bool, ( Cnt > 0 )>,
+                             __details::traits::is_bar<typename std::decay<Bar>::type>>::value,
+    __details::traits::FillTemplate_t<
+      __details::prefabs::BasicBar<typename std::decay<Bar>::type::ConfigType, Mutex, Outlet>,
+      MultiBar,
+      Cnt>>::type
+# endif
+    make_multi( Bar&& bar ) noexcept( Cnt == 1 && !std::is_lvalue_reference<Bar>::value )
+  {
+    auto cfg = std::forward<Bar>( bar ).config();
+    return __details::assets::make_multi_helper<Cnt, Mutex, Outlet>(
+      cfg,
+      __details::traits::MakeIndexSeq<Cnt - 1>() );
+  }
+  /**
+   * Creates a MultiBar with a fixed number of BasicBar instances using a single configuration object.
+   * **All BasicBar instances are initialized using the same configuration.**
+   */
+  template<__details::types::Size Cnt,
+           typename Mutex = Threadunsafe,
+           Channel Outlet = Channel::Stderr,
+           typename Config>
+# if __PGBAR_CXX20
+    requires( Cnt > 0 && __details::traits::is_config<Config>::value )
+  __PGBAR_NODISCARD __PGBAR_INLINE_FN
+    __details::traits::FillTemplate_t<__details::prefabs::BasicBar<Config, Mutex, Outlet>, MultiBar, Cnt>
+# else
+  __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
+    __details::traits::AllOf<std::integral_constant<bool, ( Cnt > 0 )>,
+                             __details::traits::is_config<Config>>::value,
+    __details::traits::FillTemplate_t<__details::prefabs::BasicBar<Config, Mutex, Outlet>, MultiBar, Cnt>>::
+    type
+# endif
+    make_multi( Config cfg ) noexcept( Cnt == 1 )
+  {
+    return __details::assets::make_multi_helper<Cnt, Mutex, Outlet>(
+      cfg,
+      __details::traits::MakeIndexSeq<Cnt - 1>() );
+  }
+
+  /**
+   * Creates a MultiBar with a fixed number of BasicBar instances using mutiple single bar objects.
+   * The ctor sequentially initializes the first few instances corresponding to the provided arguments;
+   * **any remaining instances with no corresponding arguments will be default-initialized.**
+   */
+  template<__details::types::Size Cnt, typename Bar, typename... Bars>
+# if __PGBAR_CXX20
+    requires(
+      Cnt > 0 && sizeof...( Bars ) <= Cnt && __details::traits::is_bar<Bar>::value
+      && ( __details::traits::is_bar<Bars>::value && ... )
+      && ( std::is_same_v<typename std::decay_t<Bar>::ConfigType, typename std::decay_t<Bars>::ConfigType>
+           && ... ) )
+  __PGBAR_NODISCARD __PGBAR_INLINE_FN __details::traits::FillTemplate_t<Bar, MultiBar, Cnt>
+# else
+  __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
+    __details::traits::AllOf<std::integral_constant<bool, ( Cnt > 0 )>,
+                             std::integral_constant<bool, ( sizeof...( Bars ) <= Cnt )>,
+                             __details::traits::is_bar<Bar>,
+                             __details::traits::is_bar<Bars>...,
+                             std::is_same<typename std::decay<Bar>::type::ConfigType,
+                                          typename std::decay<Bars>::type::ConfigType>...>::value,
+    __details::traits::FillTemplate_t<Bar, MultiBar, Cnt>>::type
+# endif
+    make_multi( Bars&&... bars ) noexcept(
+      sizeof...( Bars ) == Cnt
+      && __details::traits::Not<__details::traits::AnyOf<std::is_lvalue_reference<Bars>...>>::value )
+  {
+    return { std::forward<Bars>( bars ).config()... };
+  }
+  /**
+   * Creates a MultiBar with a fixed number of BasicBar instances using mutiple configuration objects.
+   * The ctor sequentially initializes the first few instances corresponding to the provided configurations;
+   * **any remaining instances with no corresponding configurations will be default-initialized.**
+   */
+  template<__details::types::Size Cnt,
+           typename Config,
+           typename Mutex = Threadunsafe,
+           Channel Outlet = Channel::Stderr,
+           typename... Configs>
+# if __PGBAR_CXX20
+    requires( Cnt > 0 && sizeof...( Configs ) <= Cnt && ( std::is_same_v<Config, Configs> && ... ) )
+  __PGBAR_NODISCARD __PGBAR_INLINE_FN
+    __details::traits::FillTemplate_t<__details::prefabs::BasicBar<Config, Mutex, Outlet>, MultiBar, Cnt>
+# else
+  __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
+    __details::traits::AllOf<std::integral_constant<bool, ( Cnt > 0 )>,
+                             std::integral_constant<bool, ( sizeof...( Configs ) <= Cnt )>,
+                             std::is_same<Config, Configs>...>::value,
+    __details::traits::FillTemplate_t<__details::prefabs::BasicBar<Config, Mutex, Outlet>, MultiBar, Cnt>>::
+    type
+# endif
+    make_multi( Configs... configs ) noexcept( sizeof...( Configs ) == Cnt )
+  {
+    return { std::move( configs )... };
+  }
 
   namespace scope {
     /**
