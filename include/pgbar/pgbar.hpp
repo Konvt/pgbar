@@ -3965,7 +3965,7 @@ namespace pgbar {
       template<typename Base, typename Derived>
       class PercentMeter : public Base {
 # define __PGBAR_DEFAULT_PERCENT " --.--%"
-        constexpr static types::Size _fixed_length = sizeof( __PGBAR_DEFAULT_PERCENT ) - 1;
+        static constexpr types::Size _fixed_length = sizeof( __PGBAR_DEFAULT_PERCENT ) - 1;
 
       protected:
         __PGBAR_NODISCARD __PGBAR_INLINE_FN types::String build_percent( types::Float num_percent ) const
@@ -5008,10 +5008,10 @@ namespace pgbar {
     namespace traits {
       template<typename C>
       struct is_config
-        : AnyOf<std::is_same<C, config::CharBar>,
-                std::is_same<C, config::BlckBar>,
-                std::is_same<C, config::SpinBar>,
-                std::is_same<C, config::ScanBar>> {};
+        : AnyOf<std::is_same<typename std::remove_cv<C>::type, config::CharBar>,
+                std::is_same<typename std::remove_cv<C>::type, config::BlckBar>,
+                std::is_same<typename std::remove_cv<C>::type, config::SpinBar>,
+                std::is_same<typename std::remove_cv<C>::type, config::ScanBar>> {};
 
       template<typename C>
       struct ConfigTraits;
@@ -5668,10 +5668,17 @@ namespace pgbar {
 
     namespace traits {
       template<typename B>
-      struct is_bar : std::false_type {};
-      template<typename Cfg, typename Mtx, Channel Olt>
-      struct is_bar<prefabs::BasicBar<Cfg, Mtx, Olt>> : std::true_type {};
-    }
+      struct is_bar {
+      private:
+        template<typename T>
+        struct Helper : std::false_type {};
+        template<typename C, typename M, Channel O>
+        struct Helper<prefabs::BasicBar<C, M, O>> : std::true_type {};
+
+      public:
+        static constexpr bool value = Helper<typename std::remove_cv<B>::type>::value;
+      };
+    } // namespace traits
   } // namespace __details
 
   using Threadsafe = __details::concurrent::Mutex;
@@ -5864,7 +5871,7 @@ namespace pgbar {
       struct is_iterable_bar<
         B,
         typename std::enable_if<
-          AllOf<Not<std::is_reference<B>>,
+          AllOf<is_bar<B>,
                 std::is_void<decltype( std::declval<B&>().config().tasks( std::declval<types::Size>() ),
                                        void() )>>::value>::type> : std::true_type {};
     } // namespace traits
@@ -6324,9 +6331,9 @@ namespace pgbar {
            Channel Outlet = Channel::Stderr,
            typename Bar>
 # if __PGBAR_CXX20
-    requires( Cnt > 0 && __details::traits::is_bar<typename std::decay<Bar>::type>::value )
+    requires( Cnt > 0 && __details::traits::is_bar<std::decay_t<Bar>>::value )
   __PGBAR_NODISCARD __PGBAR_INLINE_FN __details::traits::FillTemplate_t<
-    __details::prefabs::BasicBar<typename std::decay<Bar>::type::ConfigType, Mutex, Outlet>,
+    __details::prefabs::BasicBar<typename std::decay_t<Bar>::ConfigType, Mutex, Outlet>,
     MultiBar,
     Cnt>
 # else
@@ -6380,8 +6387,8 @@ namespace pgbar {
 # if __PGBAR_CXX20
     requires(
       Cnt > 0 && sizeof...( Bars ) <= Cnt && __details::traits::is_bar<Bar>::value
-      && ( __details::traits::is_bar<Bars>::value && ... )
-      && ( std::is_same_v<typename std::decay_t<Bar>::ConfigType, typename std::decay_t<Bars>::ConfigType>
+      && ( __details::traits::is_bar<std::decay_t<Bars>>::value && ... )
+      && ( std::is_same_v<typename std::remove_cv_t<Bar>::ConfigType, typename std::decay_t<Bars>::ConfigType>
            && ... ) )
   __PGBAR_NODISCARD __PGBAR_INLINE_FN __details::traits::FillTemplate_t<Bar, MultiBar, Cnt>
 # else
@@ -6389,8 +6396,8 @@ namespace pgbar {
     __details::traits::AllOf<std::integral_constant<bool, ( Cnt > 0 )>,
                              std::integral_constant<bool, ( sizeof...( Bars ) <= Cnt )>,
                              __details::traits::is_bar<Bar>,
-                             __details::traits::is_bar<Bars>...,
-                             std::is_same<typename std::decay<Bar>::type::ConfigType,
+                             __details::traits::is_bar<typename std::decay<Bars>::type>...,
+                             std::is_same<typename std::remove_cv<Bar>::type::ConfigType,
                                           typename std::decay<Bars>::type::ConfigType>...>::value,
     __details::traits::FillTemplate_t<Bar, MultiBar, Cnt>>::type
 # endif
