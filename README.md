@@ -1,14 +1,13 @@
 [中文文档见此](docs/README_zh.md)。
 
 ## Features
-- **Header-only design**: All functionality contained within a single `.hpp` file in `include/pgbar`.
-- **Low-overhead updates**: Microsecond level cost per iteration.
-- **C++11 & later compatible**: Supports all standard revisions from C++11 through C++23.
+- **Header-only**: All functionality contained within a single `.hpp` file in `include/pgbar`.
+- **Low update overhead**: Minimal cost for each progress update.
 - **Unicode support**: Parse each string in UTF-8 encoding.
 - **RGB color support**: Customizable progress bar colors.
-- **Thread-safe mode**: Selectable via template parameters.
-- **`tqdm`-like interface**: Chainable methods powered by template metaprogramming.
-- **Modern C++ core**: Leverages `constexpr`, RAII, and type traits for zero-cost abstractions.
+- **Optional thread safety**: Switchable via template parameters.
+- **`tqdm`-like interface**: Access provided via template metaprogramming.
+- **Modern C++ compliance**: Adheres to best practices in modern C++.
 
 ## Styles
 ### ProgressBar
@@ -38,6 +37,9 @@
  39.82% | [---------------------<==>----] |  53458698/134217727 |  17.89 MHz | 00:00:02 < 00:00:04
 ```
 ![scannerbar](images/scannerbar.gif)
+
+### MultiBar
+![multibar](images/multibar.gif)
 
 ### Usage
 ```cpp
