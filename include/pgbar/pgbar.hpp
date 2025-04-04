@@ -1503,41 +1503,22 @@ namespace pgbar {
         return static_cast<typename std::underlying_type<E>::type>( enum_val );
       }
 
-      // Perfectly forwards the I-th element of a tuple.
-      template<types::Size I, typename Tuple>
-      constexpr auto forward_get( Tuple&& tup ) noexcept
-        -> decltype( std::forward<
-                     typename std::tuple_element<I, typename std::remove_reference<Tuple>::type>::type>(
-          std::get<I>( std::forward<Tuple>( tup ) ) ) )
-      {
-        return std::forward<
-          typename std::tuple_element<I, typename std::remove_reference<Tuple>::type>::type>(
-          std::get<I>( std::forward<Tuple>( tup ) ) );
-      }
-
-      // Internal implementation.
+      // Perfectly forward the I-th element of a tuple, constructing one by default if it's out of bound.
       template<types::Size I, typename T, typename Tuple>
-      constexpr T forward_or( Tuple&& tup, const std::true_type& ) noexcept(
-        std::is_nothrow_constructible<T, decltype( forward_get<I>( std::forward<Tuple>( tup ) ) )>::value )
+      constexpr auto forward_or( Tuple&& tup ) noexcept ->
+        typename std::enable_if<( I < std::tuple_size<typename std::decay<Tuple>::type>::value ),
+                                decltype( std::get<I>( std::forward<Tuple>( tup ) ) )>::type
       {
-        return T( forward_get<I>( std::forward<Tuple>( tup ) ) );
+        static_assert( std::is_convertible<typename std::tuple_element<I, Tuple>::type, T>::value,
+                       "pgbar::__details::traits::forward_or: Incompatible type" );
+        return std::get<I>( std::forward<Tuple>( tup ) );
       }
-      // Internal implementation.
-      template<types::Size, typename T, typename Tuple>
-      constexpr T forward_or( Tuple&&, const std::false_type& )
-        noexcept( std::is_nothrow_default_constructible<T>::value )
+      template<types::Size I, typename T, typename Tuple>
+      constexpr
+        typename std::enable_if<( I >= std::tuple_size<typename std::decay<Tuple>::type>::value ), T>::type
+        forward_or( Tuple&& tup ) noexcept( std::is_nothrow_default_constructible<T>::value )
       {
         return T();
-      }
-      // Conditionally constructs an object of type T using either the I-th element of a tuple or default
-      // initialization.
-      template<types::Size I, typename T, typename Tuple>
-      constexpr typename std::enable_if<std::is_default_constructible<T>::value, T>::type forward_or(
-        Tuple&& tup )
-      {
-        return forward_or<I, T>(
-          std::forward<Tuple>( tup ),
-          std::integral_constant<bool, ( I < std::tuple_size<typename std::decay<Tuple>::type>::value )>() );
       }
 
       template<typename Numeric>
