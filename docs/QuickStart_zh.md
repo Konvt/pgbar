@@ -55,6 +55,7 @@
     - [成员方法](#成员方法-2)
     - [迭代器类型](#迭代器类型-2)
 - [FAQ](#faq)
+  - [更新计数与任务总数一致性](#更新计数与任务总数一致性)
   - [进度条对象的生命周期](#进度条对象的生命周期)
   - [Unicode 支持](#unicode-支持)
   - [渲染器设计](#渲染器设计)
@@ -307,32 +308,13 @@ int main()
 #### 线程安全性
 配置类型 `CharBar` 的一切方法都是线程安全的，这意味着你可以在进度条运行过程中修改其中的数据。
 
-`ProgressBar` 的线程安全性取决于它的第一个模板参数，默认情况下是线程不安全的。
+`ProgressBar` 只有 `tick()`、`tick_to()` 和 `reset()` 方法是线程安全的；其余方法，特别是 `iterate()`，是线程不安全的。
 
-```cpp
-#include "pgbar/pgbar.hpp"
-#include <type_traits>
-
-int main()
-{
-  pgbar::ProgressBar<> bar1; // 这等价于：
-  pgbar::ProgressBar<pgbar::Threadunsafe> bar2;
-
-  static_assert( std::is_same<pgbar::ProgressBar<>, pgbar::ProgressBar<pgbar::Threadunsafe>>::value, "" );
-
-  pgbar::ProgressBar<pgbar::Threadsafe> bar3; // 这个是线程安全的
-}
-```
-
-实际上，第一个模板参数可以是任何一个满足 "[Basic Lockable](https://en.cppreference.com/w/cpp/named_req/BasicLockable)" 的类型；因此你完全可以使用 `std::mutex` 替代 `pgbar::Threadsafe`。
-
-线程安全的进度条允许多个线程同时调用它的 `tick()`、`tick_to()` 和 `reset()` 方法；但这不包括移动赋值、移动构造和交换两个对象，以及 `iterate()` 方法。
+这表示进度条允许多个线程同时调用它的 `tick()`、`tick_to()` 和 `reset()` 方法；但这不包括移动赋值、移动构造和交换两个对象，以及 `iterate()` 方法。
 
 并且绝对不应该在进度条运行过程中尝试移动或交换当前对象。
-
-`is_running()` 和 `progress()` 方法不受锁类型影响，它们始终是线程安全的。
 #### 绑定的输出流
-`ProgressBar` 默认向标准错误流 `stderr` 输出字符串；具体绑定的输出流由第二个模板参数定义。
+`ProgressBar` 默认向标准错误流 `stderr` 输出字符串；具体绑定的输出流由第一个模板参数定义。
 
 ```cpp
 #include "pgbar/pgbar.hpp"
@@ -341,10 +323,10 @@ int main()
 int main()
 {
   static_assert( std::is_same<pgbar::ProgressBar<>,
-                              pgbar::ProgressBar<pgbar::Threadunsafe, pgbar::Channel::Stderr>>::value,
+                              pgbar::ProgressBar<pgbar::Channel::Stderr>>::value,
                  "" );
 
-  pgbar::ProgressBar<pgbar::Threadunsafe, pgbar::Channel::Stdout> bar; // 绑定到 stdout 上
+  pgbar::ProgressBar<pgbar::Channel::Stdout> bar; // 绑定到 stdout 上
 }
 ```
 
@@ -678,33 +660,13 @@ int main()
 #### 线程安全性
 配置类型 `BlckBar` 的一切方法都是线程安全的，这意味着你可以在进度条运行过程中修改其中的数据。
 
-`BlockProgressBar` 的线程安全性取决于它的第一个模板参数，默认情况下是线程不安全的。
+`BlockProgressBar` 只有 `tick()`、`tick_to()` 和 `reset()` 方法是线程安全的；其余方法，特别是 `iterate()` 是线程不安全的。
 
-```cpp
-#include "pgbar/pgbar.hpp"
-#include <type_traits>
-
-int main()
-{
-  pgbar::BlockProgressBar<> bar1; // 这等价于：
-  pgbar::BlockProgressBar<pgbar::Threadunsafe> bar2;
-
-  static_assert( std::is_same<pgbar::BlockProgressBar<>, pgbar::BlockProgressBar<pgbar::Threadunsafe>>::value,
-                 "" );
-
-  pgbar::BlockProgressBar<pgbar::Threadsafe> bar3; // 这个是线程安全的
-}
-```
-
-实际上，第一个模板参数可以是任何一个满足 "[Basic Lockable](https://en.cppreference.com/w/cpp/named_req/BasicLockable)" 的类型；因此你完全可以使用 `std::mutex` 替代 `pgbar::Threadsafe`。
-
-线程安全的进度条允许多个线程同时调用它的 `tick()`、`tick_to()` 和 `reset()` 方法；但这不包括移动赋值、移动构造和交换两个对象，以及 `iterate()` 方法。
+这表示进度条允许多个线程同时调用它的 `tick()`、`tick_to()` 和 `reset()` 方法；但这不包括移动赋值、移动构造和交换两个对象，以及 `iterate()` 方法。
 
 并且绝对不应该在进度条运行过程中尝试移动或交换当前对象。
-
-`is_running()` 和 `progress()` 方法不受锁类型影响，它们始终是线程安全的。
 #### 绑定的输出流
-`BlockProgressBar` 默认向标准错误流 `stderr` 输出字符串；具体绑定的输出流由第二个模板参数定义。
+`BlockProgressBar` 默认向标准错误流 `stderr` 输出字符串；具体绑定的输出流由第一个模板参数定义。
 
 ```cpp
 #include "pgbar/pgbar.hpp"
@@ -713,10 +675,10 @@ int main()
 int main()
 {
   static_assert( std::is_same<pgbar::BlockProgressBar<>,
-                              pgbar::BlockProgressBar<pgbar::Threadunsafe, pgbar::Channel::Stderr>>::value,
+                              pgbar::BlockProgressBar<pgbar::Channel::Stderr>>::value,
                  "" );
 
-  pgbar::BlockProgressBar<pgbar::Threadunsafe, pgbar::Channel::Stdout> bar; // 绑定到 stdout 上
+  pgbar::BlockProgressBar<pgbar::Channel::Stdout> bar; // 绑定到 stdout 上
 }
 ```
 
@@ -1053,32 +1015,13 @@ int main()
 #### 线程安全性
 配置类型 `ScanBar` 的一切方法都是线程安全的，这意味着你可以在进度条运行过程中修改其中的数据。
 
-`ScannerBar` 的线程安全性取决于它的第一个模板参数，默认情况下是线程不安全的。
+`ScannerBar` 只有 `tick()`、`tick_to()` 和 `reset()` 方法是线程安全的；其余方法，特别是 `iterate()` 是线程不安全的。
 
-```cpp
-#include "pgbar/pgbar.hpp"
-#include <type_traits>
-
-int main()
-{
-  pgbar::ScannerBar<> bar1; // 这等价于：
-  pgbar::ScannerBar<pgbar::Threadunsafe> bar2;
-
-  static_assert( std::is_same<pgbar::ScannerBar<>, pgbar::ScannerBar<pgbar::Threadunsafe>>::value, "" );
-
-  pgbar::ScannerBar<pgbar::Threadsafe> bar3; // 这个是线程安全的
-}
-```
-
-实际上，第一个模板参数可以是任何一个满足 "[Basic Lockable](https://en.cppreference.com/w/cpp/named_req/BasicLockable)" 的类型；因此你完全可以使用 `std::mutex` 替代 `pgbar::Threadsafe`。
-
-线程安全的进度条允许多个线程同时调用它的 `tick()`、`tick_to()` 和 `reset()` 方法；但这不包括移动赋值、移动构造和交换两个对象，以及 `iterate()` 方法。
+这表示进度条允许多个线程同时调用它的 `tick()`、`tick_to()` 和 `reset()` 方法；但这不包括移动赋值、移动构造和交换两个对象，以及 `iterate()` 方法。
 
 并且绝对不应该在进度条运行过程中尝试移动或交换当前对象。
-
-`is_running()` 和 `progress()` 方法不受锁类型影响，它们始终是线程安全的。
 #### 绑定的输出流
-`ScannerBar` 默认向标准错误流 `stderr` 输出字符串；具体绑定的输出流由第二个模板参数定义。
+`ScannerBar` 默认向标准错误流 `stderr` 输出字符串；具体绑定的输出流由第一个模板参数定义。
 
 ```cpp
 #include "pgbar/pgbar.hpp"
@@ -1087,10 +1030,10 @@ int main()
 int main()
 {
   static_assert( std::is_same<pgbar::ScannerBar<>,
-                              pgbar::ScannerBar<pgbar::Threadunsafe, pgbar::Channel::Stderr>>::value,
+                              pgbar::ScannerBar<pgbar::Channel::Stderr>>::value,
                  "" );
 
-  pgbar::ScannerBar<pgbar::Threadunsafe, pgbar::Channel::Stdout> bar; // 绑定到 stdout 上
+  pgbar::ScannerBar<pgbar::Channel::Stdout> bar; // 绑定到 stdout 上
 }
 ```
 
@@ -1406,32 +1349,13 @@ int main()
 #### 线程安全性
 配置类型 `SpinBar` 的一切方法都是线程安全的，这意味着你可以在进度条运行过程中修改其中的数据。
 
-`SpinnerBar` 的线程安全性取决于它的第一个模板参数，默认情况下是线程不安全的。
+`SpinnerBar` 只有 `tick()`、`tick_to()` 和 `reset()` 方法是线程安全的；其余方法，特别是 `iterate()` 是线程不安全的。
 
-```cpp
-#include "pgbar/pgbar.hpp"
-#include <type_traits>
-
-int main()
-{
-  pgbar::SpinnerBar<> bar1; // 这等价于：
-  pgbar::SpinnerBar<pgbar::Threadunsafe> bar2;
-
-  static_assert( std::is_same<pgbar::SpinnerBar<>, pgbar::SpinnerBar<pgbar::Threadunsafe>>::value, "" );
-
-  pgbar::SpinnerBar<pgbar::Threadsafe> bar3; // 这个是线程安全的
-}
-```
-
-实际上，第一个模板参数可以是任何一个满足 "[Basic Lockable](https://en.cppreference.com/w/cpp/named_req/BasicLockable)" 的类型；因此你完全可以使用 `std::mutex` 替代 `pgbar::Threadsafe`。
-
-线程安全的进度条允许多个线程同时调用它的 `tick()`、`tick_to()` 和 `reset()` 方法；但这不包括移动赋值、移动构造和交换两个对象，以及 `iterate()` 方法。
+这表示进度条允许多个线程同时调用它的 `tick()`、`tick_to()` 和 `reset()` 方法；但这不包括移动赋值、移动构造和交换两个对象，以及 `iterate()` 方法。
 
 并且绝对不应该在进度条运行过程中尝试移动或交换当前对象。
-
-`is_running()` 和 `progress()` 方法不受锁类型影响，它们始终是线程安全的。
 #### 绑定的输出流
-`SpinnerBar` 默认向标准错误流 `stderr` 输出字符串；具体绑定的输出流由第二个模板参数定义。
+`SpinnerBar` 默认向标准错误流 `stderr` 输出字符串；具体绑定的输出流由第一个模板参数定义。
 
 ```cpp
 #include "pgbar/pgbar.hpp"
@@ -1440,10 +1364,10 @@ int main()
 int main()
 {
   static_assert( std::is_same<pgbar::SpinnerBar<>,
-                              pgbar::SpinnerBar<pgbar::Threadunsafe, pgbar::Channel::Stderr>>::value,
+                              pgbar::SpinnerBar<pgbar::Channel::Stderr>>::value,
                  "" );
 
-  pgbar::SpinnerBar<pgbar::Threadunsafe, pgbar::Channel::Stdout> bar; // 绑定到 stdout 上
+  pgbar::SpinnerBar<pgbar::Channel::Stdout> bar; // 绑定到 stdout 上
 }
 ```
 
@@ -1547,7 +1471,7 @@ int main()
 ### 交互方式
 `pgbar::MultiBar` 是一个 tuple-like 类型，它可以接收多个独立进度条类型，并将它们组合起来，实现多进度条的输出。
 
-`MultiBar` 要求它持有的所有对象都必须具有相同的线程安全性，并且必须指向同一个输出流。
+`MultiBar` 要求它持有的所有对象都必须指向同一个输出流。
 
 ```cpp
 #include "pgbar/pgbar.hpp"
@@ -1556,9 +1480,9 @@ int main()
 {
   pgbar::MultiBar<pgbar::ProgressBar<>, pgbar::ProgressBar<>, pgbar::BlockProgressBar<>> bar1;
   // or
-  pgbar::MultiBar<pgbar::ProgressBar<pgbar::Threadsafe, pgbar::Channel::Stdout>,
-                  pgbar::ProgressBar<pgbar::Threadsafe, pgbar::Channel::Stdout>,
-                  pgbar::BlockProgressBar<pgbar::Threadsafe, pgbar::Channel::Stdout>>
+  pgbar::MultiBar<pgbar::ProgressBar<pgbar::Channel::Stdout>,
+                  pgbar::ProgressBar<pgbar::Channel::Stdout>,
+                  pgbar::BlockProgressBar<pgbar::Channel::Stdout>>
     bar2;
 
   mbar.config<0>().tasks( 100 );
@@ -1581,11 +1505,10 @@ int main()
 
 int main()
 {
-  // 得益于数据对象和进度条类型分离的设计，所以你完全可以传递一个线程安全性和输出流指向不同的进度条对象
-  // MultiBar 只要求它的模板参数列表中的所有类型，必须具有相同的线程安全属性和输出流类型
-  pgbar::ProgressBar<pgbar::Threadsafe> bar1;
-  pgbar::BlockProgressBar<pgbar::Threadunsafe, pgbar::Channel::Stdout> bar2;
-  pgbar::ProgressBar<pgbar::Threadsafe, pgbar::Channel::Stdout> bar3;
+  // 得益于数据对象和进度条类型分离的设计，所以你完全可以传递一个输出流指向不同的进度条对象
+  // MultiBar 只要求它的模板参数列表中的所有类型，必须具有相同输出流属性
+  pgbar::ProgressBar<> bar1;
+  pgbar::BlockProgressBar<pgbar::Channel::Stdout> bar2, bar3;
 
   // 因为 MultiBar 只会访问进度条的配置数据类型，所以不对进度条对象使用 std::move 也是没问题的
   auto mbar1 =
@@ -1601,12 +1524,11 @@ int main()
   // 如果在 C++17 之后，以下语句将是合法的
   auto mbar3 =
     pgbar::MultiBar( pgbar::config::CharBar(), pgbar::config::BlckBar(), pgbar::config::CharBar() );
-  // 这个对象的类型将会是使用 pgbar::Threadunsafe、且指向 pgbar::Channel::Stderr 的 MultiBar
+  // 这个对象的类型将会是指向 pgbar::Channel::Stderr 的 MultiBar
 
   static_assert( std::is_same<decltype( mbar3 ), decltype( mbar2 )>::value, "" );
 #endif
 }
-
 ```
 
 独立进度条的所有方法都可以在 `MultiBar` 中以模板函数的方式访问；某种程度上来说，`MultiBar` 更像是一个容器而非进度条类型。
@@ -1627,20 +1549,18 @@ int main()
 int main()
 {
   // 创建与参数数量相同大小的 MultiBar
-  auto bar1 = pgbar::make_multi<pgbar::Threadunsafe, pgbar::Channel::Stdout>( pgbar::config::CharBar(),
-                                                                              pgbar::config::BlckBar() );
+  auto bar1 = pgbar::make_multi<pgbar::Channel::Stdout>( pgbar::config::CharBar(), pgbar::config::BlckBar() );
   auto bar2 =
-    pgbar::make_multi<pgbar::Threadunsafe, pgbar::Channel::Stdout>( pgbar::ProgressBar<pgbar::Threadsafe>(),
-                                                                    pgbar::BlockProgressBar<>() );
+    pgbar::make_multi<>( pgbar::ProgressBar<pgbar::Channel::Stdout>(), pgbar::BlockProgressBar<>() );
 
   // 创建一个固定长度、所有进度条类型都相同的 MultiBar，并使用参数提供的配置对象初始化内部所有进度条对象
-  auto bar3 = pgbar::make_multi<6, pgbar::Threadsafe>( pgbar::config::SpinBar() );
-  auto bar4 = pgbar::make_multi<6>( pgbar::SpinnerBar<pgbar::Threadsafe>() );
+  auto bar3 = pgbar::make_multi<6>( pgbar::config::SpinBar() );
+  auto bar4 = pgbar::make_multi<6>( pgbar::SpinnerBar<pgbar::Channel::Stdout>() );
   // bar3 和 bar4 内部的所有进度条的配置数据都是相同的
 
   // 创建一个固定长度、所有进度条类型都相同的 MultiBar，提供的参数会按顺序作用在内部的进度条对象上
   auto bar5 = pgbar::make_multi<3, pgbar::config::ScanBar>( pgbar::config::ScanBar() );
-  auto bar6 = pgbar::make_multi<3, pgbar::ScannerBar<pgbar::Threadsafe>>( pgbar::ScannerBar<>() );
+  auto bar6 = pgbar::make_multi<3, pgbar::ScannerBar<pgbar::Channel::Stdout>>( pgbar::ScannerBar<>() );
   // bar5 和 bar6 只有第一个进度条对象被初始化为参数指定的内容，其他两个进度条均被默认初始化
 }
 ```
@@ -1810,6 +1730,15 @@ void swap( ProxySpan& ) noexcept; // 交换两个代理范围
 - - -
 
 # FAQ
+## 更新计数与任务总数一致性
+`pgbar` 中的进度条类型会在第一次调用任意一个 `tick()` 方法时启动，在调用 `tick()` 所产生的已完成任务数量恰好达到预定任务数量时，进度条类型就会自动停止。
+
+因此，`pgbar` 需要由用户自己确保：调用任意 `tick()` 所产生的累计任务数量严格等于预定任务数量。
+
+如果调用次数过多，那么有可能会导致进度条对象的意外重启；过少则可能会导致进度条没有正确停止。
+
+> 即使进度条因为更新计数与任务总数不一致而持续运行，它也会因为超出生命周期被析构而强制终止。
+
 ## 进度条对象的生命周期
 每个进度条对象的生命周期都服从于 C++ 标准的对象生命周期机制：
 - 在局部作用域创建的对象，会在控制流离开该作用域时被析构；
@@ -1820,6 +1749,7 @@ void swap( ProxySpan& ) noexcept; // 交换两个代理范围
 这种强制性终止与调用 `reset()` 方法停止不同：`reset()` 方法允许进度条在停止时，根据传递的参数，使用预先定义好的 `TrueMesg` 或 `FalseMesg` 替换元素 `Description` 所在位置的内容；而析构导致的终止则不会执行这个过程，而是立即关闭与之关联的全局渲染器并清理资源。
 
 因析构而停止的进度条不会向终端再追加任何信息，因此这可能会导致一定程度上的终端渲染混乱。
+
 ## Unicode 支持
 `pgbar` 默认所有传入的字符串都以 UTF-8 格式编码；使用任何不以 UTF-8 编码的字符串都会有以下四种结果：
 1. 被认为是不完整的 UTF-8 字符串，并抛出 `pgbar::exception::InvalidArgument` 异常；
@@ -1855,7 +1785,7 @@ int main()
   {
     pgbar::ProgressBar<> bar1;
     pgbar::ScannerBar<> bar2;
-    pgbar::SpinnerBar<pgbar::Threadunsafe, pgbar::Channel::Stdout> bar3;
+    pgbar::SpinnerBar<pgbar::Channel::Stdout> bar3;
 
     bar1.config().tasks( 100 );
     bar1.tick();

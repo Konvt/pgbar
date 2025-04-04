@@ -5,7 +5,7 @@
 - **Low update overhead**: Minimal cost for each progress update.
 - **Unicode support**: Parse each string in UTF-8 encoding.
 - **RGB color support**: Customizable progress bar colors.
-- **Optional thread safety**: Switchable via template parameters.
+- **Thread-safe design**: Can be safely used in multi-threaded environments.
 - **`tqdm`-like interface**: Access provided via template metaprogramming.
 - **Modern C++ compliance**: Adheres to best practices in modern C++.
 
