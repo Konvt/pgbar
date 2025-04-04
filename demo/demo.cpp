@@ -329,71 +329,12 @@ int main()
     // However, the effect of Shift only applies to local progress bar objects
   }
   {
-    std::cout << "Thread safety." << std::endl;
-    // First, any type of method in pgbar::config is thread-safe
-    // including replacing the configuration object itself with the config() method
-    // This means that you can configure different parameters for another thread's progress bar object in
-    // another thread
-
-    // Second, the progress bar object itself is "optional" thread-safe,
-    // and this optionality is reflected in the template parameters of the progress bar object
-    // For all progress bar objects that use the default construction
-    // they are equivalent to the following declaration statement:
-    pgbar::ProgressBar<pgbar::Threadunsafe> unsafe_bar;
-    // For thread-unsafe progress bar objects, calling any method other than config() is thread-unsafe
-
-    // Using the pgbar::Threadsafe parameter, you can create a thread-safe progress bar object
-    pgbar::ProgressBar<pgbar::Threadsafe> safe_bar1;
-
-    // For the thread-safe version
-    // you can call its tick() and reset() methods from as many threads as you want
-    // However, it is still thread-unsafe for swap(), iterate(), and operator=()
-    safe_bar1 = pgbar::ProgressBar<pgbar::Threadsafe>(); // Thread Unsafe!
-
-    // pgbar::Threadsafe is just a lock class that satisfies the Basic Locakable requirement
-    // You can use another lock type instead of this parameter type
-    // For example std::mutex
-    pgbar::ProgressBar<std::mutex> safe_bar2;
-
-    // In contrast
-    // the thread-safe version of the progress bar has an additional overhead than the less secure version
-    // an overhead that cannot be resolved by introducing a more lightweight lock type
-    constexpr auto iteration   = 65536;
-    constexpr auto num_threads = 8;
-    safe_bar2.config().tasks( iteration );
-
-    std::vector<std::thread> threads;
-    for ( size_t _ = 0; _ < num_threads; ++_ ) {
-      threads.emplace_back( [&]() {
-        for ( size_t _ = 0; _ < iteration / num_threads; ++_ ) {
-          safe_bar2.tick();
-        }
-      } );
-    }
-
-    for ( auto& td : threads ) {
-      if ( td.joinable() )
-        td.join();
-    }
-    // Notice that a wait() method is called at the end of the previous code
-    // This is because in a multithreaded environment
-    // if the thread holding the progress bar object leaves the scope of the progress bar
-    // the progress bar rendering will immediately stop because of the destructor
-    // So the progress bar object provides wait() and wait_for() methods
-    // to block the current thread until the progress bar is stopped
-    safe_bar2.wait();
-    // But the blocking effect only takes effect after the first tick() method is called
-    // So in a multithreaded environment
-    // the optimal solution is to wait for all child threads to finish before calling the wait() or wait_for()
-    // method
-  }
-  {
     std::cout << "Switching output stream." << std::endl;
     // By default, the progress bar object outputs a string
     // to the current process's standard error stream stderr
     // The destination of the output stream can be changed by the template type parameter passed to
     // the progress bar when the progress bar object is created
-    pgbar::ScannerBar<pgbar::Threadunsafe, pgbar::Channel::Stdout> scnbar;
+    pgbar::ScannerBar<pgbar::Channel::Stdout> scnbar;
 
     // The progress bar itself does not monopolize a standard output stream of the current process
     // at any point in time

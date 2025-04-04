@@ -91,15 +91,12 @@
 #  endif
 # endif
 # if __PGBAR_CC_STD >= 202002L
-#  include <concepts>
 #  define __PGBAR_CXX20         1
-#  define __PGBAR_NOUNIQUEADDR  [[no_unique_address]]
 #  define __PGBAR_UNLIKELY      [[unlikely]]
 #  define __PGBAR_CXX20_CNSTXPR constexpr
 #  define __PGBAR_CNSTEVAL      consteval
 # else
 #  define __PGBAR_CXX20 0
-#  define __PGBAR_NOUNIQUEADDR
 #  define __PGBAR_UNLIKELY
 #  define __PGBAR_CXX20_CNSTXPR
 #  define __PGBAR_CNSTEVAL constexpr
@@ -691,25 +688,13 @@ namespace pgbar {
 # endif
 # undef __PGBAR_REMOVE_NOEXCEPT
 
-# if __PGBAR_CXX20
-      template<typename M>
-      concept MutexLike = requires( M& mtx ) {
-        { mtx.lock() } -> std::same_as<void>;
-        { mtx.unlock() } -> std::same_as<void>;
-      };
-      template<typename M>
-      struct is_mutex : std::bool_constant<MutexLike<M>> {};
-# else
-      template<typename, typename = void>
-      struct is_mutex : std::false_type {};
-      template<typename M>
-      struct is_mutex<
-        M,
-        typename std::enable_if<AllOf<Not<std::is_reference<M>>,
-                                      std::is_void<decltype( std::declval<M&>().lock() )>,
-                                      std::is_void<decltype( std::declval<M&>().unlock() )>>::value>::type>
+      template<typename T, typename = void>
+      struct is_void_functor : std::false_type {};
+      template<typename T>
+      struct is_void_functor<
+        T,
+        typename std::enable_if<std::is_void<decltype( std::declval<T>()() )>::value>::type>
         : std::true_type {};
-# endif
     } // namespace traits
 
     namespace wrappers {
@@ -2576,7 +2561,7 @@ namespace pgbar {
                     auto expected = State::Awake;
                     state_.compare_exchange_strong( expected,
                                                     State::Active,
-                                                    std::memory_order_acq_rel,
+                                                    std::memory_order_release,
                                                     std::memory_order_relaxed );
                   } break;
 
@@ -2590,7 +2575,7 @@ namespace pgbar {
                     auto expected = State::Suspend;
                     state_.compare_exchange_strong( expected,
                                                     State::Dormant,
-                                                    std::memory_order_acq_rel,
+                                                    std::memory_order_release,
                                                     std::memory_order_relaxed );
                   } break;
 
@@ -2598,7 +2583,7 @@ namespace pgbar {
                     auto expected = State::Halt;
                     state_.compare_exchange_strong( expected,
                                                     State::Dormant,
-                                                    std::memory_order_acq_rel,
+                                                    std::memory_order_release,
                                                     std::memory_order_relaxed );
                   } break;
 
@@ -2610,7 +2595,7 @@ namespace pgbar {
                     auto try_update = [this]( State expected ) noexcept {
                       return state_.compare_exchange_strong( expected,
                                                              State::Dormant,
-                                                             std::memory_order_acq_rel,
+                                                             std::memory_order_release,
                                                              std::memory_order_relaxed );
                     };
                     try_update( State::Awake ) || try_update( State::Active ) || try_update( State::Suspend );
@@ -5461,21 +5446,17 @@ namespace pgbar {
 
     namespace prefabs {
 # if __PGBAR_CXX20
-      template<typename Config, traits::MutexLike MutexMode, Channel Outlet>
+      template<typename Config, Channel Outlet>
 # else
-      template<typename Config, typename MutexMode, Channel Outlet>
+      template<typename Config, Channel Outlet>
 # endif
       class BasicBar
-        : public traits::LI<
-            traits::ConfigTraits_t<Config>>::template type<Indicator, BasicBar<Config, MutexMode, Outlet>> {
+        : public traits::LI<traits::ConfigTraits_t<Config>>::template type<Indicator,
+                                                                           BasicBar<Config, Outlet>> {
         static_assert(
           traits::AllOf<traits::is_config<Config>,
                         traits::Contain<traits::ConfigTraits_t<Config>, assets::TaskCounter>>::value,
           "pgbar::__details::prefabs::BasicBar: Invalid config type" );
-# if !__PGBAR_CXX20
-        static_assert( traits::is_mutex<MutexMode>::value,
-                       "pgbar::__details::prefabs::BasicBar: Invalid mutex type" );
-# endif
         using Self = BasicBar;
         using Base = typename traits::LI<traits::ConfigTraits_t<Config>>::template type<Indicator, Self>;
 
@@ -5483,7 +5464,7 @@ namespace pgbar {
         friend struct render::RenderAction;
 
         render::Builder<Config> config_;
-        __PGBAR_NOUNIQUEADDR mutable MutexMode mtx_;
+        mutable concurrent::Mutex mtx_;
 
       protected:
         virtual void do_terminate( bool forced = false ) noexcept
@@ -5530,19 +5511,21 @@ namespace pgbar {
           executor.activate();
         }
 
-        __PGBAR_INLINE_FN void do_reset( bool forced = false ) noexcept
+        __PGBAR_INLINE_FN void do_reset( bool final_mesg, bool forced = false ) noexcept
         {
+          std::lock_guard<concurrent::Mutex> lock { this->mtx_ };
           if ( this->is_running() ) {
             if ( forced )
               __PGBAR_UNLIKELY
             this->state_.store( Indicator::State::Stopped, std::memory_order_release );
             else
             {
-              auto try_update = [this]( Indicator::State expected ) noexcept {
+              this->final_mesg_ = final_mesg;
+              auto try_update   = [this]( Indicator::State expected ) noexcept {
                 return this->state_.compare_exchange_strong( expected,
                                                              Indicator::State::Finish,
-                                                             std::memory_order_acq_rel,
-                                                             std::memory_order_relaxed );
+                                                             std::memory_order_release,
+                                                             std::memory_order_acquire );
               };
               try_update( Indicator::State::Begin ) || try_update( Indicator::State::StrictRefresh )
                 || try_update( Indicator::State::LenientRefresh );
@@ -5551,20 +5534,31 @@ namespace pgbar {
           } else
             this->state_.store( Indicator::State::Stopped, std::memory_order_release );
         }
-        __PGBAR_INLINE_FN void do_tick( types::Size next_step ) & noexcept( false )
+        template<typename F>
+        __PGBAR_INLINE_FN void do_tick( F&& action ) & noexcept( false )
         {
+          static_assert( traits::is_void_functor<F>::value,
+                         "pgbar::__details::prefabs:BasicBar::do_tick: Invalid type" );
           switch ( this->state_.load( std::memory_order_acquire ) ) {
           case Indicator::State::Stopped: {
-            this->task_end_.store( config_.tasks(), std::memory_order_release );
-            if __PGBAR_CXX17_CNSTXPR ( std::is_same<Config, config::CharBar>::value
-                                       || std::is_same<Config, config::BlckBar>::value )
-              if ( this->task_end_.load( std::memory_order_acquire ) == 0 )
-                __PGBAR_UNLIKELY throw exception::InvalidState( "pgbar: the number of tasks is zero" );
+            std::lock_guard<concurrent::Mutex> lock { this->mtx_ };
+            if ( this->state_.load( std::memory_order_acquire ) == Indicator::State::Stopped ) {
+              this->task_end_.store( config_.tasks(), std::memory_order_release );
+              if __PGBAR_CXX17_CNSTXPR ( std::is_same<Config, config::CharBar>::value
+                                         || std::is_same<Config, config::BlckBar>::value )
+                if ( this->task_end_.load( std::memory_order_acquire ) == 0 )
+                  __PGBAR_UNLIKELY throw exception::InvalidState( "pgbar: the number of tasks is zero" );
 
-            do_setup();
-            this->task_cnt_.store( 0, std::memory_order_release );
-            this->zero_point_ = std::chrono::steady_clock::now();
-            this->state_.store( Indicator::State::Begin, std::memory_order_release );
+              this->task_cnt_.store( 0, std::memory_order_release );
+              this->zero_point_ = std::chrono::steady_clock::now();
+              this->state_.store( Indicator::State::Begin, std::memory_order_release );
+              try {
+                do_setup();
+              } catch ( ... ) {
+                this->state_.store( Indicator::State::Stopped, std::memory_order_release );
+                throw;
+              }
+            }
           }
             __PGBAR_FALLTHROUGH;
           case Indicator::State::Begin: {
@@ -5575,15 +5569,11 @@ namespace pgbar {
           }
             __PGBAR_FALLTHROUGH;
           case Indicator::State::StrictRefresh: {
-            this->task_cnt_.fetch_add( next_step, std::memory_order_release );
+            action();
 
             if ( this->task_cnt_.load( std::memory_order_acquire )
                  >= this->task_end_.load( std::memory_order_acquire ) )
-              __PGBAR_UNLIKELY
-              {
-                this->final_mesg_ = true;
-                do_reset();
-              }
+              __PGBAR_UNLIKELY do_reset( true );
           } break;
 
           default: return;
@@ -5592,13 +5582,9 @@ namespace pgbar {
 
       public:
         using ConfigType                = Config;
-        using MutexType                 = MutexMode;
         static constexpr Channel stream = Outlet;
 
-        BasicBar( Config config = Config() )
-          noexcept( std::is_nothrow_default_constructible<MutexMode>::value )
-          : config_ { std::move( config ) }
-        {}
+        BasicBar( Config config = Config() ) noexcept : config_ { std::move( config ) } {}
 # if __PGBAR_CXX20
         template<typename... Args>
           requires std::is_constructible_v<Config, Args...>
@@ -5617,23 +5603,19 @@ namespace pgbar {
           config_ = std::move( rhs.config_ );
           return *this;
         }
-        virtual ~BasicBar() noexcept { do_reset( true ); }
+        virtual ~BasicBar() noexcept { do_reset( false, true ); }
 
         void tick() & override final
         {
-          std::lock_guard<MutexMode> lock { this->mtx_ };
-          do_tick( 1 );
+          do_tick( [this]() { this->task_cnt_.fetch_add( 1, std::memory_order_release ); } );
         }
         void tick( types::Size next_step ) & override final
         {
-          std::lock_guard<MutexMode> lock { this->mtx_ };
-          switch ( this->state_.load( std::memory_order_acquire ) ) {
-          case Base::State::Stopped: do_tick( 0 ); __PGBAR_FALLTHROUGH;
-          default:                   break;
-          }
-          const auto task_cnt = this->task_cnt_.load( std::memory_order_acquire );
-          const auto task_end = this->task_end_.load( std::memory_order_acquire );
-          do_tick( next_step + task_cnt > task_end ? task_end - task_cnt : next_step );
+          do_tick( [&]() {
+            const auto task_cnt = this->task_cnt_.load( std::memory_order_acquire );
+            const auto task_end = this->task_end_.load( std::memory_order_acquire );
+            this->task_cnt_.fetch_add( task_cnt + next_step > task_end ? task_end - task_cnt : next_step );
+          } );
         }
         /**
          * Set the iteration step of the progress bar to a specified percentage.
@@ -5644,24 +5626,29 @@ namespace pgbar {
          */
         void tick_to( std::uint8_t percentage ) & override final
         {
-          std::lock_guard<MutexMode> lock { this->mtx_ };
-          const auto task_cnt = this->task_cnt_.load( std::memory_order_acquire );
-          const auto task_end = this->task_end_.load( std::memory_order_acquire );
-          if ( percentage <= 100 ) {
-            const auto target_progress = static_cast<types::Size>( task_end * percentage * 0.01 );
-            __PGBAR_ASSERT( target_progress <= task_end );
-            if ( target_progress > task_cnt )
-              do_tick( target_progress - task_cnt );
-          } else
-            do_tick( task_end - task_cnt );
+          do_tick( [&]() {
+            auto updater = [this]( __details::types::Size target ) {
+              auto current = this->task_cnt_.load( std::memory_order_acquire );
+              while ( !this->task_cnt_.compare_exchange_weak( current,
+                                                              target,
+                                                              std::memory_order_acq_rel,
+                                                              std::memory_order_acquire )
+                      && target <= current ) {}
+            };
+            if ( percentage <= 100 ) {
+              const auto target = static_cast<types::Size>( this->task_end_.load( std::memory_order_acquire )
+                                                            * percentage * 0.01 );
+              __PGBAR_ASSERT( target <= this->task_end_ );
+              updater( target );
+            } else
+              updater( this->task_end_.load( std::memory_order_acquire ) );
+          } );
         }
 
         void reset( bool final_mesg = true ) override final
         {
-          std::lock_guard<MutexMode> lock { this->mtx_ };
-          this->final_mesg_ = final_mesg;
-          do_reset();
-          __PGBAR_ASSERT( is_running() == false );
+          do_reset( final_mesg );
+          __PGBAR_ASSERT( this->is_running() == false );
         }
 
         Config& config() & noexcept { return config_; }
@@ -5686,8 +5673,8 @@ namespace pgbar {
       private:
         template<typename T>
         struct Helper : std::false_type {};
-        template<typename C, typename M, Channel O>
-        struct Helper<prefabs::BasicBar<C, M, O>> : std::true_type {};
+        template<typename C, Channel O>
+        struct Helper<prefabs::BasicBar<C, O>> : std::true_type {};
 
       public:
         static constexpr bool value = Helper<typename std::remove_cv<B>::type>::value;
@@ -5695,48 +5682,38 @@ namespace pgbar {
     } // namespace traits
   } // namespace __details
 
-  using Threadsafe = __details::concurrent::Mutex;
-  // A empty class that satisfies the "Basic lockable" requirement.
-  class Threadunsafe final {
-  public:
-    constexpr Threadunsafe()              = default;
-    __PGBAR_CXX20_CNSTXPR ~Threadunsafe() = default;
-    __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR void lock() noexcept {}
-    __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR void unlock() noexcept {}
-  };
-
   /**
    * The simplest progress bar, which is what you think it is.
    *
    * It's structure is shown below:
    * {LeftBorder}{Description}{Percent}{Starting}{Filler}{Lead}{Remains}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
    */
-  template<typename MutexMode = Threadunsafe, Channel Outlet = Channel::Stderr>
-  using ProgressBar = __details::prefabs::BasicBar<config::CharBar, MutexMode, Outlet>;
+  template<Channel Outlet = Channel::Stderr>
+  using ProgressBar = __details::prefabs::BasicBar<config::CharBar, Outlet>;
   /**
    * A progress bar with a smoother bar, requires an Unicode-supported terminal.
    *
    * It's structure is shown below:
    * {LeftBorder}{Description}{Percent}{Starting}{BlockBar}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
    */
-  template<typename MutexMode = Threadunsafe, Channel Outlet = Channel::Stderr>
-  using BlockProgressBar = __details::prefabs::BasicBar<config::BlckBar, MutexMode, Outlet>;
+  template<Channel Outlet = Channel::Stderr>
+  using BlockProgressBar = __details::prefabs::BasicBar<config::BlckBar, Outlet>;
   /**
    * A progress bar without bar indicator, replaced by a fixed animation component.
    *
    * It's structure is shown below:
    * {LeftBorder}{Lead}{Description}{Percent}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
    */
-  template<typename MutexMode = Threadunsafe, Channel Outlet = Channel::Stderr>
-  using SpinnerBar = __details::prefabs::BasicBar<config::SpinBar, MutexMode, Outlet>;
+  template<Channel Outlet = Channel::Stderr>
+  using SpinnerBar = __details::prefabs::BasicBar<config::SpinBar, Outlet>;
   /**
    * The indeterminate progress bar.
    *
    * It's structure is shown below:
    * {LeftBorder}{Description}{Percent}{Starting}{Filler}{Lead}{Filler}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
    */
-  template<typename MutexMode = Threadunsafe, Channel Outlet = Channel::Stderr>
-  using ScannerBar = __details::prefabs::BasicBar<config::ScanBar, MutexMode, Outlet>;
+  template<Channel Outlet = Channel::Stderr>
+  using ScannerBar = __details::prefabs::BasicBar<config::ScanBar, Outlet>;
 
   namespace __details {
     namespace render {
@@ -5746,10 +5723,10 @@ namespace pgbar {
         typename std::enable_if<traits::AnyOf<std::is_same<Config, config::CharBar>,
                                               std::is_same<Config, config::SpinBar>,
                                               std::is_same<Config, config::ScanBar>>::value>::type> {
-        template<typename Mutex, Channel Outlet>
-        static __PGBAR_INLINE_FN void boot( prefabs::BasicBar<Config, Mutex, Outlet>& bar )
+        template<Channel Outlet>
+        static __PGBAR_INLINE_FN void boot( prefabs::BasicBar<Config, Outlet>& bar )
         {
-          using Self = prefabs::BasicBar<Config, Mutex, Outlet>;
+          using Self = prefabs::BasicBar<Config, Outlet>;
           __PGBAR_ASSERT( io::OStream<Outlet>::itself().empty() == false );
           __PGBAR_ASSERT( bar.task_cnt_ <= bar.task_end_ );
           bar.idx_frame_ = 0;
@@ -5762,18 +5739,18 @@ namespace pgbar {
           if __PGBAR_CXX17_CNSTXPR ( std::is_same<Config, config::CharBar>::value )
             bar.state_.compare_exchange_strong( expected,
                                                 Self::State::StrictRefresh,
-                                                std::memory_order_acq_rel,
+                                                std::memory_order_release,
                                                 std::memory_order_relaxed );
           else
             bar.state_.compare_exchange_strong( expected,
                                                 bar.task_end_.load( std::memory_order_acquire ) == 0
                                                   ? Self::State::LenientRefresh
                                                   : Self::State::StrictRefresh,
-                                                std::memory_order_acq_rel,
+                                                std::memory_order_release,
                                                 std::memory_order_relaxed );
         }
-        template<typename Mutex, Channel Outlet>
-        static __PGBAR_INLINE_FN void process( prefabs::BasicBar<Config, Mutex, Outlet>& bar )
+        template<Channel Outlet>
+        static __PGBAR_INLINE_FN void process( prefabs::BasicBar<Config, Outlet>& bar )
         {
           __PGBAR_ASSERT( bar.task_cnt_ <= bar.task_end_ );
           auto& buffer = io::OStream<Outlet>::itself();
@@ -5787,10 +5764,10 @@ namespace pgbar {
                              bar.zero_point_ );
           ++bar.idx_frame_;
         }
-        template<typename Mutex, Channel Outlet>
-        static __PGBAR_INLINE_FN void finish( prefabs::BasicBar<Config, Mutex, Outlet>& bar )
+        template<Channel Outlet>
+        static __PGBAR_INLINE_FN void finish( prefabs::BasicBar<Config, Outlet>& bar )
         {
-          using Self = prefabs::BasicBar<Config, Mutex, Outlet>;
+          using Self = prefabs::BasicBar<Config, Outlet>;
           __PGBAR_ASSERT( bar.task_cnt_ <= bar.task_end_ );
           auto& buffer = io::OStream<Outlet>::itself();
           __PGBAR_ASSERT( buffer.empty() == false );
@@ -5808,10 +5785,10 @@ namespace pgbar {
 
       template<>
       struct RenderAction<config::BlckBar, void> {
-        template<typename Mutex, Channel Outlet>
-        static __PGBAR_INLINE_FN void boot( prefabs::BasicBar<config::BlckBar, Mutex, Outlet>& bar )
+        template<Channel Outlet>
+        static __PGBAR_INLINE_FN void boot( prefabs::BasicBar<config::BlckBar, Outlet>& bar )
         {
-          using Self = prefabs::BasicBar<config::BlckBar, Mutex, Outlet>;
+          using Self = prefabs::BasicBar<config::BlckBar, Outlet>;
           __PGBAR_ASSERT( io::OStream<Outlet>::itself().empty() == false );
           bar.config_.build( io::OStream<Outlet>::itself(),
                              bar.task_cnt_.load( std::memory_order_acquire ),
@@ -5821,11 +5798,11 @@ namespace pgbar {
           auto expected = Self::State::Begin;
           bar.state_.compare_exchange_strong( expected,
                                               Self::State::StrictRefresh,
-                                              std::memory_order_acq_rel,
+                                              std::memory_order_release,
                                               std::memory_order_relaxed );
         }
-        template<typename Mutex, Channel Outlet>
-        static __PGBAR_INLINE_FN void process( prefabs::BasicBar<config::BlckBar, Mutex, Outlet>& bar )
+        template<Channel Outlet>
+        static __PGBAR_INLINE_FN void process( prefabs::BasicBar<config::BlckBar, Outlet>& bar )
         {
           __PGBAR_ASSERT( bar.task_cnt_ <= bar.task_end_ );
           auto& buffer = io::OStream<Outlet>::itself();
@@ -5837,10 +5814,10 @@ namespace pgbar {
                              bar.task_end_.load( std::memory_order_acquire ),
                              bar.zero_point_ );
         }
-        template<typename Mutex, Channel Outlet>
-        static __PGBAR_INLINE_FN void finish( prefabs::BasicBar<config::BlckBar, Mutex, Outlet>& bar )
+        template<Channel Outlet>
+        static __PGBAR_INLINE_FN void finish( prefabs::BasicBar<config::BlckBar, Outlet>& bar )
         {
-          using Self = prefabs::BasicBar<config::BlckBar, Mutex, Outlet>;
+          using Self = prefabs::BasicBar<config::BlckBar, Outlet>;
           __PGBAR_ASSERT( bar.task_cnt_ <= bar.task_end_ );
           auto& buffer = io::OStream<Outlet>::itself();
           __PGBAR_ASSERT( buffer.empty() == false );
@@ -5857,10 +5834,10 @@ namespace pgbar {
 
       template<>
       struct RenderAction<void, void> {
-        template<typename Config, typename Mutex, Channel Outlet>
-        static __PGBAR_INLINE_FN void automate( prefabs::BasicBar<Config, Mutex, Outlet>& bar )
+        template<typename Config, Channel Outlet>
+        static __PGBAR_INLINE_FN void automate( prefabs::BasicBar<Config, Outlet>& bar )
         {
-          using Self = prefabs::BasicBar<Config, Mutex, Outlet>;
+          using Self = prefabs::BasicBar<Config, Outlet>;
           switch ( bar.state_.load( std::memory_order_acquire ) ) {
           case Self::State::Begin: {
             RenderAction<Config>::boot( bar );
@@ -5908,13 +5885,12 @@ namespace pgbar {
       template<typename Seq, typename... Bars>
       class TupleBar;
       template<types::Size... Tags,
-               typename Mutex,
                Channel Outlet,
                typename... Configs,
-               template<typename, typename, Channel>
+               template<typename, Channel>
                class... Bars>
-      class TupleBar<traits::IndexSeq<Tags...>, Bars<Configs, Mutex, Outlet>...> final
-        : public TupleSlot<Tags, prefabs::BasicBar<Configs, Mutex, Outlet>>... {
+      class TupleBar<traits::IndexSeq<Tags...>, Bars<Configs, Outlet>...> final
+        : public TupleSlot<Tags, prefabs::BasicBar<Configs, Outlet>>... {
         static_assert( sizeof...( Tags ) == sizeof...( Bars ),
                        "pgbar::__details::assets::TupleBar: Unexpected type mismatch" );
         static_assert( sizeof...( Bars ) > 0,
@@ -5979,7 +5955,7 @@ namespace pgbar {
                      auto expected = CBState::Awake;
                      cb_state_.compare_exchange_strong( expected,
                                                         CBState::Refresh,
-                                                        std::memory_order_acq_rel,
+                                                        std::memory_order_release,
                                                         std::memory_order_relaxed );
                    } break;
                    case CBState::Refresh: {
@@ -5992,8 +5968,13 @@ namespace pgbar {
                  } ) )
               throw exception::InvalidState( "pgbar: another progress bar instance is already running" );
 
-            executor.activate();
             cb_state_.store( CBState::Awake, std::memory_order_release );
+            try {
+              executor.activate();
+            } catch ( ... ) {
+              cb_state_.store( CBState::Stopped, std::memory_order_release );
+              throw;
+            }
           }
           alive_cnt_.fetch_add( 1, std::memory_order_release );
         }
@@ -6011,8 +5992,7 @@ namespace pgbar {
 
       public:
         template<types::Size Pos>
-        using ElementAt_t =
-          traits::TypeAt_t<Pos, TupleSlot<Tags, prefabs::BasicBar<Configs, Mutex, Outlet>>...>;
+        using ElementAt_t = traits::TypeAt_t<Pos, TupleSlot<Tags, prefabs::BasicBar<Configs, Outlet>>...>;
 
         // SFINAE is used here to prevent infinite recursive matching of errors.
         template<typename... Cfgs,
@@ -6023,7 +6003,7 @@ namespace pgbar {
                       traits::MakeIndexSeq<sizeof...( Configs )>() )
         {}
         TupleBar( TupleBar&& rhs ) noexcept
-          : TupleSlot<Tags, prefabs::BasicBar<Configs, Mutex, Outlet>>( std::move( rhs ) )...
+          : TupleSlot<Tags, prefabs::BasicBar<Configs, Outlet>>( std::move( rhs ) )...
           , alive_cnt_ { 0 }
           , cb_state_ { CBState::Stopped }
         {}
@@ -6073,26 +6053,24 @@ namespace pgbar {
 
   template<typename Bar, typename... Bars>
   class MultiBar;
-  template<typename Mutex,
-           Channel Outlet,
+  template<Channel Outlet,
            typename Config,
            typename... Configs,
-           template<typename, typename, Channel>
+           template<typename, Channel>
            class Bar,
-           template<typename, typename, Channel>
+           template<typename, Channel>
            class... Bars>
-  class MultiBar<Bar<Config, Mutex, Outlet>, Bars<Configs, Mutex, Outlet>...> final {
-    static_assert(
-      __details::traits::AllOf<
-        std::is_same<Bar<Config, Mutex, Outlet>, __details::prefabs::BasicBar<Config, Mutex, Outlet>>,
-        std::is_same<Bars<Configs, Mutex, Outlet>, __details::prefabs::BasicBar<Configs, Mutex, Outlet>>...,
-        __details::traits::is_config<Config>,
-        __details::traits::is_config<Configs>...>::value,
-      "pgbar::MultiBar: Invalid type" );
+  class MultiBar<Bar<Config, Outlet>, Bars<Configs, Outlet>...> final {
+    static_assert( __details::traits::AllOf<
+                     std::is_same<Bar<Config, Outlet>, __details::prefabs::BasicBar<Config, Outlet>>,
+                     std::is_same<Bars<Configs, Outlet>, __details::prefabs::BasicBar<Configs, Outlet>>...,
+                     __details::traits::is_config<Config>,
+                     __details::traits::is_config<Configs>...>::value,
+                   "pgbar::MultiBar: Invalid type" );
     using Self    = MultiBar;
     using Package = __details::assets::TupleBar<__details::traits::MakeIndexSeq<sizeof...( Bars ) + 1>,
-                                                Bar<Config, Mutex, Outlet>,
-                                                Bars<Configs, Mutex, Outlet>...>;
+                                                Bar<Config, Outlet>,
+                                                Bars<Configs, Outlet>...>;
 
     template<__details::types::Size Pos>
     using ConfigAt_t = __details::traits::TypeAt_t<Pos, Config, Configs...>;
@@ -6282,7 +6260,7 @@ namespace pgbar {
 
 # if __PGBAR_CXX17
   // CTAD, only generates the default version,
-  // which means the MutexMode is `Threadunsafe` and the Outlet is `Channel::Stderr`.
+  // which means the the Outlet is `Channel::Stderr`.
 #  if __PGBAR_CXX20
   template<typename Config, typename... Configs>
     requires( __details::traits::is_config<Config>::value
@@ -6294,26 +6272,24 @@ namespace pgbar {
     typename = std::enable_if_t<__details::traits::AllOf<__details::traits::is_config<Config>,
                                                          __details::traits::is_config<Configs>...>::value>>
 #  endif
-  MultiBar( Config,
-            Configs... ) -> MultiBar<__details::prefabs::BasicBar<Config, Threadunsafe, Channel::Stderr>,
-                                     __details::prefabs::BasicBar<Configs, Threadunsafe, Channel::Stderr>...>;
+  MultiBar( Config, Configs... ) -> MultiBar<__details::prefabs::BasicBar<Config, Channel::Stderr>,
+                                             __details::prefabs::BasicBar<Configs, Channel::Stderr>...>;
 # endif
 
   // Creates a MultiBar using existing bar instances.
-  template<typename Mutex = Threadunsafe, Channel Outlet = Channel::Stderr, typename Bar, typename... Bars>
+  template<Channel Outlet = Channel::Stderr, typename Bar, typename... Bars>
 # if __PGBAR_CXX20
-    requires( __details::traits::is_mutex<Mutex>::value && __details::traits::is_bar<std::decay_t<Bar>>::value
+    requires( __details::traits::is_bar<std::decay_t<Bar>>::value
               && ( __details::traits::is_bar<std::decay_t<Bars>>::value && ... ) )
   __PGBAR_NODISCARD __PGBAR_INLINE_FN
-    MultiBar<__details::prefabs::BasicBar<typename Bar::ConfigType, Mutex, Outlet>,
-             __details::prefabs::BasicBar<typename Bars::ConfigType, Mutex, Outlet>...>
+    MultiBar<__details::prefabs::BasicBar<typename Bar::ConfigType, Outlet>,
+             __details::prefabs::BasicBar<typename Bars::ConfigType, Outlet>...>
 # else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
-    __details::traits::AllOf<__details::traits::is_mutex<Mutex>,
-                             __details::traits::is_bar<typename std::decay<Bar>::type>,
+    __details::traits::AllOf<__details::traits::is_bar<typename std::decay<Bar>::type>,
                              __details::traits::is_bar<typename std::decay<Bars>::type>...>::value,
-    MultiBar<__details::prefabs::BasicBar<typename Bar::ConfigType, Mutex, Outlet>,
-             __details::prefabs::BasicBar<typename Bars::ConfigType, Mutex, Outlet>...>>::type
+    MultiBar<__details::prefabs::BasicBar<typename Bar::ConfigType, Outlet>,
+             __details::prefabs::BasicBar<typename Bars::ConfigType, Outlet>...>>::type
 # endif
     make_multi( Bar&& bar, Bars&&... bars ) noexcept(
       __details::traits::Not<
@@ -6322,22 +6298,17 @@ namespace pgbar {
     return { std::forward<Bar>( bar ), std::forward<Bars>( bars )... };
   }
   // Creates a MultiBar using configuration objects.
-  template<typename Mutex = Threadunsafe,
-           Channel Outlet = Channel::Stderr,
-           typename Config,
-           typename... Configs>
+  template<Channel Outlet = Channel::Stderr, typename Config, typename... Configs>
 # if __PGBAR_CXX20
-    requires( __details::traits::is_mutex<Mutex>::value && __details::traits::is_config<Config>::value
+    requires( __details::traits::is_config<Config>::value
               && ( __details::traits::is_config<Configs>::value && ... ) )
-  MultiBar<__details::prefabs::BasicBar<Config, Mutex, Outlet>,
-           __details::prefabs::BasicBar<Configs, Mutex, Outlet>...>
+  MultiBar<__details::prefabs::BasicBar<Config, Outlet>, __details::prefabs::BasicBar<Configs, Outlet>...>
 # else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN
-    typename std::enable_if<__details::traits::AllOf<__details::traits::is_mutex<Mutex>,
-                                                     __details::traits::is_config<Config>,
+    typename std::enable_if<__details::traits::AllOf<__details::traits::is_config<Config>,
                                                      __details::traits::is_config<Configs>...>::value,
-                            MultiBar<__details::prefabs::BasicBar<Config, Mutex, Outlet>,
-                                     __details::prefabs::BasicBar<Configs, Mutex, Outlet>...>>::type
+                            MultiBar<__details::prefabs::BasicBar<Config, Outlet>,
+                                     __details::prefabs::BasicBar<Configs, Outlet>...>>::type
 # endif
     make_multi( Config cfg, Configs... cfgs ) noexcept
   {
@@ -6346,8 +6317,8 @@ namespace pgbar {
 
   namespace __details {
     namespace assets {
-      template<types::Size Cnt, typename M, Channel O, typename C, types::Size... Is>
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN traits::FillTemplate_t<prefabs::BasicBar<C, M, O>, MultiBar, Cnt>
+      template<types::Size Cnt, Channel O, typename C, types::Size... Is>
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN traits::FillTemplate_t<prefabs::BasicBar<C, O>, MultiBar, Cnt>
         make_multi_helper( C& cfg, const traits::IndexSeq<Is...>& ) noexcept( Cnt == 1 )
       {
         std::array<C, Cnt - 1> cfgs { { ( (void)( Is ), cfg )... } };
@@ -6360,60 +6331,47 @@ namespace pgbar {
    * Creates a MultiBar with a fixed number of BasicBar instances using a single bar object.
    * **All BasicBar instances are initialized using the same configuration.**
    */
-  template<__details::types::Size Cnt,
-           typename Mutex = Threadunsafe,
-           Channel Outlet = Channel::Stderr,
-           typename Bar>
+  template<__details::types::Size Cnt, Channel Outlet = Channel::Stderr, typename Bar>
 # if __PGBAR_CXX20
-    requires( Cnt > 0 && __details::traits::is_mutex<Mutex>::value
-              && __details::traits::is_bar<std::decay_t<Bar>>::value )
+    requires( Cnt > 0 && __details::traits::is_bar<std::decay_t<Bar>>::value )
   __PGBAR_NODISCARD __PGBAR_INLINE_FN __details::traits::FillTemplate_t<
-    __details::prefabs::BasicBar<typename std::decay_t<Bar>::ConfigType, Mutex, Outlet>,
+    __details::prefabs::BasicBar<typename std::decay_t<Bar>::ConfigType, Outlet>,
     MultiBar,
     Cnt>
 # else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
     __details::traits::AllOf<std::integral_constant<bool, ( Cnt > 0 )>,
-                             __details::traits::is_mutex<Mutex>,
                              __details::traits::is_bar<typename std::decay<Bar>::type>>::value,
     __details::traits::FillTemplate_t<
-      __details::prefabs::BasicBar<typename std::decay<Bar>::type::ConfigType, Mutex, Outlet>,
+      __details::prefabs::BasicBar<typename std::decay<Bar>::type::ConfigType, Outlet>,
       MultiBar,
       Cnt>>::type
 # endif
     make_multi( Bar&& bar ) noexcept( Cnt == 1 && !std::is_lvalue_reference<Bar>::value )
   {
     auto cfg = std::forward<Bar>( bar ).config();
-    return __details::assets::make_multi_helper<Cnt, Mutex, Outlet>(
-      cfg,
-      __details::traits::MakeIndexSeq<Cnt - 1>() );
+    return __details::assets::make_multi_helper<Cnt, Outlet>( cfg,
+                                                              __details::traits::MakeIndexSeq<Cnt - 1>() );
   }
   /**
    * Creates a MultiBar with a fixed number of BasicBar instances using a single configuration object.
    * **All BasicBar instances are initialized using the same configuration.**
    */
-  template<__details::types::Size Cnt,
-           typename Mutex = Threadunsafe,
-           Channel Outlet = Channel::Stderr,
-           typename Config>
+  template<__details::types::Size Cnt, Channel Outlet = Channel::Stderr, typename Config>
 # if __PGBAR_CXX20
-    requires( Cnt > 0 && __details::traits::is_mutex<Mutex>::value
-              && __details::traits::is_config<Config>::value )
+    requires( Cnt > 0 && __details::traits::is_config<Config>::value )
   __PGBAR_NODISCARD __PGBAR_INLINE_FN
-    __details::traits::FillTemplate_t<__details::prefabs::BasicBar<Config, Mutex, Outlet>, MultiBar, Cnt>
+    __details::traits::FillTemplate_t<__details::prefabs::BasicBar<Config, Outlet>, MultiBar, Cnt>
 # else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
     __details::traits::AllOf<std::integral_constant<bool, ( Cnt > 0 )>,
-                             __details::traits::is_mutex<Mutex>,
                              __details::traits::is_config<Config>>::value,
-    __details::traits::FillTemplate_t<__details::prefabs::BasicBar<Config, Mutex, Outlet>, MultiBar, Cnt>>::
-    type
+    __details::traits::FillTemplate_t<__details::prefabs::BasicBar<Config, Outlet>, MultiBar, Cnt>>::type
 # endif
     make_multi( Config cfg ) noexcept( Cnt == 1 )
   {
-    return __details::assets::make_multi_helper<Cnt, Mutex, Outlet>(
-      cfg,
-      __details::traits::MakeIndexSeq<Cnt - 1>() );
+    return __details::assets::make_multi_helper<Cnt, Outlet>( cfg,
+                                                              __details::traits::MakeIndexSeq<Cnt - 1>() );
   }
 
   /**
@@ -6450,25 +6408,19 @@ namespace pgbar {
    * The ctor sequentially initializes the first few instances corresponding to the provided configurations;
    * **any remaining instances with no corresponding configurations will be default-initialized.**
    */
-  template<__details::types::Size Cnt,
-           typename Config,
-           typename Mutex = Threadunsafe,
-           Channel Outlet = Channel::Stderr,
-           typename... Configs>
+  template<__details::types::Size Cnt, typename Config, Channel Outlet = Channel::Stderr, typename... Configs>
 # if __PGBAR_CXX20
     requires( Cnt > 0 && sizeof...( Configs ) <= Cnt && __details::traits::is_config<Config>::value
-              && __details::traits::is_mutex<Mutex>::value && ( std::is_same_v<Config, Configs> && ... ) )
+              && ( std::is_same_v<Config, Configs> && ... ) )
   __PGBAR_NODISCARD __PGBAR_INLINE_FN
-    __details::traits::FillTemplate_t<__details::prefabs::BasicBar<Config, Mutex, Outlet>, MultiBar, Cnt>
+    __details::traits::FillTemplate_t<__details::prefabs::BasicBar<Config, Outlet>, MultiBar, Cnt>
 # else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
     __details::traits::AllOf<std::integral_constant<bool, ( Cnt > 0 )>,
                              std::integral_constant<bool, ( sizeof...( Configs ) <= Cnt )>,
                              __details::traits::is_config<Config>,
-                             __details::traits::is_mutex<Mutex>,
                              std::is_same<Config, Configs>...>::value,
-    __details::traits::FillTemplate_t<__details::prefabs::BasicBar<Config, Mutex, Outlet>, MultiBar, Cnt>>::
-    type
+    __details::traits::FillTemplate_t<__details::prefabs::BasicBar<Config, Outlet>, MultiBar, Cnt>>::type
 # endif
     make_multi( Configs... configs ) noexcept( sizeof...( Configs ) == Cnt )
   {
@@ -6650,7 +6602,6 @@ namespace pgbar {
 # undef __PGBAR_CXX20
 # undef __PGBAR_CNSTEVAL
 # undef __PGBAR_CXX20_CNSTXPR
-# undef __PGBAR_NOUNIQUEADDR
 # undef __PGBAR_CXX17
 # undef __PGBAR_CXX17_CNSTXPR
 # undef __PGBAR_CXX17_INLINE
