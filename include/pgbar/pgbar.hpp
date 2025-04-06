@@ -13,6 +13,7 @@
 # include <chrono>
 # include <cmath>
 # include <condition_variable>
+# include <cstddef>
 # include <cstdint>
 # include <exception>
 # include <initializer_list>
@@ -20,6 +21,7 @@
 # include <limits>
 # include <memory>
 # include <mutex>
+# include <new>
 # include <string>
 # include <thread>
 # include <tuple>
@@ -86,7 +88,7 @@
        }                          \
      } while ( false )
 #  else
-#   define __PGBAR_UNREACHABLE __PGBAR_ASSERT( false )
+#   define __PGBAR_UNREACHABLE __PGBAR_PURE_ASSUME( false )
 #   define __PGBAR_ASSUME( expr )
 #  endif
 # endif
@@ -663,31 +665,6 @@ namespace pgbar {
         using type = typename std::remove_reference<T>::type::const_iterator;
       };
 
-      template<typename... Signature>
-      struct RemoveNoexcept;
-      template<typename... Signature>
-      using RemoveNoexcept_t = typename RemoveNoexcept<Signature...>::type;
-
-# define __PGBAR_REMOVE_NOEXCEPT( Qualifier, Noexcept )       \
-   template<typename Ret, typename... Args>                   \
-   struct RemoveNoexcept<Ret( Args... ) Qualifier Noexcept> { \
-     using type = Ret( Args... ) Qualifier;                   \
-   }
-      __PGBAR_REMOVE_NOEXCEPT(, );
-      __PGBAR_REMOVE_NOEXCEPT( &, );
-      __PGBAR_REMOVE_NOEXCEPT( &&, );
-      __PGBAR_REMOVE_NOEXCEPT( const&, );
-      __PGBAR_REMOVE_NOEXCEPT( const&&, );
-# if __PGBAR_CXX17
-      __PGBAR_REMOVE_NOEXCEPT(, noexcept );
-      __PGBAR_REMOVE_NOEXCEPT( &, noexcept );
-      __PGBAR_REMOVE_NOEXCEPT( &&, noexcept );
-      __PGBAR_REMOVE_NOEXCEPT( const, noexcept );
-      __PGBAR_REMOVE_NOEXCEPT( const&, noexcept );
-      __PGBAR_REMOVE_NOEXCEPT( const&&, noexcept );
-# endif
-# undef __PGBAR_REMOVE_NOEXCEPT
-
       template<typename T, typename = void>
       struct is_void_functor : std::false_type {};
       template<typename T>
@@ -782,229 +759,229 @@ namespace pgbar {
       template<typename... Signature>
       using UniqueFunction = std::move_only_function<Signature...>;
 # else
-      template<typename... Signature>
-      class UniqueFnCore;
-
-      template<typename Ret, typename... Args>
-      class UniqueFnCore<Ret( Args... )> final {
-        using Self = UniqueFnCore;
-
-        struct AnyFn {
-          __PGBAR_CXX20_CNSTXPR virtual ~AnyFn()       = default;
-          virtual Ret operator()( Args... args ) const = 0;
-          virtual void move_to( void* const dest )     = 0;
-        };
-        template<typename Fn, typename = void>
-        struct FnContainer final : public AnyFn {
-        private:
-          static_assert( !std::is_reference<Fn>::value,
-                         "pgbar::__details::wrappers::UniqueFnCore: Incomplete type" );
-
-          mutable Fn fntor_;
-
-        public:
-          __PGBAR_CXX14_CNSTXPR FnContainer( Fn fntor )
-            noexcept( std::is_nothrow_move_constructible<Fn>::value )
-            : fntor_ { std::move( fntor ) }
-          {}
-
-          FnContainer( const FnContainer& )              = delete;
-          FnContainer& operator=( const FnContainer& ) & = delete;
-          __PGBAR_CXX20_CNSTXPR virtual ~FnContainer()   = default;
-
-          Ret operator()( Args... args ) const
-            noexcept( noexcept( std::declval<Fn>()( std::forward<Args>( args )... ) ) ) override
-          {
-            return fntor_( std::forward<Args>( args )... );
-          }
-          void move_to( void* const dest ) noexcept override
-          {
-            __PGBAR_PURE_ASSUME( dest != nullptr );
-            // After C++26, placement new is constexpr.
-            new ( dest ) FnContainer( std::move( fntor_ ) );
-          }
-        };
-
-#  if __PGBAR_CXX14
-        template<typename Fn> // EBO
-        struct FnContainer<Fn, std::enable_if_t<std::is_empty<Fn>::value && !std::is_final<Fn>::value>> final
-          : public AnyFn
-          , private Fn {
-          __PGBAR_CXX14_CNSTXPR FnContainer( Fn fntor )
-            noexcept( std::is_nothrow_move_constructible<Fn>::value )
-            : Fn( std::move( fntor ) )
-          {}
-
-          FnContainer( const FnContainer& )              = delete;
-          FnContainer& operator=( const FnContainer& ) & = delete;
-          __PGBAR_CXX20_CNSTXPR virtual ~FnContainer()   = default;
-
-          Ret operator()( Args... args ) const
-            noexcept( noexcept( std::declval<Fn>()( std::forward<Args>( args )... ) ) ) override
-          {
-            return ( ( static_cast<Fn&>( const_cast<FnContainer&>( *this ) ) ) )(
-              std::forward<Args>( args )... );
-          }
-          void move_to( void* const dest ) noexcept override
-          {
-            __PGBAR_PURE_ASSUME( dest != nullptr );
-            new ( dest ) FnContainer( std::move( static_cast<Fn&>( *this ) ) );
-          }
-        };
+      // A simplified implementation of std::move_only_function
+      template<typename...>
+      class UniqueFunction;
+#  if __PGBAR_CXX17
+      template<typename R, typename... Args, bool Nxpt>
+      class UniqueFunction<R( Args... ) noexcept( Nxpt )>
+#  else
+      template<typename R, typename... Args>
+      class UniqueFunction<R( Args... )>
 #  endif
+      {
+#  if __PGBAR_CXX17
+        using Bytes = std::byte;
+#  else
+        using Bytes                = unsigned char;
+        static constexpr bool Nxpt = false;
+#  endif
+        using Self = UniqueFunction;
+        union AnyFn {
+          Bytes buf_[sizeof( void* ) * 2];
+          Bytes* dptr_;
+        };
+        struct VTable final {
+          R ( *const invoke )( const AnyFn&, Args&&... ) noexcept( Nxpt );
+          void ( *const destroy )( AnyFn& ) noexcept;
+          void ( *const move )( AnyFn& dst, AnyFn& src ) noexcept;
+        };
 
-        union {
-          typename std::add_pointer<Ret( Args... )>::type fptr_;
-          AnyFn* ftor_;
-          unsigned char soo_[sizeof( void* ) * 2]; // small object optimization
-        } data_;
-        static_assert( sizeof data_ == sizeof data_.soo_,
-                       "pgbar::__details::wrappers::UniqueFnCore: Unexpected type size mismatch" );
-        enum class Tag : types::Byte { None, Fptr, FtorInline, FtorDync } tag_;
+        template<typename T, typename = void>
+        struct is_inline_type : std::false_type {};
+        template<typename T>
+        struct is_inline_type<T,
+                              typename std::enable_if<traits::AllOf<
+                                std::integral_constant<bool, ( sizeof( T ) <= sizeof( AnyFn::buf_ ) )>,
+                                std::is_nothrow_move_constructible<T>>::value>::type> : std::true_type {};
+
+        const VTable* vtable_;
+        AnyFn callee_;
+
+        static constexpr R invoke_null( const AnyFn&, Args&&... ) noexcept( Nxpt )
+        {
+          __PGBAR_UNREACHABLE;
+          // The standard says this should trigger an undefined behavior.
+        }
+        static constexpr void destroy_null( AnyFn& ) noexcept {}
+        static constexpr void move_null( AnyFn&, AnyFn& ) noexcept {}
+
+        template<typename T>
+        static __PGBAR_CXX14_CNSTXPR R invoke_inline( const AnyFn& fn, Args&&... args ) noexcept( Nxpt )
+        {
+          auto ptr = const_cast<T*>( __PGBAR_LAUNDER( reinterpret_cast<const T*>( fn.buf_ ) ) );
+          return ( *ptr )( std::forward<Args>( args )... );
+        }
+        template<typename T>
+        static __PGBAR_CXX14_CNSTXPR void destroy_inline( AnyFn& fn ) noexcept
+        {
+          auto ptr = __PGBAR_LAUNDER( reinterpret_cast<T*>( fn.buf_ ) );
+          ptr->~T();
+        }
+        template<typename T>
+        static __PGBAR_CXX14_CNSTXPR void move_inline( AnyFn& dst, AnyFn& src ) noexcept
+        {
+          new ( &dst ) T( std::move( *__PGBAR_LAUNDER( reinterpret_cast<T*>( src.buf_ ) ) ) );
+          destroy_inline<T>( src );
+        }
+
+        template<typename T>
+        static __PGBAR_CXX14_CNSTXPR R invoke_dynamic( const AnyFn& fn, Args&&... args ) noexcept( Nxpt )
+        {
+          auto dptr = const_cast<T*>( __PGBAR_LAUNDER( reinterpret_cast<const T*>( fn.dptr_ ) ) );
+          return ( *dptr )( std::forward<Args>( args )... );
+        }
+        template<typename T>
+        static __PGBAR_CXX20_CNSTXPR void destroy_dynamic( AnyFn& fn ) noexcept
+        {
+          auto dptr = __PGBAR_LAUNDER( reinterpret_cast<T*>( fn.dptr_ ) );
+          dptr->~T();
+          operator delete( fn.dptr_ );
+        }
+        template<typename T>
+        static __PGBAR_CXX14_CNSTXPR void move_dynamic( AnyFn& dst, AnyFn& src ) noexcept
+        {
+          dst.dptr_ = src.dptr_;
+          src.dptr_ = nullptr;
+        }
+
+        template<typename T>
+        static __PGBAR_CXX23_CNSTXPR const VTable& table_inline() noexcept
+        {
+          static const VTable tbl { invoke_inline<T>, destroy_inline<T>, move_inline<T> };
+          return tbl;
+        }
+        template<typename T>
+        static __PGBAR_CXX23_CNSTXPR const VTable& table_dynamic() noexcept
+        {
+          static const VTable tbl { invoke_dynamic<T>, destroy_dynamic<T>, move_dynamic<T> };
+          return tbl;
+        }
+        static __PGBAR_CXX23_CNSTXPR const VTable& table_null() noexcept
+        {
+          static const VTable tbl { invoke_null, destroy_null, move_null };
+          return tbl;
+        }
+
+        template<typename F>
+        __PGBAR_INLINE_FN void store_fn( F&& fn, const std::true_type& ) noexcept
+        {
+          using T       = typename std::decay<F>::type;
+          auto location = new ( &callee_ ) T( std::forward<F>( fn ) );
+          __PGBAR_PURE_ASSUME( static_cast<void*>( location ) == static_cast<void*>( &callee_ ) );
+          vtable_ = &table_inline<T>();
+        }
+        template<typename F>
+        __PGBAR_INLINE_FN void store_fn( F&& fn, const std::false_type& ) noexcept( false )
+        {
+          using T   = typename std::decay<F>::type;
+          auto dptr = std::unique_ptr<Bytes>( static_cast<Bytes*>( operator new( sizeof( T ) ) ) );
+
+          auto location = new ( dptr.get() ) T( std::forward<F>( fn ) );
+          __PGBAR_ASSERT( static_cast<void*>( location ) == dptr.get() );
+
+          callee_.dptr_ = dptr.release();
+          vtable_       = &table_dynamic<T>();
+        }
 
       public:
-        constexpr UniqueFnCore() noexcept : data_ {}, tag_ { Tag::None } {}
-        constexpr UniqueFnCore( std::nullptr_t ) noexcept : UniqueFnCore() {}
+        constexpr UniqueFunction() noexcept : vtable_ { &table_null() } {}
+        constexpr UniqueFunction( std::nullptr_t ) noexcept : UniqueFunction() {}
 
-        template<typename Fn,
-                 typename = typename std::enable_if<traits::AllOf<
-                   std::is_function<Fn>,
-                   std::is_convertible<decltype( ( *std::declval<Fn>() )( std::declval<Args>()... ) ),
-                                       Ret>>::value>::type>
-        __PGBAR_CXX14_CNSTXPR UniqueFnCore( Fn* function_ptr ) noexcept : UniqueFnCore()
+        template<typename F,
+                 typename = typename std::enable_if<
+                   traits::AllOf<std::is_move_constructible<typename std::decay<F>::type>,
+#  if __PGBAR_CXX17
+                                 std::conditional_t<Nxpt,
+                                                    std::is_nothrow_invocable_r<R, std::decay_t<F>, Args...>,
+                                                    std::is_invocable_r<R, std::decay_t<F>, Args...>>
+#  else
+                                 std::is_convertible<decltype( std::declval<typename std::decay<F>::type&>()(
+                                                       std::declval<Args>()... ) ),
+                                                     R>
+#  endif
+                                 >::value>::type>
+        __PGBAR_CXX23_CNSTXPR UniqueFunction( F&& fn )
+          noexcept( is_inline_type<typename std::decay<F>::type>::value )
         {
-          data_.fptr_ = function_ptr;
-          tag_        = Tag::Fptr;
-        }
-        template<typename Fn,
-                 typename = typename std::enable_if<traits::AllOf<
-                   std::is_class<Fn>,
-                   std::is_convertible<decltype( ( std::declval<Fn>() )( std::declval<Args>()... ) ),
-                                       Ret>>::value>::type>
-        __PGBAR_CXX20_CNSTXPR UniqueFnCore( Fn functor ) : UniqueFnCore()
-        {
-          static_assert( std::is_move_constructible<Fn>::value,
-                         "pgbar::__details::wrappers::UniqueFnCore: Invalid type" );
-
-          if __PGBAR_CXX17_CNSTXPR ( sizeof( FnContainer<Fn> ) <= sizeof data_.soo_ ) {
-            const auto fn = new ( &data_.soo_ ) FnContainer<Fn>( std::move( functor ) );
-            __PGBAR_PURE_ASSUME( static_cast<void*>( fn ) == static_cast<void*>( &data_.soo_ ) );
-            tag_ = Tag::FtorInline;
-          } else {
-            data_.ftor_ = new FnContainer<Fn>( std::move( functor ) );
-            tag_        = Tag::FtorDync;
-          }
+          using T = typename std::decay<F>::type;
+          store_fn( std::forward<F>( fn ), is_inline_type<T>() );
         }
 
-        __PGBAR_CXX20_CNSTXPR UniqueFnCore( Self&& rhs ) noexcept : UniqueFnCore()
+        __PGBAR_CXX23_CNSTXPR UniqueFunction( Self&& rhs ) noexcept : vtable_ { rhs.vtable_ }
         {
-          operator=( std::move( rhs ) );
+          __PGBAR_PURE_ASSUME( rhs.vtable_ != nullptr );
+          vtable_->move( callee_, rhs.callee_ );
+          rhs.vtable_ = &table_null();
         }
-        __PGBAR_CXX20_CNSTXPR Self& operator=( Self&& rhs ) & noexcept
+        __PGBAR_CXX23_CNSTXPR Self& operator=( Self&& rhs ) & noexcept
         {
           __PGBAR_PURE_ASSUME( this != &rhs );
-          swap( rhs );
-          rhs = nullptr; // exclusive semantics
+          __PGBAR_PURE_ASSUME( vtable_ != nullptr );
+          __PGBAR_PURE_ASSUME( rhs.vtable_ != nullptr );
+          vtable_->destroy( callee_ );
+          vtable_ = rhs.vtable_;
+          vtable_->move( callee_, rhs.callee_ );
+          rhs.vtable_ = &table_null();
           return *this;
         }
-
-        __PGBAR_CXX20_CNSTXPR Self& operator=( std::nullptr_t ) & noexcept
+        __PGBAR_CXX23_CNSTXPR Self& operator=( std::nullptr_t ) noexcept
         {
-          switch ( tag_ ) {
-          case Tag::FtorInline: __PGBAR_LAUNDER( reinterpret_cast<AnyFn*>( &data_.soo_ ) )->~AnyFn(); break;
-          case Tag::FtorDync:   delete data_.ftor_; break;
-          default:              break;
-          }
-          tag_ = Tag::None;
+          __PGBAR_PURE_ASSUME( vtable_ != nullptr );
+          vtable_->destroy( callee_ );
+          vtable_ = &table_null();
           return *this;
         }
-
-        __PGBAR_CXX20_CNSTXPR ~UniqueFnCore() noexcept { ( *this ) = nullptr; }
-
-        __PGBAR_CXX20_CNSTXPR Ret operator()( Args... args ) const
+        template<typename F>
+        __PGBAR_CXX23_CNSTXPR typename std::enable_if<
+          traits::AllOf<std::is_move_constructible<typename std::decay<F>::type>,
+#  if __PGBAR_CXX17
+                        std::conditional_t<Nxpt,
+                                           std::is_nothrow_invocable_r<R, std::decay_t<F>, Args...>,
+                                           std::is_invocable_r<R, std::decay_t<F>, Args...>>
+#  else
+                        std::is_convertible<decltype( std::declval<typename std::decay<F>::type&>()(
+                                              std::declval<Args>()... ) ),
+                                            R>
+#  endif
+                        >::value>::type
+          operator=( F&& fn ) & noexcept( is_inline_type<typename std::decay<F>::type>::value )
         {
-          __PGBAR_PURE_ASSUME( tag_ != Tag::None );
-          switch ( tag_ ) {
-          case Tag::Fptr: return ( *data_.fptr_ )( std::forward<Args>( args )... );
-          case Tag::FtorInline:
-            return ( *__PGBAR_LAUNDER( reinterpret_cast<const AnyFn*>( &data_.soo_ ) ) )(
-              std::forward<Args>( args )... );
-          case Tag::FtorDync: return ( *data_.ftor_ )( std::forward<Args>( args )... );
-          default:            break;
-          }
-          __PGBAR_UNREACHABLE;
+          return operator=( UniqueFunction<R( Args... )>( std::forward<F>( fn ) ) );
+        }
+        __PGBAR_CXX20_CNSTXPR ~UniqueFunction() noexcept
+        {
+          __PGBAR_PURE_ASSUME( vtable_ != nullptr );
+          vtable_->destroy( callee_ );
         }
 
-        void swap( Self& lhs ) noexcept
+        __PGBAR_CXX23_CNSTXPR R operator()( Args... args ) const noexcept( Nxpt )
         {
-          switch ( tag_ ) {
-          case Tag::FtorInline: {
-            switch ( lhs.tag_ ) {
-            case Tag::Fptr:     __PGBAR_FALLTHROUGH;
-            case Tag::FtorDync: {
-              const auto lhs_fn  = lhs.data_;
-              const auto self_fn = __PGBAR_LAUNDER( reinterpret_cast<AnyFn*>( &data_.soo_ ) );
-              self_fn->move_to( &lhs.data_ );
-              self_fn->~AnyFn();
-              data_ = lhs_fn;
-            } break;
-            case Tag::FtorInline: {
-              alignas( decltype( data_.soo_ ) ) unsigned char buffer[sizeof data_.soo_] {};
-              auto self_fn = __PGBAR_LAUNDER( reinterpret_cast<AnyFn*>( &data_.soo_ ) );
-              self_fn->move_to( &buffer );
-              self_fn->~AnyFn();
-
-              const auto lhs_fn = __PGBAR_LAUNDER( reinterpret_cast<AnyFn*>( &lhs.data_.soo_ ) );
-              lhs_fn->move_to( &data_.soo_ );
-              lhs_fn->~AnyFn();
-
-              self_fn = __PGBAR_LAUNDER( reinterpret_cast<AnyFn*>( &buffer ) );
-              self_fn->move_to( &lhs.data_.soo_ );
-              self_fn->~AnyFn();
-            } break;
-            case Tag::None: {
-              const auto self_fn = __PGBAR_LAUNDER( reinterpret_cast<AnyFn*>( &data_.soo_ ) );
-              self_fn->move_to( &lhs.data_ );
-              self_fn->~AnyFn();
-            } break;
-            default: __PGBAR_UNREACHABLE;
-            }
-          } break;
-
-          default: {
-            if ( lhs.tag_ == Tag::FtorInline ) {
-              const auto self_fn = data_;
-              const auto lhs_fn  = __PGBAR_LAUNDER( reinterpret_cast<AnyFn*>( &lhs.data_.soo_ ) );
-              lhs_fn->move_to( &data_.soo_ );
-              lhs_fn->~AnyFn();
-              lhs.data_ = self_fn;
-            } else
-              std::swap( data_, lhs.data_ );
-          } break;
-          }
-          std::swap( tag_, lhs.tag_ );
+          __PGBAR_PURE_ASSUME( vtable_ != nullptr );
+          return vtable_->invoke( callee_, std::forward<Args>( args )... );
         }
-        friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
 
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr bool operator==( const Self& a,
-                                                                              std::nullptr_t ) noexcept
+        __PGBAR_CXX14_CNSTXPR void swap( Self& lhs ) noexcept
+        {
+          __PGBAR_PURE_ASSUME( vtable_ != nullptr );
+          __PGBAR_PURE_ASSUME( lhs.vtable_ != nullptr );
+          AnyFn tmp;
+          vtable_->move( tmp, callee_ );
+          lhs.vtable_->move( callee_, lhs.callee_ );
+          vtable_->move( lhs.callee_, tmp );
+          std::swap( vtable_, lhs.vtable_ );
+        }
+        __PGBAR_CXX14_CNSTXPR friend void swap( Self& a, Self& b ) noexcept { return a.swap( b ); }
+        friend constexpr bool operator==( const Self& a, std::nullptr_t ) noexcept
         {
           return !static_cast<bool>( a );
         }
-#  if !__PGBAR_CXX20
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr bool operator!=( const Self& a,
-                                                                              std::nullptr_t ) noexcept
+        friend constexpr bool operator!=( const Self& a, std::nullptr_t ) noexcept
         {
           return static_cast<bool>( a );
         }
-#  endif
-
-        explicit operator bool() const noexcept { return tag_ != Tag::None; }
+        constexpr explicit operator bool() const noexcept { return vtable_->invoke != invoke_null; }
       };
-
-      // A simplified implementation of std::move_only_function
-      template<typename... Signature>
-      using UniqueFunction = UniqueFnCore<traits::RemoveNoexcept_t<Signature...>>;
 # endif
     } // namespace wrappers
   } // namespace __details
@@ -1851,7 +1828,7 @@ namespace pgbar {
         std::string bytes_;
 
       public:
-        __PGBAR_NODISCARD static __PGBAR_CNSTEVAL __PGBAR_INLINE_FN std::array<CodeChart, 47>
+        __PGBAR_NODISCARD static __PGBAR_INLINE_FN __PGBAR_CNSTEVAL std::array<CodeChart, 47>
           code_charts() noexcept
         {
           // See the Unicode CodeCharts documentation for complete code points.
