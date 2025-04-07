@@ -1604,7 +1604,7 @@ int main()
 ## 渲染器工作间隔
 为了提升性能表现，后台渲染器会停顿一个固定的时间间隔后再执行渲染任务，这个时间间隔的大小可以经由 `pgbar::config::refresh_interval()` 方法获取和修改。
 
-`pgbar::config::refresh_interval()` 使用的时间单位被定义在 `pgbar::config::TimeUnit` 中；一般来说,它是类型 `std::chrono::nanoseconds` 的别名。
+`pgbar::config::refresh_interval()` 使用的时间单位被定义在 `pgbar::config::TimeUnit` 中；一般来说，它是类型 `std::chrono::nanoseconds` 的别名。
 
 调用该方法是完全线程安全的，因此可以在任意进度条运行过程中调整渲染器的停顿间隔。
 
@@ -1695,7 +1695,7 @@ IterSpan& end_value( I endpoint );     // 更改终点迭代器
 
 /* I&, const I&, I&& */ start_iter() /* &, const&, && */ noexcept; // 根据当前对象的值语义返回内部的起点迭代器
 /* I&, const I&, I&& */ end_iter() /* &, const&, && */ noexcept;   // 根据当前对象的值语义返回内部的终点迭代器
-N step() const noexcept;                                           // 返回当前步长，通常是编译期常数 1
+/* size_t */ step() const noexcept;                                // 返回当前步长，通常是编译期常数 1
 /* size_t */ size() const noexcept;                                // 返回当前抽象范围的大小
 
 void swap( IterSpan& ) noexcept; // 交换两个抽象范围

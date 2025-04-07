@@ -1699,7 +1699,7 @@ IterSpan& end_value( I endpoint );     // Change the end iterator
 
 /* I&, const I&, I&& */ start_iter() /* &, const&, && */ noexcept; // Returns an internal starting iterator based on the value semantics of the current object
 /* I&, const I&, I&& */ end_iter() /* &, const&, && */ noexcept;   // Returns an internal end iterator based on the value semantics of the current object
-N step() const noexcept;                                           // Returns the current step size, usually the compile-time constant 1
+/* size_t */ step() const noexcept;                                // Returns the current step size, usually the compile-time constant 1
 /* size_t */ size() const noexcept;                                // Returns the size of the current abstract range
 
 void swap( IterSpan& ) noexcept; // Exchange two IterSpan
