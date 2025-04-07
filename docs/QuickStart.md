@@ -1468,7 +1468,7 @@ int main()
 ## `MultiBar`
 ![mtbar](../images/multibar.gif)
 ### How to use
-`pgbar::MultiBar` is a tupl-like type that can accept multiple sole progress bar types and combine them to achieve the output of multiple progress bars.
+`pgbar::MultiBar` is a tuple-like type that can accept multiple sole progress bar types and combine them to achieve the output of multiple progress bars.
 
 `MultiBar` requires that all objects it holds must point to the same output stream.
 
