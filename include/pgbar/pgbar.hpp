@@ -636,41 +636,66 @@ namespace pgbar {
        * Check whether the type `T` has a type `iterator` or `const_iterator`, and return it if affirmative.
        * Otherwise, return the type `T` itself.
        */
-      template<typename T, typename = void>
+      template<typename T>
       struct IteratorTrait {
-        using type = typename std::conditional<std::is_array<typename std::remove_reference<T>::type>::value,
-                                               typename std::add_pointer<typename std::remove_extent<
-                                                 typename std::remove_reference<T>::type>::type>::type,
-                                               typename std::remove_reference<T>::type>::type;
+      private:
+        template<typename U, typename = void>
+        struct has_iterator : std::false_type {};
+        template<typename U>
+        struct has_iterator<
+          U,
+          typename std::enable_if<std::is_same<typename U::iterator, typename U::iterator>::value>::type>
+          : std::true_type {};
+
+        template<typename U, typename = void>
+        struct has_const_iterator : std::false_type {};
+        template<typename U>
+        struct has_const_iterator<
+          U,
+          typename std::enable_if<
+            std::is_same<typename U::const_iterator, typename U::const_iterator>::value>::type>
+          : std::true_type {};
+
+        template<typename U,
+                 bool is_array      = std::is_array<T>::value,
+                 bool is_const      = std::is_const<T>::value,
+                 bool has_itr       = has_iterator<T>::value,
+                 bool has_const_itr = has_const_iterator<T>::value>
+        struct Deduction {
+          using type = U;
+        };
+        template<typename U, bool P1, bool P2, bool P3>
+        struct Deduction<U, true, P1, P2, P3> {
+          using type = typename std::add_pointer<typename std::remove_extent<U>::type>::type;
+        };
+        template<typename U, bool P2>
+        struct Deduction<U, false, true, P2, true> {
+          using type = typename U::const_iterator;
+        };
+        template<typename U, bool P3>
+        struct Deduction<U, false, false, true, P3> {
+          using type = typename U::iterator;
+        };
+        template<typename U>
+        struct Deduction<U, false, true, true, false> {
+          using type = typename U::iterator;
+        };
+
+      public:
+        using type = typename Deduction<T>::type;
       };
+
       // Get the result type of `IteratorTrait`.
       template<typename T>
       using IteratorTrait_t = typename IteratorTrait<T>::type;
-
-      template<typename T>
-      struct IteratorTrait<T,
-                           typename std::enable_if<AllOf<
-                             Not<std::is_const<typename std::remove_reference<T>::type>>,
-                             std::is_same<typename std::remove_reference<T>::type::iterator,
-                                          typename std::remove_reference<T>::type::iterator>>::value>::type> {
-        using type = typename std::remove_reference<T>::type::iterator;
-      };
-      template<typename T>
-      struct IteratorTrait<
-        T,
-        typename std::enable_if<
-          AllOf<std::is_const<typename std::remove_reference<T>::type>,
-                std::is_same<typename std::remove_reference<T>::type::const_iterator,
-                             typename std::remove_reference<T>::type::const_iterator>>::value>::type> {
-        using type = typename std::remove_reference<T>::type::const_iterator;
-      };
 
       template<typename T, typename = void>
       struct is_void_functor : std::false_type {};
       template<typename T>
       struct is_void_functor<
         T,
-        typename std::enable_if<std::is_void<decltype( std::declval<T>()() )>::value>::type>
+        typename std::enable_if<
+          AllOf<Not<std::is_reference<T>>, std::is_void<decltype( std::declval<T&>()() )>>::value>::type>
         : std::true_type {};
     } // namespace traits
 
@@ -762,19 +787,18 @@ namespace pgbar {
       // A simplified implementation of std::move_only_function
       template<typename...>
       class UniqueFunction;
-#  if __PGBAR_CXX17
-      template<typename R, typename... Args, bool Nxpt>
-      class UniqueFunction<R( Args... ) noexcept( Nxpt )>
-#  else
+      /**
+       * Extracting non-type parameters of type bool from the noexcept specifier is a non-standard behavior.
+
+       * And the UniqueFunction with noexcept is not actually used in the code,
+       * so there's no extra support for noexcept here.
+       */
       template<typename R, typename... Args>
-      class UniqueFunction<R( Args... )>
-#  endif
-      {
+      class UniqueFunction<R( Args... )> {
 #  if __PGBAR_CXX17
         using Bytes = std::byte;
 #  else
-        using Bytes                = unsigned char;
-        static constexpr bool Nxpt = false;
+        using Bytes = unsigned char;
 #  endif
         using Self = UniqueFunction;
         union AnyFn {
@@ -782,7 +806,7 @@ namespace pgbar {
           Bytes* dptr_;
         };
         struct VTable final {
-          R ( *const invoke )( const AnyFn&, Args&&... ) noexcept( Nxpt );
+          R ( *const invoke )( const AnyFn&, Args&&... );
           void ( *const destroy )( AnyFn& ) noexcept;
           void ( *const move )( AnyFn& dst, AnyFn& src ) noexcept;
         };
@@ -798,7 +822,7 @@ namespace pgbar {
         const VTable* vtable_;
         AnyFn callee_;
 
-        static constexpr R invoke_null( const AnyFn&, Args&&... ) noexcept( Nxpt )
+        static constexpr R invoke_null( const AnyFn&, Args&&... )
         {
           __PGBAR_UNREACHABLE;
           // The standard says this should trigger an undefined behavior.
@@ -807,7 +831,7 @@ namespace pgbar {
         static constexpr void move_null( AnyFn&, AnyFn& ) noexcept {}
 
         template<typename T>
-        static __PGBAR_CXX14_CNSTXPR R invoke_inline( const AnyFn& fn, Args&&... args ) noexcept( Nxpt )
+        static __PGBAR_CXX14_CNSTXPR R invoke_inline( const AnyFn& fn, Args&&... args )
         {
           auto ptr = const_cast<T*>( __PGBAR_LAUNDER( reinterpret_cast<const T*>( fn.buf_ ) ) );
           return ( *ptr )( std::forward<Args>( args )... );
@@ -826,7 +850,7 @@ namespace pgbar {
         }
 
         template<typename T>
-        static __PGBAR_CXX14_CNSTXPR R invoke_dynamic( const AnyFn& fn, Args&&... args ) noexcept( Nxpt )
+        static __PGBAR_CXX14_CNSTXPR R invoke_dynamic( const AnyFn& fn, Args&&... args )
         {
           auto dptr = const_cast<T*>( __PGBAR_LAUNDER( reinterpret_cast<const T*>( fn.dptr_ ) ) );
           return ( *dptr )( std::forward<Args>( args )... );
@@ -891,16 +915,9 @@ namespace pgbar {
         template<typename F,
                  typename = typename std::enable_if<
                    traits::AllOf<std::is_move_constructible<typename std::decay<F>::type>,
-#  if __PGBAR_CXX17
-                                 std::conditional_t<Nxpt,
-                                                    std::is_nothrow_invocable_r<R, std::decay_t<F>, Args...>,
-                                                    std::is_invocable_r<R, std::decay_t<F>, Args...>>
-#  else
                                  std::is_convertible<decltype( std::declval<typename std::decay<F>::type&>()(
                                                        std::declval<Args>()... ) ),
-                                                     R>
-#  endif
-                                 >::value>::type>
+                                                     R>>::value>::type>
         __PGBAR_CXX23_CNSTXPR UniqueFunction( F&& fn )
           noexcept( is_inline_type<typename std::decay<F>::type>::value )
         {
@@ -935,16 +952,9 @@ namespace pgbar {
         template<typename F>
         __PGBAR_CXX23_CNSTXPR typename std::enable_if<
           traits::AllOf<std::is_move_constructible<typename std::decay<F>::type>,
-#  if __PGBAR_CXX17
-                        std::conditional_t<Nxpt,
-                                           std::is_nothrow_invocable_r<R, std::decay_t<F>, Args...>,
-                                           std::is_invocable_r<R, std::decay_t<F>, Args...>>
-#  else
                         std::is_convertible<decltype( std::declval<typename std::decay<F>::type&>()(
                                               std::declval<Args>()... ) ),
-                                            R>
-#  endif
-                        >::value>::type
+                                            R>>::value>::type
           operator=( F&& fn ) & noexcept( is_inline_type<typename std::decay<F>::type>::value )
         {
           return operator=( UniqueFunction<R( Args... )>( std::forward<F>( fn ) ) );
@@ -955,7 +965,7 @@ namespace pgbar {
           vtable_->destroy( callee_ );
         }
 
-        __PGBAR_CXX23_CNSTXPR R operator()( Args... args ) const noexcept( Nxpt )
+        __PGBAR_CXX23_CNSTXPR R operator()( Args... args ) const
         {
           __PGBAR_PURE_ASSUME( vtable_ != nullptr );
           return vtable_->invoke( callee_, std::forward<Args>( args )... );
@@ -1457,17 +1467,15 @@ namespace pgbar {
       struct is_scope {
       private:
         template<typename N>
-        static std::true_type check( const scope::NumericSpan<N>& );
+        static constexpr std::true_type check( const scope::NumericSpan<N>& );
         template<typename I>
-        static std::true_type check( const scope::IterSpan<I>& );
-        static std::false_type check( ... );
+        static constexpr std::true_type check( const scope::IterSpan<I>& );
+        static constexpr std::false_type check( ... );
 
       public:
         static constexpr bool value =
-          std::conditional<std::is_reference<T>::value,
-                           std::false_type,
-                           decltype( check(
-                             std::declval<typename std::remove_cv<T>::type>() ) )>::type::value;
+          AllOf<Not<std::is_reference<T>>,
+                decltype( check( std::declval<typename std::remove_cv<T>::type>() ) )>::value;
       };
     } // namespace traits
 
@@ -1481,10 +1489,13 @@ namespace pgbar {
       }
 
       // Perfectly forward the I-th element of a tuple, constructing one by default if it's out of bound.
-      template<types::Size I, typename T, typename Tuple>
-      constexpr auto forward_or( Tuple&& tup ) noexcept ->
-        typename std::enable_if<( I < std::tuple_size<typename std::decay<Tuple>::type>::value ),
-                                decltype( std::get<I>( std::forward<Tuple>( tup ) ) )>::type
+      template<types::Size I,
+               typename T,
+               typename Tuple,
+               typename = typename std::enable_if<
+                 ( I < std::tuple_size<typename std::decay<Tuple>::type>::value )>::type>
+      constexpr auto forward_or( Tuple&& tup ) noexcept
+        -> decltype( std::get<I>( std::forward<Tuple>( tup ) ) )
       {
         static_assert( std::is_convertible<typename std::tuple_element<I, Tuple>::type, T>::value,
                        "pgbar::__details::traits::forward_or: Incompatible type" );
@@ -2642,7 +2653,7 @@ namespace pgbar {
         {
           {
             if ( !console::intty( Tag ) )
-              return;
+              __PGBAR_UNLIKELY return;
             std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
             if ( state_.load( std::memory_order_acquire ) == State::Dead )
               __PGBAR_UNLIKELY
@@ -4357,13 +4368,14 @@ namespace pgbar {
           requires( ( std::is_class_v<std::decay_t<R>> || std::is_array_v<std::remove_reference_t<R>> )
                     && std::is_lvalue_reference_v<R> )
         __PGBAR_NODISCARD __PGBAR_CXX17_CNSTXPR
-          scope::ProxySpan<scope::IterSpan<traits::IteratorTrait_t<R>>, Derived>
+          scope::ProxySpan<scope::IterSpan<traits::IteratorTrait_t<std::remove_reference_t<R>>>, Derived>
 # else
         __PGBAR_NODISCARD __PGBAR_CXX17_CNSTXPR typename std::enable_if<
           traits::AllOf<traits::AnyOf<std::is_class<typename std::decay<R>::type>,
                                       std::is_array<typename std::remove_reference<R>::type>>,
                         std::is_lvalue_reference<R>>::value,
-          scope::ProxySpan<scope::IterSpan<traits::IteratorTrait_t<R>>, Derived>>::type
+          scope::ProxySpan<scope::IterSpan<traits::IteratorTrait_t<typename std::remove_reference<R>::type>>,
+                           Derived>>::type
 # endif
           iterate( R&& container ) &
         { // forward it to the iterator overload
@@ -5539,8 +5551,8 @@ namespace pgbar {
         }
 
       public:
-        using ConfigType                = Config;
-        static constexpr Channel stream = Outlet;
+        using ConfigType                      = Config;
+        static constexpr Channel stream_value = Outlet;
 
         BasicBar( Config config = Config() ) noexcept : config_ { std::move( config ) } {}
 # if __PGBAR_CXX20
@@ -5629,13 +5641,14 @@ namespace pgbar {
       template<typename B>
       struct is_bar {
       private:
-        template<typename T>
-        struct Helper : std::false_type {};
         template<typename C, Channel O>
-        struct Helper<prefabs::BasicBar<C, O>> : std::true_type {};
+        static constexpr std::true_type check( const prefabs::BasicBar<C, O>& );
+        static constexpr std::false_type check( ... );
 
       public:
-        static constexpr bool value = Helper<typename std::remove_cv<B>::type>::value;
+        static constexpr bool value =
+          AllOf<Not<std::is_reference<B>>,
+                decltype( check( std::declval<typename std::remove_cv<B>::type>() ) )>::value;
       };
     } // namespace traits
   } // namespace __details
@@ -5814,15 +5827,17 @@ namespace pgbar {
     } // namespace render
 
     namespace traits {
-      template<typename B, typename = void>
-      struct is_iterable_bar : std::false_type {};
       template<typename B>
-      struct is_iterable_bar<
-        B,
-        typename std::enable_if<
-          AllOf<is_bar<B>,
-                std::is_void<decltype( std::declval<B&>().config().tasks( std::declval<types::Size>() ),
-                                       void() )>>::value>::type> : std::true_type {};
+      struct is_iterable_bar {
+      private:
+        template<typename Base, typename D>
+        static constexpr std::true_type check( const assets::TaskCounter<Base, D>& );
+        static constexpr std::false_type check( ... );
+
+      public:
+        static constexpr bool value =
+          AllOf<is_bar<B>, decltype( check( std::declval<typename std::remove_cv<B>::type>() ) )>::value;
+      };
     } // namespace traits
 
     namespace assets {
@@ -6194,15 +6209,12 @@ namespace pgbar {
 
 # if __PGBAR_CXX20
     template<__details::types::Size Pos, typename... Args>
-      requires requires( BarAt_t<Pos>& bar, Args&&... args ) {
-        { bar.iterate( std::forward<Args>( args )... ) };
-      }
+      requires __details::traits::is_iterable_bar<BarAt_t<Pos>>::value
 # else
     template<
       __details::types::Size Pos,
       typename... Args,
-      typename = typename std::enable_if<std::is_void<
-        decltype( std::declval<BarAt_t<Pos>&>().iterate( std::declval<Args>()... ), void() )>::value>::type>
+      typename = typename std::enable_if<__details::traits::is_iterable_bar<BarAt_t<Pos>>::value>::type>
 # endif
     __PGBAR_INLINE_FN auto iterate( Args&&... args ) & noexcept(
       noexcept( std::declval<BarAt_t<Pos>&>().iterate( std::forward<Args>( args )... ) ) )
@@ -6478,7 +6490,7 @@ namespace pgbar {
           return !( a == b );
         }
 
-        operator bool() const noexcept { return itr_bar_ != nullptr; }
+        constexpr explicit operator bool() const noexcept { return itr_bar_ != nullptr; }
       };
 
       __PGBAR_CXX17_CNSTXPR ProxySpan( R itr_range, B& itr_bar )
@@ -6529,6 +6541,7 @@ namespace pgbar {
       {
         a.swap( b );
       }
+      constexpr explicit operator bool() const noexcept { return empty(); }
     };
   } // namespace scope
 } // namespace pgbar

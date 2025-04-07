@@ -1,11 +1,12 @@
 ## 特点
 - **Header-only**: 所有功能都包含在 `include/pgbar` 下的单个 `.hpp` 文件中。
-- **低运行时开销**: 更新进度条的开销成本极低。
+- **低运行时开销**: 微秒级别的迭代开销。
+- **C++11 及更高版本兼容**: 支持从 C++11 到 C++23 的所有已发布标准。
 - **Unicode 支持**: 按 UTF-8 编码解析每个字符串。
 - **RGB 支持**: 可通过十六进制 RGB 值定制进度条颜色。
 - **线程安全设计**: 可以在多线程环境下安全使用。
-- **类 `tqdm` 接口**: 利用模板技巧提供了友好的使用方式。
-- **Modern C++ 规范**: （基本上）遵循 Modern C++ 的最佳实践。
+- **类 `tqdm` 接口**: 基于模板元编程的链式调用方法。
+- **Modern C++ 范式**: 利用 `constexpr`、RAII 和类型萃取实现零成本抽象。
 
 ## 样式
 ### ProgressBar
@@ -58,7 +59,7 @@ int main()
 }
 ```
 
-更多用例详见 [QuickStart_zh.md](QuickStart_zh.md) 及 [demo.cpp](../demo/demo.cpp)。
+更多用例详见 [QuickStart_zh.md](QuickStart_zh.md) 及 [demo/](../demo/)。
 
 ## FAQ
 ### 进度条的更新工作会拖慢程序本身吗？

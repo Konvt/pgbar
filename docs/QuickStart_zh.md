@@ -246,7 +246,7 @@ bar.config().disable().animation().counter();
 
 以上元素在 `CharBar` 都有同名方法，调用这些方法并向其中传递参数同样能做到修改数据信息。
 ##### 可变的进度条长度
-在元素 Starting 和 Ending 中间部分的是被称作 Animation 的进度指示器（不包括 Starting 和 Ending），这个进度指示器的长度是可变的。
+在元素 `Starting` 和 `Ending` 中间部分的是被称作 `Animation` 的进度指示器（不包括 `Starting` 和 `Ending`），这个进度指示器的长度是可变的。
 
 `pgbar` 本身极少探测与具体平台有关的信息，例如终端的宽度等；因此如果希望进度条能够填满一行，或者进度条太长需要缩窄，就需要使用到 `bar_length()` 方法或 `pgbar::option::BarLength` 包装器更改进度指示器的长度。
 
@@ -598,7 +598,7 @@ bar.config().disable().animation().counter();
 
 以上元素在 `BlckBar` 都有同名方法，调用这些方法并向其中传递参数同样能做到修改数据信息。
 ##### 可变的进度条长度
-`BlockProgressBar` 的元素 BlockBar 也被称作 Animation，它是一个使用 Unicode 方块字符实现的进度指示器，这个进度指示器的长度是可变的。
+`BlockProgressBar` 的元素 `BlockBar` 也被称作 `Animation`，它是一个使用 Unicode 方块字符实现的进度指示器，这个进度指示器的长度是可变的。
 
 `pgbar` 本身极少探测与具体平台有关的信息，例如终端的宽度等；因此如果希望进度条能够填满一行，或者进度条太长需要缩窄，就需要使用到 `bar_length()` 方法或 `pgbar::option::BarLength` 包装器更改进度指示器的长度。
 
@@ -955,7 +955,7 @@ bar.config().disable().animation().counter();
 
 以上元素在 `ScanBar` 都有同名方法，调用这些方法并向其中传递参数同样能做到修改数据信息。
 ##### 可变的进度条长度
-在元素 Starting 和 Ending 中间部分的是被称作 Animation 的扫描进度条（不包括 Starting 和 Ending），这个扫描进度条的长度是可变的。
+在元素 `Starting` 和 `Ending` 中间部分的是被称作 `Animation` 的扫描进度条（不包括 `Starting` 和 `Ending`），这个扫描进度条的长度是可变的。
 
 `pgbar` 本身极少探测与具体平台有关的信息，例如终端的宽度等；因此如果希望进度条能够填满一行，或者进度条太长需要缩窄，就需要使用到 `bar_length()` 方法或 `pgbar::option::BarLength` 包装器更改扫描进度条的长度。
 
@@ -1554,7 +1554,7 @@ int main()
     pgbar::make_multi<>( pgbar::ProgressBar<pgbar::Channel::Stdout>(), pgbar::BlockProgressBar<>() );
 
   // 创建一个固定长度、所有进度条类型都相同的 MultiBar，并使用参数提供的配置对象初始化内部所有进度条对象
-  auto bar3 = pgbar::make_multi<6>( pgbar::config::SpinBar() );
+  auto bar3 = pgbar::make_multi<6, pgbar::Channel::Stdout>( pgbar::config::SpinBar() );
   auto bar4 = pgbar::make_multi<6>( pgbar::SpinnerBar<pgbar::Channel::Stdout>() );
   // bar3 和 bar4 内部的所有进度条的配置数据都是相同的
 
@@ -1649,12 +1649,12 @@ NumericSpan& step( N step );              // 更改当前步长，会对传入�
 NumericSpan& start_value( N startpoint ); // 更改起始点数值，会对传入参数进行检查
 NumericSpan& end_value( N endpoint );     // 更改终止点数值，会对传入参数进行检查 
 
-N start_value() const noexcept;           // 返回当前起始点数值
-N end_value() const noexcept;             // 返回当前终止点数值
-N step() const noexcept;                  // 返回当前步长
-/* size_t */ size() const noexcept;       // 返回当前数值范围的步数
+N start_value() const noexcept;     // 返回当前起始点数值
+N end_value() const noexcept;       // 返回当前终止点数值
+N step() const noexcept;            // 返回当前步长
+/* size_t */ size() const noexcept; // 返回当前数值范围的步数
 
-void swap( NumericSpan& ) noexcept;       // 交换两个数值范围
+void swap( NumericSpan& ) noexcept; // 交换两个数值范围
 ```
 ### 迭代器类型
 `NumericSpan::iterator` 属于前向迭代器，重载了包括但不限于 `operator++()`、`operator++( int )`、`operator+=()`、`operator*()` 和判等运算符在内的运算符函数。
@@ -1664,7 +1664,7 @@ void swap( NumericSpan& ) noexcept;       // 交换两个数值范围
 ## `IterSpan`
 `pgbar::scope::IterSpan` 是一个模板类型，它被用于表达两个迭代器所划定的抽象范围；可以被视作是 `std::views::ref_view` 的极度简化版本。
 
-`IterSpan` 要求传入的迭代器类型必须可以复制构造或拷贝构造，并且必须能够计算两个迭代器对象之间的距离，否则会导致编译失败。
+`IterSpan` 要求传入的迭代器类型必须可以复制构造或移动构造，并且必须能够计算两个迭代器对象之间的距离，否则会导致编译失败。
 
 `IterSpan` 为指针类型提供了单独的特化版本，与主模板相比，指针类型允许直接倒置传入起始点和终止点，以表示逆序范围；而主模板只能接受逆序迭代器才能实现。
 
@@ -1720,7 +1720,7 @@ void swap( IterSpan& ) noexcept; // 交换两个抽象范围
 iterator begin() & noexcept;   // 为内部的进度条实例赋值，并返回起始迭代器
 iterator end() const noexcept; // 返回终止迭代器
 bool empty() const noexcept;   // 检查当前对象是否指向了一个有效的进度条实例
-operator bool();               // 根据求值语境转换为 bool 值，等价于调用 empty()
+explicit operator bool();      // 根据求值语境转换为 bool 值
 
 void swap( ProxySpan& ) noexcept; // 交换两个代理范围
 ```
