@@ -736,7 +736,8 @@ namespace pgbar {
         __PGBAR_CXX17_CNSTXPR IterSpanBase( IterSpanBase&& )                   = default;
         __PGBAR_CXX17_CNSTXPR IterSpanBase& operator=( const IterSpanBase& ) & = default;
         __PGBAR_CXX17_CNSTXPR IterSpanBase& operator=( IterSpanBase&& ) &      = default;
-        __PGBAR_CXX20_CNSTXPR virtual ~IterSpanBase()                          = 0;
+        // Intentional non-virtual destructors.
+        __PGBAR_CXX20_CNSTXPR ~IterSpanBase()                                  = default;
 
         __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR I& start_iter() & noexcept { return start_; }
         __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR const I& start_iter() const& noexcept { return start_; }
@@ -777,8 +778,6 @@ namespace pgbar {
           a.swap( b );
         }
       };
-      template<typename I>
-      __PGBAR_CXX20_CNSTXPR IterSpanBase<I>::~IterSpanBase() = default;
 
 # if __PGBAR_CXX23
       template<typename... Signature>
@@ -1110,7 +1109,7 @@ namespace pgbar {
       __PGBAR_CXX20_CNSTXPR explicit NumericSpan( N endpoint ) : NumericSpan( {}, endpoint, 1 ) {}
       constexpr NumericSpan( const NumericSpan& )                          = default;
       __PGBAR_CXX14_CNSTXPR NumericSpan& operator=( const NumericSpan& ) & = default;
-      __PGBAR_CXX20_CNSTXPR virtual ~NumericSpan()                         = default;
+      __PGBAR_CXX20_CNSTXPR ~NumericSpan()                                 = default;
 
       __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr iterator begin() const noexcept
       {
@@ -1287,7 +1286,7 @@ namespace pgbar {
       __PGBAR_CXX17_CNSTXPR IterSpan( IterSpan&& )                   = default;
       __PGBAR_CXX17_CNSTXPR IterSpan& operator=( const IterSpan& ) & = default;
       __PGBAR_CXX17_CNSTXPR IterSpan& operator=( IterSpan&& ) &      = default;
-      __PGBAR_CXX20_CNSTXPR virtual ~IterSpan()                      = default;
+      __PGBAR_CXX20_CNSTXPR ~IterSpan()                              = default;
 
       __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr iterator begin() const
         noexcept( __details::traits::AllOf<std::is_nothrow_move_constructible<I>,
@@ -1387,7 +1386,7 @@ namespace pgbar {
       }
       __PGBAR_CXX20_CNSTXPR IterSpan( const IterSpan& )              = default;
       __PGBAR_CXX20_CNSTXPR IterSpan& operator=( const IterSpan& ) & = default;
-      __PGBAR_CXX20_CNSTXPR virtual ~IterSpan()                      = default;
+      __PGBAR_CXX20_CNSTXPR ~IterSpan()                              = default;
 
       __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr iterator begin() const noexcept
       {
@@ -2112,7 +2111,8 @@ namespace pgbar {
           return *this;
         }
 
-        __PGBAR_CXX20_CNSTXPR virtual ~Stringbuf() = default;
+        // Intentional non-virtual destructors.
+        __PGBAR_CXX20_CNSTXPR ~Stringbuf() = default;
 
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR bool empty() const noexcept { return buffer_.empty(); }
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void clear() & noexcept { buffer_.clear(); }
@@ -2222,7 +2222,8 @@ namespace pgbar {
 
         __PGBAR_CXX20_CNSTXPR OStream( const Self& )           = delete;
         __PGBAR_CXX20_CNSTXPR Self& operator=( const Self& ) & = delete;
-        __PGBAR_CXX20_CNSTXPR virtual ~OStream()               = default;
+        // Intentional non-virtual destructors.
+        __PGBAR_CXX20_CNSTXPR ~OStream()                       = default;
 
         Self& flush() &
         {
@@ -2742,6 +2743,39 @@ namespace pgbar {
       template<Channel Tag>
       concurrent::SharedMutex Renderer<Tag>::_rw_mtx {};
     } // namespace render
+
+    namespace assets {
+      template<typename T>
+      struct OptionWrapper {
+      protected:
+        T data_;
+
+        constexpr OptionWrapper() = default;
+        constexpr OptionWrapper( T&& data ) noexcept( std::is_nothrow_move_constructible<T>::value )
+          : data_ { std::move( data ) }
+        {}
+
+      public:
+        constexpr OptionWrapper( const OptionWrapper& )                          = default;
+        constexpr OptionWrapper( OptionWrapper&& )                               = default;
+        __PGBAR_CXX14_CNSTXPR OptionWrapper& operator=( const OptionWrapper& ) & = default;
+        __PGBAR_CXX14_CNSTXPR OptionWrapper& operator=( OptionWrapper&& ) &      = default;
+
+        // Intentional non-virtual destructors.
+        __PGBAR_CXX20_CNSTXPR ~OptionWrapper() = default;
+        __PGBAR_CXX14_CNSTXPR T& value() & noexcept { return data_; }
+        __PGBAR_CXX14_CNSTXPR const T& value() const& noexcept { return data_; }
+        __PGBAR_CXX14_CNSTXPR T&& value() && noexcept { return std::move( data_ ); }
+
+        __PGBAR_CXX20_CNSTXPR void swap( T& lhs ) noexcept
+        {
+          __PGBAR_PURE_ASSUME( this != &lhs );
+          using std::swap;
+          swap( data_, lhs.data_ );
+        }
+        friend __PGBAR_CXX20_CNSTXPR void swap( T& a, T& b ) noexcept { a.swap( b ); }
+      };
+    } // namespace assets
   } // namespace __details
 
   namespace color {
@@ -2757,56 +2791,39 @@ namespace pgbar {
   } // namespace color
 
   namespace option {
-# define __PGBAR_OPTIONS( StructName, ValueType )                                  \
- private:                                                                          \
-   ValueType data_;                                                                \
-                                                                                   \
- public:                                                                           \
-   __PGBAR_CXX20_CNSTXPR ~StructName() = default;                                  \
-   __PGBAR_CXX14_CNSTXPR ValueType& value() noexcept                               \
-   {                                                                               \
-     return data_;                                                                 \
-   }                                                                               \
-   __PGBAR_CXX20_CNSTXPR void swap( StructName& lhs ) noexcept                     \
-   {                                                                               \
-     __PGBAR_PURE_ASSUME( this != &lhs );                                          \
-     using std::swap;                                                              \
-     swap( data_, lhs.data_ );                                                     \
-   }                                                                               \
-   friend __PGBAR_CXX20_CNSTXPR void swap( StructName& a, StructName& b ) noexcept \
-   {                                                                               \
-     a.swap( b );                                                                  \
-   }
-
-# define __PGBAR_OPTIONS_HELPER( StructName, ValueType, ParamName )              \
-   __PGBAR_OPTIONS( StructName, ValueType )                                      \
-   constexpr StructName( ValueType ParamName ) noexcept : data_ { ParamName } {} \
-   constexpr StructName( const StructName& )                         = default;  \
-   __PGBAR_CXX14_CNSTXPR StructName& operator=( const StructName& )& = default;
+    // The purpose of generating code with macros here is to annotate each type and method to provide more
+    // friendly IDE access.
+# define __PGBAR_BASE( ValueType ) \
+ public                            \
+   __details::assets::OptionWrapper<ValueType>
+# define __PGBAR_OPTIONS( StructName, ValueType, ParamName )                 \
+   constexpr StructName( ValueType ParamName ) noexcept                      \
+     : __details::assets::OptionWrapper<ValueType>( std::move( ParamName ) ) \
+   {}
 
     // A wrapper that stores the value of the bit option setting.
-    struct Style final {
-      __PGBAR_OPTIONS_HELPER( Style, __details::types::Byte, _settings )
+    struct Style final : __PGBAR_BASE( __details::types::Byte ) {
+      __PGBAR_OPTIONS( Style, __details::types::Byte, _settings )
     };
 
     // A wrapper that stores the value of the color effect setting.
-    struct Colored final {
-      __PGBAR_OPTIONS_HELPER( Colored, bool, _enable )
+    struct Colored final : __PGBAR_BASE( bool ) {
+      __PGBAR_OPTIONS( Colored, bool, _enable )
     };
 
     // A wrapper that stores the value of the font boldness setting.
-    struct Bolded final {
-      __PGBAR_OPTIONS_HELPER( Bolded, bool, _enable )
+    struct Bolded final : __PGBAR_BASE( bool ) {
+      __PGBAR_OPTIONS( Bolded, bool, _enable )
     };
 
     // A wrapper that stores the number of tasks.
-    struct Tasks final {
-      __PGBAR_OPTIONS_HELPER( Tasks, __details::types::Size, _num_tasks )
+    struct Tasks final : __PGBAR_BASE( __details::types::Size ) {
+      __PGBAR_OPTIONS( Tasks, __details::types::Size, _num_tasks )
     };
 
     // A wrapper that stores the length of the bar indicator, in the character unit.
-    struct BarLength final {
-      __PGBAR_OPTIONS_HELPER( BarLength, __details::types::Size, _num_char )
+    struct BarLength final : __PGBAR_BASE( __details::types::Size ) {
+      __PGBAR_OPTIONS( BarLength, __details::types::Size, _num_char )
     };
 
     /**
@@ -2822,8 +2839,8 @@ namespace pgbar {
      *
      * The effective range is between -128 (slowest) and 127 (fastest).
      */
-    struct Shift final {
-      __PGBAR_OPTIONS_HELPER( Shift, std::int8_t, _shift_factor )
+    struct Shift final : __PGBAR_BASE( std::int8_t ) {
+      __PGBAR_OPTIONS( Shift, std::int8_t, _shift_factor )
     };
 
     /**
@@ -2838,141 +2855,140 @@ namespace pgbar {
      *
      * - Typical usage: 1000 (decimal) or 1024 (binary) scaling.
      */
-    struct Magnitude final {
-      __PGBAR_OPTIONS_HELPER( Magnitude, std::uint16_t, _magnitude )
+    struct Magnitude final : __PGBAR_BASE( std::uint16_t ) {
+      __PGBAR_OPTIONS( Magnitude, std::uint16_t, _magnitude )
     };
 
-# undef __PGBAR_OPTIONS_HELPER
+# undef __PGBAR_OPTIONS
 # if __PGBAR_CXX20
-#  define __PGBAR_OPTIONS_HELPER( StructName, ParamName )                  \
-    __PGBAR_OPTIONS( StructName, __details::charcodes::U8String )          \
-    /**                                                                    \
-     * @throw exception::InvalidArgument                                   \
-     *                                                                     \
-     * If the passed parameter is not coding in UTF-8.                     \
-     */                                                                    \
-    __PGBAR_CXX20_CNSTXPR StructName( __details::types::String ParamName ) \
-      : data_ { std::move( ParamName ) }                                   \
-    {}                                                                     \
-    StructName( std::u8string_view ParamName ) : data_ { ParamName } {}
+#  define __PGBAR_OPTIONS( StructName, ValueType, ParamName )                              \
+    /**                                                                                    \
+     * @throw exception::InvalidArgument                                                   \
+     *                                                                                     \
+     * If the passed parameter is not coding in UTF-8.                                     \
+     */                                                                                    \
+    __PGBAR_CXX20_CNSTXPR StructName( __details::types::String ParamName )                 \
+      : __details::assets::OptionWrapper<ValueType>( ValueType( std::move( ParamName ) ) ) \
+    {}                                                                                     \
+    StructName( std::u8string_view ParamName )                                             \
+      : __details::assets::OptionWrapper<ValueType>( ValueType( std::move( ParamName ) ) ) \
+    {}
 # else
-#  define __PGBAR_OPTIONS_HELPER( StructName, ParamName )                  \
-    __PGBAR_OPTIONS( StructName, __details::charcodes::U8String )          \
-    __PGBAR_CXX20_CNSTXPR StructName( __details::types::String ParamName ) \
-      : data_ { std::move( ParamName ) }                                   \
+#  define __PGBAR_OPTIONS( StructName, ValueType, ParamName )                              \
+    __PGBAR_CXX20_CNSTXPR StructName( __details::types::String ParamName )                 \
+      : __details::assets::OptionWrapper<ValueType>( ValueType( std::move( ParamName ) ) ) \
     {}
 # endif
 
     // A wrapper that stores the characters of the filler in the bar indicator.
-    struct Filler final {
-      __PGBAR_OPTIONS_HELPER( Filler, _filler )
+    struct Filler final : __PGBAR_BASE( __details::charcodes::U8String ) {
+      __PGBAR_OPTIONS( Filler, __details::charcodes::U8String, _filler )
     };
 
     // A wrapper that stores the characters of the remains in the bar indicator.
-    struct Remains final {
-      __PGBAR_OPTIONS_HELPER( Remains, _remains )
+    struct Remains final : __PGBAR_BASE( __details::charcodes::U8String ) {
+      __PGBAR_OPTIONS( Remains, __details::charcodes::U8String, _remains )
     };
 
     // A wrapper that stores characters located to the left of the bar indicator.
-    struct Starting final {
-      __PGBAR_OPTIONS_HELPER( Starting, _starting )
+    struct Starting final : __PGBAR_BASE( __details::charcodes::U8String ) {
+      __PGBAR_OPTIONS( Starting, __details::charcodes::U8String, _starting )
     };
 
     // A wrapper that stores characters located to the right of the bar indicator.
-    struct Ending final {
-      __PGBAR_OPTIONS_HELPER( Ending, _ending )
+    struct Ending final : __PGBAR_BASE( __details::charcodes::U8String ) {
+      __PGBAR_OPTIONS( Ending, __details::charcodes::U8String, _ending )
     };
 
     // A wrapper that stores the description text.
-    struct Description final {
-      __PGBAR_OPTIONS_HELPER( Description, _desc )
+    struct Description final : __PGBAR_BASE( __details::charcodes::U8String ) {
+      __PGBAR_OPTIONS( Description, __details::charcodes::U8String, _desc )
     };
 
     // A wrapper that stores the `true` message text.
-    struct TrueMesg final {
-      __PGBAR_OPTIONS_HELPER( TrueMesg, _true_mesg )
+    struct TrueMesg final : __PGBAR_BASE( __details::charcodes::U8String ) {
+      __PGBAR_OPTIONS( TrueMesg, __details::charcodes::U8String, _true_mesg )
     };
 
     // A wrapper that stores the `false` message text.
-    struct FalseMesg final {
-      __PGBAR_OPTIONS_HELPER( FalseMesg, _false_mesg )
+    struct FalseMesg final : __PGBAR_BASE( __details::charcodes::U8String ) {
+      __PGBAR_OPTIONS( FalseMesg, __details::charcodes::U8String, _false_mesg )
     };
 
     // A wrapper that stores the separator component used to separate different infomation.
-    struct Divider final {
-      __PGBAR_OPTIONS_HELPER( Divider, _divider )
+    struct Divider final : __PGBAR_BASE( __details::charcodes::U8String ) {
+      __PGBAR_OPTIONS( Divider, __details::charcodes::U8String, _divider )
     };
 
     // A wrapper that stores the border component located to the left of the whole indicator.
-    struct LeftBorder final {
-      __PGBAR_OPTIONS_HELPER( LeftBorder, _l_border )
+    struct LeftBorder final : __PGBAR_BASE( __details::charcodes::U8String ) {
+      __PGBAR_OPTIONS( LeftBorder, __details::charcodes::U8String, _l_border )
     };
 
     // A wrapper that stores the border component located to the right of the whole indicator.
-    struct RightBorder final {
-      __PGBAR_OPTIONS_HELPER( RightBorder, _r_border )
+    struct RightBorder final : __PGBAR_BASE( __details::charcodes::U8String ) {
+      __PGBAR_OPTIONS( RightBorder, __details::charcodes::U8String, _r_border )
     };
 
-# undef __PGBAR_OPTIONS_HELPER
-# define __PGBAR_OPTIONS_HELPER( StructName, ParamName )                                         \
-   __PGBAR_OPTIONS( StructName, __details::types::String )                                       \
-   StructName( __details::types::ROStr ParamName )                                               \
-     : data_ { __details::console::escodes::rgb2ansi( __details::utils::hex2rgb( ParamName ) ) } \
-   {}                                                                                            \
-   StructName( __details::types::HexRGB ParamName )                                              \
-     : data_ { __details::console::escodes::rgb2ansi( ParamName ) }                              \
-   {}                                                                                            \
-   StructName( const StructName& )                                   = default;                  \
-   StructName( StructName&& )                                        = default;                  \
-   __PGBAR_CXX23_CNSTXPR StructName& operator=( const StructName& )& = default;                  \
-   __PGBAR_CXX23_CNSTXPR StructName& operator=( StructName&& )&      = default;
+# undef __PGBAR_OPTIONS
+# define __PGBAR_OPTIONS( StructName, ValueType, ParamName )                                   \
+ private:                                                                                      \
+   using Base = __details::assets::OptionWrapper<ValueType>;                                   \
+                                                                                               \
+ public:                                                                                       \
+   StructName( __details::types::ROStr ParamName )                                             \
+     : Base( __details::console::escodes::rgb2ansi( __details::utils::hex2rgb( ParamName ) ) ) \
+   {}                                                                                          \
+   StructName( __details::types::HexRGB ParamName )                                            \
+     : Base( __details::console::escodes::rgb2ansi( ParamName ) )                              \
+   {}
 
     // A wrapper that stores the description text color.
-    struct DescColor final {
-      __PGBAR_OPTIONS_HELPER( DescColor, _desc_color )
+    struct DescColor final : __PGBAR_BASE( __details::types::String ) {
+      __PGBAR_OPTIONS( DescColor, __details::types::String, _desc_color )
     };
 
     // A wrapper that stores the `true` message text color.
-    struct TrueColor final {
-      __PGBAR_OPTIONS_HELPER( TrueColor, _true_color )
+    struct TrueColor final : __PGBAR_BASE( __details::types::String ) {
+      __PGBAR_OPTIONS( TrueColor, __details::types::String, _true_color )
     };
 
     // A wrapper that stores the `false` message text color.
-    struct FalseColor final {
-      __PGBAR_OPTIONS_HELPER( FalseColor, _false_color )
+    struct FalseColor final : __PGBAR_BASE( __details::types::String ) {
+      __PGBAR_OPTIONS( FalseColor, __details::types::String, _false_color )
     };
 
     // A wrapper that stores the color of component located to the left of the bar indicator.
-    struct StartColor final {
-      __PGBAR_OPTIONS_HELPER( StartColor, _start_color )
+    struct StartColor final : __PGBAR_BASE( __details::types::String ) {
+      __PGBAR_OPTIONS( StartColor, __details::types::String, _start_color )
     };
 
     // A wrapper that stores the color of component located to the right of the bar indicator.
-    struct EndColor final {
-      __PGBAR_OPTIONS_HELPER( EndColor, _end_color )
+    struct EndColor final : __PGBAR_BASE( __details::types::String ) {
+      __PGBAR_OPTIONS( EndColor, __details::types::String, _end_color )
     };
 
     // A wrapper that stores the color of the filler in the bar indicator.
-    struct FillerColor final {
-      __PGBAR_OPTIONS_HELPER( FillerColor, _filler_color )
+    struct FillerColor final : __PGBAR_BASE( __details::types::String ) {
+      __PGBAR_OPTIONS( FillerColor, __details::types::String, _filler_color )
     };
 
     // A wrapper that stores the color of the remains in the bar indicator.
-    struct RemainsColor final {
-      __PGBAR_OPTIONS_HELPER( RemainsColor, _remains_color )
+    struct RemainsColor final : __PGBAR_BASE( __details::types::String ) {
+      __PGBAR_OPTIONS( RemainsColor, __details::types::String, _remains_color )
     };
 
     // A wrapper that stores the color of the lead in the bar indicator.
-    struct LeadColor final {
-      __PGBAR_OPTIONS_HELPER( LeadColor, _lead_color )
+    struct LeadColor final : __PGBAR_BASE( __details::types::String ) {
+      __PGBAR_OPTIONS( LeadColor, __details::types::String, _lead_color )
     };
 
     // A wrapper that stores the color of the whole infomation indicator.
-    struct InfoColor final {
-      __PGBAR_OPTIONS_HELPER( InfoColor, _info_color )
+    struct InfoColor final : __PGBAR_BASE( __details::types::String ) {
+      __PGBAR_OPTIONS( InfoColor, __details::types::String, _info_color )
     };
 
-# undef __PGBAR_OPTIONS_HELPER
+# undef __PGBAR_OPTIONS
 
     /**
      * A wrapper that stores ordered units for information rate formatting (e.g. B/s, kB/s).
@@ -2993,8 +3009,7 @@ namespace pgbar {
      * @throw exception::InvalidArgument
      *   Thrown if any input string fails UTF-8 validation or the array size mismatches.
      */
-    struct SpeedUnit final {
-      __PGBAR_OPTIONS( SpeedUnit, __PGBAR_PACK( std::array<__details::charcodes::U8String, 4> ) )
+    struct SpeedUnit final : __PGBAR_BASE( __PGBAR_PACK( std::array<__details::charcodes::U8String, 4> ) ) {
       /**
        * @throw exception::InvalidArgument
        *
@@ -3004,7 +3019,7 @@ namespace pgbar {
        * The given each unit will be treated as 1,000 times greater than the previous one
        * (from left to right).
        */
-      __PGBAR_CXX20_CNSTXPR SpeedUnit( std::array<__details::types::String, 4> _units ) : data_ {}
+      __PGBAR_CXX20_CNSTXPR SpeedUnit( std::array<__details::types::String, 4> _units )
       {
         std::transform( std::make_move_iterator( _units.begin() ),
                         std::make_move_iterator( _units.end() ),
@@ -3019,28 +3034,27 @@ namespace pgbar {
        * The given each unit will be treated as 1,000 times greater than the previous one
        * (from left to right).
        */
-      __PGBAR_CXX20_CNSTXPR SpeedUnit( std::array<std::u8string_view, 4> _units ) : data_ {}
+      __PGBAR_CXX20_CNSTXPR SpeedUnit( std::array<std::u8string_view, 4> _units )
       {
         std::transform( _units.cbegin(), _units.cend(), data_.begin(), []( const std::u8string_view& ele ) {
           return __details::charcodes::U8String( ele );
         } );
       }
 # endif
-      __PGBAR_CXX20_CNSTXPR SpeedUnit( const SpeedUnit& )              = default;
-      __PGBAR_CXX20_CNSTXPR SpeedUnit( SpeedUnit&& )                   = default;
-      __PGBAR_CXX20_CNSTXPR SpeedUnit& operator=( const SpeedUnit& ) & = default;
-      __PGBAR_CXX20_CNSTXPR SpeedUnit& operator=( SpeedUnit&& ) &      = default;
     };
 
     // A wrapper that stores the `lead` animated element.
-    struct Lead final {
-      __PGBAR_OPTIONS( Lead, std::vector<__details::charcodes::U8String> )
+    struct Lead final : __PGBAR_BASE( std::vector<__details::charcodes::U8String> ) {
+    private:
+      using Base = __details::assets::OptionWrapper<std::vector<__details::charcodes::U8String>>;
+
+    public:
       /**
        * @throw exception::InvalidArgument
        *
        * If the passed parameters are not coding in UTF-8.
        */
-      __PGBAR_CXX20_CNSTXPR Lead( std::vector<__details::types::String> _leads ) : data_ {}
+      __PGBAR_CXX20_CNSTXPR Lead( std::vector<__details::types::String> _leads )
       {
         std::transform( std::make_move_iterator( _leads.begin() ),
                         std::make_move_iterator( _leads.end() ),
@@ -3055,10 +3069,10 @@ namespace pgbar {
        * If the passed parameters are not coding in UTF-8.
        */
       __PGBAR_CXX20_CNSTXPR Lead( __details::types::String _lead )
-        : data_ { __details::charcodes::U8String( std::move( _lead ) ) }
+        : Base( { __details::charcodes::U8String( std::move( _lead ) ) } )
       {}
 # if __PGBAR_CXX20
-      __PGBAR_CXX20_CNSTXPR Lead( std::vector<std::u8string_view> _leads ) : data_ {}
+      __PGBAR_CXX20_CNSTXPR Lead( std::vector<std::u8string_view> _leads )
       {
         std::transform(
           _leads.cbegin(),
@@ -3066,15 +3080,12 @@ namespace pgbar {
           std::back_inserter( data_ ),
           []( const std::u8string_view& ele ) { return __details::charcodes::U8String( ele ); } );
       }
-      Lead( const std::u8string_view& _lead ) : data_ { __details::charcodes::U8String( _lead ) } {}
+      Lead( const std::u8string_view& _lead ) : Base( { __details::charcodes::U8String( _lead ) } ) {}
 # endif
-      __PGBAR_CXX20_CNSTXPR Lead( const Lead& )              = default;
-      __PGBAR_CXX20_CNSTXPR Lead( Lead&& )                   = default;
-      __PGBAR_CXX20_CNSTXPR Lead& operator=( const Lead& ) & = default;
-      __PGBAR_CXX20_CNSTXPR Lead& operator=( Lead&& ) &      = default;
     };
 
 # undef __PGBAR_OPTIONS
+# undef __PGBAR_BASE
   } // namespace option
 
   namespace __details {
@@ -3085,7 +3096,7 @@ namespace pgbar {
    Constexpr ClassName( ClassName&& )                  = default; \
    Constexpr ClassName& operator=( const ClassName& )& = default; \
    Constexpr ClassName& operator=( ClassName&& )&      = default; \
-   __PGBAR_CXX20_CNSTXPR virtual ~ClassName()          = 0;
+   __PGBAR_CXX20_CNSTXPR ~ClassName()                  = default;
 
 # define __PGBAR_EMPTY_CLASS( ClassName )                                     \
    constexpr ClassName()                                           = default; \
@@ -3093,7 +3104,7 @@ namespace pgbar {
    constexpr ClassName( ClassName&& )                              = default; \
    __PGBAR_CXX14_CNSTXPR ClassName& operator=( const ClassName& )& = default; \
    __PGBAR_CXX14_CNSTXPR ClassName& operator=( ClassName&& )&      = default; \
-   __PGBAR_CXX20_CNSTXPR virtual ~ClassName()                      = 0;
+   __PGBAR_CXX20_CNSTXPR ~ClassName()                              = default;
 
       template<typename Derived>
       class Core {
@@ -3138,7 +3149,7 @@ namespace pgbar {
           fonts_ = rhs.fonts_;
           return *this;
         }
-        __PGBAR_CXX20_CNSTXPR virtual ~Core() = 0;
+        __PGBAR_CXX20_CNSTXPR ~Core() = default;
 
 # define __PGBAR_METHOD( OptionName, ParamName )              \
                                                               \
@@ -3165,8 +3176,6 @@ namespace pgbar {
 
         __PGBAR_CXX14_CNSTXPR void swap( Core& lhs ) noexcept { std::swap( fonts_, lhs.fonts_ ); }
       };
-      template<typename Derived>
-      __PGBAR_CXX20_CNSTXPR Core<Derived>::~Core() = default;
 
       template<typename Base, typename Derived>
       class TaskQuantity : public Base {
@@ -3202,8 +3211,6 @@ namespace pgbar {
           Base::swap( lhs );
         }
       };
-      template<typename Base, typename Derived>
-      __PGBAR_CXX20_CNSTXPR TaskQuantity<Base, Derived>::~TaskQuantity() = default;
 
       template<typename Base, typename Derived>
       class BasicAnimation : public Base {
@@ -3306,8 +3313,6 @@ namespace pgbar {
           Base::swap( lhs );
         }
       };
-      template<typename Base, typename Derived>
-      __PGBAR_CXX20_CNSTXPR BasicAnimation<Base, Derived>::~BasicAnimation() = default;
 
       template<typename Base, typename Derived>
       class BasicIndicator : public Base {
@@ -3410,8 +3415,6 @@ namespace pgbar {
           Base::swap( lhs );
         }
       };
-      template<typename Base, typename Derived>
-      __PGBAR_CXX20_CNSTXPR BasicIndicator<Base, Derived>::~BasicIndicator() = default;
 
       template<typename Base, typename Derived>
       class CharIndicator : public Base {
@@ -3523,8 +3526,6 @@ namespace pgbar {
           Base::swap( lhs );
         }
       };
-      template<typename Base, typename Derived>
-      __PGBAR_CXX20_CNSTXPR CharIndicator<Base, Derived>::~CharIndicator() = default;
 
       template<typename Base, typename Derived>
       class BlockIndicator : public Base {
@@ -3582,10 +3583,8 @@ namespace pgbar {
           Base::operator=( std::move( rhs ) );
           return *this;
         }
-        __PGBAR_CXX20_CNSTXPR virtual ~BlockIndicator() = 0;
+        __PGBAR_CXX20_CNSTXPR ~BlockIndicator() = default;
       };
-      template<typename Base, typename Derived>
-      __PGBAR_CXX20_CNSTXPR BlockIndicator<Base, Derived>::~BlockIndicator() = default;
 
       template<typename Base, typename Derived>
       class Spinner : public Base {
@@ -3609,8 +3608,6 @@ namespace pgbar {
       public:
         __PGBAR_EMPTY_CLASS( Spinner )
       };
-      template<typename Base, typename Derived>
-      __PGBAR_CXX20_CNSTXPR Spinner<Base, Derived>::~Spinner() = default;
 
       template<typename Base, typename Derived>
       class Scanner : public Base {
@@ -3686,8 +3683,6 @@ namespace pgbar {
           Base::swap( lhs );
         }
       };
-      template<typename Base, typename Derived>
-      __PGBAR_CXX20_CNSTXPR Scanner<Base, Derived>::~Scanner() = default;
 
       template<typename Base, typename Derived>
       class Description : public Base {
@@ -3811,8 +3806,6 @@ namespace pgbar {
           Base::swap( lhs );
         }
       };
-      template<typename Base, typename Derived>
-      __PGBAR_CXX20_CNSTXPR Description<Base, Derived>::~Description() = default;
 
       template<typename Base, typename Derived>
       class Segment : public Base {
@@ -3922,8 +3915,6 @@ namespace pgbar {
           Base::swap( lhs );
         }
       };
-      template<typename Base, typename Derived>
-      __PGBAR_CXX20_CNSTXPR Segment<Base, Derived>::~Segment() = default;
 
       template<typename Base, typename Derived>
       class PercentMeter : public Base {
@@ -3953,8 +3944,6 @@ namespace pgbar {
       public:
         __PGBAR_EMPTY_CLASS( PercentMeter )
       };
-      template<typename Base, typename Derived>
-      __PGBAR_CXX20_CNSTXPR PercentMeter<Base, Derived>::~PercentMeter() = default;
 
       template<typename Base, typename Derived>
       class SpeedMeter : public Base {
@@ -4072,8 +4061,6 @@ namespace pgbar {
           Base::swap( lhs );
         }
       };
-      template<typename Base, typename Derived>
-      __PGBAR_CXX20_CNSTXPR SpeedMeter<Base, Derived>::~SpeedMeter() = default;
 
       template<typename Base, typename Derived>
       class CounterMeter : public Base {
@@ -4101,8 +4088,6 @@ namespace pgbar {
       public:
         __PGBAR_EMPTY_CLASS( CounterMeter )
       };
-      template<typename Base, typename Derived>
-      __PGBAR_CXX20_CNSTXPR CounterMeter<Base, Derived>::~CounterMeter() = default;
 
       template<typename Base, typename Derived>
       class Timer : public Base {
@@ -4178,8 +4163,6 @@ namespace pgbar {
       public:
         __PGBAR_EMPTY_CLASS( Timer )
       };
-      template<typename Base, typename Derived>
-      __PGBAR_CXX20_CNSTXPR Timer<Base, Derived>::~Timer() = default;
 
       template<typename Base, typename Derived>
       class TaskCounter : public Base {
@@ -4410,10 +4393,15 @@ namespace pgbar {
       template<typename Base, typename Derived>
       class FrameCounter : public Base {
       protected:
-        __details::types::Size idx_frame_;
+        types::Size idx_frame_;
 
       public:
-        __PGBAR_EMPTY_CLASS( FrameCounter )
+        constexpr FrameCounter()                                               = default;
+        constexpr FrameCounter( const FrameCounter& )                          = default;
+        constexpr FrameCounter( FrameCounter&& )                               = default;
+        __PGBAR_CXX14_CNSTXPR FrameCounter& operator=( const FrameCounter& ) & = default;
+        __PGBAR_CXX14_CNSTXPR FrameCounter& operator=( FrameCounter&& ) &      = default;
+        __PGBAR_CXX20_CNSTXPR virtual ~FrameCounter()                          = 0;
       };
       template<typename Base, typename Derived>
       __PGBAR_CXX20_CNSTXPR FrameCounter<Base, Derived>::~FrameCounter() = default;
@@ -4684,7 +4672,12 @@ namespace pgbar {
           Base::operator=( std::move( rhs ) );
           return *this;
         }
-        virtual ~BasicConfig() = default;
+        /**
+         * Note: Because there are no exposed public base classes for config type,
+         * there should be no scenarios for managing derived objects using base class references.
+         * So the destructor here is deliberately set to be non-virtual.
+         */
+        ~BasicConfig() = default;
 
         Derived& style( types::Byte val ) &
         {
@@ -4812,7 +4805,7 @@ namespace pgbar {
       CharBar( CharBar&& )                   = default;
       CharBar& operator=( const CharBar& ) & = default;
       CharBar& operator=( CharBar&& ) &      = default;
-      virtual ~CharBar()                     = default;
+      ~CharBar()                             = default;
     };
 
     class BlckBar : public __details::prefabs::BasicConfig<__details::assets::BlockIndicator, BlckBar> {
@@ -4858,7 +4851,7 @@ namespace pgbar {
       BlckBar( BlckBar&& )                   = default;
       BlckBar& operator=( const BlckBar& ) & = default;
       BlckBar& operator=( BlckBar&& ) &      = default;
-      virtual ~BlckBar()                     = default;
+      ~BlckBar()                             = default;
     };
 
     class SpinBar : public __details::prefabs::BasicConfig<__details::assets::Spinner, SpinBar> {
@@ -4908,7 +4901,7 @@ namespace pgbar {
       SpinBar( SpinBar&& )                   = default;
       SpinBar& operator=( const SpinBar& ) & = default;
       SpinBar& operator=( SpinBar&& ) &      = default;
-      virtual ~SpinBar()                     = default;
+      ~SpinBar()                             = default;
     };
 
     class ScanBar : public __details::prefabs::BasicConfig<__details::assets::Scanner, ScanBar> {
@@ -4964,7 +4957,7 @@ namespace pgbar {
       ScanBar( ScanBar&& )                   = default;
       ScanBar& operator=( const ScanBar& ) & = default;
       ScanBar& operator=( ScanBar&& ) &      = default;
-      virtual ~ScanBar()                     = default;
+      ~ScanBar()                             = default;
     };
   } // namespace config
 
@@ -5009,7 +5002,7 @@ namespace pgbar {
           : Config( config )
         {}
         CommonBuilder( Config&& config ) noexcept : Config( std::move( config ) ) {}
-        virtual ~CommonBuilder() = default;
+        ~CommonBuilder() = default;
 
 # define __PGBAR_METHOD( ParamType, Operation, Noexcept )  \
    CommonBuilder& operator=( ParamType config ) & Noexcept \
@@ -6512,7 +6505,8 @@ namespace pgbar {
         rhs.itr_bar_ = nullptr;
         return *this;
       }
-      __PGBAR_CXX20_CNSTXPR virtual ~ProxySpan() = default;
+      // Intentional non-virtual destructors.
+      __PGBAR_CXX20_CNSTXPR ~ProxySpan() = default;
 
       /**
        * This function CHANGES the state of the pgbar object it holds.
