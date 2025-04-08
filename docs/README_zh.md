@@ -48,7 +48,7 @@ int main()
 {
   pgbar::ProgressBar<> bar { pgbar::option::Remains( "-" ),
                              pgbar::option::Filler( "=" ),
-                             pgbar::option::Styles( pgbar::configs::CharBar::Entire ),
+                             pgbar::option::Styles( pgbar::config::CharBar::Entire ),
                              pgbar::option::TodoColor( "#A52A2A" ),
                              pgbar::option::DoneColor( 0x0099FF ),
                              pgbar::option::StatusColor( pgbar::color::Yellow ),
@@ -67,7 +67,7 @@ int main()
 
 在开启 `O2/O3` 优化的情况下，下面代码中的第二个迭代的性能开销会*趋近于*上面迭代的开销[^1]。
 
-[^1]: 实际上进度条更新的代码会仅多出一次函数调用跳转、以及条件分支的开销。
+[^1]: 实际上进度条更新的代码会仅多出若干次调用跳转和分支的开销。
 
 ```cpp
 #include "pgbar/pgbar.hpp"
@@ -78,7 +78,7 @@ int main()
   for ( std::size_t _ = 0; _ < 2147483647; ++_ )
     ++count;
 
-  pgbar::ProgressBar<> bar { pgbar::options::Tasks( 2147483647 ) };
+  pgbar::ProgressBar<> bar { pgbar::option::Tasks( 2147483647 ) };
   for ( std::size_t _ = 0; _ < 2147483647; ++_ )
     bar.tick();
 }

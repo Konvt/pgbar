@@ -106,18 +106,16 @@
 # if __PGBAR_CC_STD >= 201703L
 #  include <charconv>
 #  include <string_view>
-#  define __PGBAR_CXX17           1
-#  define __PGBAR_CXX17_CNSTXPR   constexpr
-#  define __PGBAR_CXX17_INLINE    inline
-#  define __PGBAR_FALLTHROUGH     [[fallthrough]]
-#  define __PGBAR_NODISCARD       [[nodiscard]]
-#  define __PGBAR_LAUNDER( expr ) std::launder( expr )
+#  define __PGBAR_CXX17         1
+#  define __PGBAR_CXX17_CNSTXPR constexpr
+#  define __PGBAR_CXX17_INLINE  inline
+#  define __PGBAR_FALLTHROUGH   [[fallthrough]]
+#  define __PGBAR_NODISCARD     [[nodiscard]]
 # else
 #  define __PGBAR_CXX17 0
 #  define __PGBAR_CXX17_CNSTXPR
 #  define __PGBAR_CXX17_INLINE
 #  define __PGBAR_FALLTHROUGH
-#  define __PGBAR_LAUNDER( expr ) expr
 #  if defined( _MSC_VER )
 #   define __PGBAR_NODISCARD _Check_return_
 #  elif defined( __clang__ ) || defined( __GNUC__ )
@@ -305,7 +303,7 @@ namespace pgbar {
       template<typename T, template<typename...> class Template, types::Size N>
       struct FillTemplate {
       private:
-        template<typename U, template<typename...> class Tmp, std::size_t M, typename... Us>
+        template<typename U, template<typename...> class Tmp, types::Size M, typename... Us>
         struct Helper : Helper<U, Tmp, M - 1, Us..., U> {};
         template<typename U, template<typename...> class Tmp, typename... Us>
         struct Helper<U, Tmp, 0, Us...> {
@@ -320,7 +318,7 @@ namespace pgbar {
 
       template<types::Size Pos, typename... Ts>
       struct TypeAt {
-        static_assert( static_cast<bool>( Pos ^ Pos ),
+        static_assert( static_cast<bool>( Pos < sizeof...( Ts ) ),
                        "pgbar::__details::traits::TypeAt: Position overflow" );
       };
       template<types::Size Pos, typename... Ts>
@@ -699,6 +697,238 @@ namespace pgbar {
         : std::true_type {};
     } // namespace traits
 
+    namespace utils {
+      template<typename E>
+      __PGBAR_NODISCARD __PGBAR_CNSTEVAL __PGBAR_INLINE_FN
+        typename std::enable_if<std::is_enum<E>::value, typename std::underlying_type<E>::type>::type
+        as_val( E enum_val ) noexcept
+      {
+        return static_cast<typename std::underlying_type<E>::type>( enum_val );
+      }
+
+      // Perfectly forward the I-th element of a tuple, constructing one by default if it's out of bound.
+      template<types::Size I,
+               typename T,
+               typename Tuple,
+               typename = typename std::enable_if<
+                 ( I < std::tuple_size<typename std::decay<Tuple>::type>::value )>::type>
+      constexpr auto forward_or( Tuple&& tup ) noexcept
+        -> decltype( std::get<I>( std::forward<Tuple>( tup ) ) )
+      {
+        static_assert( std::is_convertible<typename std::tuple_element<I, Tuple>::type, T>::value,
+                       "pgbar::__details::traits::forward_or: Incompatible type" );
+        return std::get<I>( std::forward<Tuple>( tup ) );
+      }
+      template<types::Size I, typename T, typename Tuple>
+      constexpr
+        typename std::enable_if<( I >= std::tuple_size<typename std::decay<Tuple>::type>::value ), T>::type
+        forward_or( Tuple&& tup ) noexcept( std::is_nothrow_default_constructible<T>::value )
+      {
+        return T();
+      }
+
+      // Available only for buffers that use placement new.
+      template<typename To, typename From>
+      __PGBAR_INLINE_FN constexpr To* launder_as( From* src ) noexcept
+      {
+# if __PGBAR_CXX17
+        return std::launder( reinterpret_cast<To*>( src ) );
+# else
+        /**
+         * Before c++17 there was no way to prevent compilers from over-optimizing different types
+         * of pointers with rules like strict aliases,
+         * so we should trust reinerpret_cast to give us what we want.
+         */
+        return reinterpret_cast<To*>( src );
+# endif
+      }
+
+      template<typename Numeric>
+      __PGBAR_NODISCARD __PGBAR_CXX23_CNSTXPR __PGBAR_INLINE_FN typename std::enable_if<
+        traits::AllOf<std::is_arithmetic<Numeric>, traits::Not<std::is_unsigned<Numeric>>>::value,
+        types::Size>::type
+        count_digits( Numeric val ) noexcept
+      {
+        auto abs_val       = static_cast<std::uint64_t>( std::abs( val ) );
+        types::Size digits = abs_val == 0;
+        for ( ; abs_val > 0; abs_val /= 10 )
+          ++digits;
+        return digits;
+      }
+      template<typename Unsigned>
+      __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR __PGBAR_INLINE_FN
+        typename std::enable_if<std::is_unsigned<Unsigned>::value, types::Size>::type
+        count_digits( Unsigned val ) noexcept
+      {
+        auto abs_val       = static_cast<std::uint64_t>( val );
+        types::Size digits = abs_val == 0;
+        for ( ; abs_val > 0; abs_val /= 10 )
+          ++digits;
+        return digits;
+      }
+
+      // Format an integer number.
+      template<typename Integer>
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN
+        typename std::enable_if<std::is_integral<Integer>::value, types::String>::type
+        format( Integer val ) noexcept( noexcept( std::to_string( val ) ) )
+      {
+        /* In some well-designed standard libraries,
+         * integer std::to_string has specialized implementations for different bit-length types;
+
+         * This includes directly constructing the destination string using the SOO/SSO nature of the string,
+         * optimizing the memory management strategy using internally private resize_and_overwrite, etc.
+
+         * Therefore, the functions of the standard library are called directly here,
+         * rather than providing a manual implementation like the other functions. */
+        return std::to_string( val );
+        // Although, unfortunately, std::to_string is not labeled constexpr.
+      }
+
+      // Format a finite floating point number.
+      template<typename Floating>
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN
+        typename std::enable_if<std::is_floating_point<Floating>::value, types::String>::type
+        format( Floating val, int precision ) noexcept( false )
+      {
+        /* Unlike the integer version,
+         * the std::to_string in the standard library does not provide a precision limit
+         * on floating-point numbers;
+
+         * So the implementation here is provided manually. */
+        __PGBAR_ASSERT( std::isfinite( val ) );
+        __PGBAR_PURE_ASSUME( precision >= 0 );
+# if __PGBAR_CXX17
+        const auto abs_rounded_val = std::round( std::abs( val ) );
+        const auto int_digits      = count_digits( abs_rounded_val );
+
+        types::String formatted;
+#  if __PGBAR_CXX23
+        formatted.resize_and_overwrite(
+          int_digits + precision + 2,
+          [val, precision]( types::Char* buf, types::Size n ) noexcept {
+            const auto result = std::to_chars( buf, buf + n, val, std::chars_format::fixed, precision );
+            __PGBAR_PURE_ASSUME( result.ec == std::errc {} );
+            __PGBAR_PURE_ASSUME( result.ptr >= buf );
+            return static_cast<types::Size>( result.ptr - buf );
+          } );
+#  else
+        formatted.resize( int_digits + precision + 2 );
+        // The extra 2 is left for the decimal point and carry.
+        const auto result = std::to_chars( formatted.data(),
+                                           formatted.data() + formatted.size(),
+                                           val,
+                                           std::chars_format::fixed,
+                                           precision );
+        __PGBAR_PURE_ASSUME( result.ec == std::errc {} );
+        __PGBAR_ASSERT( result.ptr >= formatted.data() );
+        formatted.resize( result.ptr - formatted.data() );
+#  endif
+# else
+        const auto scale           = std::pow( 10, precision );
+        const auto abs_rounded_val = std::round( std::abs( val ) * scale ) / scale;
+        __PGBAR_ASSERT( abs_rounded_val <= std::numeric_limits<std::uint64_t>::max() );
+        const auto integer = static_cast<std::uint64_t>( abs_rounded_val );
+        const auto fraction =
+          static_cast<std::uint64_t>( std::round( ( abs_rounded_val - integer ) * scale ) );
+        const auto sign = std::signbit( val );
+
+        auto formatted = types::String( sign, '-' );
+        formatted.append( format( integer ) ).reserve( count_digits( integer ) + sign );
+        if ( precision > 0 ) {
+          formatted.push_back( '.' );
+          const auto fract_digits = count_digits( fraction );
+          __PGBAR_PURE_ASSUME( fract_digits <= static_cast<types::Size>( precision ) );
+          formatted.append( precision - fract_digits, '0' ).append( format( fraction ) );
+        }
+# endif
+        return formatted;
+      }
+
+      /**
+       * Converts RGB color strings to hexidecimal values.
+       *
+       * Always returns 0 if defined `PGBAR_COLORLESS`.
+       *
+       * @throw exception::InvalidArgument
+       * If the size of RGB color string is not 7 or 4, and doesn't begin with character `#`.
+       */
+      __PGBAR_CXX20_CNSTXPR types::HexRGB hex2rgb( types::ROStr hex ) noexcept( false )
+      {
+        if ( ( hex.size() != 7 && hex.size() != 4 ) || hex.front() != '#' )
+          throw exception::InvalidArgument( "pgbar: invalid hex color format" );
+
+        for ( types::Size i = 1; i < hex.size(); i++ ) {
+          if ( ( hex[i] < '0' || hex[i] > '9' ) && ( hex[i] < 'A' || hex[i] > 'F' )
+               && ( hex[i] < 'a' || hex[i] > 'f' ) )
+            throw exception::InvalidArgument( "pgbar: invalid hexadecimal letter" );
+        }
+
+# ifdef PGBAR_COLORLESS
+        return {};
+# else
+        std::uint32_t ret = 0;
+        if ( hex.size() == 4 ) {
+          for ( types::Size i = 1; i < hex.size(); ++i ) {
+            ret <<= 4;
+            if ( hex[i] >= '0' && hex[i] <= '9' )
+              ret = ( ( ret | ( hex[i] - '0' ) ) << 4 ) | ( hex[i] - '0' );
+            else if ( hex[i] >= 'A' && hex[i] <= 'F' )
+              ret = ( ( ret | ( hex[i] - 'A' + 10 ) ) << 4 ) | ( hex[i] - 'A' + 10 );
+            else // no need to check whether it's valid or not
+              ret = ( ( ret | ( hex[i] - 'a' + 10 ) ) << 4 ) | ( hex[i] - 'a' + 10 );
+          }
+        } else {
+          for ( types::Size i = 1; i < hex.size(); ++i ) {
+            ret <<= 4;
+            if ( hex[i] >= '0' && hex[i] <= '9' )
+              ret |= hex[i] - '0';
+            else if ( hex[i] >= 'A' && hex[i] <= 'F' )
+              ret |= hex[i] - 'A' + 10;
+            else
+              ret |= hex[i] - 'a' + 10;
+          }
+        }
+        return ret;
+# endif
+      }
+
+      enum class TxtLayout { Left, Right, Center }; // text layout
+      // Format the `str`.
+      template<TxtLayout Style>
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::String format( types::Size width,
+                                                                                      types::Size len_str,
+                                                                                      types::ROStr str )
+        noexcept( false )
+      {
+        if ( width == 0 )
+          __PGBAR_UNLIKELY return {};
+        if ( len_str >= width )
+          return types::String( str );
+        if __PGBAR_CXX17_CNSTXPR ( Style == TxtLayout::Right ) {
+          auto tmp = types::String( width - len_str, constants::blank );
+          tmp.append( str );
+          return tmp;
+        } else if __PGBAR_CXX17_CNSTXPR ( Style == TxtLayout::Left ) {
+          auto tmp = types::String( str );
+          tmp.append( width - len_str, constants::blank );
+          return tmp;
+        } else {
+          width -= len_str;
+          const types::Size l_blank = width / 2;
+          return std::move( types::String( l_blank, constants::blank ).append( str ) )
+               + types::String( width - l_blank, constants::blank );
+        }
+      }
+      template<TxtLayout Style>
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::String format( types::Size width,
+                                                                                      types::ROStr __str )
+        noexcept( false )
+      {
+        return format<Style>( width, __str.size(), __str );
+      }
+    } // namespace utils
+
     namespace wrappers {
       template<typename I>
       class IterSpanBase {
@@ -779,6 +1009,37 @@ namespace pgbar {
         }
       };
 
+      template<typename T>
+      struct OptionWrapper {
+      protected:
+        T data_;
+
+        constexpr OptionWrapper() = default;
+        constexpr OptionWrapper( T&& data ) noexcept( std::is_nothrow_move_constructible<T>::value )
+          : data_ { std::move( data ) }
+        {}
+
+      public:
+        constexpr OptionWrapper( const OptionWrapper& )                          = default;
+        constexpr OptionWrapper( OptionWrapper&& )                               = default;
+        __PGBAR_CXX14_CNSTXPR OptionWrapper& operator=( const OptionWrapper& ) & = default;
+        __PGBAR_CXX14_CNSTXPR OptionWrapper& operator=( OptionWrapper&& ) &      = default;
+
+        // Intentional non-virtual destructors.
+        __PGBAR_CXX20_CNSTXPR ~OptionWrapper() = default;
+        __PGBAR_CXX14_CNSTXPR T& value() & noexcept { return data_; }
+        __PGBAR_CXX14_CNSTXPR const T& value() const& noexcept { return data_; }
+        __PGBAR_CXX14_CNSTXPR T&& value() && noexcept { return std::move( data_ ); }
+
+        __PGBAR_CXX20_CNSTXPR void swap( T& lhs ) noexcept
+        {
+          __PGBAR_PURE_ASSUME( this != &lhs );
+          using std::swap;
+          swap( data_, lhs.data_ );
+        }
+        friend __PGBAR_CXX20_CNSTXPR void swap( T& a, T& b ) noexcept { a.swap( b ); }
+      };
+
 # if __PGBAR_CXX23
       template<typename... Signature>
       using UniqueFunction = std::move_only_function<Signature...>;
@@ -832,32 +1093,32 @@ namespace pgbar {
         template<typename T>
         static __PGBAR_CXX14_CNSTXPR R invoke_inline( const AnyFn& fn, Args&&... args )
         {
-          auto ptr = const_cast<T*>( __PGBAR_LAUNDER( reinterpret_cast<const T*>( fn.buf_ ) ) );
+          auto ptr = const_cast<T*>( utils::launder_as<const T>( fn.buf_ ) );
           return ( *ptr )( std::forward<Args>( args )... );
         }
         template<typename T>
         static __PGBAR_CXX14_CNSTXPR void destroy_inline( AnyFn& fn ) noexcept
         {
-          auto ptr = __PGBAR_LAUNDER( reinterpret_cast<T*>( fn.buf_ ) );
+          auto ptr = utils::launder_as<T>( fn.buf_ );
           ptr->~T();
         }
         template<typename T>
         static __PGBAR_CXX14_CNSTXPR void move_inline( AnyFn& dst, AnyFn& src ) noexcept
         {
-          new ( &dst ) T( std::move( *__PGBAR_LAUNDER( reinterpret_cast<T*>( src.buf_ ) ) ) );
+          new ( &dst ) T( std::move( *utils::launder_as<T>( src.buf_ ) ) );
           destroy_inline<T>( src );
         }
 
         template<typename T>
         static __PGBAR_CXX14_CNSTXPR R invoke_dynamic( const AnyFn& fn, Args&&... args )
         {
-          auto dptr = const_cast<T*>( __PGBAR_LAUNDER( reinterpret_cast<const T*>( fn.dptr_ ) ) );
+          auto dptr = const_cast<T*>( utils::launder_as<const T>( fn.dptr_ ) );
           return ( *dptr )( std::forward<Args>( args )... );
         }
         template<typename T>
         static __PGBAR_CXX20_CNSTXPR void destroy_dynamic( AnyFn& fn ) noexcept
         {
-          auto dptr = __PGBAR_LAUNDER( reinterpret_cast<T*>( fn.dptr_ ) );
+          auto dptr = utils::launder_as<T>( fn.dptr_ );
           dptr->~T();
           operator delete( fn.dptr_ );
         }
@@ -989,10 +1250,499 @@ namespace pgbar {
         {
           return static_cast<bool>( a );
         }
-        constexpr explicit operator bool() const noexcept { return vtable_->invoke != invoke_null; }
+        constexpr explicit operator bool() const noexcept { return vtable_ != &table_null(); }
       };
 # endif
     } // namespace wrappers
+
+    namespace charcodes {
+      // A type of wrapper that stores the mapping between Unicode code chart and character width.
+      class CodeChart final {
+        types::UCodePoint start_, end_;
+        types::Size width_;
+
+      public:
+        constexpr CodeChart( types::UCodePoint start, types::UCodePoint end, types::Size width ) noexcept
+          : start_ { start }, end_ { end }, width_ { width }
+        {          // This is an internal component, so we assume the arguments are always valid.
+# if __PGBAR_CXX14 // C++11 requires the constexpr ctor should have an empty function body.
+          __PGBAR_PURE_ASSUME( start_ <= end_ );
+# endif
+        }
+        constexpr CodeChart( const CodeChart& )                          = default;
+        __PGBAR_CXX14_CNSTXPR CodeChart& operator=( const CodeChart& ) & = default;
+        __PGBAR_CXX20_CNSTXPR ~CodeChart()                               = default;
+
+        // Check whether the Unicode code point is within this code chart.
+        __PGBAR_NODISCARD constexpr bool contains( types::UCodePoint codepoint ) const noexcept
+        {
+          return start_ <= codepoint && codepoint <= end_;
+        }
+        // Return the character width of this Unicode code chart.
+        __PGBAR_NODISCARD constexpr types::Size width() const noexcept { return width_; }
+        // Return the size of this range of Unicode code chart.
+        __PGBAR_NODISCARD constexpr types::UCodePoint size() const noexcept { return end_ - start_ + 1; }
+        // Return the start Unicode code point of this code chart.
+        __PGBAR_NODISCARD constexpr types::UCodePoint head() const noexcept { return start_; }
+        // Return the end Unicode code point of this code chart.
+        __PGBAR_NODISCARD constexpr types::UCodePoint tail() const noexcept { return end_; }
+
+        __PGBAR_NODISCARD friend constexpr bool operator<( const CodeChart& a, const CodeChart& b ) noexcept
+        {
+          return a.end_ < b.start_;
+        }
+        __PGBAR_NODISCARD friend constexpr bool operator>( const CodeChart& a, const CodeChart& b ) noexcept
+        {
+          return a.start_ > b.end_;
+        }
+        __PGBAR_NODISCARD friend constexpr bool operator>( const CodeChart& a,
+                                                           const types::UCodePoint& b ) noexcept
+        {
+          return a.start_ > b;
+        }
+        __PGBAR_NODISCARD friend constexpr bool operator<( const CodeChart& a,
+                                                           const types::UCodePoint& b ) noexcept
+        {
+          return a.end_ < b;
+        }
+      };
+
+      // A simple UTF-8 string implementation.
+      class U8String final {
+        using Self = U8String;
+
+        types::Size width_;
+        std::string bytes_;
+
+      public:
+        __PGBAR_NODISCARD static __PGBAR_INLINE_FN __PGBAR_CNSTEVAL std::array<CodeChart, 47>
+          code_charts() noexcept
+        {
+          // See the Unicode CodeCharts documentation for complete code points.
+          // Also can see the `if-else` version in misc/UTF-8-test.cpp
+          return {
+            { { 0x0, 0x19, 0 },        { 0x20, 0x7E, 1 },        { 0x7F, 0xA0, 0 },
+             { 0xA1, 0xAC, 1 },       { 0xAD, 0xAD, 0 },        { 0xAE, 0x2FF, 1 },
+             { 0x300, 0x36F, 0 },     { 0x370, 0x1FFF, 1 },     { 0x2000, 0x200F, 0 },
+             { 0x2010, 0x2010, 1 },   { 0x2011, 0x2011, 0 },    { 0x2012, 0x2027, 1 },
+             { 0x2028, 0x202F, 0 },   { 0x2030, 0x205E, 1 },    { 0x205F, 0x206F, 0 },
+             { 0x2070, 0x2E7F, 1 },   { 0x2E80, 0xA4CF, 2 },    { 0xA4D0, 0xA95F, 1 },
+             { 0xA960, 0xA97F, 2 },   { 0xA980, 0xABFF, 1 },    { 0xAC00, 0xD7FF, 2 },
+             { 0xE000, 0xF8FF, 2 },   { 0xF900, 0xFAFF, 2 },    { 0xFB00, 0xFDCF, 1 },
+             { 0xFDD0, 0xFDEF, 0 },   { 0xFDF0, 0xFDFF, 1 },    { 0xFE00, 0xFE0F, 0 },
+             { 0xFE10, 0xFE1F, 2 },   { 0xFE20, 0xFE2F, 0 },    { 0xFE30, 0xFE6F, 2 },
+             { 0xFE70, 0xFEFE, 1 },   { 0xFEFF, 0xFEFF, 0 },    { 0xFF00, 0xFF60, 2 },
+             { 0xFF61, 0xFFDF, 1 },   { 0xFFE0, 0xFFE6, 2 },    { 0xFFE7, 0xFFEF, 1 },
+             { 0xFFF0, 0xFFFF, 1 },   { 0x10000, 0x1F8FF, 2 },  { 0x1F900, 0x1FBFF, 3 },
+             { 0x1FF80, 0x1FFFF, 0 }, { 0x20000, 0x3FFFD, 2 },  { 0x3FFFE, 0x3FFFF, 0 },
+             { 0xE0000, 0xE007F, 0 }, { 0xE0100, 0xE01EF, 0 },  { 0xEFF80, 0xEFFFF, 0 },
+             { 0xFFF80, 0xFFFFF, 2 }, { 0x10FF80, 0x10FFFF, 2 } }
+          };
+        }
+        __PGBAR_NODISCARD static __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::Size char_width(
+          types::UCodePoint codepoint ) noexcept
+        {
+          constexpr auto charts = code_charts();
+          __PGBAR_ASSERT( std::is_sorted( charts.cbegin(), charts.cend() ) );
+          // Compare with the `if-else` version, here we can search for code points with O(logn).
+          const auto itr = std::lower_bound( charts.cbegin(), charts.cend(), codepoint );
+          if ( itr != charts.cend() && itr->contains( codepoint ) )
+            return itr->width();
+
+          return 1; // Default fallback
+        }
+        /**
+         * @throw exception::InvalidArgument
+         *
+         * If the parameter `u8_str` isn't a valid UTF-8 string.
+         *
+         * @return Returns the render width of the given string.
+         */
+        __PGBAR_NODISCARD static __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::Size render_width(
+          types::ROStr u8_str )
+        {
+          types::Size width = 0;
+          for ( types::Size i = 0; i < u8_str.size(); ) {
+            const auto raw_u8_str  = u8_str.data();
+            const auto start_point = raw_u8_str + i;
+            // After RFC 3629, the maximum length of each standard UTF-8 character is 4 bytes.
+            const auto first_byte  = static_cast<types::UCodePoint>( *start_point );
+            auto validator         = [start_point, raw_u8_str, &u8_str]( types::Size expected_len ) -> void {
+              __PGBAR_PURE_ASSUME( start_point >= raw_u8_str );
+              if ( u8_str.size() - ( start_point - raw_u8_str ) < expected_len )
+                __PGBAR_UNLIKELY throw exception::InvalidArgument( "pgbar: incomplete UTF-8 string" );
+
+              for ( types::Size i = 1; i < expected_len; ++i ) {
+                if ( ( start_point[i] & 0xC0 ) != 0x80 )
+                  __PGBAR_UNLIKELY throw exception::InvalidArgument( "pgbar: broken UTF-8 character" );
+              }
+            };
+
+            types::UCodePoint utf_codepoint = {};
+            if ( ( first_byte & 0x80 ) == 0 ) {
+              utf_codepoint = first_byte;
+              i += 1;
+            } else if ( ( ( first_byte & 0xE0 ) == 0xC0 ) ) {
+              validator( 2 );
+              utf_codepoint =
+                ( ( first_byte & 0x1F ) << 6 ) | ( static_cast<types::UCodePoint>( start_point[1] ) & 0x3F );
+              i += 2;
+            } else if ( ( first_byte & 0xF0 ) == 0xE0 ) {
+              validator( 3 );
+              utf_codepoint = ( ( first_byte & 0xF ) << 12 )
+                            | ( ( static_cast<types::UCodePoint>( start_point[1] ) & 0x3F ) << 6 )
+                            | ( static_cast<types::UCodePoint>( start_point[2] ) & 0x3F );
+              i += 3;
+            } else if ( ( first_byte & 0xF8 ) == 0xF0 ) {
+              validator( 4 );
+              utf_codepoint = ( ( first_byte & 0x7 ) << 18 )
+                            | ( ( static_cast<types::UCodePoint>( start_point[1] ) & 0x3F ) << 12 )
+                            | ( ( static_cast<types::UCodePoint>( start_point[2] ) & 0x3F ) << 6 )
+                            | ( static_cast<types::UCodePoint>( start_point[3] ) & 0x3F );
+              i += 4;
+            } else
+              __PGBAR_UNLIKELY throw exception::InvalidArgument( "pgbar: not a standard UTF-8 string" );
+
+            width += char_width( utf_codepoint );
+          }
+          return width;
+        }
+
+        __PGBAR_CXX20_CNSTXPR U8String()
+          noexcept( std::is_nothrow_default_constructible<types::String>::value )
+          : width_ { 0 }
+        {}
+        __PGBAR_CXX20_CNSTXPR explicit U8String( types::String u8_bytes ) : U8String()
+        {
+          width_ = render_width( u8_bytes );
+          bytes_ = std::move( u8_bytes );
+        }
+        __PGBAR_CXX20_CNSTXPR U8String( const Self& )          = default;
+        __PGBAR_CXX20_CNSTXPR U8String( Self&& )               = default;
+        __PGBAR_CXX20_CNSTXPR Self& operator=( const Self& ) & = default;
+        __PGBAR_CXX20_CNSTXPR Self& operator=( Self&& ) &      = default;
+        __PGBAR_CXX20_CNSTXPR ~U8String()                      = default;
+
+        __PGBAR_CXX20_CNSTXPR Self& operator=( types::ROStr u8_bytes ) &
+        {
+          auto new_width = render_width( u8_bytes );
+          auto new_bytes = types::String( u8_bytes );
+          std::swap( width_, new_width );
+          bytes_.swap( new_bytes );
+          return *this;
+        }
+        __PGBAR_CXX20_CNSTXPR Self& operator=( types::String u8_bytes ) &
+        {
+          auto new_width = render_width( u8_bytes );
+          std::swap( width_, new_width );
+          bytes_.swap( u8_bytes );
+          return *this;
+        }
+
+        __PGBAR_NODISCARD __PGBAR_CXX20_CNSTXPR bool empty() const noexcept { return bytes_.empty(); }
+        __PGBAR_CXX20_CNSTXPR types::Size size() const noexcept { return width_; }
+        __PGBAR_CXX20_CNSTXPR types::ROStr str() const noexcept { return bytes_; }
+
+        __PGBAR_CXX20_CNSTXPR void clear() noexcept
+        {
+          bytes_.clear();
+          width_ = 0;
+        }
+        __PGBAR_CXX20_CNSTXPR void shrink_to_fit() noexcept( noexcept( bytes_.shrink_to_fit() ) )
+        { // The standard does not seem to specify whether the function is noexcept,
+          // so let's make a judgment here.
+          // At least I didn't see it on cppreference.
+          bytes_.shrink_to_fit();
+        }
+
+        __PGBAR_CXX20_CNSTXPR void swap( Self& lhs ) noexcept
+        {
+          std::swap( width_, lhs.width_ );
+          bytes_.swap( lhs.bytes_ );
+        }
+        __PGBAR_CXX20_CNSTXPR friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
+
+        __PGBAR_CXX20_CNSTXPR explicit operator types::String() & { return bytes_; }
+        __PGBAR_CXX20_CNSTXPR explicit operator types::String() const& { return bytes_; }
+        __PGBAR_CXX20_CNSTXPR explicit operator types::String&&() && noexcept { return std::move( bytes_ ); }
+        __PGBAR_CXX20_CNSTXPR operator types::ROStr() const noexcept { return str(); }
+
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( types::String&& a,
+                                                                                         const Self& b )
+        {
+          // Ensure strong exception safety.
+          const auto new_width = U8String::render_width( a );
+          a.append( b.bytes_ );
+          auto ret   = U8String();
+          ret.bytes_ = std::move( a );
+          ret.width_ = new_width + b.width_;
+          return ret;
+        }
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self
+          operator+( const types::String& a, const Self& b )
+        {
+          auto tmp = types::String( a );
+          tmp.append( b.bytes_ );
+          return U8String( std::move( tmp ) );
+        }
+        template<types::Size N>
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( const char ( &a )[N],
+                                                                                         const Self& b )
+        {
+          auto tmp = types::String( a );
+          tmp.append( b.bytes_ );
+          return U8String( std::move( tmp ) );
+        }
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( const char* a,
+                                                                                         const Self& b )
+        {
+          auto tmp = types::String( a );
+          tmp.append( b.bytes_ );
+          return U8String( std::move( tmp ) );
+        }
+# if __PGBAR_CXX20
+        static_assert( sizeof( char8_t ) == sizeof( char ),
+                       "pgbar::__details::chaset::U8String: Unexpected type size mismatch" );
+
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( std::u8string_view a,
+                                                                                         const Self& b )
+        {
+          auto tmp = Self( a );
+          tmp.bytes_.append( b.bytes_ );
+          return U8String( std::move( tmp ) );
+        }
+# endif
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( const Self& a,
+                                                                                         types::ROStr b )
+        {
+          auto tmp = a.bytes_;
+          tmp.append( b );
+          return U8String( std::move( tmp ) );
+        }
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( Self&& a,
+                                                                                         types::ROStr b )
+        {
+          const auto new_width = U8String::render_width( b );
+          a.bytes_.append( b );
+          a.width_ += new_width;
+          return a;
+        }
+
+# if __PGBAR_CXX20
+        __PGBAR_CXX20_CNSTXPR explicit U8String( std::u8string_view u8_sv ) : U8String()
+        {
+          bytes_.resize( u8_sv.size() );
+          std::copy( u8_sv.cbegin(), u8_sv.cend(), bytes_.begin() );
+          width_ = render_width( bytes_ );
+        }
+
+        __PGBAR_CXX20_CNSTXPR explicit operator std::u8string() const
+        {
+          std::u8string ret;
+          ret.resize( bytes_.size() );
+          std::copy( bytes_.cbegin(), bytes_.cend(), ret.begin() );
+          return ret;
+        }
+# endif
+      };
+    } // namespace charcodes
+
+    namespace utils {
+      template<TxtLayout Style>
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::String format(
+        types::Size width,
+        const charcodes::U8String& __str ) noexcept( false )
+      {
+        return format<Style>( width, __str.size(), __str.str() );
+      }
+    } // namespace utils
+
+    namespace concurrent {
+      // Some components require a noexcept mutex.
+      class Mutex final {
+        using Self = Mutex;
+
+        std::atomic_flag lock_stat_ = ATOMIC_FLAG_INIT;
+
+      public:
+        Mutex( const Mutex& )              = delete;
+        Mutex& operator=( const Mutex& ) & = delete;
+
+        constexpr Mutex()              = default;
+        __PGBAR_CXX20_CNSTXPR ~Mutex() = default;
+
+        __PGBAR_INLINE_FN void lock() & noexcept
+        {
+          while ( lock_stat_.test_and_set( std::memory_order_acq_rel ) )
+            std::this_thread::yield();
+        }
+
+        __PGBAR_INLINE_FN void unlock() & noexcept { lock_stat_.clear( std::memory_order_release ); }
+
+        __PGBAR_INLINE_FN bool try_lock() & noexcept
+        {
+          return !lock_stat_.test_and_set( std::memory_order_acq_rel );
+        }
+      };
+
+      // A simple `Shared Mutex` implementation for any C++ version.
+      class SharedMutex final {
+        using Self = SharedMutex;
+
+      protected:
+        std::atomic<types::Size> num_readers_;
+        Mutex writer_mtx_;
+
+      public:
+        SharedMutex( const Self& )       = delete;
+        Self& operator=( const Self& ) & = delete;
+
+        constexpr SharedMutex() noexcept : num_readers_ { 0 } {}
+        __PGBAR_CXX20_CNSTXPR ~SharedMutex() = default;
+
+        void lock() & noexcept
+        {
+          while ( true ) {
+            while ( num_readers_.load( std::memory_order_acquire ) != 0 )
+              std::this_thread::yield();
+
+            writer_mtx_.lock();
+            if ( num_readers_.load( std::memory_order_acquire ) == 0 )
+              break;
+            else // unlock it and wait for readers to finish
+              writer_mtx_.unlock();
+          }
+        }
+        __PGBAR_NODISCARD bool try_lock() & noexcept
+        {
+          if ( num_readers_.load( std::memory_order_acquire ) == 0 && writer_mtx_.try_lock() ) {
+            if ( num_readers_.load( std::memory_order_acquire ) == 0 )
+              return true;
+            else
+              writer_mtx_.unlock();
+          }
+          return false;
+        }
+        __PGBAR_INLINE_FN void unlock() & noexcept { writer_mtx_.unlock(); }
+
+        void lock_shared() & noexcept
+        {
+          writer_mtx_.lock();
+
+          num_readers_.fetch_add( 1, std::memory_order_release );
+          __PGBAR_ASSERT( num_readers_ > 0 ); // overflow checking
+
+          writer_mtx_.unlock();
+        }
+        __PGBAR_NODISCARD bool try_lock_shared() & noexcept
+        {
+          if ( writer_mtx_.try_lock() ) {
+            num_readers_.fetch_add( 1, std::memory_order_release );
+            __PGBAR_ASSERT( num_readers_ > 0 );
+            writer_mtx_.unlock();
+            return true;
+          }
+          return false;
+        }
+        __PGBAR_INLINE_FN void unlock_shared() & noexcept
+        {
+          __PGBAR_ASSERT( num_readers_ > 0 ); // underflow checking
+          num_readers_.fetch_sub( 1, std::memory_order_release );
+        }
+      };
+
+# if __PGBAR_CXX14
+      template<typename Mtx>
+      using SharedLock = std::shared_lock<Mtx>;
+# else
+      template<typename Mtx>
+      class SharedLock final {
+        using Self = SharedLock;
+
+        Mtx& mtx_;
+
+      public:
+        using mutex_type = Mtx;
+
+        SharedLock( mutex_type& m ) noexcept( noexcept( mtx_.lock_shared() ) ) : mtx_ { m }
+        {
+          mtx_.lock_shared();
+        }
+        ~SharedLock() noexcept { mtx_.unlock_shared(); }
+      };
+
+# endif
+
+      // A nullable container that holds an exception pointer.
+      class ExceptionBox final {
+        // This is the component requiring a noexcept mutex.
+        using Self = ExceptionBox;
+
+        std::exception_ptr exception_;
+        mutable SharedMutex rw_mtx_;
+
+      public:
+        ExceptionBox()  = default;
+        ~ExceptionBox() = default;
+
+        ExceptionBox( ExceptionBox&& rhs ) noexcept : ExceptionBox() { swap( rhs ); }
+        ExceptionBox& operator=( ExceptionBox&& rhs ) & noexcept
+        {
+          __PGBAR_PURE_ASSUME( this != &rhs );
+          // Exception pointers should not be discarded due to movement semantics.
+          // Thus we only swap them here.
+          swap( rhs );
+          return *this;
+        }
+
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool empty() const noexcept
+        {
+          SharedLock<SharedMutex> lock { rw_mtx_ };
+          return !static_cast<bool>( exception_ );
+        }
+
+        __PGBAR_INLINE_FN Self& store( std::exception_ptr e ) & noexcept
+        {
+          std::lock_guard<SharedMutex> lock { rw_mtx_ };
+          if ( !exception_ )
+            exception_ = e;
+          return *this;
+        }
+        __PGBAR_INLINE_FN std::exception_ptr load() const noexcept
+        {
+          SharedLock<SharedMutex> lock { rw_mtx_ };
+          return exception_;
+        }
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN Self& clear() noexcept
+        {
+          std::lock_guard<SharedMutex> lock { rw_mtx_ };
+          exception_ = std::exception_ptr();
+          return *this;
+        }
+
+        // Rethrow the exception pointed if it is'nt null.
+        __PGBAR_INLINE_FN void rethrow() noexcept( false )
+        {
+          std::lock_guard<SharedMutex> lock { rw_mtx_ };
+          if ( !exception_ )
+            return;
+          auto exception_ptr = exception_;
+          exception_         = std::exception_ptr();
+          if ( exception_ptr )
+            std::rethrow_exception( std::move( exception_ptr ) );
+        }
+
+        void swap( ExceptionBox& lhs ) noexcept
+        {
+          __PGBAR_PURE_ASSUME( this != &lhs );
+          std::lock_guard<SharedMutex> lock1 { rw_mtx_ };
+          std::lock_guard<SharedMutex> lock2 { lhs.rw_mtx_ };
+          using std::swap; // ADL custom point
+          swap( exception_, lhs.exception_ );
+        }
+        friend void swap( ExceptionBox& a, ExceptionBox& b ) noexcept { a.swap( b ); }
+      };
+    } // namespace concurrent
   } // namespace __details
 
   namespace scope {
@@ -1402,6 +2152,18 @@ namespace pgbar {
     class ProxySpan;
   } // namespace scope
 
+  namespace color {
+    constexpr __details::types::HexRGB None    = __PGBAR_DEFAULT;
+    constexpr __details::types::HexRGB Black   = __PGBAR_BLACK;
+    constexpr __details::types::HexRGB Red     = __PGBAR_RED;
+    constexpr __details::types::HexRGB Green   = __PGBAR_GREEN;
+    constexpr __details::types::HexRGB Yellow  = __PGBAR_YELLOW;
+    constexpr __details::types::HexRGB Blue    = __PGBAR_BLUE;
+    constexpr __details::types::HexRGB Magenta = __PGBAR_MAGENTA;
+    constexpr __details::types::HexRGB Cyan    = __PGBAR_CYAN;
+    constexpr __details::types::HexRGB White   = __PGBAR_WHITE;
+  } // namespace color
+
   // A enum that specifies the type of the output stream.
   enum class Channel : __details::types::Byte { Stdout = 1, Stderr };
 
@@ -1477,222 +2239,6 @@ namespace pgbar {
                 decltype( check( std::declval<typename std::remove_cv<T>::type>() ) )>::value;
       };
     } // namespace traits
-
-    namespace utils {
-      template<typename E>
-      __PGBAR_NODISCARD __PGBAR_CNSTEVAL __PGBAR_INLINE_FN
-        typename std::enable_if<std::is_enum<E>::value, typename std::underlying_type<E>::type>::type
-        as_val( E enum_val ) noexcept
-      {
-        return static_cast<typename std::underlying_type<E>::type>( enum_val );
-      }
-
-      // Perfectly forward the I-th element of a tuple, constructing one by default if it's out of bound.
-      template<types::Size I,
-               typename T,
-               typename Tuple,
-               typename = typename std::enable_if<
-                 ( I < std::tuple_size<typename std::decay<Tuple>::type>::value )>::type>
-      constexpr auto forward_or( Tuple&& tup ) noexcept
-        -> decltype( std::get<I>( std::forward<Tuple>( tup ) ) )
-      {
-        static_assert( std::is_convertible<typename std::tuple_element<I, Tuple>::type, T>::value,
-                       "pgbar::__details::traits::forward_or: Incompatible type" );
-        return std::get<I>( std::forward<Tuple>( tup ) );
-      }
-      template<types::Size I, typename T, typename Tuple>
-      constexpr
-        typename std::enable_if<( I >= std::tuple_size<typename std::decay<Tuple>::type>::value ), T>::type
-        forward_or( Tuple&& tup ) noexcept( std::is_nothrow_default_constructible<T>::value )
-      {
-        return T();
-      }
-
-      template<typename Numeric>
-      __PGBAR_NODISCARD __PGBAR_CXX23_CNSTXPR __PGBAR_INLINE_FN typename std::enable_if<
-        traits::AllOf<std::is_arithmetic<Numeric>, traits::Not<std::is_unsigned<Numeric>>>::value,
-        types::Size>::type
-        count_digits( Numeric val ) noexcept
-      {
-        auto abs_val       = static_cast<std::uint64_t>( std::abs( val ) );
-        types::Size digits = abs_val == 0;
-        for ( ; abs_val > 0; abs_val /= 10 )
-          ++digits;
-        return digits;
-      }
-      template<typename Unsigned>
-      __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR __PGBAR_INLINE_FN
-        typename std::enable_if<std::is_unsigned<Unsigned>::value, types::Size>::type
-        count_digits( Unsigned val ) noexcept
-      {
-        auto abs_val       = static_cast<std::uint64_t>( val );
-        types::Size digits = abs_val == 0;
-        for ( ; abs_val > 0; abs_val /= 10 )
-          ++digits;
-        return digits;
-      }
-
-      // Format an integer number.
-      template<typename Integer>
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN
-        typename std::enable_if<std::is_integral<Integer>::value, types::String>::type
-        format( Integer val ) noexcept( noexcept( std::to_string( val ) ) )
-      {
-        /* In some well-designed standard libraries,
-         * integer std::to_string has specialized implementations for different bit-length types;
-
-         * This includes directly constructing the destination string using the SOO/SSO nature of the string,
-         * optimizing the memory management strategy using internally private resize_and_overwrite, etc.
-
-         * Therefore, the functions of the standard library are called directly here,
-         * rather than providing a manual implementation like the other functions. */
-        return std::to_string( val );
-        // Although, unfortunately, std::to_string is not labeled constexpr.
-      }
-
-      // Format a finite floating point number.
-      template<typename Floating>
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN
-        typename std::enable_if<std::is_floating_point<Floating>::value, types::String>::type
-        format( Floating val, int precision ) noexcept( false )
-      {
-        /* Unlike the integer version,
-         * the std::to_string in the standard library does not provide a precision limit
-         * on floating-point numbers;
-
-         * So the implementation here is provided manually. */
-        __PGBAR_ASSERT( std::isfinite( val ) );
-        __PGBAR_PURE_ASSUME( precision >= 0 );
-# if __PGBAR_CXX17
-        const auto abs_rounded_val = std::round( std::abs( val ) );
-        const auto int_digits      = count_digits( abs_rounded_val );
-
-        types::String formatted;
-#  if __PGBAR_CXX23
-        formatted.resize_and_overwrite(
-          int_digits + precision + 2,
-          [val, precision]( types::Char* buf, types::Size n ) noexcept {
-            const auto result = std::to_chars( buf, buf + n, val, std::chars_format::fixed, precision );
-            __PGBAR_PURE_ASSUME( result.ec == std::errc {} );
-            __PGBAR_PURE_ASSUME( result.ptr >= buf );
-            return static_cast<types::Size>( result.ptr - buf );
-          } );
-#  else
-        formatted.resize( int_digits + precision + 2 );
-        // The extra 2 is left for the decimal point and carry.
-        const auto result = std::to_chars( formatted.data(),
-                                           formatted.data() + formatted.size(),
-                                           val,
-                                           std::chars_format::fixed,
-                                           precision );
-        __PGBAR_PURE_ASSUME( result.ec == std::errc {} );
-        __PGBAR_ASSERT( result.ptr >= formatted.data() );
-        formatted.resize( result.ptr - formatted.data() );
-#  endif
-# else
-        const auto scale           = std::pow( 10, precision );
-        const auto abs_rounded_val = std::round( std::abs( val ) * scale ) / scale;
-        __PGBAR_ASSERT( abs_rounded_val <= std::numeric_limits<std::uint64_t>::max() );
-        const auto integer = static_cast<std::uint64_t>( abs_rounded_val );
-        const auto fraction =
-          static_cast<std::uint64_t>( std::round( ( abs_rounded_val - integer ) * scale ) );
-        const auto sign = std::signbit( val );
-
-        auto formatted = types::String( sign, '-' );
-        formatted.append( format( integer ) ).reserve( count_digits( integer ) + sign );
-        if ( precision > 0 ) {
-          formatted.push_back( '.' );
-          const auto fract_digits = count_digits( fraction );
-          __PGBAR_PURE_ASSUME( fract_digits <= static_cast<types::Size>( precision ) );
-          formatted.append( precision - fract_digits, '0' ).append( format( fraction ) );
-        }
-# endif
-        return formatted;
-      }
-
-      /**
-       * Converts RGB color strings to hexidecimal values.
-       *
-       * Always returns 0 if defined `PGBAR_COLORLESS`.
-       *
-       * @throw exception::InvalidArgument
-       * If the size of RGB color string is not 7 or 4, and doesn't begin with character `#`.
-       */
-      __PGBAR_CXX20_CNSTXPR types::HexRGB hex2rgb( types::ROStr hex ) noexcept( false )
-      {
-        if ( ( hex.size() != 7 && hex.size() != 4 ) || hex.front() != '#' )
-          throw exception::InvalidArgument( "pgbar: invalid hex color format" );
-
-        for ( types::Size i = 1; i < hex.size(); i++ ) {
-          if ( ( hex[i] < '0' || hex[i] > '9' ) && ( hex[i] < 'A' || hex[i] > 'F' )
-               && ( hex[i] < 'a' || hex[i] > 'f' ) )
-            throw exception::InvalidArgument( "pgbar: invalid hexadecimal letter" );
-        }
-
-# ifdef PGBAR_COLORLESS
-        return {};
-# else
-        std::uint32_t ret = 0;
-        if ( hex.size() == 4 ) {
-          for ( types::Size i = 1; i < hex.size(); ++i ) {
-            ret <<= 4;
-            if ( hex[i] >= '0' && hex[i] <= '9' )
-              ret = ( ( ret | ( hex[i] - '0' ) ) << 4 ) | ( hex[i] - '0' );
-            else if ( hex[i] >= 'A' && hex[i] <= 'F' )
-              ret = ( ( ret | ( hex[i] - 'A' + 10 ) ) << 4 ) | ( hex[i] - 'A' + 10 );
-            else // no need to check whether it's valid or not
-              ret = ( ( ret | ( hex[i] - 'a' + 10 ) ) << 4 ) | ( hex[i] - 'a' + 10 );
-          }
-        } else {
-          for ( types::Size i = 1; i < hex.size(); ++i ) {
-            ret <<= 4;
-            if ( hex[i] >= '0' && hex[i] <= '9' )
-              ret |= hex[i] - '0';
-            else if ( hex[i] >= 'A' && hex[i] <= 'F' )
-              ret |= hex[i] - 'A' + 10;
-            else
-              ret |= hex[i] - 'a' + 10;
-          }
-        }
-        return ret;
-# endif
-      }
-
-      enum class TxtLayout { Left, Right, Center }; // text layout
-      // Format the `str`.
-      template<TxtLayout Style>
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::String format( types::Size width,
-                                                                                      types::Size len_str,
-                                                                                      types::ROStr str )
-        noexcept( false )
-      {
-        if ( width == 0 )
-          __PGBAR_UNLIKELY return {};
-        if ( len_str >= width )
-          return types::String( str );
-        if __PGBAR_CXX17_CNSTXPR ( Style == TxtLayout::Right ) {
-          auto tmp = types::String( width - len_str, constants::blank );
-          tmp.append( str );
-          return tmp;
-        } else if __PGBAR_CXX17_CNSTXPR ( Style == TxtLayout::Left ) {
-          auto tmp = types::String( str );
-          tmp.append( width - len_str, constants::blank );
-          return tmp;
-        } else {
-          width -= len_str;
-          const types::Size l_blank = width / 2;
-          return std::move( types::String( l_blank, constants::blank ).append( str ) )
-               + types::String( width - l_blank, constants::blank );
-        }
-      }
-      template<TxtLayout Style>
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::String format( types::Size width,
-                                                                                      types::ROStr __str )
-        noexcept( false )
-      {
-        return format<Style>( width, __str.size(), __str );
-      }
-    } // namespace utils
 
     namespace console {
       // escape codes
@@ -1777,308 +2323,6 @@ namespace pgbar {
 # endif
       }
     } // namespace console
-
-    namespace charcodes {
-      // A type of wrapper that stores the mapping between Unicode code chart and character width.
-      class CodeChart final {
-        types::UCodePoint start_, end_;
-        types::Size width_;
-
-      public:
-        constexpr CodeChart( types::UCodePoint start, types::UCodePoint end, types::Size width ) noexcept
-          : start_ { start }, end_ { end }, width_ { width }
-        {          // This is an internal component, so we assume the arguments are always valid.
-# if __PGBAR_CXX14 // C++11 requires the constexpr ctor should have an empty function body.
-          __PGBAR_PURE_ASSUME( start_ <= end_ );
-# endif
-        }
-        constexpr CodeChart( const CodeChart& )                          = default;
-        __PGBAR_CXX14_CNSTXPR CodeChart& operator=( const CodeChart& ) & = default;
-        __PGBAR_CXX20_CNSTXPR ~CodeChart()                               = default;
-
-        // Check whether the Unicode code point is within this code chart.
-        __PGBAR_NODISCARD constexpr bool contains( types::UCodePoint codepoint ) const noexcept
-        {
-          return start_ <= codepoint && codepoint <= end_;
-        }
-        // Return the character width of this Unicode code chart.
-        __PGBAR_NODISCARD constexpr types::Size width() const noexcept { return width_; }
-        // Return the size of this range of Unicode code chart.
-        __PGBAR_NODISCARD constexpr types::UCodePoint size() const noexcept { return end_ - start_ + 1; }
-        // Return the start Unicode code point of this code chart.
-        __PGBAR_NODISCARD constexpr types::UCodePoint head() const noexcept { return start_; }
-        // Return the end Unicode code point of this code chart.
-        __PGBAR_NODISCARD constexpr types::UCodePoint tail() const noexcept { return end_; }
-
-        __PGBAR_NODISCARD friend constexpr bool operator<( const CodeChart& a, const CodeChart& b ) noexcept
-        {
-          return a.end_ < b.start_;
-        }
-        __PGBAR_NODISCARD friend constexpr bool operator>( const CodeChart& a, const CodeChart& b ) noexcept
-        {
-          return a.start_ > b.end_;
-        }
-        __PGBAR_NODISCARD friend constexpr bool operator>( const CodeChart& a,
-                                                           const types::UCodePoint& b ) noexcept
-        {
-          return a.start_ > b;
-        }
-        __PGBAR_NODISCARD friend constexpr bool operator<( const CodeChart& a,
-                                                           const types::UCodePoint& b ) noexcept
-        {
-          return a.end_ < b;
-        }
-      };
-
-      // A simple UTF-8 string implementation.
-      class U8String final {
-        using Self = U8String;
-
-        types::Size width_;
-        std::string bytes_;
-
-      public:
-        __PGBAR_NODISCARD static __PGBAR_INLINE_FN __PGBAR_CNSTEVAL std::array<CodeChart, 47>
-          code_charts() noexcept
-        {
-          // See the Unicode CodeCharts documentation for complete code points.
-          // Also can see the `if-else` version in misc/UTF-8-test.cpp
-          return {
-            { { 0x0, 0x19, 0 },        { 0x20, 0x7E, 1 },        { 0x7F, 0xA0, 0 },
-             { 0xA1, 0xAC, 1 },       { 0xAD, 0xAD, 0 },        { 0xAE, 0x2FF, 1 },
-             { 0x300, 0x36F, 0 },     { 0x370, 0x1FFF, 1 },     { 0x2000, 0x200F, 0 },
-             { 0x2010, 0x2010, 1 },   { 0x2011, 0x2011, 0 },    { 0x2012, 0x2027, 1 },
-             { 0x2028, 0x202F, 0 },   { 0x2030, 0x205E, 1 },    { 0x205F, 0x206F, 0 },
-             { 0x2070, 0x2E7F, 1 },   { 0x2E80, 0xA4CF, 2 },    { 0xA4D0, 0xA95F, 1 },
-             { 0xA960, 0xA97F, 2 },   { 0xA980, 0xABFF, 1 },    { 0xAC00, 0xD7FF, 2 },
-             { 0xE000, 0xF8FF, 2 },   { 0xF900, 0xFAFF, 2 },    { 0xFB00, 0xFDCF, 1 },
-             { 0xFDD0, 0xFDEF, 0 },   { 0xFDF0, 0xFDFF, 1 },    { 0xFE00, 0xFE0F, 0 },
-             { 0xFE10, 0xFE1F, 2 },   { 0xFE20, 0xFE2F, 0 },    { 0xFE30, 0xFE6F, 2 },
-             { 0xFE70, 0xFEFE, 1 },   { 0xFEFF, 0xFEFF, 0 },    { 0xFF00, 0xFF60, 2 },
-             { 0xFF61, 0xFFDF, 1 },   { 0xFFE0, 0xFFE6, 2 },    { 0xFFE7, 0xFFEF, 1 },
-             { 0xFFF0, 0xFFFF, 1 },   { 0x10000, 0x1F8FF, 2 },  { 0x1F900, 0x1FBFF, 3 },
-             { 0x1FF80, 0x1FFFF, 0 }, { 0x20000, 0x3FFFD, 2 },  { 0x3FFFE, 0x3FFFF, 0 },
-             { 0xE0000, 0xE007F, 0 }, { 0xE0100, 0xE01EF, 0 },  { 0xEFF80, 0xEFFFF, 0 },
-             { 0xFFF80, 0xFFFFF, 2 }, { 0x10FF80, 0x10FFFF, 2 } }
-          };
-        }
-        __PGBAR_NODISCARD static __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::Size char_width(
-          types::UCodePoint codepoint ) noexcept
-        {
-          constexpr auto charts = code_charts();
-          __PGBAR_ASSERT( std::is_sorted( charts.cbegin(), charts.cend() ) );
-          // Compare with the `if-else` version, here we can search for code points with O(logn).
-          const auto itr = std::lower_bound( charts.cbegin(), charts.cend(), codepoint );
-          if ( itr != charts.cend() && itr->contains( codepoint ) )
-            return itr->width();
-
-          return 1; // Default fallback
-        }
-        /**
-         * @throw exception::InvalidArgument
-         *
-         * If the parameter `u8_str` isn't a valid UTF-8 string.
-         *
-         * @return Returns the render width of the given string.
-         */
-        __PGBAR_NODISCARD static __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::Size render_width(
-          types::ROStr u8_str )
-        {
-          types::Size width = 0;
-          for ( types::Size i = 0; i < u8_str.size(); ) {
-            const auto raw_u8_str  = u8_str.data();
-            const auto start_point = raw_u8_str + i;
-            // After RFC 3629, the maximum length of each standard UTF-8 character is 4 bytes.
-            const auto first_byte  = static_cast<types::UCodePoint>( *start_point );
-            auto validator         = [start_point, raw_u8_str, &u8_str]( types::Size expected_len ) -> void {
-              __PGBAR_PURE_ASSUME( start_point >= raw_u8_str );
-              if ( u8_str.size() - ( start_point - raw_u8_str ) < expected_len )
-                __PGBAR_UNLIKELY throw exception::InvalidArgument( "pgbar: incomplete UTF-8 string" );
-
-              for ( types::Size i = 1; i < expected_len; ++i ) {
-                if ( ( start_point[i] & 0xC0 ) != 0x80 )
-                  __PGBAR_UNLIKELY throw exception::InvalidArgument( "pgbar: broken UTF-8 character" );
-              }
-            };
-
-            types::UCodePoint utf_codepoint = {};
-            if ( ( first_byte & 0x80 ) == 0 ) {
-              utf_codepoint = first_byte;
-              i += 1;
-            } else if ( ( ( first_byte & 0xE0 ) == 0xC0 ) ) {
-              validator( 2 );
-              utf_codepoint =
-                ( ( first_byte & 0x1F ) << 6 ) | ( static_cast<types::UCodePoint>( start_point[1] ) & 0x3F );
-              i += 2;
-            } else if ( ( first_byte & 0xF0 ) == 0xE0 ) {
-              validator( 3 );
-              utf_codepoint = ( ( first_byte & 0xF ) << 12 )
-                            | ( ( static_cast<types::UCodePoint>( start_point[1] ) & 0x3F ) << 6 )
-                            | ( static_cast<types::UCodePoint>( start_point[2] ) & 0x3F );
-              i += 3;
-            } else if ( ( first_byte & 0xF8 ) == 0xF0 ) {
-              validator( 4 );
-              utf_codepoint = ( ( first_byte & 0x7 ) << 18 )
-                            | ( ( static_cast<types::UCodePoint>( start_point[1] ) & 0x3F ) << 12 )
-                            | ( ( static_cast<types::UCodePoint>( start_point[2] ) & 0x3F ) << 6 )
-                            | ( static_cast<types::UCodePoint>( start_point[3] ) & 0x3F );
-              i += 4;
-            } else
-              __PGBAR_UNLIKELY throw exception::InvalidArgument( "pgbar: not a standard UTF-8 string" );
-
-            width += char_width( utf_codepoint );
-          }
-          return width;
-        }
-
-        __PGBAR_CXX20_CNSTXPR U8String()
-          noexcept( std::is_nothrow_default_constructible<types::String>::value )
-          : width_ { 0 }
-        {}
-        __PGBAR_CXX20_CNSTXPR explicit U8String( types::String u8_bytes ) : U8String()
-        {
-          width_ = render_width( u8_bytes );
-          bytes_ = std::move( u8_bytes );
-        }
-        __PGBAR_CXX20_CNSTXPR U8String( const Self& )          = default;
-        __PGBAR_CXX20_CNSTXPR U8String( Self&& )               = default;
-        __PGBAR_CXX20_CNSTXPR Self& operator=( const Self& ) & = default;
-        __PGBAR_CXX20_CNSTXPR Self& operator=( Self&& ) &      = default;
-        __PGBAR_CXX20_CNSTXPR ~U8String()                      = default;
-
-        __PGBAR_CXX20_CNSTXPR Self& operator=( types::ROStr u8_bytes ) &
-        {
-          auto new_width = render_width( u8_bytes );
-          auto new_bytes = types::String( u8_bytes );
-          std::swap( width_, new_width );
-          bytes_.swap( new_bytes );
-          return *this;
-        }
-        __PGBAR_CXX20_CNSTXPR Self& operator=( types::String u8_bytes ) &
-        {
-          auto new_width = render_width( u8_bytes );
-          std::swap( width_, new_width );
-          bytes_.swap( u8_bytes );
-          return *this;
-        }
-
-        __PGBAR_NODISCARD __PGBAR_CXX20_CNSTXPR bool empty() const noexcept { return bytes_.empty(); }
-        __PGBAR_CXX20_CNSTXPR types::Size size() const noexcept { return width_; }
-        __PGBAR_CXX20_CNSTXPR types::ROStr str() const noexcept { return bytes_; }
-
-        __PGBAR_CXX20_CNSTXPR void clear() noexcept
-        {
-          bytes_.clear();
-          width_ = 0;
-        }
-        __PGBAR_CXX20_CNSTXPR void shrink_to_fit() noexcept( noexcept( bytes_.shrink_to_fit() ) )
-        { // The standard does not seem to specify whether the function is noexcept,
-          // so let's make a judgment here.
-          // At least I didn't see it on cppreference.
-          bytes_.shrink_to_fit();
-        }
-
-        __PGBAR_CXX20_CNSTXPR void swap( Self& lhs ) noexcept
-        {
-          std::swap( width_, lhs.width_ );
-          bytes_.swap( lhs.bytes_ );
-        }
-        __PGBAR_CXX20_CNSTXPR friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
-
-        __PGBAR_CXX20_CNSTXPR explicit operator types::String() & { return bytes_; }
-        __PGBAR_CXX20_CNSTXPR explicit operator types::String() const& { return bytes_; }
-        __PGBAR_CXX20_CNSTXPR explicit operator types::String&&() && noexcept { return std::move( bytes_ ); }
-        __PGBAR_CXX20_CNSTXPR operator types::ROStr() const noexcept { return str(); }
-
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( types::String&& a,
-                                                                                         const Self& b )
-        {
-          // Ensure strong exception safety.
-          const auto new_width = U8String::render_width( a );
-          a.append( b.bytes_ );
-          auto ret   = U8String();
-          ret.bytes_ = std::move( a );
-          ret.width_ = new_width + b.width_;
-          return ret;
-        }
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self
-          operator+( const types::String& a, const Self& b )
-        {
-          auto tmp = types::String( a );
-          tmp.append( b.bytes_ );
-          return U8String( std::move( tmp ) );
-        }
-        template<std::size_t N>
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( const char ( &a )[N],
-                                                                                         const Self& b )
-        {
-          auto tmp = types::String( a );
-          tmp.append( b.bytes_ );
-          return U8String( std::move( tmp ) );
-        }
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( const char* a,
-                                                                                         const Self& b )
-        {
-          auto tmp = types::String( a );
-          tmp.append( b.bytes_ );
-          return U8String( std::move( tmp ) );
-        }
-# if __PGBAR_CXX20
-        static_assert( sizeof( char8_t ) == sizeof( char ),
-                       "pgbar::__details::chaset::U8String: Unexpected type size mismatch" );
-
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( std::u8string_view a,
-                                                                                         const Self& b )
-        {
-          auto tmp = Self( a );
-          tmp.bytes_.append( b.bytes_ );
-          return U8String( std::move( tmp ) );
-        }
-# endif
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( const Self& a,
-                                                                                         types::ROStr b )
-        {
-          auto tmp = a.bytes_;
-          tmp.append( b );
-          return U8String( std::move( tmp ) );
-        }
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( Self&& a,
-                                                                                         types::ROStr b )
-        {
-          const auto new_width = U8String::render_width( b );
-          a.bytes_.append( b );
-          a.width_ += new_width;
-          return a;
-        }
-
-# if __PGBAR_CXX20
-        __PGBAR_CXX20_CNSTXPR explicit U8String( std::u8string_view u8_sv ) : U8String()
-        {
-          bytes_.resize( u8_sv.size() );
-          std::copy( u8_sv.cbegin(), u8_sv.cend(), bytes_.begin() );
-          width_ = render_width( bytes_ );
-        }
-
-        __PGBAR_CXX20_CNSTXPR explicit operator std::u8string() const
-        {
-          std::u8string ret;
-          ret.resize( bytes_.size() );
-          std::copy( bytes_.cbegin(), bytes_.cend(), ret.begin() );
-          return ret;
-        }
-# endif
-      };
-    } // namespace charcodes
-
-    namespace utils {
-      template<TxtLayout Style>
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::String format(
-        types::Size width,
-        const charcodes::U8String& __str ) noexcept( false )
-      {
-        return format<Style>( width, __str.size(), __str.str() );
-      }
-    } // namespace utils
 
     namespace io {
       // A simple string buffer, unrelated to the `std::stringbuf` in the STL.
@@ -2290,193 +2534,6 @@ namespace pgbar {
         }
       };
     } // namespace io
-
-    namespace concurrent {
-      // Some components require a noexcept mutex.
-      class Mutex final {
-        using Self = Mutex;
-
-        std::atomic_flag lock_stat_ = ATOMIC_FLAG_INIT;
-
-      public:
-        Mutex( const Mutex& )              = delete;
-        Mutex& operator=( const Mutex& ) & = delete;
-
-        constexpr Mutex()              = default;
-        __PGBAR_CXX20_CNSTXPR ~Mutex() = default;
-
-        __PGBAR_INLINE_FN void lock() & noexcept
-        {
-          while ( lock_stat_.test_and_set( std::memory_order_acq_rel ) )
-            std::this_thread::yield();
-        }
-
-        __PGBAR_INLINE_FN void unlock() & noexcept { lock_stat_.clear( std::memory_order_release ); }
-
-        __PGBAR_INLINE_FN bool try_lock() & noexcept
-        {
-          return !lock_stat_.test_and_set( std::memory_order_acq_rel );
-        }
-      };
-
-      // A simple `Shared Mutex` implementation for any C++ version.
-      class SharedMutex final {
-        using Self = SharedMutex;
-
-      protected:
-        std::atomic<types::Size> num_readers_;
-        Mutex writer_mtx_;
-
-      public:
-        SharedMutex( const Self& )       = delete;
-        Self& operator=( const Self& ) & = delete;
-
-        constexpr SharedMutex() noexcept : num_readers_ { 0 } {}
-        __PGBAR_CXX20_CNSTXPR ~SharedMutex() = default;
-
-        void lock() & noexcept
-        {
-          while ( true ) {
-            while ( num_readers_.load( std::memory_order_acquire ) != 0 )
-              std::this_thread::yield();
-
-            writer_mtx_.lock();
-            if ( num_readers_.load( std::memory_order_acquire ) == 0 )
-              break;
-            else // unlock it and wait for readers to finish
-              writer_mtx_.unlock();
-          }
-        }
-        __PGBAR_NODISCARD bool try_lock() & noexcept
-        {
-          if ( num_readers_.load( std::memory_order_acquire ) == 0 && writer_mtx_.try_lock() ) {
-            if ( num_readers_.load( std::memory_order_acquire ) == 0 )
-              return true;
-            else
-              writer_mtx_.unlock();
-          }
-          return false;
-        }
-        __PGBAR_INLINE_FN void unlock() & noexcept { writer_mtx_.unlock(); }
-
-        void lock_shared() & noexcept
-        {
-          writer_mtx_.lock();
-
-          num_readers_.fetch_add( 1, std::memory_order_release );
-          __PGBAR_ASSERT( num_readers_ > 0 ); // overflow checking
-
-          writer_mtx_.unlock();
-        }
-        __PGBAR_NODISCARD bool try_lock_shared() & noexcept
-        {
-          if ( writer_mtx_.try_lock() ) {
-            num_readers_.fetch_add( 1, std::memory_order_release );
-            __PGBAR_ASSERT( num_readers_ > 0 );
-            writer_mtx_.unlock();
-            return true;
-          }
-          return false;
-        }
-        __PGBAR_INLINE_FN void unlock_shared() & noexcept
-        {
-          __PGBAR_ASSERT( num_readers_ > 0 ); // underflow checking
-          num_readers_.fetch_sub( 1, std::memory_order_release );
-        }
-      };
-
-# if __PGBAR_CXX14
-      template<typename Mtx>
-      using SharedLock = std::shared_lock<Mtx>;
-# else
-      template<typename Mtx>
-      class SharedLock final {
-        using Self = SharedLock;
-
-        Mtx& mtx_;
-
-      public:
-        using mutex_type = Mtx;
-
-        SharedLock( mutex_type& m ) noexcept( noexcept( mtx_.lock_shared() ) ) : mtx_ { m }
-        {
-          mtx_.lock_shared();
-        }
-        ~SharedLock() noexcept { mtx_.unlock_shared(); }
-      };
-
-# endif
-
-      // A nullable container that holds an exception pointer.
-      class ExceptionBox final {
-        // This is the component requiring a noexcept mutex.
-        using Self = ExceptionBox;
-
-        std::exception_ptr exception_;
-        mutable SharedMutex rw_mtx_;
-
-      public:
-        ExceptionBox()  = default;
-        ~ExceptionBox() = default;
-
-        ExceptionBox( ExceptionBox&& rhs ) noexcept : ExceptionBox() { swap( rhs ); }
-        ExceptionBox& operator=( ExceptionBox&& rhs ) & noexcept
-        {
-          __PGBAR_PURE_ASSUME( this != &rhs );
-          // Exception pointers should not be discarded due to movement semantics.
-          // Thus we only swap them here.
-          swap( rhs );
-          return *this;
-        }
-
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool empty() const noexcept
-        {
-          SharedLock<SharedMutex> lock { rw_mtx_ };
-          return !static_cast<bool>( exception_ );
-        }
-
-        __PGBAR_INLINE_FN Self& store( std::exception_ptr e ) & noexcept
-        {
-          std::lock_guard<SharedMutex> lock { rw_mtx_ };
-          if ( !exception_ )
-            exception_ = e;
-          return *this;
-        }
-        __PGBAR_INLINE_FN std::exception_ptr load() const noexcept
-        {
-          SharedLock<SharedMutex> lock { rw_mtx_ };
-          return exception_;
-        }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN Self& clear() noexcept
-        {
-          std::lock_guard<SharedMutex> lock { rw_mtx_ };
-          exception_ = std::exception_ptr();
-          return *this;
-        }
-
-        // Rethrow the exception pointed if it is'nt null.
-        __PGBAR_INLINE_FN void rethrow() noexcept( false )
-        {
-          std::lock_guard<SharedMutex> lock { rw_mtx_ };
-          if ( !exception_ )
-            return;
-          auto exception_ptr = exception_;
-          exception_         = std::exception_ptr();
-          if ( exception_ptr )
-            std::rethrow_exception( std::move( exception_ptr ) );
-        }
-
-        void swap( ExceptionBox& lhs ) noexcept
-        {
-          __PGBAR_PURE_ASSUME( this != &lhs );
-          std::lock_guard<SharedMutex> lock1 { rw_mtx_ };
-          std::lock_guard<SharedMutex> lock2 { lhs.rw_mtx_ };
-          using std::swap; // ADL custom point
-          swap( exception_, lhs.exception_ );
-        }
-        friend void swap( ExceptionBox& a, ExceptionBox& b ) noexcept { a.swap( b ); }
-      };
-    } // namespace concurrent
 
     namespace render {
       // Multi-channel renderer template class managing background task thread lifecycle and state
@@ -2743,62 +2800,17 @@ namespace pgbar {
       template<Channel Tag>
       concurrent::SharedMutex Renderer<Tag>::_rw_mtx {};
     } // namespace render
-
-    namespace assets {
-      template<typename T>
-      struct OptionWrapper {
-      protected:
-        T data_;
-
-        constexpr OptionWrapper() = default;
-        constexpr OptionWrapper( T&& data ) noexcept( std::is_nothrow_move_constructible<T>::value )
-          : data_ { std::move( data ) }
-        {}
-
-      public:
-        constexpr OptionWrapper( const OptionWrapper& )                          = default;
-        constexpr OptionWrapper( OptionWrapper&& )                               = default;
-        __PGBAR_CXX14_CNSTXPR OptionWrapper& operator=( const OptionWrapper& ) & = default;
-        __PGBAR_CXX14_CNSTXPR OptionWrapper& operator=( OptionWrapper&& ) &      = default;
-
-        // Intentional non-virtual destructors.
-        __PGBAR_CXX20_CNSTXPR ~OptionWrapper() = default;
-        __PGBAR_CXX14_CNSTXPR T& value() & noexcept { return data_; }
-        __PGBAR_CXX14_CNSTXPR const T& value() const& noexcept { return data_; }
-        __PGBAR_CXX14_CNSTXPR T&& value() && noexcept { return std::move( data_ ); }
-
-        __PGBAR_CXX20_CNSTXPR void swap( T& lhs ) noexcept
-        {
-          __PGBAR_PURE_ASSUME( this != &lhs );
-          using std::swap;
-          swap( data_, lhs.data_ );
-        }
-        friend __PGBAR_CXX20_CNSTXPR void swap( T& a, T& b ) noexcept { a.swap( b ); }
-      };
-    } // namespace assets
   } // namespace __details
-
-  namespace color {
-    constexpr __details::types::HexRGB None    = __PGBAR_DEFAULT;
-    constexpr __details::types::HexRGB Black   = __PGBAR_BLACK;
-    constexpr __details::types::HexRGB Red     = __PGBAR_RED;
-    constexpr __details::types::HexRGB Green   = __PGBAR_GREEN;
-    constexpr __details::types::HexRGB Yellow  = __PGBAR_YELLOW;
-    constexpr __details::types::HexRGB Blue    = __PGBAR_BLUE;
-    constexpr __details::types::HexRGB Magenta = __PGBAR_MAGENTA;
-    constexpr __details::types::HexRGB Cyan    = __PGBAR_CYAN;
-    constexpr __details::types::HexRGB White   = __PGBAR_WHITE;
-  } // namespace color
 
   namespace option {
     // The purpose of generating code with macros here is to annotate each type and method to provide more
     // friendly IDE access.
 # define __PGBAR_BASE( ValueType ) \
  public                            \
-   __details::assets::OptionWrapper<ValueType>
-# define __PGBAR_OPTIONS( StructName, ValueType, ParamName )                 \
-   constexpr StructName( ValueType ParamName ) noexcept                      \
-     : __details::assets::OptionWrapper<ValueType>( std::move( ParamName ) ) \
+   __details::wrappers::OptionWrapper<ValueType>
+# define __PGBAR_OPTIONS( StructName, ValueType, ParamName )                   \
+   constexpr StructName( ValueType ParamName ) noexcept                        \
+     : __details::wrappers::OptionWrapper<ValueType>( std::move( ParamName ) ) \
    {}
 
     // A wrapper that stores the value of the bit option setting.
@@ -2861,22 +2873,22 @@ namespace pgbar {
 
 # undef __PGBAR_OPTIONS
 # if __PGBAR_CXX20
-#  define __PGBAR_OPTIONS( StructName, ValueType, ParamName )                              \
-    /**                                                                                    \
-     * @throw exception::InvalidArgument                                                   \
-     *                                                                                     \
-     * If the passed parameter is not coding in UTF-8.                                     \
-     */                                                                                    \
-    __PGBAR_CXX20_CNSTXPR StructName( __details::types::String ParamName )                 \
-      : __details::assets::OptionWrapper<ValueType>( ValueType( std::move( ParamName ) ) ) \
-    {}                                                                                     \
-    StructName( std::u8string_view ParamName )                                             \
-      : __details::assets::OptionWrapper<ValueType>( ValueType( std::move( ParamName ) ) ) \
+#  define __PGBAR_OPTIONS( StructName, ValueType, ParamName )                                \
+    /**                                                                                      \
+     * @throw exception::InvalidArgument                                                     \
+     *                                                                                       \
+     * If the passed parameter is not coding in UTF-8.                                       \
+     */                                                                                      \
+    __PGBAR_CXX20_CNSTXPR StructName( __details::types::String ParamName )                   \
+      : __details::wrappers::OptionWrapper<ValueType>( ValueType( std::move( ParamName ) ) ) \
+    {}                                                                                       \
+    StructName( std::u8string_view ParamName )                                               \
+      : __details::wrappers::OptionWrapper<ValueType>( ValueType( std::move( ParamName ) ) ) \
     {}
 # else
-#  define __PGBAR_OPTIONS( StructName, ValueType, ParamName )                              \
-    __PGBAR_CXX20_CNSTXPR StructName( __details::types::String ParamName )                 \
-      : __details::assets::OptionWrapper<ValueType>( ValueType( std::move( ParamName ) ) ) \
+#  define __PGBAR_OPTIONS( StructName, ValueType, ParamName )                                \
+    __PGBAR_CXX20_CNSTXPR StructName( __details::types::String ParamName )                   \
+      : __details::wrappers::OptionWrapper<ValueType>( ValueType( std::move( ParamName ) ) ) \
     {}
 # endif
 
@@ -2933,7 +2945,7 @@ namespace pgbar {
 # undef __PGBAR_OPTIONS
 # define __PGBAR_OPTIONS( StructName, ValueType, ParamName )                                   \
  private:                                                                                      \
-   using Base = __details::assets::OptionWrapper<ValueType>;                                   \
+   using Base = __details::wrappers::OptionWrapper<ValueType>;                                 \
                                                                                                \
  public:                                                                                       \
    StructName( __details::types::ROStr ParamName )                                             \
@@ -3046,7 +3058,7 @@ namespace pgbar {
     // A wrapper that stores the `lead` animated element.
     struct Lead final : __PGBAR_BASE( std::vector<__details::charcodes::U8String> ) {
     private:
-      using Base = __details::assets::OptionWrapper<std::vector<__details::charcodes::U8String>>;
+      using Base = __details::wrappers::OptionWrapper<std::vector<__details::charcodes::U8String>>;
 
     public:
       /**
@@ -5427,7 +5439,7 @@ namespace pgbar {
         friend struct render::RenderAction;
 
         render::Builder<Config> config_;
-        mutable concurrent::Mutex mtx_;
+        mutable std::mutex mtx_;
 
       protected:
         virtual void do_terminate( bool forced = false ) noexcept
@@ -5476,13 +5488,11 @@ namespace pgbar {
 
         __PGBAR_INLINE_FN void do_reset( bool final_mesg, bool forced = false ) noexcept
         {
-          std::lock_guard<concurrent::Mutex> lock { this->mtx_ };
+          std::lock_guard<std::mutex> lock { mtx_ };
           if ( this->is_running() ) {
             if ( forced )
-              __PGBAR_UNLIKELY
-            this->state_.store( Indicator::State::Stopped, std::memory_order_release );
-            else
-            {
+              __PGBAR_UNLIKELY this->state_.store( Indicator::State::Stopped, std::memory_order_release );
+            else {
               this->final_mesg_ = final_mesg;
               auto try_update   = [this]( Indicator::State expected ) noexcept {
                 return this->state_.compare_exchange_strong( expected,
@@ -5504,7 +5514,7 @@ namespace pgbar {
                          "pgbar::__details::prefabs:BasicBar::do_tick: Invalid type" );
           switch ( this->state_.load( std::memory_order_acquire ) ) {
           case Indicator::State::Stopped: {
-            std::lock_guard<concurrent::Mutex> lock { this->mtx_ };
+            std::lock_guard<std::mutex> lock { mtx_ };
             if ( this->state_.load( std::memory_order_acquire ) == Indicator::State::Stopped ) {
               this->task_end_.store( config_.tasks(), std::memory_order_release );
               if __PGBAR_CXX17_CNSTXPR ( std::is_same<Config, config::CharBar>::value
@@ -5866,7 +5876,7 @@ namespace pgbar {
         // cb: CombinedBar
         enum class CBState : types::Byte { Stopped, Awake, Refresh };
         std::atomic<CBState> cb_state_;
-        mutable concurrent::Mutex cb_mtx_;
+        mutable std::mutex cb_mtx_;
 
         std::bitset<sizeof...( Bars )> output_tag_;
 
@@ -5893,7 +5903,7 @@ namespace pgbar {
           // Any default arguments provided in the derived class are ignored.
           auto& executor = render::Renderer<Outlet>::itself();
           if ( active() && alive_cnt_.fetch_sub( 1, std::memory_order_acq_rel ) == 1 && !executor.empty() ) {
-            std::lock_guard<concurrent::Mutex> lock { cb_mtx_ };
+            std::lock_guard<std::mutex> lock { cb_mtx_ };
             if ( alive_cnt_.load( std::memory_order_acquire ) == 0 ) {
               // double check
               if ( !forced )
@@ -5906,7 +5916,7 @@ namespace pgbar {
         }
         void do_setup() & override final
         {
-          std::lock_guard<concurrent::Mutex> lock { cb_mtx_ };
+          std::lock_guard<std::mutex> lock { cb_mtx_ };
           if ( cb_state_.load( std::memory_order_acquire ) == CBState::Stopped ) {
             auto& executor = render::Renderer<Outlet>::itself();
             if ( !executor.try_appoint( [this]() {
@@ -6027,11 +6037,10 @@ namespace pgbar {
            template<typename, Channel>
            class... Bars>
   class MultiBar<Bar<Config, Outlet>, Bars<Configs, Outlet>...> final {
-    static_assert( __details::traits::AllOf<
-                     std::is_same<Bar<Config, Outlet>, __details::prefabs::BasicBar<Config, Outlet>>,
-                     std::is_same<Bars<Configs, Outlet>, __details::prefabs::BasicBar<Configs, Outlet>>...,
-                     __details::traits::is_config<Config>,
-                     __details::traits::is_config<Configs>...>::value,
+    static_assert( __details::traits::AllOf<__details::traits::is_bar<Bar<Config, Outlet>>,
+                                            __details::traits::is_bar<Bars<Configs, Outlet>>...,
+                                            __details::traits::is_config<Config>,
+                                            __details::traits::is_config<Configs>...>::value,
                    "pgbar::MultiBar: Invalid type" );
     using Self    = MultiBar;
     using Package = __details::assets::TupleBar<__details::traits::MakeIndexSeq<sizeof...( Bars ) + 1>,
@@ -6539,8 +6548,6 @@ namespace pgbar {
     };
   } // namespace scope
 } // namespace pgbar
-
-# undef __PGBAR_LAUNDER
 
 # undef __PGBAR_COMPONENT_REGISTER
 # undef __PGBAR_TRAIT_REGISTER
