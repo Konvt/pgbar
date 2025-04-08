@@ -50,7 +50,7 @@ int main()
 {
   pgbar::ProgressBar<> bar { pgbar::option::Remains( "-" ),
                              pgbar::option::Filler( "=" ),
-                             pgbar::option::Styles( pgbar::configs::CharBar::Entire ),
+                             pgbar::option::Styles( pgbar::config::CharBar::Entire ),
                              pgbar::option::TodoColor( "#A52A2A" ),
                              pgbar::option::DoneColor( 0x0099FF ),
                              pgbar::option::StatusColor( pgbar::color::Yellow ),
@@ -69,7 +69,7 @@ No, as mentioned in the [Features](#features) section, updating the progress bar
 
 With `O2/O3` optimizations enabled, the performance overhead of the second iteration in the code below will *approach* that of the first iteration[^1].
 
-[^1]: In practice, the overhead of updating the progress bar only adds a single function call and some branching cost.
+[^1]: In practice, the overhead of updating the progress bar only adds the overload of calling jumps and branches a few more times.
 
 ```cpp
 #include "pgbar/pgbar.hpp"
@@ -80,7 +80,7 @@ int main()
   for ( std::size_t _ = 0; _ < 2147483647; ++_ )
     ++count;
 
-  pgbar::ProgressBar<> bar { pgbar::options::Tasks( 2147483647 ) };
+  pgbar::ProgressBar<> bar { pgbar::option::Tasks( 2147483647 ) };
   for ( std::size_t _ = 0; _ < 2147483647; ++_ )
     bar.tick();
 }
