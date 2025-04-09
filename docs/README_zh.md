@@ -25,7 +25,7 @@
 
 ### SpinnerBar
 ```
-{LeftBorder}{Lead}{Description}{Percent}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
+{LeftBorder}{Description}{Lead}{Percent}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
 \ |  48.64% |  65288807/134217727 |  17.84 MHz | 00:00:03 < 00:00:03
 ```
 ![spinnerbar](../images/spinnerbar.gif)

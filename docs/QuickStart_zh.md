@@ -1244,10 +1244,10 @@ int main()
 `SpinnerBar` 由以下几种元素组成：
 
 ```text
-{LeftBorder}{Lead}{Description}{Percent}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
+{LeftBorder}{Description}{Lead}{Percent}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
 ```
 
-其中可以自定义的部分有：`LeftBorder`、`Lead`、`Description`、`Speed` 和 `RightBorder`，它们的功能与名字相同。
+其中可以自定义的部分有：`LeftBorder`、`Description`、`Lead`、`Speed` 和 `RightBorder`，它们的功能与名字相同。
 
 这些元素可以直接在 `pgbar::option` 中找到对应的包装类型：
 

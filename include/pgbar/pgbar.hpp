@@ -5073,7 +5073,7 @@ namespace pgbar {
       };
 
       template<typename Config, typename Impl>
-      struct IndirectBuilder : public CommonBuilder<Config> {
+      struct BuilderAdopter : public CommonBuilder<Config> {
       private:
         using Self = Config;
         using Base = CommonBuilder<Config>;
@@ -5165,9 +5165,9 @@ namespace pgbar {
       struct Builder;
       template<>
       struct Builder<config::CharBar> final
-        : public IndirectBuilder<config::CharBar, Builder<config::CharBar>> {
+        : public BuilderAdopter<config::CharBar, Builder<config::CharBar>> {
       private:
-        using Base = IndirectBuilder<config::CharBar, Builder<config::CharBar>>;
+        using Base = BuilderAdopter<config::CharBar, Builder<config::CharBar>>;
         friend Base;
 
       protected:
@@ -5179,7 +5179,7 @@ namespace pgbar {
         }
 
       public:
-        using Base::Base;
+        using Base::BuilderAdopter;
         Builder( config::CharBar&& rhs ) noexcept : Base( std::move( rhs ) ) {}
 
         __PGBAR_INLINE_FN io::Stringbuf& build(
@@ -5226,9 +5226,9 @@ namespace pgbar {
 
       template<>
       struct Builder<config::BlckBar> final
-        : public IndirectBuilder<config::BlckBar, Builder<config::BlckBar>> {
+        : public BuilderAdopter<config::BlckBar, Builder<config::BlckBar>> {
       private:
-        using Base = IndirectBuilder<config::BlckBar, Builder<config::BlckBar>>;
+        using Base = BuilderAdopter<config::BlckBar, Builder<config::BlckBar>>;
         friend Base;
 
       protected:
@@ -5239,7 +5239,7 @@ namespace pgbar {
         }
 
       public:
-        using Base::Base;
+        using Base::BuilderAdopter;
         __PGBAR_INLINE_FN io::Stringbuf& build(
           io::Stringbuf& buffer,
           types::Size num_task_done,
@@ -5276,9 +5276,9 @@ namespace pgbar {
 
       template<>
       struct Builder<config::ScanBar> final
-        : public IndirectBuilder<config::ScanBar, Builder<config::ScanBar>> {
+        : public BuilderAdopter<config::ScanBar, Builder<config::ScanBar>> {
       private:
-        using Base = IndirectBuilder<config::ScanBar, Builder<config::ScanBar>>;
+        using Base = BuilderAdopter<config::ScanBar, Builder<config::ScanBar>>;
         friend Base;
 
       protected:
@@ -5289,7 +5289,7 @@ namespace pgbar {
         }
 
       public:
-        using Base::Base;
+        using Base::BuilderAdopter;
         __PGBAR_INLINE_FN io::Stringbuf& build(
           io::Stringbuf& buffer,
           types::Size num_frame_cnt,
@@ -5348,11 +5348,10 @@ namespace pgbar {
             this->build_lborder( buffer );
 
           if ( this->visual_masks_[utils::as_val( Self::Mask::Ani )] ) {
-            this->build_spinner( buffer, num_frame_cnt );
-            if ( !this->description_.empty() ) {
+            this->build_description( buffer );
+            if ( !this->description_.empty() )
               buffer << constants::blank;
-              this->build_description( buffer );
-            }
+            this->build_spinner( buffer, num_frame_cnt );
             auto masks = this->visual_masks_;
             if ( masks.reset( utils::as_val( Self::Mask::Ani ) ).any() )
               this->build_divider( buffer );
@@ -5388,12 +5387,12 @@ namespace pgbar {
             this->build_lborder( buffer );
 
           if ( this->visual_masks_[utils::as_val( Self::Mask::Ani )] ) {
+            this->build_description( buffer, final_mesg );
             if ( ( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() ) {
-              this->build_spinner( buffer, num_frame_cnt );
               if ( !this->description_.empty() )
                 buffer << constants::blank;
+              this->build_spinner( buffer, num_frame_cnt );
             }
-            this->build_description( buffer, final_mesg );
             auto masks = this->visual_masks_;
             if ( masks.reset( utils::as_val( Self::Mask::Ani ) ).any() )
               this->build_divider( buffer );
@@ -5486,14 +5485,17 @@ namespace pgbar {
           executor.activate();
         }
 
-        __PGBAR_INLINE_FN void do_reset( bool final_mesg, bool forced = false ) noexcept
+        enum class ResetMode : types::Byte { Failure = false, Success = true, Forced };
+        __PGBAR_INLINE_FN void do_reset( ResetMode mode ) noexcept
         {
           std::lock_guard<std::mutex> lock { mtx_ };
           if ( this->is_running() ) {
-            if ( forced )
-              __PGBAR_UNLIKELY this->state_.store( Indicator::State::Stopped, std::memory_order_release );
-            else {
-              this->final_mesg_ = final_mesg;
+            switch ( mode ) {
+            case ResetMode::Forced: {
+              this->state_.store( Indicator::State::Stopped, std::memory_order_release );
+            } break;
+            default: {
+              this->final_mesg_ = static_cast<bool>( mode );
               auto try_update   = [this]( Indicator::State expected ) noexcept {
                 return this->state_.compare_exchange_strong( expected,
                                                              Indicator::State::Finish,
@@ -5502,8 +5504,9 @@ namespace pgbar {
               };
               try_update( Indicator::State::Begin ) || try_update( Indicator::State::StrictRefresh )
                 || try_update( Indicator::State::LenientRefresh );
+            } break;
             }
-            do_terminate( forced );
+            do_terminate( mode == ResetMode::Forced );
           } else
             this->state_.store( Indicator::State::Stopped, std::memory_order_release );
         }
@@ -5546,7 +5549,7 @@ namespace pgbar {
 
             if ( this->task_cnt_.load( std::memory_order_acquire )
                  >= this->task_end_.load( std::memory_order_acquire ) )
-              __PGBAR_UNLIKELY do_reset( true );
+              __PGBAR_UNLIKELY do_reset( ResetMode::Success );
           } break;
 
           default: return;
@@ -5576,7 +5579,7 @@ namespace pgbar {
           config_ = std::move( rhs.config_ );
           return *this;
         }
-        virtual ~BasicBar() noexcept { do_reset( false, true ); }
+        virtual ~BasicBar() noexcept { do_reset( ResetMode::Forced ); }
 
         void tick() & override final
         {
@@ -5620,7 +5623,7 @@ namespace pgbar {
 
         void reset( bool final_mesg = true ) override final
         {
-          do_reset( final_mesg );
+          do_reset( static_cast<ResetMode>( final_mesg ) );
           __PGBAR_ASSERT( this->is_running() == false );
         }
 
@@ -5989,7 +5992,9 @@ namespace pgbar {
         void halt() noexcept
         {
           if ( active() && !__details::render::Renderer<Outlet>::itself().empty() )
-            (void)std::initializer_list<char> { ( this->ElementAt_t<Tags>::do_reset( true ), '\0' )... };
+            (void)std::initializer_list<char> {
+              ( this->ElementAt_t<Tags>::do_reset( ElementAt_t<Tags>::ResetMode::Forced ), '\0' )...
+            };
           __PGBAR_ASSERT( alive_cnt_ == 0 );
           __PGBAR_ASSERT( active() == false );
         }
