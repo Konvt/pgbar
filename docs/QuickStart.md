@@ -1243,10 +1243,10 @@ int main()
 `SpinnerBar` consists of the following elements:
 
 ```text
-{LeftBorder}{Lead}{Description}{Percent}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
+{LeftBorder}{Description}{Lead}{Percent}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
 ```
 
-The customizable sections are: `LeftBorder`、`Lead`、`Description`、`Speed` and `RightBorder`, all of which have the same method as the name.
+The customizable sections are: `LeftBorder`、`Description`、`Lead`、`Speed` and `RightBorder`, all of which have the same method as the name.
 
 These elements can be found directly in `pgbar::option` with the corresponding wrapper type:
 
