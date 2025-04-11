@@ -2250,10 +2250,10 @@ namespace pgbar {
         constexpr types::LitStr reset_font = "\x1B[0m";
         constexpr types::LitStr bold_font  = "\x1B[1m";
 # endif
-        constexpr types::LitStr store_cursor   = "\x1B[s";
-        constexpr types::LitStr restore_cursor = "\x1B[u";
-        constexpr types::LitStr clear_suffix   = "\x1B[K";
-        constexpr types::Char nextline         = '\n';
+        constexpr types::LitStr clear_suffix = "\x1B[K";
+        constexpr types::LitStr prevline     = "\x1b[A";
+        constexpr types::Char nextline       = '\n';
+        constexpr types::Char linestart      = '\r';
 
         // Assembles an ANSI escape code that clears `__n` characters after the cursor.
         __PGBAR_INLINE_FN types::String clear_next( types::Size __n = 1 )
@@ -5458,7 +5458,6 @@ namespace pgbar {
                  auto& ostream = io::OStream<Outlet>::itself();
                  switch ( this->state_.load( std::memory_order_acquire ) ) {
                  case Self::State::Begin: {
-                   ostream << console::escodes::store_cursor;
                    render::RenderAction<Config>::boot( *this );
                    ostream << console::escodes::nextline;
                    ostream << io::flush;
@@ -5466,13 +5465,13 @@ namespace pgbar {
                    __PGBAR_FALLTHROUGH;
                  case Self::State::StrictRefresh:  __PGBAR_FALLTHROUGH;
                  case Self::State::LenientRefresh: {
-                   ostream << console::escodes::restore_cursor;
+                   ostream << console::escodes::prevline << console::escodes::linestart;
                    render::RenderAction<Config>::process( *this );
                    ostream << console::escodes::nextline;
                    ostream << io::flush;
                  } break;
                  case Self::State::Finish: {
-                   ostream << console::escodes::restore_cursor;
+                   ostream << console::escodes::prevline << console::escodes::linestart;
                    render::RenderAction<Config>::finish( *this );
                    ostream << console::escodes::nextline;
                    ostream << io::flush << io::release;
@@ -5882,7 +5881,8 @@ namespace pgbar {
         std::atomic<CBState> cb_state_;
         mutable std::mutex cb_mtx_;
 
-        std::bitset<sizeof...( Bars )> output_tag_;
+        // Bitmask indicating which bars produced output in the current render pass.
+        std::bitset<sizeof...( Bars )> active_mask_;
 
         template<types::Size Pos>
         __PGBAR_INLINE_FN typename std::enable_if<( Pos >= sizeof...( Bars ) )>::type do_render() &
@@ -5893,10 +5893,10 @@ namespace pgbar {
           using std::get;
           __PGBAR_ASSERT( active() );
           if ( get<Pos>( *this ).is_running() ) {
-            output_tag_.set( Pos );
+            active_mask_.set( Pos );
             render::RenderAction<void>::automate( get<Pos>( *this ) );
           }
-          if ( output_tag_[Pos] )
+          if ( active_mask_[Pos] )
             io::OStream<Outlet>::itself() << console::escodes::nextline;
           return do_render<Pos + 1>(); // tail recursive
         }
@@ -5927,8 +5927,7 @@ namespace pgbar {
                    auto& ostream = io::OStream<Outlet>::itself();
                    switch ( cb_state_.load( std::memory_order_acquire ) ) {
                    case CBState::Awake: {
-                     output_tag_.reset();
-                     ostream << console::escodes::store_cursor;
+                     active_mask_.reset();
                      do_render();
                      ostream << io::flush;
 
@@ -5939,7 +5938,8 @@ namespace pgbar {
                                                         std::memory_order_relaxed );
                    } break;
                    case CBState::Refresh: {
-                     ostream << console::escodes::restore_cursor;
+                     ostream.append( console::escodes::prevline, active_mask_.count() )
+                       .append( console::escodes::linestart );
                      do_render();
                      ostream << io::flush;
                    } break;
