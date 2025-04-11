@@ -4614,8 +4614,7 @@ namespace pgbar {
                                  : 0 ) ) )
                + ( visual_masks_[utils::as_val( Mask::Elpsd )] && visual_masks_[utils::as_val( Mask::Cntdwn )]
                      ? 3
-                     : 0 )
-               + 1;
+                     : 0 );
         }
 
       public:
@@ -5461,6 +5460,7 @@ namespace pgbar {
                  case Self::State::Begin: {
                    ostream << console::escodes::store_cursor;
                    render::RenderAction<Config>::boot( *this );
+                   ostream << console::escodes::nextline;
                    ostream << io::flush;
                  }
                    __PGBAR_FALLTHROUGH;
@@ -5468,6 +5468,7 @@ namespace pgbar {
                  case Self::State::LenientRefresh: {
                    ostream << console::escodes::restore_cursor;
                    render::RenderAction<Config>::process( *this );
+                   ostream << console::escodes::nextline;
                    ostream << io::flush;
                  } break;
                  case Self::State::Finish: {
