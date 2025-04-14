@@ -1612,14 +1612,14 @@ namespace pgbar {
         std::atomic<types::Size> num_readers_;
         std::mutex writer_mtx_;
         /**
-          * Although the `lock()` and `unlock()` functions of `std::mutex`
-          * in the standard library are not marked as `noexcept`,
-          * in practice, it is very rare for exceptions to be thrown,
-          * and usually indicate a bug in the program itself.
-          * Therefore, it is assumed here that `std::mutex` is `noexcept`.
+         * Although the `lock()` and `unlock()` functions of `std::mutex`
+         * in the standard library are not marked as `noexcept`,
+         * in practice, it is very rare for exceptions to be thrown,
+         * and usually indicate a bug in the program itself.
+         * Therefore, it is assumed here that `std::mutex` is `noexcept`.
 
-          * For more details, see: https://stackoverflow.com/questions/17551256
-          */
+         * For more details, see: https://stackoverflow.com/questions/17551256
+         */
 
       public:
         SharedMutex( const Self& )       = delete;
@@ -2576,7 +2576,7 @@ namespace pgbar {
 
         wrappers::UniqueFunction<void()> task_;
 
-        __PGBAR_INLINE_FN void launch() & noexcept( false )
+        void launch() & noexcept( false )
         {
           __PGBAR_ASSERT( td_.id() == std::thread::get_id() );
           state_.store( State::Dormant, std::memory_order_release );
@@ -2618,7 +2618,7 @@ namespace pgbar {
           }
         }
 
-        __PGBAR_INLINE_FN void shutdown() noexcept
+        void shutdown() noexcept
         {
           state_.store( State::Dead, std::memory_order_release );
           {
@@ -2669,6 +2669,8 @@ namespace pgbar {
             }
           }
 
+          // The operations below are all thread safe without locking.
+          // Also, only one thread needs to be able to execute concurrently.
           if ( !box_.empty() )
             box_.rethrow();
           __PGBAR_ASSERT( state_ != State::Dead );
@@ -2694,6 +2696,7 @@ namespace pgbar {
           std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
           if ( task_ != nullptr )
             return false;
+          // Under normal circumstances, `active() == false` implies that `task_ == nullptr`.
           __PGBAR_ASSERT( active() == false );
           task_.swap( task );
           return true;
@@ -2705,12 +2708,12 @@ namespace pgbar {
           shutdown();
         }
 
-        __PGBAR_NODISCARD bool empty() const noexcept
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool empty() const noexcept
         {
           std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
           return task_ == nullptr;
         }
-        __PGBAR_NODISCARD bool active() const noexcept
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool active() const noexcept
         {
           return state_.load( std::memory_order_acquire ) == State::Active;
         }
@@ -2743,18 +2746,31 @@ namespace pgbar {
         Self& operator=( const Self& ) = delete;
 
         ~Renderer() noexcept { appoint(); }
-        void suspend() noexcept {}
+        __PGBAR_INLINE_FN void suspend() noexcept { /* Empty Implementation */ }
         void activate() & noexcept( false )
         {
           std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
+          // Internal component does not make validity judgments.
           __PGBAR_ASSERT( task_ != nullptr );
-          ThreadRenderer<Tag>::itself().activate();
+          try {
+            ThreadRenderer<Tag>::itself().activate();
+          } catch ( ... ) {
+            /**
+             * In `ThreadRenderer::activate`, there are only two sources of exceptions,
+             * `ThreadRenderer::launch` or the background thread;
+             * in either case, the ThreadRenderer retains the assigned task,
+             * so the task status is still valid and should be switched back to Dormant instead of Quit.
+             */
+            state_.store( State::Dormant, std::memory_order_release );
+            throw;
+          }
           task_();
         }
 
         void appoint() noexcept
         {
           std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
+          // All of codes below are locked to prevent concurrent threads from calling `try_appoint`.
           if ( task_ != nullptr ) {
             state_.store( State::Quit, std::memory_order_release );
             {
@@ -2806,12 +2822,29 @@ namespace pgbar {
           return true;
         }
 
-        void execute() & noexcept( false )
-        {
+        __PGBAR_INLINE_FN void execute() & noexcept( false )
+        { /**
+           * Although not relevant here,
+           * OStream is called non-atomically for each rendering task,
+           * so it needs to be locked for the entire duration of the rendering task execution.
+
+           * By the way, although the implementation tries to lock the internal component
+           * when it renders the string,
+           * that is a reader lock on the configuration data type of the component that stores the string,
+           * and it does not prevent concurrent threads from simultaneously
+           * trying to concatenate the string in the same OStream.
+           */
           std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
           __PGBAR_ASSERT( task_ != nullptr );
           task_();
+          /**
+           * In short: The writer lock here is to prevent multiple progress bars in MultiBar
+           * from concurrently attempting to render strings in synchronous rendering mode;
+           * each of these progress bars will lock itself before rendering,
+           * but they cannot mutually exclusively access the renderer.
+           */
         }
+        // Exception-free version of `execute`.
         void attempt() & noexcept
         {
           std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
@@ -2839,7 +2872,7 @@ namespace pgbar {
           }
         }
 
-        __PGBAR_NODISCARD bool empty() const noexcept
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool empty() const noexcept
         {
           concurrent::SharedLock<concurrent::SharedMutex> lock { rw_mtx_ };
           return task_ == nullptr;
@@ -2865,12 +2898,12 @@ namespace pgbar {
 
       public:
         // Get the current working interval for all threads.
-        __PGBAR_NODISCARD static types::TimeUnit working_interval()
+        __PGBAR_NODISCARD static __PGBAR_INLINE_FN types::TimeUnit working_interval()
         {
           return _working_interval.load( std::memory_order_acquire );
         }
         // Adjust the thread working interval between this loop and the next loop.
-        static void working_interval( types::TimeUnit new_rate )
+        static __PGBAR_INLINE_FN void working_interval( types::TimeUnit new_rate )
         {
           _working_interval.store( std::move( new_rate ), std::memory_order_release );
         }
@@ -2907,7 +2940,12 @@ namespace pgbar {
                                                std::memory_order_release,
                                                std::memory_order_relaxed ) ) {
             __PGBAR_ASSERT( task_ != nullptr );
-            ThreadRenderer<Tag>::itself().activate();
+            try {
+              ThreadRenderer<Tag>::itself().activate();
+            } catch ( ... ) {
+              state_.store( State::Dormant, std::memory_order_release );
+              throw;
+            }
             concurrent::adaptive_wait(
               [this]() noexcept { return state_.load( std::memory_order_acquire ) == State::Active; } );
           }
@@ -2983,10 +3021,10 @@ namespace pgbar {
           return true;
         }
 
-        void execute() & noexcept { /* Empty implementation */ }
-        void attempt() & noexcept { /* Empty implementation */ }
+        __PGBAR_INLINE_FN void execute() & noexcept { /* Empty implementation */ }
+        __PGBAR_INLINE_FN void attempt() & noexcept { /* Empty implementation */ }
 
-        __PGBAR_NODISCARD bool empty() const noexcept
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool empty() const noexcept
         {
           concurrent::SharedLock<concurrent::SharedMutex> lock { rw_mtx_ };
           return task_ == nullptr;
