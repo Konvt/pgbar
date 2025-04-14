@@ -18,26 +18,26 @@
 ```
 ![progressbar](images/progressbar.gif)
 
-### BlockProgressBar
+### BlockBar
 ```
 {LeftBorder}{Description}{Percent}{Starting}{BlockBar}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
  35.22% | ██████████▋                    |  47275560/134217727 |  16.80 MHz | 00:00:02 < 00:00:05
 ```
-![blockprogressbar](images/blockprogressbar.gif)
+![BlockBar](images/blockbar.gif)
 
-### SpinnerBar
+### SpinBar
 ```
 {LeftBorder}{Description}{Lead}{Percent}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
 \ |  48.64% |  65288807/134217727 |  17.84 MHz | 00:00:03 < 00:00:03
 ```
-![spinnerbar](images/spinnerbar.gif)
+![spinbar](images/spinbar.gif)
 
-### ScannerBar
+### SweepBar
 ```
 {LeftBorder}{Description}{Percent}{Starting}{Filler}{Lead}{Filler}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
  39.82% | [---------------------<==>----] |  53458698/134217727 |  17.89 MHz | 00:00:02 < 00:00:04
 ```
-![scannerbar](images/scannerbar.gif)
+![sweepbar](images/sweepbar.gif)
 
 ### MultiBar
 ![multibar](images/multibar.gif)

@@ -105,6 +105,7 @@
 # endif
 # if __PGBAR_CC_STD >= 201703L
 #  include <charconv>
+#  include <shared_mutex>
 #  include <string_view>
 #  define __PGBAR_CXX17         1
 #  define __PGBAR_CXX17_CNSTXPR constexpr
@@ -125,7 +126,6 @@
 #  endif
 # endif
 # if __PGBAR_CC_STD >= 201402L
-#  include <shared_mutex>
 #  define __PGBAR_CXX14         1
 #  define __PGBAR_CXX14_CNSTXPR constexpr
 # else
@@ -1558,46 +1558,74 @@ namespace pgbar {
     } // namespace utils
 
     namespace concurrent {
-      // Some components require a noexcept mutex.
-      class Mutex final {
-        using Self = Mutex;
-
-        std::atomic_flag lock_stat_ = ATOMIC_FLAG_INIT;
-
-      public:
-        Mutex( const Mutex& )              = delete;
-        Mutex& operator=( const Mutex& ) & = delete;
-
-        constexpr Mutex()              = default;
-        __PGBAR_CXX20_CNSTXPR ~Mutex() = default;
-
-        __PGBAR_INLINE_FN void lock() & noexcept
-        {
-          while ( lock_stat_.test_and_set( std::memory_order_acq_rel ) )
+      // Wait for pred to be true.
+      template<typename F, typename Rep, typename Period>
+      __PGBAR_INLINE_FN void adaptive_wait( F&& pred, const std::chrono::duration<Rep, Period>& threshold )
+        noexcept( noexcept( pred() ) )
+      {
+        const auto start = std::chrono::steady_clock::now();
+        for ( bool within_threshold = true; !pred(); ) {
+          if ( within_threshold )
+            within_threshold = std::chrono::steady_clock::now() - start <= threshold;
+          else
             std::this_thread::yield();
         }
+      }
+      template<typename F>
+      __PGBAR_INLINE_FN void adaptive_wait( F&& pred ) noexcept( noexcept( pred() ) )
+      {
+        adaptive_wait( std::forward<F>( pred ), std::chrono::milliseconds( 1 ) );
+      }
 
-        __PGBAR_INLINE_FN void unlock() & noexcept { lock_stat_.clear( std::memory_order_release ); }
-
-        __PGBAR_INLINE_FN bool try_lock() & noexcept
-        {
-          return !lock_stat_.test_and_set( std::memory_order_acq_rel );
+      template<typename F, typename Rep1, typename Period1, typename Rep2, typename Period2>
+      __PGBAR_INLINE_FN bool adaptive_wait_for( F&& pred,
+                                                const std::chrono::duration<Rep1, Period1>& timeout,
+                                                const std::chrono::duration<Rep2, Period2>& threshold )
+        noexcept( noexcept( pred() ) )
+      {
+        const auto start = std::chrono::steady_clock::now();
+        while ( !pred() ) {
+          const auto elapsed = std::chrono::steady_clock::now() - start;
+          if ( elapsed >= timeout )
+            return false;
+          else if ( elapsed <= threshold )
+            continue;
+          std::this_thread::yield();
         }
-      };
+        return true;
+      }
+      template<typename F, typename Rep, typename Period>
+      __PGBAR_INLINE_FN bool adaptive_wait_for( F&& pred, const std::chrono::duration<Rep, Period>& timeout )
+        noexcept( noexcept( pred() ) )
+      {
+        return adaptive_wait_for( std::forward<F>( pred ), timeout, std::chrono::milliseconds( 1 ) );
+      }
 
+# if __PGBAR_CXX17
+      using SharedMutex = std::shared_mutex;
+# else
       // A simple `Shared Mutex` implementation for any C++ version.
       class SharedMutex final {
         using Self = SharedMutex;
 
       protected:
         std::atomic<types::Size> num_readers_;
-        Mutex writer_mtx_;
+        std::mutex writer_mtx_;
+        /**
+          * Although the `lock()` and `unlock()` functions of `std::mutex`
+          * in the standard library are not marked as `noexcept`,
+          * in practice, it is very rare for exceptions to be thrown,
+          * and usually indicate a bug in the program itself.
+          * Therefore, it is assumed here that `std::mutex` is `noexcept`.
+
+          * For more details, see: https://stackoverflow.com/questions/17551256
+          */
 
       public:
         SharedMutex( const Self& )       = delete;
         Self& operator=( const Self& ) & = delete;
 
-        constexpr SharedMutex() noexcept : num_readers_ { 0 } {}
+        SharedMutex() noexcept : num_readers_ { 0 } {}
         __PGBAR_CXX20_CNSTXPR ~SharedMutex() = default;
 
         void lock() & noexcept
@@ -1650,7 +1678,7 @@ namespace pgbar {
           num_readers_.fetch_sub( 1, std::memory_order_release );
         }
       };
-
+# endif
 # if __PGBAR_CXX14
       template<typename Mtx>
       using SharedLock = std::shared_lock<Mtx>;
@@ -1669,13 +1697,16 @@ namespace pgbar {
           mtx_.lock_shared();
         }
         ~SharedLock() noexcept { mtx_.unlock_shared(); }
+
+        void lock() & noexcept { mtx_.lock_shared(); }
+        __PGBAR_NODISCARD bool try_lock() & noexcept { return mtx_.try_lock_shared(); }
+        __PGBAR_INLINE_FN void unlock() & noexcept { mtx_.unlock_shared(); }
       };
 
 # endif
 
       // A nullable container that holds an exception pointer.
       class ExceptionBox final {
-        // This is the component requiring a noexcept mutex.
         using Self = ExceptionBox;
 
         std::exception_ptr exception_;
@@ -1685,7 +1716,12 @@ namespace pgbar {
         ExceptionBox()  = default;
         ~ExceptionBox() = default;
 
-        ExceptionBox( ExceptionBox&& rhs ) noexcept : ExceptionBox() { swap( rhs ); }
+        ExceptionBox( ExceptionBox&& rhs ) noexcept : ExceptionBox()
+        {
+          std::lock_guard<SharedMutex> lock { rhs.rw_mtx_ };
+          using std::swap;
+          swap( exception_, rhs.exception_ );
+        }
         ExceptionBox& operator=( ExceptionBox&& rhs ) & noexcept
         {
           __PGBAR_PURE_ASSUME( this != &rhs );
@@ -1735,8 +1771,9 @@ namespace pgbar {
         void swap( ExceptionBox& lhs ) noexcept
         {
           __PGBAR_PURE_ASSUME( this != &lhs );
-          std::lock_guard<SharedMutex> lock1 { rw_mtx_ };
-          std::lock_guard<SharedMutex> lock2 { lhs.rw_mtx_ };
+          std::lock( this->rw_mtx_, lhs.rw_mtx_ );
+          std::lock_guard<concurrent::SharedMutex> lock1 { this->rw_mtx_, std::adopt_lock };
+          std::lock_guard<concurrent::SharedMutex> lock2 { lhs.rw_mtx_, std::adopt_lock };
           using std::swap; // ADL custom point
           swap( exception_, lhs.exception_ );
         }
@@ -2166,6 +2203,7 @@ namespace pgbar {
 
   // A enum that specifies the type of the output stream.
   enum class Channel : __details::types::Byte { Stdout = 1, Stderr };
+  enum class Policy : __details::types::Byte { Async, Sync };
 
   class Indicator {
   protected:
@@ -2200,20 +2238,13 @@ namespace pgbar {
     // Wait until the indicator is stopped.
     void wait() const noexcept
     {
-      while ( is_running() )
-        std::this_thread::yield();
+      __details::concurrent::adaptive_wait( [this]() noexcept { return !is_running(); } );
     }
     // Wait for the indicator is stopped or timed out.
     template<class Rep, class Period>
-    __PGBAR_NODISCARD bool wait_for( const std::chrono::duration<Rep, Period>& time_duration ) const noexcept
+    __PGBAR_NODISCARD bool wait_for( const std::chrono::duration<Rep, Period>& timeout ) const noexcept
     {
-      for ( const auto ending = std::chrono::steady_clock::now() + time_duration;
-            std::chrono::steady_clock::now() < ending; ) {
-        if ( !is_running() )
-          return true;
-        std::this_thread::yield();
-      }
-      return false;
+      return __details::concurrent::adaptive_wait_for( [this]() noexcept { return !is_running(); }, timeout );
     }
 
     __PGBAR_NODISCARD bool is_running() const noexcept
@@ -2244,22 +2275,16 @@ namespace pgbar {
       // escape codes
       namespace escodes {
 # ifdef PGBAR_COLORLESS
-        constexpr types::LitStr reset_font = "";
-        constexpr types::LitStr bold_font  = "";
+        constexpr types::LitStr fontreset = "";
+        constexpr types::LitStr fontbold  = "";
 # else
-        constexpr types::LitStr reset_font = "\x1B[0m";
-        constexpr types::LitStr bold_font  = "\x1B[1m";
+        constexpr types::LitStr fontreset = "\x1B[0m";
+        constexpr types::LitStr fontbold  = "\x1B[1m";
 # endif
-        constexpr types::LitStr clear_suffix = "\x1B[K";
-        constexpr types::LitStr prevline     = "\x1b[A";
-        constexpr types::Char nextline       = '\n';
-        constexpr types::Char linestart      = '\r';
-
-        // Assembles an ANSI escape code that clears `__n` characters after the cursor.
-        __PGBAR_INLINE_FN types::String clear_next( types::Size __n = 1 )
-        {
-          return "\x1B[" + utils::format( __n ) + 'X';
-        }
+        constexpr types::LitStr linewipe = "\x1B[K";
+        constexpr types::LitStr prevline = "\x1b[A";
+        constexpr types::Char nextline   = '\n';
+        constexpr types::Char linestart  = '\r';
 
         /**
          * Convert a hexidecimal RGB color value to an ANSI escape code.
@@ -2276,7 +2301,7 @@ namespace pgbar {
           noexcept( false )
         {
           if ( rgb == __PGBAR_DEFAULT )
-            return types::String( escodes::reset_font );
+            return types::String( escodes::fontreset );
 
           switch ( rgb & 0x00FFFFFF ) { // discard the high 8 bits
           case __PGBAR_BLACK:   return "\x1B[30m";
@@ -2536,104 +2561,54 @@ namespace pgbar {
     } // namespace io
 
     namespace render {
-      // Multi-channel renderer template class managing background task thread lifecycle and state
-      // transitions.
       template<Channel Tag>
-      class Renderer final {
-        using Self = Renderer;
+      class ThreadRenderer final {
+        using Self = ThreadRenderer;
 
-        static types::TimeUnit _working_interval;
-        static concurrent::SharedMutex _rw_mtx;
-
-        /* The state transfer process is:
-         *                   activate()                   suspend()
-         * Dormant(default) -----------> Awake -> Active ----------> Suspend -> Dormant
-         *              dctor
-         * (any state) ------> Dead
-         *              catch an exception while box_ isn't empty
-         * (any state) ------------------------------------------> Dead */
-        enum class State : types::Byte { Dormant, Awake, Active, Suspend, Halt, Dead };
-
-        wrappers::UniqueFunction<void()> task_;
-        std::thread td_;
-        concurrent::ExceptionBox box_;
+        enum class State : types::Byte { Dormant, Suspend, Active, Dead };
         std::atomic<State> state_;
 
+        std::thread td_;
+        concurrent::ExceptionBox box_;
         mutable std::condition_variable cond_var_;
         mutable std::mutex mtx_;
         mutable concurrent::SharedMutex rw_mtx_;
 
-        // Create a new thread object.
+        wrappers::UniqueFunction<void()> task_;
+
         __PGBAR_INLINE_FN void launch() & noexcept( false )
         {
-          __PGBAR_ASSERT( td_.get_id() == std::thread::id() );
+          __PGBAR_ASSERT( td_.id() == std::thread::get_id() );
           state_.store( State::Dormant, std::memory_order_release );
           try {
-            td_ = std::thread( [this]() -> void {
-              while ( state_.load( std::memory_order_acquire ) != State::Dead ) {
-                try {
+            td_ = std::thread( [this]() {
+              try {
+                while ( state_.load( std::memory_order_acquire ) != State::Dead ) {
                   switch ( state_.load( std::memory_order_acquire ) ) {
-                  case State::Dormant: {
-                    std::unique_lock<std::mutex> lock { mtx_ };
-                    cond_var_.wait( lock, [this]() noexcept -> bool {
-                      return state_.load( std::memory_order_acquire ) != State::Dormant;
-                    } );
-                  } break;
-
-                  case State::Awake: {
-                    /* Awake indicates that the current thread is started,
-                     * so semantically, a task must be executed here. */
-                    task_();
-                    // Used to tell other threads that the current thread has woken up.
-                    auto expected = State::Awake;
-                    state_.compare_exchange_strong( expected,
-                                                    State::Active,
-                                                    std::memory_order_release,
-                                                    std::memory_order_relaxed );
-                  } break;
-
-                  case State::Active: {
-                    task_();
-                    std::this_thread::sleep_for( working_interval() );
-                  } break;
-
+                  case State::Dormant: __PGBAR_FALLTHROUGH;
                   case State::Suspend: {
-                    task_(); // same as Awake
+                    std::unique_lock<std::mutex> lock { mtx_ };
                     auto expected = State::Suspend;
                     state_.compare_exchange_strong( expected,
                                                     State::Dormant,
                                                     std::memory_order_release,
                                                     std::memory_order_relaxed );
+                    cond_var_.wait( lock, [this]() noexcept {
+                      return state_.load( std::memory_order_acquire ) != State::Dormant;
+                    } );
                   } break;
-
-                  case State::Halt: {
-                    auto expected = State::Halt;
-                    state_.compare_exchange_strong( expected,
-                                                    State::Dormant,
-                                                    std::memory_order_release,
-                                                    std::memory_order_relaxed );
+                  case State::Active: {
+                    task_();
                   } break;
-
                   default: return;
                   }
-                } catch ( ... ) {
-                  // keep thread valid
-                  if ( box_.empty() ) {
-                    auto try_update = [this]( State expected ) noexcept {
-                      return state_.compare_exchange_strong( expected,
-                                                             State::Dormant,
-                                                             std::memory_order_release,
-                                                             std::memory_order_relaxed );
-                    };
-                    try_update( State::Awake ) || try_update( State::Active ) || try_update( State::Suspend );
-                    // Avoid deadlock in main thread when the child thread catchs exception.
-                    auto exception = std::current_exception();
-                    if ( exception )
-                      box_.store( exception );
-                  } else {
-                    state_.store( State::Dead, std::memory_order_release );
-                    throw; // Rethrow it, and let the current thread crash.
-                  }
+                }
+              } catch ( ... ) {
+                if ( box_.empty() )
+                  box_.store( std::current_exception() );
+                else {
+                  state_.store( State::Dead, std::memory_order_release );
+                  throw;
                 }
               }
             } );
@@ -2643,8 +2618,7 @@ namespace pgbar {
           }
         }
 
-        // Stop the thread object and release it.
-        __PGBAR_INLINE_FN void shutdown() & noexcept
+        __PGBAR_INLINE_FN void shutdown() noexcept
         {
           state_.store( State::Dead, std::memory_order_release );
           {
@@ -2653,23 +2627,252 @@ namespace pgbar {
           }
           if ( td_.joinable() )
             td_.join();
-          td_ = std::thread();
+          td_   = std::thread();
+          task_ = nullptr;
         }
 
-        Renderer() = default;
+        ThreadRenderer() noexcept : state_ { State::Dead } {}
+
+      public:
+        static Self& itself() noexcept
+        {
+          static Self instance;
+          return instance;
+        }
+
+        ThreadRenderer( const Self& )    = delete;
+        Self& operator=( const Self& ) & = delete;
+        ~ThreadRenderer() noexcept { shutdown(); }
+
+        void suspend() noexcept
+        {
+          auto expected = State::Active;
+          if ( state_.compare_exchange_strong( expected,
+                                               State::Suspend,
+                                               std::memory_order_release,
+                                               std::memory_order_relaxed ) ) {
+            concurrent::adaptive_wait(
+              [this]() noexcept { return state_.load( std::memory_order_acquire ) == State::Dormant; } );
+            std::lock_guard<std::mutex> lock { mtx_ };
+            // Ensure that the background thread is truely suspended.
+          }
+        }
+        void activate() & noexcept( false )
+        {
+          {
+            std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
+            if ( td_.get_id() == std::thread::id() )
+              launch();
+            else if ( state_.load( std::memory_order_acquire ) == State::Dead ) {
+              shutdown();
+              launch();
+            }
+          }
+
+          if ( !box_.empty() )
+            box_.rethrow();
+          __PGBAR_ASSERT( state_ != State::Dead );
+          __PGBAR_ASSERT( task_ != nullptr );
+          auto expected = State::Dormant;
+          if ( state_.compare_exchange_strong( expected,
+                                               State::Active,
+                                               std::memory_order_release,
+                                               std::memory_order_relaxed ) ) {
+            std::lock_guard<std::mutex> lock { mtx_ };
+            cond_var_.notify_one();
+          }
+        }
+
+        void appoint() noexcept
+        {
+          suspend();
+          std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
+          task_ = nullptr;
+        }
+        __PGBAR_NODISCARD bool try_appoint( wrappers::UniqueFunction<void()>&& task ) & noexcept( false )
+        {
+          std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
+          if ( task_ != nullptr )
+            return false;
+          __PGBAR_ASSERT( active() == false );
+          task_.swap( task );
+          return true;
+        }
+
+        void drop() noexcept
+        {
+          std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
+          shutdown();
+        }
+
+        __PGBAR_NODISCARD bool empty() const noexcept
+        {
+          std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
+          return task_ == nullptr;
+        }
+        __PGBAR_NODISCARD bool active() const noexcept
+        {
+          return state_.load( std::memory_order_acquire ) == State::Active;
+        }
+      };
+
+      template<Channel Tag, Policy Strategy>
+      class Renderer;
+      template<Channel Tag>
+      class Renderer<Tag, Policy::Sync> final {
+        using Self = Renderer;
+
+        enum class State : types::Byte { Dormant, Finish, Active, Quit };
+        std::atomic<State> state_;
+
+        mutable std::condition_variable cond_var_;
+        mutable std::mutex mtx_;
+        mutable concurrent::SharedMutex rw_mtx_;
+
+        wrappers::UniqueFunction<void()> task_;
+
+        Renderer() noexcept : state_ { State::Quit } {}
+
+      public:
+        static Self& itself() noexcept
+        {
+          static Self instance;
+          return instance;
+        }
+        Renderer( const Self& )        = delete;
+        Self& operator=( const Self& ) = delete;
+
+        ~Renderer() noexcept { appoint(); }
+        void suspend() noexcept {}
+        void activate() & noexcept( false )
+        {
+          std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
+          __PGBAR_ASSERT( task_ != nullptr );
+          ThreadRenderer<Tag>::itself().activate();
+          task_();
+        }
+
+        void appoint() noexcept
+        {
+          std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
+          if ( task_ != nullptr ) {
+            state_.store( State::Quit, std::memory_order_release );
+            {
+              std::unique_lock<std::mutex> lock { mtx_ };
+              cond_var_.notify_one();
+            }
+            ThreadRenderer<Tag>::itself().appoint();
+            task_ = nullptr;
+          }
+        }
+        __PGBAR_NODISCARD bool try_appoint( wrappers::UniqueFunction<void()>&& task ) & noexcept( false )
+        {
+          std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
+          if ( task_ != nullptr || !ThreadRenderer<Tag>::itself().try_appoint( [this]() {
+                 try {
+                   while ( state_.load( std::memory_order_acquire ) != State::Quit ) {
+                     switch ( state_.load( std::memory_order_acquire ) ) {
+                     case State::Dormant: __PGBAR_FALLTHROUGH;
+                     case State::Finish:  {
+                       std::unique_lock<std::mutex> lock { mtx_ };
+                       auto expected = State::Finish;
+                       state_.compare_exchange_strong( expected,
+                                                       State::Dormant,
+                                                       std::memory_order_release,
+                                                       std::memory_order_relaxed );
+                       cond_var_.wait( lock, [this]() noexcept {
+                         return state_.load( std::memory_order_acquire ) != State::Dormant;
+                       } );
+                     } break;
+                     case State::Active: {
+                       task_();
+                       auto expected = State::Active;
+                       state_.compare_exchange_strong( expected,
+                                                       State::Finish,
+                                                       std::memory_order_release,
+                                                       std::memory_order_relaxed );
+                     } break;
+                     default: return;
+                     }
+                   }
+                 } catch ( ... ) {
+                   state_.store( State::Quit, std::memory_order_release );
+                   throw;
+                 }
+               } ) )
+            return false;
+          state_.store( State::Dormant, std::memory_order_release );
+          task_.swap( task );
+          return true;
+        }
+
+        void execute() & noexcept( false )
+        {
+          std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
+          __PGBAR_ASSERT( task_ != nullptr );
+          task_();
+        }
+        void attempt() & noexcept
+        {
+          std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
+          // The lock here is to ensure that only one thread executes the task_ at any given time.
+          // And synchronization semantics require that no call request be dropped.
+          __PGBAR_ASSERT( task_ != nullptr );
+          /**
+           * Here, asynchronous threads and forced state checks are used to achieve synchronous semantics;
+           * this is because task_ is not exception-free,
+           * so if task_ needs to be executed with synchronous semantics in some functions marked as noexcept,
+           * the execution operation needs to be dispatched to another thread.
+           */
+          auto expected = State::Dormant;
+          if ( state_.compare_exchange_strong( expected,
+                                               State::Active,
+                                               std::memory_order_release,
+                                               std::memory_order_relaxed ) ) {
+            {
+              std::lock_guard<std::mutex> lock { mtx_ };
+              cond_var_.notify_one();
+            }
+            concurrent::adaptive_wait(
+              [this]() noexcept { return state_.load( std::memory_order_acquire ) == State::Dormant; } );
+            std::lock_guard<std::mutex> lock { mtx_ };
+          }
+        }
+
+        __PGBAR_NODISCARD bool empty() const noexcept
+        {
+          concurrent::SharedLock<concurrent::SharedMutex> lock { rw_mtx_ };
+          return task_ == nullptr;
+        }
+      };
+
+      template<Channel Tag>
+      class Renderer<Tag, Policy::Async> final {
+        using Self = Renderer;
+
+        static std::atomic<types::TimeUnit> _working_interval;
+
+        enum class State : types::Byte { Dormant, Suspend, Awake, Active, Finish, Quit };
+        std::atomic<State> state_;
+
+        mutable std::condition_variable cond_var_;
+        mutable std::mutex mtx_;
+        mutable concurrent::SharedMutex rw_mtx_;
+
+        wrappers::UniqueFunction<void()> task_;
+
+        Renderer() noexcept : state_ { State::Quit } {}
 
       public:
         // Get the current working interval for all threads.
         __PGBAR_NODISCARD static types::TimeUnit working_interval()
         {
-          concurrent::SharedLock<concurrent::SharedMutex> lock { _rw_mtx };
-          return _working_interval;
+          return _working_interval.load( std::memory_order_acquire );
         }
         // Adjust the thread working interval between this loop and the next loop.
         static void working_interval( types::TimeUnit new_rate )
         {
-          std::lock_guard<concurrent::SharedMutex> lock { _rw_mtx };
-          _working_interval = std::move( new_rate );
+          _working_interval.store( std::move( new_rate ), std::memory_order_release );
         }
 
         static Self& itself() noexcept
@@ -2678,127 +2881,121 @@ namespace pgbar {
           return instance;
         }
 
-        Renderer( const Self& )        = delete;
-        Self& operator=( const Self& ) = delete;
-        ~Renderer() noexcept { shutdown(); }
+        Renderer( const Self& )          = delete;
+        Self& operator=( const Self& ) & = delete;
+        ~Renderer() noexcept { appoint(); }
 
-        // Terminates current task and clears task object.
-        __PGBAR_INLINE_FN void appoint() noexcept
+        void suspend() noexcept
         {
-          std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
-          halt();
-          task_ = nullptr;
-        }
-        // Attempts to assign new rendering task.
-        __PGBAR_INLINE_FN bool try_appoint( wrappers::UniqueFunction<void()> task ) &
-        {
-          std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
-          if ( state_.load( std::memory_order_acquire ) == State::Dead ) {
-            shutdown();
-            launch();
-          } else if ( td_.get_id() == std::thread::id() )
-            launch();
-          if ( task_ == nullptr ) {
-            __PGBAR_ASSERT( state_.load( std::memory_order_acquire ) == State::Dormant
-                            || state_.load( std::memory_order_acquire ) == State::Dead );
-            task_.swap( task );
-          } else
-            return false;
-          return true;
-        }
-        // Activates renderer to execute tasks.
-        __PGBAR_INLINE_FN void activate() & noexcept( false )
-        {
-          {
-            if ( !console::intty( Tag ) )
-              __PGBAR_UNLIKELY return;
-            std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
-            if ( state_.load( std::memory_order_acquire ) == State::Dead )
-              __PGBAR_UNLIKELY
-              {
-                shutdown();
-                launch();
-              }
+          auto try_update = [this]( State expected ) noexcept {
+            return state_.compare_exchange_strong( expected,
+                                                   State::Finish,
+                                                   std::memory_order_release,
+                                                   std::memory_order_acquire );
+          };
+          if ( try_update( State::Awake ) || try_update( State::Active ) ) {
+            concurrent::adaptive_wait(
+              [this]() noexcept { return state_.load( std::memory_order_acquire ) == State::Dormant; } );
+            std::lock_guard<std::mutex> lock { mtx_ };
           }
-          if ( !box_.empty() )
-            __PGBAR_UNLIKELY box_.rethrow();
-          __PGBAR_ASSERT( task_ != nullptr );
+        }
+        void activate() & noexcept( false )
+        {
           auto expected = State::Dormant;
           if ( state_.compare_exchange_strong( expected,
                                                State::Awake,
-                                               std::memory_order_acq_rel,
+                                               std::memory_order_release,
                                                std::memory_order_relaxed ) ) {
-            {
-              std::lock_guard<std::mutex> lock { mtx_ };
-              cond_var_.notify_one();
-            }
-            // spin wait, ensure that the thread has moved to the new state
-            do {
-              // avoid deadlock and throw the exception the thread received
-              if ( !box_.empty() )
-                __PGBAR_UNLIKELY box_.rethrow();
-            } while ( state_.load( std::memory_order_acquire ) == State::Awake
-                      && state_.load( std::memory_order_acquire ) != State::Dead );
-          } else if ( !box_.empty() )
-            __PGBAR_UNLIKELY box_.rethrow();
+            __PGBAR_ASSERT( task_ != nullptr );
+            ThreadRenderer<Tag>::itself().activate();
+            concurrent::adaptive_wait(
+              [this]() noexcept { return state_.load( std::memory_order_acquire ) == State::Active; } );
+          }
         }
-        // Suspends task execution into dormant state.
-        __PGBAR_INLINE_FN void suspend()
-        {
-          auto try_update = [this]( State expected ) noexcept -> bool {
-            return state_.compare_exchange_strong( expected,
-                                                   State::Suspend,
-                                                   std::memory_order_acq_rel,
-                                                   std::memory_order_relaxed );
-          };
-          if ( try_update( State::Awake ) || try_update( State::Active ) ) {
-            do {
-              if ( !box_.empty() )
-                __PGBAR_UNLIKELY box_.rethrow();
-            } while ( state_.load( std::memory_order_acquire ) == State::Suspend
-                      && state_.load( std::memory_order_acquire ) != State::Dead );
-          } else if ( !box_.empty() )
-            __PGBAR_UNLIKELY box_.rethrow();
-        }
-        // Halts task execution immediately.
-        __PGBAR_INLINE_FN void halt() noexcept
-        {
-          auto try_update = [this]( State expected ) noexcept -> bool {
-            return state_.compare_exchange_strong( expected,
-                                                   State::Halt,
-                                                   std::memory_order_acq_rel,
-                                                   std::memory_order_relaxed );
-          };
-          if ( try_update( State::Awake ) || try_update( State::Active ) )
-            while ( state_.load( std::memory_order_acquire ) == State::Halt
-                    && state_.load( std::memory_order_acquire ) != State::Dead ) {}
-        }
-        // Terminates renderer and releases all resources.
-        __PGBAR_INLINE_FN void drop() noexcept
+
+        void appoint() noexcept
         {
           std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
-          shutdown();
-          task_ = nullptr;
+          if ( task_ != nullptr ) {
+            state_.store( State::Quit, std::memory_order_release );
+            {
+              std::unique_lock<std::mutex> lock { mtx_ };
+              cond_var_.notify_one();
+            }
+            ThreadRenderer<Tag>::itself().appoint();
+            task_ = nullptr;
+          }
         }
-        // Checks whether the task object is empty.
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool empty() const noexcept
+        __PGBAR_NODISCARD bool try_appoint( wrappers::UniqueFunction<void()>&& task ) & noexcept( false )
+        {
+          std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
+          if ( task_ != nullptr || !ThreadRenderer<Tag>::itself().try_appoint( [this]() {
+                 try {
+                   while ( state_.load( std::memory_order_acquire ) != State::Quit ) {
+                     switch ( state_.load( std::memory_order_acquire ) ) {
+                     case State::Dormant: __PGBAR_FALLTHROUGH;
+                     case State::Suspend: {
+                       std::unique_lock<std::mutex> lock { mtx_ };
+                       auto expected = State::Suspend;
+                       state_.compare_exchange_strong( expected,
+                                                       State::Dormant,
+                                                       std::memory_order_release,
+                                                       std::memory_order_relaxed );
+                       cond_var_.wait( lock, [this]() noexcept -> bool {
+                         return state_.load( std::memory_order_acquire ) != State::Dormant;
+                       } );
+                     } break;
+
+                     case State::Awake: {
+                       task_();
+                       auto expected = State::Awake;
+                       state_.compare_exchange_strong( expected,
+                                                       State::Active,
+                                                       std::memory_order_release,
+                                                       std::memory_order_relaxed );
+                     }
+                       __PGBAR_FALLTHROUGH;
+                     case State::Active: {
+                       task_();
+                       std::this_thread::sleep_for( working_interval() );
+                     } break;
+
+                     case State::Finish: {
+                       task_();
+                       auto expected = State::Finish;
+                       state_.compare_exchange_strong( expected,
+                                                       State::Suspend,
+                                                       std::memory_order_release,
+                                                       std::memory_order_relaxed );
+                     } break;
+
+                     default: return;
+                     }
+                   }
+                 } catch ( ... ) {
+                   state_.store( State::Quit, std::memory_order_release );
+                   throw;
+                 }
+               } ) )
+            return false;
+          state_.store( State::Dormant, std::memory_order_release );
+          task_.swap( task );
+          return true;
+        }
+
+        void execute() & noexcept { /* Empty implementation */ }
+        void attempt() & noexcept { /* Empty implementation */ }
+
+        __PGBAR_NODISCARD bool empty() const noexcept
         {
           concurrent::SharedLock<concurrent::SharedMutex> lock { rw_mtx_ };
           return task_ == nullptr;
         }
-        // Checks whether the renderer is in Active state.
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool active() const noexcept
-        {
-          concurrent::SharedLock<concurrent::SharedMutex> lock { rw_mtx_ };
-          return task_ != nullptr && state_.load( std::memory_order_acquire ) != State::Dormant
-              && state_.load( std::memory_order_acquire ) != State::Dead;
-        }
       };
       template<Channel Tag>
-      types::TimeUnit Renderer<Tag>::_working_interval =
-        std::chrono::duration_cast<types::TimeUnit>( std::chrono::milliseconds( 40 ) );
-      template<Channel Tag>
-      concurrent::SharedMutex Renderer<Tag>::_rw_mtx {};
+      std::atomic<types::TimeUnit> Renderer<Tag, Policy::Async>::_working_interval {
+        std::chrono::duration_cast<types::TimeUnit>( std::chrono::milliseconds( 40 ) )
+      };
     } // namespace render
   } // namespace __details
 
@@ -3142,8 +3339,8 @@ namespace pgbar {
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& build_font( io::Stringbuf& buffer,
                                                                            types::ROStr ansi_color ) const
         {
-          return buffer << console::escodes::reset_font << build_color( ansi_color )
-                        << ( fonts_[utils::as_val( Mask::Bolded )] ? console::escodes::bold_font
+          return buffer << console::escodes::fontreset << build_color( ansi_color )
+                        << ( fonts_[utils::as_val( Mask::Bolded )] ? console::escodes::fontbold
                                                                    : constants::nil_str );
         }
 
@@ -3451,8 +3648,8 @@ namespace pgbar {
           __PGBAR_PURE_ASSUME( num_percent >= 0.0 );
           __PGBAR_PURE_ASSUME( num_percent <= 1.0 );
 
-          buffer << console::escodes::reset_font << this->build_color( this->start_col_ ) << this->starting_
-                 << console::escodes::reset_font << this->build_color( this->filler_col_ );
+          buffer << console::escodes::fontreset << this->build_color( this->start_col_ ) << this->starting_
+                 << console::escodes::fontreset << this->build_color( this->filler_col_ );
 
           const auto len_finished = static_cast<types::Size>( std::round( this->bar_length_ * num_percent ) );
           types::Size len_unfinished = this->bar_length_ - len_finished;
@@ -3467,14 +3664,14 @@ namespace pgbar {
           } else
             len_unfinished += len_finished;
           // build lead_
-          buffer << console::escodes::reset_font;
+          buffer << console::escodes::fontreset;
           if ( !this->lead_.empty() ) {
             num_frame_cnt = static_cast<types::Size>( num_frame_cnt * this->shift_factor_ );
             num_frame_cnt %= this->lead_.size();
             const auto& current_lead = this->lead_[num_frame_cnt];
             if ( current_lead.size() <= len_unfinished ) {
               len_unfinished -= current_lead.size();
-              buffer << this->build_color( this->lead_col_ ) << current_lead << console::escodes::reset_font;
+              buffer << this->build_color( this->lead_col_ ) << current_lead << console::escodes::fontreset;
             }
           }
           // build remains_
@@ -3485,7 +3682,7 @@ namespace pgbar {
           else
             buffer.append( constants::blank, len_unfinished );
 
-          return buffer << console::escodes::reset_font << this->build_color( this->end_col_ )
+          return buffer << console::escodes::fontreset << this->build_color( this->end_col_ )
                         << this->ending_;
         }
 
@@ -3552,8 +3749,8 @@ namespace pgbar {
           __PGBAR_PURE_ASSUME( num_percent >= 0.0 );
           __PGBAR_PURE_ASSUME( num_percent <= 1.0 );
 
-          buffer << console::escodes::reset_font << this->build_color( this->start_col_ ) << this->starting_
-                 << console::escodes::reset_font << this->build_color( this->filler_col_ );
+          buffer << console::escodes::fontreset << this->build_color( this->start_col_ ) << this->starting_
+                 << console::escodes::fontreset << this->build_color( this->filler_col_ );
 
           const auto len_finished = static_cast<types::Size>( std::trunc( this->bar_length_ * num_percent ) );
           const types::Float float_part = ( this->bar_length_ * num_percent ) - len_finished;
@@ -3566,9 +3763,9 @@ namespace pgbar {
 
           return buffer.append( filler_.back(), len_finished )
             .append( filler_[incomplete_block], incomplete_block != 0 )
-            .append( console::escodes::reset_font )
+            .append( console::escodes::fontreset )
             .append( constants::blank, len_unfinished )
-            .append( console::escodes::reset_font )
+            .append( console::escodes::fontreset )
             .append( this->build_color( this->end_col_ ) )
             .append( this->ending_ );
         }
@@ -3611,7 +3808,7 @@ namespace pgbar {
           num_frame_cnt %= this->lead_.size();
           __PGBAR_ASSERT( this->size_longest_lead_ >= this->lead_[num_frame_cnt].size() );
 
-          buffer << console::escodes::reset_font;
+          buffer << console::escodes::fontreset;
           return this->build_font( buffer, this->lead_col_ )
               << utils::format<utils::TxtLayout::Left>( this->size_longest_lead_,
                                                         this->lead_[num_frame_cnt] );
@@ -3622,8 +3819,8 @@ namespace pgbar {
       };
 
       template<typename Base, typename Derived>
-      class Scanner : public Base {
-        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( Scanner& cfg,
+      class Sweeper : public Base {
+        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( Sweeper& cfg,
                                                                       option::Filler&& val ) noexcept
         {
           cfg.filler_ = std::move( val.value() );
@@ -3632,13 +3829,13 @@ namespace pgbar {
       protected:
         charcodes::U8String filler_;
 
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& build_scanner(
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& build_sweeper(
           io::Stringbuf& buffer,
           types::Size num_frame_cnt ) const
         {
           num_frame_cnt = static_cast<types::Size>( num_frame_cnt * this->shift_factor_ );
-          buffer << console::escodes::reset_font << this->build_color( this->start_col_ ) << this->starting_
-                 << console::escodes::reset_font << this->build_color( this->filler_col_ );
+          buffer << console::escodes::fontreset << this->build_color( this->start_col_ ) << this->starting_
+                 << console::escodes::fontreset << this->build_color( this->filler_col_ );
 
           if ( !this->lead_.empty() ) {
             const auto& current_lead = this->lead_[num_frame_cnt % this->lead_.size()];
@@ -3654,10 +3851,10 @@ namespace pgbar {
 
               buffer.append( filler_, left_fill_len / filler_.size() )
                 .append( constants::blank, left_fill_len % filler_.size() )
-                .append( console::escodes::reset_font )
+                .append( console::escodes::fontreset )
                 .append( this->lead_col_ )
                 .append( current_lead )
-                .append( console::escodes::reset_font )
+                .append( console::escodes::fontreset )
                 .append( this->filler_col_ )
                 .append( constants::blank, right_fill_len % filler_.size() )
                 .append( filler_, right_fill_len / filler_.size() );
@@ -3669,13 +3866,13 @@ namespace pgbar {
             buffer.append( filler_, this->bar_length_ / filler_.size() )
               .append( constants::blank, this->bar_length_ % filler_.size() );
 
-          return buffer << console::escodes::reset_font << this->build_color( this->end_col_ )
+          return buffer << console::escodes::fontreset << this->build_color( this->end_col_ )
                         << this->ending_;
         }
 
       public:
-        __PGBAR_CXX20_CNSTXPR Scanner() = default;
-        __PGBAR_NONEMPTY_CLASS( Scanner, __PGBAR_CXX20_CNSTXPR )
+        __PGBAR_CXX20_CNSTXPR Sweeper() = default;
+        __PGBAR_NONEMPTY_CLASS( Sweeper, __PGBAR_CXX20_CNSTXPR )
 
         /**
          * @throw exception::InvalidArgument
@@ -3689,7 +3886,7 @@ namespace pgbar {
           return static_cast<Derived&>( *this );
         }
 
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void swap( Scanner& lhs ) noexcept
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void swap( Sweeper& lhs ) noexcept
         {
           filler_.swap( lhs.filler_ );
           Base::swap( lhs );
@@ -3725,7 +3922,7 @@ namespace pgbar {
         {
           if ( description_.empty() )
             return buffer;
-          buffer << console::escodes::reset_font;
+          buffer << console::escodes::fontreset;
           return this->build_font( buffer, desc_col_ ) << description_;
         }
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& build_description( io::Stringbuf& buffer,
@@ -3733,7 +3930,7 @@ namespace pgbar {
         {
           if ( ( final_mesg ? true_mesg_ : false_mesg_ ).empty() )
             return build_description( buffer );
-          buffer << console::escodes::reset_font;
+          buffer << console::escodes::fontreset;
           return this->build_font( buffer, final_mesg ? true_col_ : false_col_ )
               << ( final_mesg ? true_mesg_ : false_mesg_ );
         }
@@ -3842,7 +4039,7 @@ namespace pgbar {
         {
           if ( l_border_.empty() )
             return buffer;
-          buffer << console::escodes::reset_font;
+          buffer << console::escodes::fontreset;
           return this->build_font( buffer, info_col_ ) << l_border_;
         }
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& build_rborder( io::Stringbuf& buffer ) const
@@ -3855,7 +4052,7 @@ namespace pgbar {
         {
           if ( divider_.empty() )
             return buffer;
-          buffer << console::escodes::reset_font;
+          buffer << console::escodes::fontreset;
           return this->build_font( buffer, info_col_ ) << divider_;
         }
 
@@ -4426,7 +4623,7 @@ namespace pgbar {
       __PGBAR_INHERIT_REGISTER( assets::BlockIndicator, assets::TaskQuantity, assets::BasicIndicator );
 
       __PGBAR_INHERIT_REGISTER( assets::Spinner, , assets::BasicAnimation );
-      __PGBAR_INHERIT_REGISTER( assets::Scanner,
+      __PGBAR_INHERIT_REGISTER( assets::Sweeper,
                                 ,
                                 __PGBAR_PACK( assets::BasicAnimation, assets::BasicIndicator ) );
 
@@ -4494,7 +4691,7 @@ namespace pgbar {
           Merge_t<ComponentTraits_t<assets::TaskQuantity>, ComponentTraits_t<assets::BasicAnimation>>;
       };
       template<>
-      struct ComponentTraits<assets::Scanner> {
+      struct ComponentTraits<assets::Sweeper> {
         using type = Merge_t<ComponentTraits_t<assets::TaskQuantity>,
                              ComponentTraits_t<assets::BasicAnimation>,
                              ComponentTraits_t<assets::BasicIndicator>,
@@ -4667,8 +4864,10 @@ namespace pgbar {
         Self& operator=( const Self& lhs ) & noexcept( std::is_nothrow_copy_assignable<Base>::value )
         {
           __PGBAR_PURE_ASSUME( this != &lhs );
-          std::lock_guard<concurrent::SharedMutex> lock1 { this->rw_mtx_ };
-          concurrent::SharedLock<concurrent::SharedMutex> lock2 { lhs.rw_mtx_ };
+          std::unique_lock<concurrent::SharedMutex> lock1 { this->rw_mtx_, std::defer_lock };
+          concurrent::SharedLock<concurrent::SharedMutex> lock2 { lhs.rw_mtx_, std::defer_lock };
+          std::lock( lock1, lock2 );
+
           visual_masks_ = lhs.visual_masks_;
           Base::operator=( lhs );
           return *this;
@@ -4676,8 +4875,10 @@ namespace pgbar {
         Self& operator=( Self&& rhs ) & noexcept
         {
           __PGBAR_ASSERT( this != &rhs );
-          std::lock_guard<concurrent::SharedMutex> lock1 { this->rw_mtx_ };
-          std::lock_guard<concurrent::SharedMutex> lock2 { rhs.rw_mtx_ };
+          std::lock( this->rw_mtx_, rhs.rw_mtx_ );
+          std::lock_guard<concurrent::SharedMutex> lock1 { this->rw_mtx_, std::adopt_lock };
+          std::lock_guard<concurrent::SharedMutex> lock2 { rhs.rw_mtx_, std::adopt_lock };
+
           using std::swap;
           swap( visual_masks_, rhs.visual_masks_ );
           Base::operator=( std::move( rhs ) );
@@ -4727,8 +4928,9 @@ namespace pgbar {
 
         __PGBAR_INLINE_FN __PGBAR_CXX23_CNSTXPR void swap( BasicConfig& lhs ) noexcept
         {
-          std::lock_guard<concurrent::SharedMutex> lock1 { this->rw_mtx_ };
-          std::lock_guard<concurrent::SharedMutex> lock2 { lhs.rw_mtx_ };
+          std::lock( this->rw_mtx_, lhs.rw_mtx_ );
+          std::lock_guard<concurrent::SharedMutex> lock1 { this->rw_mtx_, std::adopt_lock };
+          std::lock_guard<concurrent::SharedMutex> lock2 { lhs.rw_mtx_, std::adopt_lock };
           using std::swap;
           swap( visual_masks_, lhs.visual_masks_ );
           Base::swap( lhs );
@@ -4747,21 +4949,21 @@ namespace pgbar {
     template<Channel Outlet>
     __PGBAR_NODISCARD TimeUnit refresh_interval()
     {
-      return __details::render::Renderer<Outlet>::working_interval();
+      return __details::render::Renderer<Outlet, Policy::Async>::working_interval();
     }
     // Set the new output interval.
     template<Channel Outlet>
     void refresh_interval( TimeUnit new_rate )
     {
-      __details::render::Renderer<Outlet>::working_interval( std::move( new_rate ) );
+      __details::render::Renderer<Outlet, Policy::Async>::working_interval( std::move( new_rate ) );
     }
     __PGBAR_NODISCARD __PGBAR_INLINE_FN bool intty( Channel channel ) noexcept
     {
       return __details::console::intty( channel );
     }
 
-    class CharBar : public __details::prefabs::BasicConfig<__details::assets::CharIndicator, CharBar> {
-      using Base = __details::prefabs::BasicConfig<__details::assets::CharIndicator, CharBar>;
+    class Line : public __details::prefabs::BasicConfig<__details::assets::CharIndicator, Line> {
+      using Base = __details::prefabs::BasicConfig<__details::assets::CharIndicator, Line>;
       friend Base;
 
       template<typename... Options>
@@ -4812,15 +5014,15 @@ namespace pgbar {
 
     public:
       using Base::Base;
-      CharBar( const CharBar& )              = default;
-      CharBar( CharBar&& )                   = default;
-      CharBar& operator=( const CharBar& ) & = default;
-      CharBar& operator=( CharBar&& ) &      = default;
-      ~CharBar()                             = default;
+      Line( const Line& )              = default;
+      Line( Line&& )                   = default;
+      Line& operator=( const Line& ) & = default;
+      Line& operator=( Line&& ) &      = default;
+      ~Line()                          = default;
     };
 
-    class BlckBar : public __details::prefabs::BasicConfig<__details::assets::BlockIndicator, BlckBar> {
-      using Base = __details::prefabs::BasicConfig<__details::assets::BlockIndicator, BlckBar>;
+    class Block : public __details::prefabs::BasicConfig<__details::assets::BlockIndicator, Block> {
+      using Base = __details::prefabs::BasicConfig<__details::assets::BlockIndicator, Block>;
       friend Base;
 
       template<typename... Options>
@@ -4858,15 +5060,15 @@ namespace pgbar {
 
     public:
       using Base::Base;
-      BlckBar( const BlckBar& )              = default;
-      BlckBar( BlckBar&& )                   = default;
-      BlckBar& operator=( const BlckBar& ) & = default;
-      BlckBar& operator=( BlckBar&& ) &      = default;
-      ~BlckBar()                             = default;
+      Block( const Block& )              = default;
+      Block( Block&& )                   = default;
+      Block& operator=( const Block& ) & = default;
+      Block& operator=( Block&& ) &      = default;
+      ~Block()                           = default;
     };
 
-    class SpinBar : public __details::prefabs::BasicConfig<__details::assets::Spinner, SpinBar> {
-      using Base = __details::prefabs::BasicConfig<__details::assets::Spinner, SpinBar>;
+    class Spin : public __details::prefabs::BasicConfig<__details::assets::Spinner, Spin> {
+      using Base = __details::prefabs::BasicConfig<__details::assets::Spinner, Spin>;
       friend Base;
 
       template<typename... Options>
@@ -4908,15 +5110,15 @@ namespace pgbar {
 
     public:
       using Base::Base;
-      SpinBar( const SpinBar& )              = default;
-      SpinBar( SpinBar&& )                   = default;
-      SpinBar& operator=( const SpinBar& ) & = default;
-      SpinBar& operator=( SpinBar&& ) &      = default;
-      ~SpinBar()                             = default;
+      Spin( const Spin& )              = default;
+      Spin( Spin&& )                   = default;
+      Spin& operator=( const Spin& ) & = default;
+      Spin& operator=( Spin&& ) &      = default;
+      ~Spin()                          = default;
     };
 
-    class ScanBar : public __details::prefabs::BasicConfig<__details::assets::Scanner, ScanBar> {
-      using Base = __details::prefabs::BasicConfig<__details::assets::Scanner, ScanBar>;
+    class Sweep : public __details::prefabs::BasicConfig<__details::assets::Sweeper, Sweep> {
+      using Base = __details::prefabs::BasicConfig<__details::assets::Sweeper, Sweep>;
       friend Base;
 
       template<typename... Options>
@@ -4964,11 +5166,11 @@ namespace pgbar {
 
     public:
       using Base::Base;
-      ScanBar( const ScanBar& )              = default;
-      ScanBar( ScanBar&& )                   = default;
-      ScanBar& operator=( const ScanBar& ) & = default;
-      ScanBar& operator=( ScanBar&& ) &      = default;
-      ~ScanBar()                             = default;
+      Sweep( const Sweep& )              = default;
+      Sweep( Sweep&& )                   = default;
+      Sweep& operator=( const Sweep& ) & = default;
+      Sweep& operator=( Sweep&& ) &      = default;
+      ~Sweep()                           = default;
     };
   } // namespace config
 
@@ -4976,10 +5178,10 @@ namespace pgbar {
     namespace traits {
       template<typename C>
       struct is_config
-        : AnyOf<std::is_same<typename std::remove_cv<C>::type, config::CharBar>,
-                std::is_same<typename std::remove_cv<C>::type, config::BlckBar>,
-                std::is_same<typename std::remove_cv<C>::type, config::SpinBar>,
-                std::is_same<typename std::remove_cv<C>::type, config::ScanBar>> {};
+        : AnyOf<std::is_same<typename std::remove_cv<C>::type, config::Line>,
+                std::is_same<typename std::remove_cv<C>::type, config::Block>,
+                std::is_same<typename std::remove_cv<C>::type, config::Spin>,
+                std::is_same<typename std::remove_cv<C>::type, config::Sweep>> {};
 
       template<typename C>
       struct ConfigTraits;
@@ -4994,10 +5196,10 @@ namespace pgbar {
      using type = TemplateList<__VA_ARGS__>;                                              \
    }
 
-      __PGBAR_TRAIT_REGISTER( config::CharBar, assets::TaskCounter, assets::FrameCounter );
-      __PGBAR_TRAIT_REGISTER( config::BlckBar, assets::TaskCounter );
-      __PGBAR_TRAIT_REGISTER( config::SpinBar, assets::TaskCounter, assets::FrameCounter );
-      __PGBAR_TRAIT_REGISTER( config::ScanBar, assets::TaskCounter, assets::FrameCounter );
+      __PGBAR_TRAIT_REGISTER( config::Line, assets::TaskCounter, assets::FrameCounter );
+      __PGBAR_TRAIT_REGISTER( config::Block, assets::TaskCounter );
+      __PGBAR_TRAIT_REGISTER( config::Spin, assets::TaskCounter, assets::FrameCounter );
+      __PGBAR_TRAIT_REGISTER( config::Sweep, assets::TaskCounter, assets::FrameCounter );
     } // namespace traits
 
     namespace render {
@@ -5112,7 +5314,7 @@ namespace pgbar {
 
           if ( !this->description_.empty() || this->visual_masks_.any() )
             this->build_rborder( buffer );
-          return buffer << console::escodes::reset_font;
+          return buffer << console::escodes::fontreset;
         }
         template<typename... Args>
         __PGBAR_INLINE_FN io::Stringbuf& indirect_build(
@@ -5153,7 +5355,7 @@ namespace pgbar {
 
           if ( !this->description_.empty() || this->visual_masks_.any() )
             this->build_rborder( buffer );
-          return buffer << console::escodes::reset_font;
+          return buffer << console::escodes::fontreset;
         }
 
       public:
@@ -5163,10 +5365,9 @@ namespace pgbar {
       template<typename Config>
       struct Builder;
       template<>
-      struct Builder<config::CharBar> final
-        : public BuilderAdopter<config::CharBar, Builder<config::CharBar>> {
+      struct Builder<config::Line> final : public BuilderAdopter<config::Line, Builder<config::Line>> {
       private:
-        using Base = BuilderAdopter<config::CharBar, Builder<config::CharBar>>;
+        using Base = BuilderAdopter<config::Line, Builder<config::Line>>;
         friend Base;
 
       protected:
@@ -5179,7 +5380,7 @@ namespace pgbar {
 
       public:
         using Base::BuilderAdopter;
-        Builder( config::CharBar&& rhs ) noexcept : Base( std::move( rhs ) ) {}
+        Builder( config::Line&& rhs ) noexcept : Base( std::move( rhs ) ) {}
 
         __PGBAR_INLINE_FN io::Stringbuf& build(
           io::Stringbuf& buffer,
@@ -5224,10 +5425,9 @@ namespace pgbar {
       };
 
       template<>
-      struct Builder<config::BlckBar> final
-        : public BuilderAdopter<config::BlckBar, Builder<config::BlckBar>> {
+      struct Builder<config::Block> final : public BuilderAdopter<config::Block, Builder<config::Block>> {
       private:
-        using Base = BuilderAdopter<config::BlckBar, Builder<config::BlckBar>>;
+        using Base = BuilderAdopter<config::Block, Builder<config::Block>>;
         friend Base;
 
       protected:
@@ -5274,17 +5474,16 @@ namespace pgbar {
       };
 
       template<>
-      struct Builder<config::ScanBar> final
-        : public BuilderAdopter<config::ScanBar, Builder<config::ScanBar>> {
+      struct Builder<config::Sweep> final : public BuilderAdopter<config::Sweep, Builder<config::Sweep>> {
       private:
-        using Base = BuilderAdopter<config::ScanBar, Builder<config::ScanBar>>;
+        using Base = BuilderAdopter<config::Sweep, Builder<config::Sweep>>;
         friend Base;
 
       protected:
         __PGBAR_INLINE_FN io::Stringbuf& build_animation( io::Stringbuf& buffer,
                                                           types::Size num_frame_cnt ) const
         {
-          return this->build_scanner( buffer, num_frame_cnt );
+          return this->build_sweeper( buffer, num_frame_cnt );
         }
 
       public:
@@ -5326,9 +5525,9 @@ namespace pgbar {
       };
 
       template<>
-      struct Builder<config::SpinBar> final : public CommonBuilder<config::SpinBar> {
+      struct Builder<config::Spin> final : public CommonBuilder<config::Spin> {
       private:
-        using Self = config::SpinBar;
+        using Self = config::Spin;
         using CommonBuilder<Self>::CommonBuilder;
 
       public:
@@ -5368,7 +5567,7 @@ namespace pgbar {
 
           if ( this->visual_masks_.any() )
             this->build_rborder( buffer );
-          return buffer << console::escodes::reset_font;
+          return buffer << console::escodes::fontreset;
         }
         __PGBAR_INLINE_FN io::Stringbuf& build(
           io::Stringbuf& buffer,
@@ -5409,7 +5608,7 @@ namespace pgbar {
 
           if ( this->visual_masks_.any() )
             this->build_rborder( buffer );
-          return buffer << console::escodes::reset_font;
+          return buffer << console::escodes::fontreset;
         }
       };
 
@@ -5418,14 +5617,10 @@ namespace pgbar {
     } // namespace render
 
     namespace prefabs {
-# if __PGBAR_CXX20
-      template<typename Config, Channel Outlet>
-# else
-      template<typename Config, Channel Outlet>
-# endif
+      template<typename Config, Channel Outlet, Policy Strategy>
       class BasicBar
-        : public traits::LI<traits::ConfigTraits_t<Config>>::template type<Indicator,
-                                                                           BasicBar<Config, Outlet>> {
+        : public traits::LI<
+            traits::ConfigTraits_t<Config>>::template type<Indicator, BasicBar<Config, Outlet, Strategy>> {
         static_assert(
           traits::AllOf<traits::is_config<Config>,
                         traits::Contain<traits::ConfigTraits_t<Config>, assets::TaskCounter>>::value,
@@ -5442,22 +5637,24 @@ namespace pgbar {
       protected:
         virtual void do_terminate( bool forced = false ) noexcept
         {
-          auto& executor = render::Renderer<Outlet>::itself();
+          auto& executor = render::Renderer<Outlet, Strategy>::itself();
           if ( !executor.empty() ) {
-            if ( !forced )
+            if ( !forced ) {
+              executor.attempt();
               executor.suspend();
-            else
+            } else
               io::OStream<Outlet>::itself().release();
             executor.appoint();
           }
         }
         virtual void do_setup() & noexcept( false )
         {
-          auto& executor = render::Renderer<Outlet>::itself();
+          auto& executor = render::Renderer<Outlet, Strategy>::itself();
           if ( !executor.try_appoint( [this]() {
                  auto& ostream = io::OStream<Outlet>::itself();
                  switch ( this->state_.load( std::memory_order_acquire ) ) {
                  case Self::State::Begin: {
+                   ostream << console::escodes::linewipe;
                    render::RenderAction<Config>::boot( *this );
                    ostream << console::escodes::nextline;
                    ostream << io::flush;
@@ -5465,13 +5662,15 @@ namespace pgbar {
                    __PGBAR_FALLTHROUGH;
                  case Self::State::StrictRefresh:  __PGBAR_FALLTHROUGH;
                  case Self::State::LenientRefresh: {
-                   ostream << console::escodes::prevline << console::escodes::linestart;
+                   ostream << console::escodes::prevline << console::escodes::linestart
+                           << console::escodes::linewipe;
                    render::RenderAction<Config>::process( *this );
                    ostream << console::escodes::nextline;
                    ostream << io::flush;
                  } break;
                  case Self::State::Finish: {
-                   ostream << console::escodes::prevline << console::escodes::linestart;
+                   ostream << console::escodes::prevline << console::escodes::linestart
+                           << console::escodes::linewipe;
                    render::RenderAction<Config>::finish( *this );
                    ostream << console::escodes::nextline;
                    ostream << io::flush << io::release;
@@ -5520,8 +5719,8 @@ namespace pgbar {
             std::lock_guard<std::mutex> lock { mtx_ };
             if ( this->state_.load( std::memory_order_acquire ) == Indicator::State::Stopped ) {
               this->task_end_.store( config_.tasks(), std::memory_order_release );
-              if __PGBAR_CXX17_CNSTXPR ( std::is_same<Config, config::CharBar>::value
-                                         || std::is_same<Config, config::BlckBar>::value )
+              if __PGBAR_CXX17_CNSTXPR ( std::is_same<Config, config::Line>::value
+                                         || std::is_same<Config, config::Block>::value )
                 if ( this->task_end_.load( std::memory_order_acquire ) == 0 )
                   __PGBAR_UNLIKELY throw exception::InvalidState( "pgbar: the number of tasks is zero" );
 
@@ -5538,8 +5737,8 @@ namespace pgbar {
           }
             __PGBAR_FALLTHROUGH;
           case Indicator::State::Begin: {
-            if __PGBAR_CXX17_CNSTXPR ( !std::is_same<Config, config::CharBar>::value
-                                       && !std::is_same<Config, config::BlckBar>::value )
+            if __PGBAR_CXX17_CNSTXPR ( !std::is_same<Config, config::Line>::value
+                                       && !std::is_same<Config, config::Block>::value )
               if ( this->task_end_.load( std::memory_order_acquire ) == 0 )
                 return;
           }
@@ -5550,6 +5749,16 @@ namespace pgbar {
             if ( this->task_cnt_.load( std::memory_order_acquire )
                  >= this->task_end_.load( std::memory_order_acquire ) )
               __PGBAR_UNLIKELY do_reset( ResetMode::Success );
+            else if __PGBAR_CXX17_CNSTXPR ( Strategy == Policy::Sync ) {
+              std::lock_guard<std::mutex> lock { mtx_ };
+              /**
+               * Double-check to prevent race conditions where another thread may call `do_reset()`
+               * and clear the renderer before this thread executes `Renderer::execute()`.
+               * The `is_running()` check ensures that the tasks are still valid before execution.
+               */
+              if ( this->is_running() ) // double check
+                render::Renderer<Outlet, Strategy>::itself().execute();
+            }
           } break;
 
           default: return;
@@ -5557,8 +5766,9 @@ namespace pgbar {
         }
 
       public:
-        using ConfigType                      = Config;
-        static constexpr Channel stream_value = Outlet;
+        using ConfigType                     = Config;
+        static constexpr Channel sink_value  = Outlet;
+        static constexpr Policy policy_value = Strategy;
 
         BasicBar( Config config = Config() ) noexcept : config_ { std::move( config ) } {}
 # if __PGBAR_CXX20
@@ -5647,8 +5857,8 @@ namespace pgbar {
       template<typename B>
       struct is_bar {
       private:
-        template<typename C, Channel O>
-        static constexpr std::true_type check( const prefabs::BasicBar<C, O>& );
+        template<typename C, Channel O, Policy S>
+        static constexpr std::true_type check( const prefabs::BasicBar<C, O, S>& );
         static constexpr std::false_type check( ... );
 
       public:
@@ -5665,46 +5875,45 @@ namespace pgbar {
    * It's structure is shown below:
    * {LeftBorder}{Description}{Percent}{Starting}{Filler}{Lead}{Remains}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
    */
-  template<Channel Outlet = Channel::Stderr>
-  using ProgressBar = __details::prefabs::BasicBar<config::CharBar, Outlet>;
+  template<Channel Outlet = Channel::Stderr, Policy Strategy = Policy::Async>
+  using ProgressBar = __details::prefabs::BasicBar<config::Line, Outlet, Strategy>;
   /**
    * A progress bar with a smoother bar, requires an Unicode-supported terminal.
    *
    * It's structure is shown below:
    * {LeftBorder}{Description}{Percent}{Starting}{BlockBar}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
    */
-  template<Channel Outlet = Channel::Stderr>
-  using BlockProgressBar = __details::prefabs::BasicBar<config::BlckBar, Outlet>;
+  template<Channel Outlet = Channel::Stderr, Policy Strategy = Policy::Async>
+  using BlockBar = __details::prefabs::BasicBar<config::Block, Outlet, Strategy>;
   /**
    * A progress bar without bar indicator, replaced by a fixed animation component.
    *
    * It's structure is shown below:
    * {LeftBorder}{Lead}{Description}{Percent}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
    */
-  template<Channel Outlet = Channel::Stderr>
-  using SpinnerBar = __details::prefabs::BasicBar<config::SpinBar, Outlet>;
+  template<Channel Outlet = Channel::Stderr, Policy Strategy = Policy::Async>
+  using SpinBar = __details::prefabs::BasicBar<config::Spin, Outlet, Strategy>;
   /**
    * The indeterminate progress bar.
    *
    * It's structure is shown below:
    * {LeftBorder}{Description}{Percent}{Starting}{Filler}{Lead}{Filler}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
    */
-  template<Channel Outlet = Channel::Stderr>
-  using ScannerBar = __details::prefabs::BasicBar<config::ScanBar, Outlet>;
+  template<Channel Outlet = Channel::Stderr, Policy Strategy = Policy::Async>
+  using SweepBar = __details::prefabs::BasicBar<config::Sweep, Outlet, Strategy>;
 
   namespace __details {
     namespace render {
       template<typename Config>
       struct RenderAction<
         Config,
-        typename std::enable_if<traits::AnyOf<std::is_same<Config, config::CharBar>,
-                                              std::is_same<Config, config::SpinBar>,
-                                              std::is_same<Config, config::ScanBar>>::value>::type> {
-        template<Channel Outlet>
-        static __PGBAR_INLINE_FN void boot( prefabs::BasicBar<Config, Outlet>& bar )
+        typename std::enable_if<traits::AnyOf<std::is_same<Config, config::Line>,
+                                              std::is_same<Config, config::Spin>,
+                                              std::is_same<Config, config::Sweep>>::value>::type> {
+        template<Channel Outlet, Policy Strategy>
+        static __PGBAR_INLINE_FN void boot( prefabs::BasicBar<Config, Outlet, Strategy>& bar )
         {
-          using Self = prefabs::BasicBar<Config, Outlet>;
-          __PGBAR_ASSERT( io::OStream<Outlet>::itself().empty() == false );
+          using Self = prefabs::BasicBar<Config, Outlet, Strategy>;
           __PGBAR_ASSERT( bar.task_cnt_ <= bar.task_end_ );
           bar.idx_frame_ = 0;
           bar.config_.build( io::OStream<Outlet>::itself(),
@@ -5713,7 +5922,7 @@ namespace pgbar {
                              bar.task_end_.load( std::memory_order_acquire ),
                              bar.zero_point_ );
           auto expected = Self::State::Begin;
-          if __PGBAR_CXX17_CNSTXPR ( std::is_same<Config, config::CharBar>::value )
+          if __PGBAR_CXX17_CNSTXPR ( std::is_same<Config, config::Line>::value )
             bar.state_.compare_exchange_strong( expected,
                                                 Self::State::StrictRefresh,
                                                 std::memory_order_release,
@@ -5726,14 +5935,11 @@ namespace pgbar {
                                                 std::memory_order_release,
                                                 std::memory_order_relaxed );
         }
-        template<Channel Outlet>
-        static __PGBAR_INLINE_FN void process( prefabs::BasicBar<Config, Outlet>& bar )
+        template<Channel Outlet, Policy Strategy>
+        static __PGBAR_INLINE_FN void process( prefabs::BasicBar<Config, Outlet, Strategy>& bar )
         {
           __PGBAR_ASSERT( bar.task_cnt_ <= bar.task_end_ );
           auto& buffer = io::OStream<Outlet>::itself();
-          __PGBAR_ASSERT( buffer.empty() == false );
-          buffer << console::escodes::clear_suffix;
-
           bar.config_.build( buffer,
                              bar.idx_frame_,
                              bar.task_cnt_.load( std::memory_order_acquire ),
@@ -5741,16 +5947,12 @@ namespace pgbar {
                              bar.zero_point_ );
           ++bar.idx_frame_;
         }
-        template<Channel Outlet>
-        static __PGBAR_INLINE_FN void finish( prefabs::BasicBar<Config, Outlet>& bar )
+        template<Channel Outlet, Policy Strategy>
+        static __PGBAR_INLINE_FN void finish( prefabs::BasicBar<Config, Outlet, Strategy>& bar )
         {
-          using Self = prefabs::BasicBar<Config, Outlet>;
+          using Self = prefabs::BasicBar<Config, Outlet, Strategy>;
           __PGBAR_ASSERT( bar.task_cnt_ <= bar.task_end_ );
-          auto& buffer = io::OStream<Outlet>::itself();
-          __PGBAR_ASSERT( buffer.empty() == false );
-          buffer << console::escodes::clear_suffix;
-
-          bar.config_.build( buffer,
+          bar.config_.build( io::OStream<Outlet>::itself(),
                              bar.idx_frame_,
                              bar.task_cnt_.load( std::memory_order_acquire ),
                              bar.task_end_.load( std::memory_order_acquire ),
@@ -5761,46 +5963,36 @@ namespace pgbar {
       };
 
       template<>
-      struct RenderAction<config::BlckBar, void> {
-        template<Channel Outlet>
-        static __PGBAR_INLINE_FN void boot( prefabs::BasicBar<config::BlckBar, Outlet>& bar )
+      struct RenderAction<config::Block, void> {
+        template<Channel Outlet, Policy Strategy>
+        static __PGBAR_INLINE_FN void boot( prefabs::BasicBar<config::Block, Outlet, Strategy>& bar )
         {
-          using Self = prefabs::BasicBar<config::BlckBar, Outlet>;
-          __PGBAR_ASSERT( io::OStream<Outlet>::itself().empty() == false );
+          using Self = prefabs::BasicBar<config::Block, Outlet, Strategy>;
           bar.config_.build( io::OStream<Outlet>::itself(),
                              bar.task_cnt_.load( std::memory_order_acquire ),
                              bar.task_end_.load( std::memory_order_acquire ),
                              bar.zero_point_ );
-
           auto expected = Self::State::Begin;
           bar.state_.compare_exchange_strong( expected,
                                               Self::State::StrictRefresh,
                                               std::memory_order_release,
                                               std::memory_order_relaxed );
         }
-        template<Channel Outlet>
-        static __PGBAR_INLINE_FN void process( prefabs::BasicBar<config::BlckBar, Outlet>& bar )
+        template<Channel Outlet, Policy Strategy>
+        static __PGBAR_INLINE_FN void process( prefabs::BasicBar<config::Block, Outlet, Strategy>& bar )
         {
           __PGBAR_ASSERT( bar.task_cnt_ <= bar.task_end_ );
-          auto& buffer = io::OStream<Outlet>::itself();
-          __PGBAR_ASSERT( buffer.empty() == false );
-          buffer << console::escodes::clear_suffix;
-
-          bar.config_.build( buffer,
+          bar.config_.build( io::OStream<Outlet>::itself(),
                              bar.task_cnt_.load( std::memory_order_acquire ),
                              bar.task_end_.load( std::memory_order_acquire ),
                              bar.zero_point_ );
         }
-        template<Channel Outlet>
-        static __PGBAR_INLINE_FN void finish( prefabs::BasicBar<config::BlckBar, Outlet>& bar )
+        template<Channel Outlet, Policy Strategy>
+        static __PGBAR_INLINE_FN void finish( prefabs::BasicBar<config::Block, Outlet, Strategy>& bar )
         {
-          using Self = prefabs::BasicBar<config::BlckBar, Outlet>;
+          using Self = prefabs::BasicBar<config::Block, Outlet, Strategy>;
           __PGBAR_ASSERT( bar.task_cnt_ <= bar.task_end_ );
-          auto& buffer = io::OStream<Outlet>::itself();
-          __PGBAR_ASSERT( buffer.empty() == false );
-          buffer << console::escodes::clear_suffix;
-
-          bar.config_.build( buffer,
+          bar.config_.build( io::OStream<Outlet>::itself(),
                              bar.task_cnt_.load( std::memory_order_acquire ),
                              bar.task_end_.load( std::memory_order_acquire ),
                              bar.final_mesg_,
@@ -5811,10 +6003,10 @@ namespace pgbar {
 
       template<>
       struct RenderAction<void, void> {
-        template<typename Config, Channel Outlet>
-        static __PGBAR_INLINE_FN void automate( prefabs::BasicBar<Config, Outlet>& bar )
+        template<typename Config, Channel Outlet, Policy Strategy>
+        static __PGBAR_INLINE_FN void automate( prefabs::BasicBar<Config, Outlet, Strategy>& bar )
         {
-          using Self = prefabs::BasicBar<Config, Outlet>;
+          using Self = prefabs::BasicBar<Config, Outlet, Strategy>;
           switch ( bar.state_.load( std::memory_order_acquire ) ) {
           case Self::State::Begin: {
             RenderAction<Config>::boot( bar );
@@ -5865,11 +6057,12 @@ namespace pgbar {
       class TupleBar;
       template<types::Size... Tags,
                Channel Outlet,
+               Policy Strategy,
                typename... Configs,
-               template<typename, Channel>
+               template<typename, Channel, Policy>
                class... Bars>
-      class TupleBar<traits::IndexSeq<Tags...>, Bars<Configs, Outlet>...> final
-        : public TupleSlot<Tags, prefabs::BasicBar<Configs, Outlet>>... {
+      class TupleBar<traits::IndexSeq<Tags...>, Bars<Configs, Outlet, Strategy>...> final
+        : public TupleSlot<Tags, prefabs::BasicBar<Configs, Outlet, Strategy>>... {
         static_assert( sizeof...( Tags ) == sizeof...( Bars ),
                        "pgbar::__details::assets::TupleBar: Unexpected type mismatch" );
         static_assert( sizeof...( Bars ) > 0,
@@ -5892,12 +6085,14 @@ namespace pgbar {
         {
           using std::get;
           __PGBAR_ASSERT( active() );
+          auto& ostream = io::OStream<Outlet>::itself();
           if ( get<Pos>( *this ).is_running() ) {
             active_mask_.set( Pos );
+            ostream << console::escodes::linewipe;
             render::RenderAction<void>::automate( get<Pos>( *this ) );
           }
           if ( active_mask_[Pos] )
-            io::OStream<Outlet>::itself() << console::escodes::nextline;
+            ostream << console::escodes::nextline;
           return do_render<Pos + 1>(); // tail recursive
         }
 
@@ -5905,24 +6100,27 @@ namespace pgbar {
         { // This virtual function is invoked only via the vtable,
           // hence the default arguments from the base class declaration are always used.
           // Any default arguments provided in the derived class are ignored.
-          auto& executor = render::Renderer<Outlet>::itself();
-          if ( active() && alive_cnt_.fetch_sub( 1, std::memory_order_acq_rel ) == 1 && !executor.empty() ) {
+          if ( active() ) {
+            auto& executor = render::Renderer<Outlet, Strategy>::itself();
+            __PGBAR_ASSERT( executor.empty() == false );
             std::lock_guard<std::mutex> lock { cb_mtx_ };
-            if ( alive_cnt_.load( std::memory_order_acquire ) == 0 ) {
-              // double check
-              if ( !forced )
+            if ( alive_cnt_.fetch_sub( 1, std::memory_order_acq_rel ) == 1 ) {
+              if ( !forced ) {
+                executor.attempt();
                 executor.suspend();
+              }
               executor.appoint();
-              __details::io::OStream<Outlet>::itself().release();
+              io::OStream<Outlet>::itself().release();
               cb_state_.store( CBState::Stopped, std::memory_order_release );
-            }
+            } else
+              executor.attempt();
           }
         }
         void do_setup() & override final
         {
           std::lock_guard<std::mutex> lock { cb_mtx_ };
           if ( cb_state_.load( std::memory_order_acquire ) == CBState::Stopped ) {
-            auto& executor = render::Renderer<Outlet>::itself();
+            auto& executor = render::Renderer<Outlet, Strategy>::itself();
             if ( !executor.try_appoint( [this]() {
                    auto& ostream = io::OStream<Outlet>::itself();
                    switch ( cb_state_.load( std::memory_order_acquire ) ) {
@@ -5972,7 +6170,7 @@ namespace pgbar {
 
       public:
         template<types::Size Pos>
-        using ElementAt_t = traits::TypeAt_t<Pos, TupleSlot<Tags, prefabs::BasicBar<Configs, Outlet>>...>;
+        using ElementAt_t = traits::TypeAt_t<Pos, TupleSlot<Tags, Bars<Configs, Outlet, Strategy>>...>;
 
         // SFINAE is used here to prevent infinite recursive matching of errors.
         template<typename... Cfgs,
@@ -5983,7 +6181,7 @@ namespace pgbar {
                       traits::MakeIndexSeq<sizeof...( Configs )>() )
         {}
         TupleBar( TupleBar&& rhs ) noexcept
-          : TupleSlot<Tags, prefabs::BasicBar<Configs, Outlet>>( std::move( rhs ) )...
+          : TupleSlot<Tags, Bars<Configs, Outlet, Strategy>>( std::move( rhs ) )...
           , alive_cnt_ { 0 }
           , cb_state_ { CBState::Stopped }
         {}
@@ -5992,7 +6190,7 @@ namespace pgbar {
 
         void halt() noexcept
         {
-          if ( active() && !__details::render::Renderer<Outlet>::itself().empty() )
+          if ( active() && !__details::render::Renderer<Outlet, Strategy>::itself().empty() )
             (void)std::initializer_list<char> {
               ( this->ElementAt_t<Tags>::do_reset( ElementAt_t<Tags>::ResetMode::Forced ), '\0' )...
             };
@@ -6036,22 +6234,23 @@ namespace pgbar {
   template<typename Bar, typename... Bars>
   class MultiBar;
   template<Channel Outlet,
+           Policy Strategy,
            typename Config,
            typename... Configs,
-           template<typename, Channel>
+           template<typename, Channel, Policy>
            class Bar,
-           template<typename, Channel>
+           template<typename, Channel, Policy>
            class... Bars>
-  class MultiBar<Bar<Config, Outlet>, Bars<Configs, Outlet>...> final {
-    static_assert( __details::traits::AllOf<__details::traits::is_bar<Bar<Config, Outlet>>,
-                                            __details::traits::is_bar<Bars<Configs, Outlet>>...,
+  class MultiBar<Bar<Config, Outlet, Strategy>, Bars<Configs, Outlet, Strategy>...> final {
+    static_assert( __details::traits::AllOf<__details::traits::is_bar<Bar<Config, Outlet, Strategy>>,
+                                            __details::traits::is_bar<Bars<Configs, Outlet, Strategy>>...,
                                             __details::traits::is_config<Config>,
                                             __details::traits::is_config<Configs>...>::value,
                    "pgbar::MultiBar: Invalid type" );
     using Self    = MultiBar;
     using Package = __details::assets::TupleBar<__details::traits::MakeIndexSeq<sizeof...( Bars ) + 1>,
-                                                Bar<Config, Outlet>,
-                                                Bars<Configs, Outlet>...>;
+                                                Bar<Config, Outlet, Strategy>,
+                                                Bars<Configs, Outlet, Strategy>...>;
 
     template<__details::types::Size Pos>
     using ConfigAt_t = __details::traits::TypeAt_t<Pos, Config, Configs...>;
@@ -6137,20 +6336,13 @@ namespace pgbar {
     // Wait for all progress bars to stop.
     void wait() const noexcept
     {
-      while ( is_running() )
-        std::this_thread::yield();
+      __details::concurrent::adaptive_wait( [this]() noexcept { return !is_running(); } );
     }
     // Wait for all progress bars to stop or time out.
     template<class Rep, class Period>
-    __PGBAR_NODISCARD bool wait_for( const std::chrono::duration<Rep, Period>& time_duration ) const noexcept
+    __PGBAR_NODISCARD bool wait_for( const std::chrono::duration<Rep, Period>& timeout ) const noexcept
     {
-      for ( const auto ending = std::chrono::steady_clock::now() + time_duration;
-            std::chrono::steady_clock::now() < ending; ) {
-        if ( !is_running() )
-          return true;
-        std::this_thread::yield();
-      }
-      return false;
+      return __details::concurrent::adaptive_wait_for( [this]() noexcept { return !is_running(); }, timeout );
     }
 
     template<__details::types::Size Pos>
@@ -6185,10 +6377,10 @@ namespace pgbar {
     }
     template<__details::types::Size Pos, class Rep, class Period>
     __PGBAR_NODISCARD __PGBAR_INLINE_FN bool wait_for(
-      const std::chrono::duration<Rep, Period>& time_duration ) const noexcept
+      const std::chrono::duration<Rep, Period>& timeout ) const noexcept
     {
       using std::get;
-      return get<Pos>( tuple_ ).wait_for( time_duration );
+      return get<Pos>( tuple_ ).wait_for( timeout );
     }
     template<__details::types::Size Pos>
     __PGBAR_NODISCARD __PGBAR_INLINE_FN bool is_running() const noexcept
@@ -6250,24 +6442,25 @@ namespace pgbar {
     typename = std::enable_if_t<__details::traits::AllOf<__details::traits::is_config<Config>,
                                                          __details::traits::is_config<Configs>...>::value>>
 #  endif
-  MultiBar( Config, Configs... ) -> MultiBar<__details::prefabs::BasicBar<Config, Channel::Stderr>,
-                                             __details::prefabs::BasicBar<Configs, Channel::Stderr>...>;
+  MultiBar( Config, Configs... )
+    -> MultiBar<__details::prefabs::BasicBar<Config, Channel::Stderr, Policy::Async>,
+                __details::prefabs::BasicBar<Configs, Channel::Stderr, Policy::Async>...>;
 # endif
 
   // Creates a MultiBar using existing bar instances.
-  template<Channel Outlet = Channel::Stderr, typename Bar, typename... Bars>
+  template<Channel Outlet = Channel::Stderr, Policy Strategy = Policy::Async, typename Bar, typename... Bars>
 # if __PGBAR_CXX20
     requires( __details::traits::is_bar<std::decay_t<Bar>>::value
               && ( __details::traits::is_bar<std::decay_t<Bars>>::value && ... ) )
   __PGBAR_NODISCARD __PGBAR_INLINE_FN
-    MultiBar<__details::prefabs::BasicBar<typename Bar::ConfigType, Outlet>,
-             __details::prefabs::BasicBar<typename Bars::ConfigType, Outlet>...>
+    MultiBar<__details::prefabs::BasicBar<typename Bar::ConfigType, Outlet, Strategy>,
+             __details::prefabs::BasicBar<typename Bars::ConfigType, Outlet, Strategy>...>
 # else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
     __details::traits::AllOf<__details::traits::is_bar<typename std::decay<Bar>::type>,
                              __details::traits::is_bar<typename std::decay<Bars>::type>...>::value,
-    MultiBar<__details::prefabs::BasicBar<typename Bar::ConfigType, Outlet>,
-             __details::prefabs::BasicBar<typename Bars::ConfigType, Outlet>...>>::type
+    MultiBar<__details::prefabs::BasicBar<typename Bar::ConfigType, Outlet, Strategy>,
+             __details::prefabs::BasicBar<typename Bars::ConfigType, Outlet, Strategy>...>>::type
 # endif
     make_multi( Bar&& bar, Bars&&... bars ) noexcept(
       __details::traits::Not<
@@ -6276,17 +6469,21 @@ namespace pgbar {
     return { std::forward<Bar>( bar ), std::forward<Bars>( bars )... };
   }
   // Creates a MultiBar using configuration objects.
-  template<Channel Outlet = Channel::Stderr, typename Config, typename... Configs>
+  template<Channel Outlet  = Channel::Stderr,
+           Policy Strategy = Policy::Async,
+           typename Config,
+           typename... Configs>
 # if __PGBAR_CXX20
     requires( __details::traits::is_config<Config>::value
               && ( __details::traits::is_config<Configs>::value && ... ) )
-  MultiBar<__details::prefabs::BasicBar<Config, Outlet>, __details::prefabs::BasicBar<Configs, Outlet>...>
+  MultiBar<__details::prefabs::BasicBar<Config, Outlet, Strategy>,
+           __details::prefabs::BasicBar<Configs, Outlet, Strategy>...>
 # else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN
     typename std::enable_if<__details::traits::AllOf<__details::traits::is_config<Config>,
                                                      __details::traits::is_config<Configs>...>::value,
-                            MultiBar<__details::prefabs::BasicBar<Config, Outlet>,
-                                     __details::prefabs::BasicBar<Configs, Outlet>...>>::type
+                            MultiBar<__details::prefabs::BasicBar<Config, Outlet, Strategy>,
+                                     __details::prefabs::BasicBar<Configs, Outlet, Strategy>...>>::type
 # endif
     make_multi( Config cfg, Configs... cfgs ) noexcept
   {
@@ -6295,8 +6492,8 @@ namespace pgbar {
 
   namespace __details {
     namespace assets {
-      template<types::Size Cnt, Channel O, typename C, types::Size... Is>
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN traits::FillTemplate_t<prefabs::BasicBar<C, O>, MultiBar, Cnt>
+      template<types::Size Cnt, Channel O, Policy S, typename C, types::Size... Is>
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN traits::FillTemplate_t<prefabs::BasicBar<C, O, S>, MultiBar, Cnt>
         make_multi_helper( C& cfg, const traits::IndexSeq<Is...>& ) noexcept( Cnt == 1 )
       {
         std::array<C, Cnt - 1> cfgs { { ( (void)( Is ), cfg )... } };
@@ -6309,11 +6506,14 @@ namespace pgbar {
    * Creates a MultiBar with a fixed number of BasicBar instances using a single bar object.
    * **All BasicBar instances are initialized using the same configuration.**
    */
-  template<__details::types::Size Cnt, Channel Outlet = Channel::Stderr, typename Bar>
+  template<__details::types::Size Cnt,
+           Channel Outlet  = Channel::Stderr,
+           Policy Strategy = Policy::Async,
+           typename Bar>
 # if __PGBAR_CXX20
     requires( Cnt > 0 && __details::traits::is_bar<std::decay_t<Bar>>::value )
   __PGBAR_NODISCARD __PGBAR_INLINE_FN __details::traits::FillTemplate_t<
-    __details::prefabs::BasicBar<typename std::decay_t<Bar>::ConfigType, Outlet>,
+    __details::prefabs::BasicBar<typename std::decay_t<Bar>::ConfigType, Outlet, Strategy>,
     MultiBar,
     Cnt>
 # else
@@ -6321,7 +6521,7 @@ namespace pgbar {
     __details::traits::AllOf<std::integral_constant<bool, ( Cnt > 0 )>,
                              __details::traits::is_bar<typename std::decay<Bar>::type>>::value,
     __details::traits::FillTemplate_t<
-      __details::prefabs::BasicBar<typename std::decay<Bar>::type::ConfigType, Outlet>,
+      __details::prefabs::BasicBar<typename std::decay<Bar>::type::ConfigType, Outlet, Strategy>,
       MultiBar,
       Cnt>>::type
 # endif
@@ -6335,16 +6535,20 @@ namespace pgbar {
    * Creates a MultiBar with a fixed number of BasicBar instances using a single configuration object.
    * **All BasicBar instances are initialized using the same configuration.**
    */
-  template<__details::types::Size Cnt, Channel Outlet = Channel::Stderr, typename Config>
+  template<__details::types::Size Cnt,
+           Channel Outlet  = Channel::Stderr,
+           Policy Strategy = Policy::Async,
+           typename Config>
 # if __PGBAR_CXX20
     requires( Cnt > 0 && __details::traits::is_config<Config>::value )
   __PGBAR_NODISCARD __PGBAR_INLINE_FN
-    __details::traits::FillTemplate_t<__details::prefabs::BasicBar<Config, Outlet>, MultiBar, Cnt>
+    __details::traits::FillTemplate_t<__details::prefabs::BasicBar<Config, Outlet, Strategy>, MultiBar, Cnt>
 # else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
     __details::traits::AllOf<std::integral_constant<bool, ( Cnt > 0 )>,
                              __details::traits::is_config<Config>>::value,
-    __details::traits::FillTemplate_t<__details::prefabs::BasicBar<Config, Outlet>, MultiBar, Cnt>>::type
+    __details::traits::
+      FillTemplate_t<__details::prefabs::BasicBar<Config, Outlet, Strategy>, MultiBar, Cnt>>::type
 # endif
     make_multi( Config cfg ) noexcept( Cnt == 1 )
   {
@@ -6353,7 +6557,7 @@ namespace pgbar {
   }
 
   /**
-   * Creates a MultiBar with a fixed number of BasicBar instances using mutiple single bar objects.
+   * Creates a MultiBar with a fixed number of BasicBar instances using mutiple bar objects.
    * The ctor sequentially initializes the first few instances corresponding to the provided arguments;
    * **any remaining instances with no corresponding arguments will be default-initialized.**
    */
@@ -6386,19 +6590,24 @@ namespace pgbar {
    * The ctor sequentially initializes the first few instances corresponding to the provided configurations;
    * **any remaining instances with no corresponding configurations will be default-initialized.**
    */
-  template<__details::types::Size Cnt, typename Config, Channel Outlet = Channel::Stderr, typename... Configs>
+  template<__details::types::Size Cnt,
+           typename Config,
+           Channel Outlet  = Channel::Stderr,
+           Policy Strategy = Policy::Async,
+           typename... Configs>
 # if __PGBAR_CXX20
     requires( Cnt > 0 && sizeof...( Configs ) <= Cnt && __details::traits::is_config<Config>::value
               && ( std::is_same_v<Config, Configs> && ... ) )
   __PGBAR_NODISCARD __PGBAR_INLINE_FN
-    __details::traits::FillTemplate_t<__details::prefabs::BasicBar<Config, Outlet>, MultiBar, Cnt>
+    __details::traits::FillTemplate_t<__details::prefabs::BasicBar<Config, Outlet, Strategy>, MultiBar, Cnt>
 # else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
     __details::traits::AllOf<std::integral_constant<bool, ( Cnt > 0 )>,
                              std::integral_constant<bool, ( sizeof...( Configs ) <= Cnt )>,
                              __details::traits::is_config<Config>,
                              std::is_same<Config, Configs>...>::value,
-    __details::traits::FillTemplate_t<__details::prefabs::BasicBar<Config, Outlet>, MultiBar, Cnt>>::type
+    __details::traits::
+      FillTemplate_t<__details::prefabs::BasicBar<Config, Outlet, Strategy>, MultiBar, Cnt>>::type
 # endif
     make_multi( Configs... configs ) noexcept( sizeof...( Configs ) == Cnt )
   {

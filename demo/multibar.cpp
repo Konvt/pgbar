@@ -1,4 +1,4 @@
-#include "pgbar/pgbar.hpp"
+#include "../include/pgbar/pgbar.hpp"
 #include <chrono>
 #include <random>
 #include <thread>
@@ -10,7 +10,7 @@ int main()
   system( "chcp 65001" );
 #endif
 
-  auto mbar = pgbar::make_multi<3, pgbar::BlockProgressBar<>>();
+  auto mbar = pgbar::make_multi<3, pgbar::BlockBar<>>();
 
   vector<thread> pool;
   pool.emplace_back( thread( [&mbar]() {
