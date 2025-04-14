@@ -2728,9 +2728,9 @@ namespace pgbar {
         enum class State : types::Byte { Dormant, Finish, Active, Quit };
         std::atomic<State> state_;
 
-        mutable std::condition_variable cond_var_;
-        mutable std::mutex mtx_;
         mutable concurrent::SharedMutex rw_mtx_;
+        mutable std::mutex mtx_;
+        mutable std::condition_variable cond_var_;
 
         wrappers::UniqueFunction<void()> task_;
 
@@ -2746,24 +2746,15 @@ namespace pgbar {
         Self& operator=( const Self& ) = delete;
 
         ~Renderer() noexcept { appoint(); }
+
         __PGBAR_INLINE_FN void suspend() noexcept { /* Empty Implementation */ }
         void activate() & noexcept( false )
         {
           std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
           // Internal component does not make validity judgments.
           __PGBAR_ASSERT( task_ != nullptr );
-          try {
-            ThreadRenderer<Tag>::itself().activate();
-          } catch ( ... ) {
-            /**
-             * In `ThreadRenderer::activate`, there are only two sources of exceptions,
-             * `ThreadRenderer::launch` or the background thread;
-             * in either case, the ThreadRenderer retains the assigned task,
-             * so the task status is still valid and should be switched back to Dormant instead of Quit.
-             */
-            state_.store( State::Dormant, std::memory_order_release );
-            throw;
-          }
+          __PGBAR_ASSERT( state_ == State::Dormant );
+          ThreadRenderer<Tag>::itself().activate();
           task_();
         }
 
@@ -2885,14 +2876,15 @@ namespace pgbar {
 
         static std::atomic<types::TimeUnit> _working_interval;
 
-        enum class State : types::Byte { Dormant, Suspend, Awake, Active, Finish, Quit };
+        /**
+         * Unlike synchronous renderers,
+         * asynchronous renderers do not require the background thread to be suspended for a long time,
+         * so the condition variable is simplified away here.
+         */
+        enum class State : types::Byte { Awake, Active, Finish, Quit };
         std::atomic<State> state_;
-
-        mutable std::condition_variable cond_var_;
-        mutable std::mutex mtx_;
-        mutable concurrent::SharedMutex rw_mtx_;
-
         wrappers::UniqueFunction<void()> task_;
+        mutable concurrent::SharedMutex rw_mtx_;
 
         Renderer() noexcept : state_ { State::Quit } {}
 
@@ -2928,13 +2920,12 @@ namespace pgbar {
           };
           if ( try_update( State::Awake ) || try_update( State::Active ) ) {
             concurrent::adaptive_wait(
-              [this]() noexcept { return state_.load( std::memory_order_acquire ) == State::Dormant; } );
-            std::lock_guard<std::mutex> lock { mtx_ };
+              [this]() noexcept { return state_.load( std::memory_order_acquire ) == State::Quit; } );
           }
         }
         void activate() & noexcept( false )
         {
-          auto expected = State::Dormant;
+          auto expected = State::Quit;
           if ( state_.compare_exchange_strong( expected,
                                                State::Awake,
                                                std::memory_order_release,
@@ -2943,7 +2934,13 @@ namespace pgbar {
             try {
               ThreadRenderer<Tag>::itself().activate();
             } catch ( ... ) {
-              state_.store( State::Dormant, std::memory_order_release );
+              /**
+               * In ThreadRenderer::activate, there are only two sources of exceptions,
+               * ThreadRenderer::launch or the background thread;
+               * in either case, the ThreadRenderer retains the assigned task,
+               * so the task status is still valid and should be switched back to Quit.
+               */
+              state_.store( State::Quit, std::memory_order_release );
               throw;
             }
             concurrent::adaptive_wait(
@@ -2956,10 +2953,6 @@ namespace pgbar {
           std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
           if ( task_ != nullptr ) {
             state_.store( State::Quit, std::memory_order_release );
-            {
-              std::unique_lock<std::mutex> lock { mtx_ };
-              cond_var_.notify_one();
-            }
             ThreadRenderer<Tag>::itself().appoint();
             task_ = nullptr;
           }
@@ -2971,19 +2964,6 @@ namespace pgbar {
                  try {
                    while ( state_.load( std::memory_order_acquire ) != State::Quit ) {
                      switch ( state_.load( std::memory_order_acquire ) ) {
-                     case State::Dormant: __PGBAR_FALLTHROUGH;
-                     case State::Suspend: {
-                       std::unique_lock<std::mutex> lock { mtx_ };
-                       auto expected = State::Suspend;
-                       state_.compare_exchange_strong( expected,
-                                                       State::Dormant,
-                                                       std::memory_order_release,
-                                                       std::memory_order_relaxed );
-                       cond_var_.wait( lock, [this]() noexcept -> bool {
-                         return state_.load( std::memory_order_acquire ) != State::Dormant;
-                       } );
-                     } break;
-
                      case State::Awake: {
                        task_();
                        auto expected = State::Awake;
@@ -3002,7 +2982,7 @@ namespace pgbar {
                        task_();
                        auto expected = State::Finish;
                        state_.compare_exchange_strong( expected,
-                                                       State::Suspend,
+                                                       State::Quit,
                                                        std::memory_order_release,
                                                        std::memory_order_relaxed );
                      } break;
@@ -3016,7 +2996,7 @@ namespace pgbar {
                  }
                } ) )
             return false;
-          state_.store( State::Dormant, std::memory_order_release );
+          state_.store( State::Quit, std::memory_order_release );
           task_.swap( task );
           return true;
         }
