@@ -8,8 +8,9 @@
       - [Data configuration](#data-configuration)
       - [Thread safety](#thread-safety)
       - [Output stream](#output-stream)
+      - [Rendering strategy](#rendering-strategy)
     - [Interaction with iterable types](#interaction-with-iterable-types)
-  - [`BlockProgressBar`](#blockprogressbar)
+  - [`BlockBar`](#blockbar)
     - [How to use](#how-to-use-1)
     - [Configuration](#configuration-1)
       - [Constituent element](#constituent-element-1)
@@ -17,8 +18,9 @@
       - [Data configuration](#data-configuration-1)
       - [Thread safety](#thread-safety-1)
       - [Output stream](#output-stream-1)
+      - [Rendering strategy](#rendering-strategy-1)
     - [Interaction with iterable types](#interaction-with-iterable-types-1)
-  - [`ScannerBar`](#scannerbar)
+  - [`SweepBar`](#sweepbar)
     - [How to use](#how-to-use-2)
     - [Configuration](#configuration-2)
       - [Constituent element](#constituent-element-2)
@@ -26,14 +28,16 @@
       - [Data configuration](#data-configuration-2)
       - [Thread safety](#thread-safety-2)
       - [Output stream](#output-stream-2)
+      - [Rendering strategy](#rendering-strategy-2)
     - [Interaction with iterable types](#interaction-with-iterable-types-2)
-  - [`SpinnerBar`](#spinnerbar)
+  - [`SpinBar`](#spinbar)
     - [How to use](#how-to-use-3)
     - [Configuration](#configuration-3)
       - [Constituent element](#constituent-element-3)
       - [Data configuration](#data-configuration-3)
       - [Thread safety](#thread-safety-3)
       - [Output stream](#output-stream-3)
+      - [Rendering strategy](#rendering-strategy-3)
     - [Interaction with iterable types](#interaction-with-iterable-types-3)
 - [Progress Bar Synthesizer](#progress-bar-synthesizer)
   - [`MultiBar`](#multibar)
@@ -155,16 +159,16 @@ assert( bar1.is_running() );
 ### Configuration
 As mentioned in the previous section, all configuration operations for `ProgressBar` need to be done via the method `config()`.
 
-This method returns a reference to an internal configuration object whose type can be found in `pgbar::config`, which is `pgbar::config::CharBar`.
+This method returns a reference to an internal configuration object whose type can be found in `pgbar::config`, which is `pgbar::config::Line`.
 
-`pgbar::config::CharBar` is a data type that stores all the data members used to describe the `ProgressBar` elements; It can be copied, movable and swappable.
+`pgbar::config::Line` is a data type that stores all the data members used to describe the `ProgressBar` elements; It can be copied, movable and swappable.
 
 ```cpp
 #include "pgbar/pgbar.hpp"
 
 int main()
 {
-  pgbar::config::CharBar cfg1;
+  pgbar::config::Line cfg1;
 
   auto cfg2 = cfg1;              // copy
   auto cfg3 = std::move( cfg1 ); // move
@@ -224,15 +228,15 @@ pgbar::option::InfoColor;    // Modify the color of Divider, Percent, Counter, S
 
 > `TrueMesg` and `FalseMesg` can be used to display whether the task of progress bar iteration is successfully executed. They can be switched by passing a `bool` parameter to the `reset()` method; By default, the progress bar stops on its own, or calling the `reset()` method without arguments selects `TrueMesg`.
 
-The argument to `pgbar::option::Style` can be obtained by a bit operation performed by multiple static members of `pgbar::config::CharBar`:
+The argument to `pgbar::option::Style` can be obtained by a bit operation performed by multiple static members of `pgbar::config::Line`:
 
 ```cpp
-pgbar::ProgressBar<> bar { pgbar::option::Style( pgbar::config::CharBar::Sped | pgbar::config::CharBar::Per
-                                                   | pgbar::config::CharBar::Elpsd
-                                                   | pgbar::config::CharBar::Cntdwn ) };
+pgbar::ProgressBar<> bar { pgbar::option::Style( pgbar::config::Line::Sped | pgbar::config::Line::Per
+                                                 | pgbar::config::Line::Elpsd
+                                                 | pgbar::config::Line::Cntdwn ) };
 ```
 
-This method configuration can be cumbersome, so `CharBar` provides two helper methods, `enable()` and `disable()`, to simplify the above operation.
+This method configuration can be cumbersome, so `Line` provides two helper methods, `enable()` and `disable()`, to simplify the above operation.
 
 ```cpp
 pgbar::ProgressBar<> bar;
@@ -244,7 +248,7 @@ bar.config().disable().animation().counter();
 // And not all elements can be turned off, such as Description.
 ```
 
-The above elements all have methods with the same name in `CharBar`, and calling these methods and passing parameters to them can also modify the data information.
+The above elements all have methods with the same name in `Line`, and calling these methods and passing parameters to them can also modify the data information.
 ##### Variable progress bar length
 In between the `Starting` and `Ending` elements is a progress indicator called the `Animation` (excluding `Starting` and `Ending`), which is variable in length.
 
@@ -260,14 +264,14 @@ assert( bar.config().bar_length() == 30 ); // default value
 assert( bar.config().fixed_size() != 0 );  // The exact value depends on the content of the data member
 ```
 #### Data configuration
-`CharBar` has two methods of data configuration: variable parameter construction based on wrapper type, and stream interface style based on chain call.
+`Line` has two methods of data configuration: variable parameter construction based on wrapper type, and stream interface style based on chain call.
 
 ```cpp
 #include "pgbar/pgbar.hpp"
 
 int main()
 {
-  pgbar::config::CharBar config1 {
+  pgbar::config::Line config1 {
     pgbar::option::Tasks( 100 ),
     pgbar::option::SpeedUnit( { "B/s", "kiB/s", "MiB/s", "GiB/s" } ),
     pgbar::option::Magnitude( 1024 ),
@@ -276,7 +280,7 @@ int main()
   };
   // Note: Passing the same wrapper type twice results in a compilation error
 
-  pgbar::config::CharBar config2;
+  pgbar::config::Line config2;
   config2.tasks( 100 )
     .speed_unit( { "B/s", "kiB/s", "MiB/s", "GiB/s" } )
     .magnitude( 1024 )
@@ -306,7 +310,7 @@ int main()
 }
 ```
 #### Thread safety
-All methods of configuring the type `CharBar` are thread-safe, which means that you can modify the data in the progress bar while it is running.
+All methods of configuring the type `Line` are thread-safe, which means that you can modify the data in the progress bar while it is running.
 
 Only the `tick()`, `tick_to()` and `reset()` methods of `ProgressBar` are thread-safe; The rest of the methods, especially `iterate()`, are thread-unsafe.
 
@@ -333,6 +337,62 @@ int main()
 Especially it is important to note that the binding to the same output stream objects are not allowed to run at the same time, otherwise it will throw an exception `pgbar::exception::InvalidState`; For a detailed explanation of this, see [FAQ - Design of renderer](#design-of-renderer).
 
 If the output stream is not bound to the terminal, the progress bar will not be rendered. You can see this in [Global configuration - Output stream detection](#output-stream-detection).
+#### Rendering strategy
+There are two ways for `ProgressBar` to render the progress bar to the terminal: synchronously (`pgbar::Policy::Sync`) or asynchronously (`pgbar::Policy::Async`); different rendering strategies will hand over the rendering behavior to different threads for execution.
+
+When asynchronous rendering (default) is enabled, the progress bar rendering is automatically completed by a background thread at fixed time intervals.
+
+In the synchronous rendering mode, the rendering action is executed by the thread that calls `tick()` or `tick_to()` each time;  each call to `tick()` not only updates the progress status but also immediately outputs the latest progress bar to the terminal.
+
+The specific rendering strategy is defined by the second template parameter.
+
+```cpp
+#include "pgbar/pgbar.hpp"
+#include <type_traits>
+
+int main()
+{
+  static_assert( std::is_same<pgbar::ProgressBar<>,
+                              pgbar::ProgressBar<pgbar::Channel::Stderr, pgbar::Policy::Async>>::value,
+                 "" );
+
+  pgbar::ProgressBar<pgbar::Channel::Stderr, pgbar::Policy::Sync> bar; // use synchronous rendering
+}
+```
+
+In asynchronous rendering mode, the timing and frequency of the progress bar rendering are uncontrollable. At this point, no other information should be written to the same output stream; otherwise, it will cause confusion in the terminal interface rendering.
+
+Synchronous rendering, on the other hand, only executes the rendering function each time `tick()` is called, thus allowing information to be output to the same output stream while the progress bar is running.
+
+It is obvious that the asynchronous rendering strategy can greatly enhance the performance of the foreground thread. Therefore, by default, `pgbar` always adopts the asynchronous rendering strategy.
+
+> Because the rendering structure of the progress bar is two lines: one line for the progress bar string and one blank line.
+>
+> Therefore, when using the synchronous strategy, if additional information needs to be output, two extra line breaks must be inserted after the output.
+>
+> Otherwise, due to the progress bar occupying a two-line structure, subsequent rendering will incorrectly overwrite the existing output.
+>
+> For example:
+
+```cpp
+#include "pgbar/pgbar.hpp"
+#include <iostream>
+
+int main()
+{
+  pgbar::ProgressBar<pgbar::Channel::Stderr, pgbar::Policy::Sync> bar;
+  bar.config().tasks( 100 );
+
+  for ( size_t i = 0; i < 95; ++i )
+    bar.tick(); /* do something... */
+
+  // Notice: At least two newlines must be inserted after the output information
+  std::cerr << "Extra log information" << std::endl << std::endl;
+
+  while ( bar.is_running() )
+    bar.tick();
+}
+```
 ### Interaction with iterable types
 `pgbar` provides an easier way to iterate when dealing with iterable types or numeric ranges: the `iterate()` method.
 
@@ -424,10 +484,10 @@ int main()
 
 - - -
 
-## `BlockProgressBar`
-![bpbar](../images/blockprogressbar.gif)
+## `BlockBar`
+![bpbar](../images/BlockBar.gif)
 ### How to use
-`pgbar::BlockProgressBar` is a template type; It requires the manual configuration tasks to start using, otherwise you will throw an exception `pgbar::exception::InvalidState`.
+`pgbar::BlockBar` is a template type; It requires the manual configuration tasks to start using, otherwise you will throw an exception `pgbar::exception::InvalidState`.
 
 The number of tasks can be configured by calling the `config().tasks()` method and passing parameters, or by passing the `pgbar::option::Tasks` wrapper type to the constructor.
 
@@ -437,7 +497,7 @@ The number of tasks can be configured by calling the `config().tasks()` method a
 int main()
 {
   {
-    pgbar::BlockProgressBar<> bar;
+    pgbar::BlockBar<> bar;
     try {
       bar.tick();
     } catch ( const pgbar::exception::InvalidState& e ) {
@@ -445,7 +505,7 @@ int main()
     }
   }
   {
-    pgbar::BlockProgressBar<> bar;
+    pgbar::BlockBar<> bar;
     bar.config().tasks( 200 );
 
     bar.tick( 20 );    // 20 steps forward
@@ -455,7 +515,7 @@ int main()
       bar.tick(); // Only one step forward per call
   }
   {
-    pgbar::BlockProgressBar<> bar { pbar::option::Tasks( 150 ) };
+    pgbar::BlockBar<> bar { pbar::option::Tasks( 150 ) };
     bar.tick_to( 20 );  // Set the progress to 20%
     bar.tick_to( 130 ); // Anything more than 100% is discarded and the progress bar is locked to 100%
   }
@@ -470,7 +530,7 @@ In some special scenarios, if you want to check the progress bar running, or for
 
 int main()
 {
-  pgbar::BlockProgressBar<> bar { pgbar::option::Tasks( 500 ) };
+  pgbar::BlockBar<> bar { pgbar::option::Tasks( 500 ) };
 
   for ( int i = 0; i < 400; ++i ) {
     if ( i > 0 ) // Note that the progress bar does not run until the tick() is called once
@@ -484,16 +544,16 @@ int main()
 }
 ```
 
-`BlockProgressBar` is a move only and swappable type, so you can use another object to move constructs or exchange each other's configuration data with another object.
+`BlockBar` is a move only and swappable type, so you can use another object to move constructs or exchange each other's configuration data with another object.
 
 ```cpp
 {
-  pgbar::BlockProgressBar<> bar1 { /* Pass some complex configuration data */ };
-  pgbar::BlockProgressBar<> bar2 { std::move( bar1 ) };
+  pgbar::BlockBar<> bar1 { /* Pass some complex configuration data */ };
+  pgbar::BlockBar<> bar2 { std::move( bar1 ) };
 }
 {
-  pgbar::BlockProgressBar<> bar1 { /* Pass some complex configuration data */ };
-  pgbar::BlockProgressBar<> bar2;
+  pgbar::BlockBar<> bar1 { /* Pass some complex configuration data */ };
+  pgbar::BlockBar<> bar2;
   bar2.swap( bar1 );
   // or
   using std::swap;
@@ -504,26 +564,26 @@ int main()
 However, it is not allowed to swap or move objects during the progress bar operation, otherwise it will cause unpredictable errors.
 
 ```cpp
-pgbar::BlockProgressBar<> bar1 { pgbar::option::Tasks( 500 ) };
+pgbar::BlockBar<> bar1 { pgbar::option::Tasks( 500 ) };
 
 bar1.tick();
 assert( bar1.is_running() );
 
-// pgbar::BlockProgressBar<> bar2 { std::move( bar1 ) }; No!
+// pgbar::BlockBar<> bar2 { std::move( bar1 ) }; No!
 ```
 ### Configuration
-As mentioned in the previous section, all configuration operations for `BlockProgressBar` need to be done via the method `config()`.
+As mentioned in the previous section, all configuration operations for `BlockBar` need to be done via the method `config()`.
 
-This method returns a reference to an internal configuration object whose type can be found in `pgbar::config`, which is `pgbar::config::BlckBar`.
+This method returns a reference to an internal configuration object whose type can be found in `pgbar::config`, which is `pgbar::config::Block`.
 
-`pgbar::config::BlckBar` is a data type that stores all the data members used to describe the `BlockProgressBar` elements; It can be copied, movable and swappable.
+`pgbar::config::Block` is a data type that stores all the data members used to describe the `BlockBar` elements; It can be copied, movable and swappable.
 
 ```cpp
 #include "pgbar/pgbar.hpp"
 
 int main()
 {
-  pgbar::config::BlckBar cfg1;
+  pgbar::config::Block cfg1;
 
   auto cfg2 = cfg1;              // copy
   auto cfg3 = std::move( cfg1 ); // move
@@ -534,7 +594,7 @@ int main()
 }
 ```
 #### Constituent element
-`BlockProgressBar` consists of the following elements:
+`BlockBar` consists of the following elements:
 
 ```text
 {LeftBorder}{Description}{Percent}{Starting}{BlockBar}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
@@ -576,18 +636,18 @@ pgbar::option::InfoColor;    // Modify the color of Divider, Percent, Counter, S
 
 > `TrueMesg` and `FalseMesg` can be used to display whether the task of progress bar iteration is successfully executed. They can be switched by passing a `bool` parameter to the `reset()` method; By default, the progress bar stops on its own, or calling the `reset()` method without arguments selects `TrueMesg`.
 
-The argument to `pgbar::option::Style` can be obtained by a bit operation performed by multiple static members of `pgbar::config::BlckBar`:
+The argument to `pgbar::option::Style` can be obtained by a bit operation performed by multiple static members of `pgbar::config::Block`:
 
 ```cpp
-pgbar::BlockProgressBar<> bar { pgbar::option::Style(
-  pgbar::config::BlckBar::Sped | pgbar::config::BlckBar::Per | pgbar::config::BlckBar::Elpsd
-  | pgbar::config::BlckBar::Cntdwn ) };
+pgbar::SweepBar<> bar { pgbar::option::Style( pgbar::config::Sweep::Sped | pgbar::config::Sweep::Per
+                                              | pgbar::config::Sweep::Elpsd
+                                              | pgbar::config::Sweep::Cntdwn ) };
 ```
 
-This method configuration can be cumbersome, so `BlckBar` provides two helper methods, `enable()` and `disable()`, to simplify the above operation.
+This method configuration can be cumbersome, so `Block` provides two helper methods, `enable()` and `disable()`, to simplify the above operation.
 
 ```cpp
-pgbar::BlockProgressBar<> bar;
+pgbar::BlockBar<> bar;
 bar.config().enable().speed().percent().elapsed().countdown();
 // or
 bar.config().enable().entire();
@@ -596,9 +656,9 @@ bar.config().disable().animation().counter();
 // And not all elements can be turned off, such as Description.
 ```
 
-The above elements all have methods with the same name in `BlckBar`, and calling these methods and passing parameters to them can also modify the data information.
+The above elements all have methods with the same name in `Block`, and calling these methods and passing parameters to them can also modify the data information.
 ##### Variable progress bar length
-The element BlockBar of `BlockProgressBar` is also called as Animation. It is a progress indicator implemented using Unicode block characters, and the length of this progress indicator is variable.
+The element BlockBar of `BlockBar` is also called as Animation. It is a progress indicator implemented using Unicode block characters, and the length of this progress indicator is variable.
 
 `pgbar` itself rarely probes platform-specific information, such as the width of the terminal. Therefore, if you want the progress bar to fill a row, or if the progress bar is too long and needs to be narrowed, you need to change the length of the progress indicator using the `bar_length()` method or the `pgbar::option::BarLength` wrapper.
 
@@ -607,19 +667,19 @@ For the latter, directly use the corresponding interface to adjust the parameter
 The method is `config().fixed_size()`。
 
 ```cpp
-pgbar::BlockProgressBar<> bar;
+pgbar::BlockBar<> bar;
 assert( bar.config().bar_length() == 30 ); // default value
 assert( bar.config().fixed_size() != 0 );  // The exact value depends on the content of the data member
 ```
 #### Data configuration
-`BlckBar` has two methods of data configuration: variable parameter construction based on wrapper type, and stream interface style based on chain call.
+`Block` has two methods of data configuration: variable parameter construction based on wrapper type, and stream interface style based on chain call.
 
 ```cpp
 #include "pgbar/pgbar.hpp"
 
 int main()
 {
-  pgbar::config::BlckBar config1 {
+  pgbar::config::Block config1 {
     pgbar::option::Tasks( 100 ),
     pgbar::option::SpeedUnit( { "B/s", "kiB/s", "MiB/s", "GiB/s" } ),
     pgbar::option::Magnitude( 1024 ),
@@ -628,7 +688,7 @@ int main()
   };
   // Note: Passing the same wrapper type twice results in a compilation error
 
-  pgbar::config::BlckBar config2;
+  pgbar::config::Block config2;
   config2.tasks( 100 )
     .speed_unit( { "B/s", "kiB/s", "MiB/s", "GiB/s" } )
     .magnitude( 1024 )
@@ -646,7 +706,7 @@ Although configuration types can be modified during the progress bar run, this c
 
 int main()
 {
-  pgbar::BlockProgressBar<> pbar;
+  pgbar::BlockBar<> pbar;
 
   pbar.config().tasks( 100 );
   for ( auto i = 0; i < 100; ++i ) {
@@ -658,15 +718,15 @@ int main()
 }
 ```
 #### Thread safety
-All methods of configuring the type `BlckBar` are thread-safe, which means that you can modify the data in the progress bar while it is running.
+All methods of configuring the type `Block` are thread-safe, which means that you can modify the data in the progress bar while it is running.
 
-Only the `tick()`, `tick_to()` and `reset()` methods of `BlockProgressBar` are thread-safe; The rest of the methods, especially `iterate()`, are thread-unsafe.
+Only the `tick()`, `tick_to()` and `reset()` methods of `BlockBar` are thread-safe; The rest of the methods, especially `iterate()`, are thread-unsafe.
 
 This means that the progress bar allows multiple threads to call its `tick()`, `tick_to()` or `reset()` methods simultaneously; This does not include moving assignments, moving constructs, and swapping two objects, as well as the `iterate()` method.
 
 And you should never attempt to move or swap the current object while the progress bar is running.
 #### Output stream
-`BlockProgressBar` defaults to output string to standard error stream `stderr`; The output stream for the specific binding is defined by the first template parameter.
+`BlockBar` defaults to output string to standard error stream `stderr`; The output stream for the specific binding is defined by the first template parameter.
 
 ```cpp
 #include "pgbar/pgbar.hpp"
@@ -674,17 +734,71 @@ And you should never attempt to move or swap the current object while the progre
 
 int main()
 {
-  static_assert( std::is_same<pgbar::BlockProgressBar<>,
-                              pgbar::BlockProgressBar<pgbar::Channel::Stderr>>::value,
-                 "" );
+  static_assert( std::is_same<pgbar::BlockBar<>, pgbar::BlockBar<pgbar::Channel::Stderr>>::value, "" );
 
-  pgbar::BlockProgressBar<pgbar::Channel::Stdout> bar; // Bind to stdout
+  pgbar::BlockBar<pgbar::Channel::Stdout> bar; // Bind to stdout
 }
 ```
 
 Especially it is important to note that the binding to the same output stream objects are not allowed to run at the same time, otherwise it will throw an exception `pgbar::exception::InvalidState`; For a detailed explanation of this, see [FAQ - Design of renderer](#design-of-renderer).
 
 If the output stream is not bound to the terminal, the progress bar will not be rendered. You can see this in [Global configuration - Output stream detection](#output-stream-detection).
+#### Rendering strategy
+There are two ways for `BlockBar` to render the progress bar to the terminal: synchronously (`pgbar::Policy::Sync`) or asynchronously (`pgbar::Policy::Async`); different rendering strategies will hand over the rendering behavior to different threads for execution.
+
+When asynchronous rendering (default) is enabled, the progress bar rendering is automatically completed by a background thread at fixed time intervals.
+
+In the synchronous rendering mode, the rendering action is executed by the thread that calls `tick()` or `tick_to()` each time;  each call to `tick()` not only updates the progress status but also immediately outputs the latest progress bar to the terminal.
+
+The specific rendering strategy is defined by the second template parameter.
+
+```cpp
+#include "pgbar/pgbar.hpp"
+#include <type_traits>
+
+int main()
+{
+  static_assert( std::is_same<pgbar::BlockBar<>,
+                              pgbar::BlockBar<pgbar::Channel::Stderr, pgbar::Policy::Async>>::value,
+                 "" );
+
+  pgbar::BlockBar<pgbar::Channel::Stderr, pgbar::Policy::Sync> bar; // use synchronous rendering
+}
+```
+
+In asynchronous rendering mode, the timing and frequency of the progress bar rendering are uncontrollable. At this point, no other information should be written to the same output stream; otherwise, it will cause confusion in the terminal interface rendering.
+
+Synchronous rendering, on the other hand, only executes the rendering function each time `tick()` is called, thus allowing information to be output to the same output stream while the progress bar is running.
+
+It is obvious that the asynchronous rendering strategy can greatly enhance the performance of the foreground thread. Therefore, by default, `pgbar` always adopts the asynchronous rendering strategy.
+
+> Because the rendering structure of the progress bar is two lines: one line for the progress bar string and one blank line.
+>
+> Therefore, when using the synchronous strategy, if additional information needs to be output, two extra line breaks must be inserted after the output.
+>
+> Otherwise, due to the progress bar occupying a two-line structure, subsequent rendering will incorrectly overwrite the existing output.
+>
+> For example:
+
+```cpp
+#include "pgbar/pgbar.hpp"
+#include <iostream>
+
+int main()
+{
+  pgbar::BlockBar<pgbar::Channel::Stderr, pgbar::Policy::Sync> bar;
+  bar.config().tasks( 100 );
+
+  for ( size_t i = 0; i < 95; ++i )
+    bar.tick(); /* do something... */
+
+  // Notice: At least two newlines must be inserted after the output information
+  std::cerr << "Extra log information" << std::endl << std::endl;
+
+  while ( bar.is_running() )
+    bar.tick();
+}
+```
 ### Interaction with iterable types
 `pgbar` provides an easier way to iterate when dealing with iterable types or numeric ranges: the `iterate()` method.
 
@@ -699,7 +813,7 @@ using namespace std;
 
 int main()
 {
-  pgbar::BlockProgressBar<> bar;
+  pgbar::BlockBar<> bar;
 
   // Iteration range: [100, 0), step: -1
   for ( auto num : bar.iterate( 100, 1, -1 ) ) {
@@ -718,7 +832,7 @@ In the first two Enhanced-for cases, the `iterate()` method actually returns `pg
 
 For use of numeric type ranges, see [Auxiliary type - `NumericSpan`](#numericspan).
 
-In addition to working within numeric ranges, `BlockProgressBar` can also interact with types that have iterators, such as `std::vector` and raw arrays.
+In addition to working within numeric ranges, `BlockBar` can also interact with types that have iterators, such as `std::vector` and raw arrays.
 
 ```cpp
 #include "pgbar/pgbar.hpp"
@@ -728,7 +842,7 @@ using namespace std;
 
 int main()
 {
-  pgbar::BlockProgressBar<> bar;
+  pgbar::BlockBar<> bar;
 
   vector<int> arr1 {
     0, 1, 2, 3, 4, 5, 6,
@@ -758,7 +872,7 @@ using namespace std;
 
 int main()
 {
-  pgbar::BlockProgressBar<> bar;
+  pgbar::BlockBar<> bar;
 
   vector<int> arr1 {
     0, 1, 2, 3, 4, 5, 6,
@@ -776,10 +890,10 @@ int main()
 
 - - -
 
-## `ScannerBar`
-![scbar](../images/scannerbar.gif)
+## `SweepBar`
+![scbar](../images/sweepbar.gif)
 ### How to use
-`pgbar::ScannerBar` is a template type; It does not care about the specific number of tasks, so you do not need to configure the number of tasks for it to be used.
+`pgbar::SweepBar` is a template type; It does not care about the specific number of tasks, so you do not need to configure the number of tasks for it to be used.
 
 If you need to display a specific number of tasks, you can also do this by calling the `config().tasks()` method and passing parameters, using the `pgbar::option::Tasks` wrapper type passed to the constructor.
 
@@ -789,11 +903,11 @@ If you need to display a specific number of tasks, you can also do this by calli
 int main()
 {
   {
-    pgbar::ScannerBar<> bar;
+    pgbar::SweepBar<> bar;
     bar.tick(); // no problem
   }
   {
-    pgbar::ScannerBar<> bar;
+    pgbar::SweepBar<> bar;
     bar.config().tasks( 200 );
 
     bar.tick( 20 );    // 20 steps forward
@@ -803,7 +917,7 @@ int main()
       bar.tick(); // Only one step forward per call
   }
   {
-    pgbar::ScannerBar<> bar { pbar::option::Tasks( 150 ) };
+    pgbar::SweepBar<> bar { pbar::option::Tasks( 150 ) };
     bar.tick_to( 20 );  // Set the progress to 20%
     bar.tick_to( 130 ); // Anything more than 100% is discarded and the progress bar is locked to 100%
   }
@@ -812,11 +926,11 @@ int main()
 
 In some special scenarios, if you want to check the progress bar running, or forcibly stop the progress bar running, you can use the `is_running()` and `reset()` methods.
 
-Note: Because `ScannerBar` is allowed to start when the number of tasks is zero, in this case `ScannerBar` will not know when it should automatically stop.
+Note: Because `SweepBar` is allowed to start when the number of tasks is zero, in this case `SweepBar` will not know when it should automatically stop.
 
-This also means that if a `ScannerBar` with no number of tasks needs to be stopped, the `reset()` method must be called manually.
+This also means that if a `SweepBar` with no number of tasks needs to be stopped, the `reset()` method must be called manually.
 
-> It is also possible to stop the `ScannerBar` from running by allowing it to go out of scope and be destructed, but this is not recommended.
+> It is also possible to stop the `SweepBar` from running by allowing it to go out of scope and be destructed, but this is not recommended.
 
 ```cpp
 #include "pgbar/pgbar.hpp"
@@ -824,7 +938,7 @@ This also means that if a `ScannerBar` with no number of tasks needs to be stopp
 
 int main()
 {
-  pgbar::ScannerBar<> bar;
+  pgbar::SweepBar<> bar;
 
   bar.tick();
   // Note that the progress bar does not run until the tick() is called once
@@ -836,16 +950,16 @@ int main()
 }
 ```
 
-`ScannerBar` is a move only and swappable type, so you can use another object to move constructs or exchange each other's configuration data with another object.
+`SweepBar` is a move only and swappable type, so you can use another object to move constructs or exchange each other's configuration data with another object.
 
 ```cpp
 {
-  pgbar::ScannerBar<> bar1 { /* Pass some complex configuration data */ };
-  pgbar::ScannerBar<> bar2 { std::move( bar1 ) };
+  pgbar::SweepBar<> bar1 { /* Pass some complex configuration data */ };
+  pgbar::SweepBar<> bar2 { std::move( bar1 ) };
 }
 {
-  pgbar::ScannerBar<> bar1 { /* Pass some complex configuration data */ };
-  pgbar::ScannerBar<> bar2;
+  pgbar::SweepBar<> bar1 { /* Pass some complex configuration data */ };
+  pgbar::SweepBar<> bar2;
   bar2.swap( bar1 );
   // or
   using std::swap;
@@ -856,15 +970,15 @@ int main()
 However, it is not allowed to swap or move objects during the progress bar operation, otherwise it will cause unpredictable errors.
 
 ```cpp
-pgbar::ScannerBar<> bar1;
+pgbar::SweepBar<> bar1;
 
 bar1.tick();
 assert( bar1.is_running() );
 
-// pgbar::ScannerBar<> bar2 { std::move( bar1 ) }; No!
+// pgbar::SweepBar<> bar2 { std::move( bar1 ) }; No!
 ```
 ### Configuration
-As mentioned in the previous section, all configuration operations for `ScannerBar` need to be done via the method `config()`.
+As mentioned in the previous section, all configuration operations for `SweepBar` need to be done via the method `config()`.
 
 This method returns a reference to an internal configuration object whose type can be found in `pgbar::config`, which is `pgbar::config::ScanBar`.
 
@@ -886,7 +1000,7 @@ int main()
 }
 ```
 #### Constituent element
-`ScannerBar` consists of the following elements:
+`SweepBar` consists of the following elements:
 
 ```text
 {LeftBorder}{Description}{Percent}{Starting}{Filler}{Lead}{Filler}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
@@ -936,15 +1050,15 @@ pgbar::option::InfoColor;    // Modify the color of Divider, Percent, Counter, S
 The argument to `pgbar::option::Style` can be obtained by a bit operation performed by multiple static members of `pgbar::config::ScanBar`:
 
 ```cpp
-pgbar::ScannerBar<> bar { pgbar::option::Style( pgbar::config::ScanBar::Sped | pgbar::config::ScanBar::Per
-                                                | pgbar::config::ScanBar::Elpsd
-                                                | pgbar::config::ScanBar::Cntdwn ) };
+pgbar::SweepBar<> bar { pgbar::option::Style( pgbar::config::ScanBar::Sped | pgbar::config::ScanBar::Per
+                                              | pgbar::config::ScanBar::Elpsd
+                                              | pgbar::config::ScanBar::Cntdwn ) };
 ```
 
 This method configuration can be cumbersome, so `ScanBar` provides two helper methods, `enable()` and `disable()`, to simplify the above operation.
 
 ```cpp
-pgbar::ScannerBar<> bar;
+pgbar::SweepBar<> bar;
 bar.config().enable().speed().percent().elapsed().countdown();
 // or
 bar.config().enable().entire();
@@ -964,7 +1078,7 @@ For the latter, directly use the corresponding interface to adjust the parameter
 The method is `config().fixed_size()`。
 
 ```cpp
-pgbar::ScannerBar<> bar;
+pgbar::SweepBar<> bar;
 assert( bar.config().bar_length() == 30 ); // default value
 assert( bar.config().fixed_size() != 0 );  // The exact value depends on the content of the data member
 ```
@@ -1001,7 +1115,7 @@ Although configuration types can be modified during the progress bar run, this c
 
 int main()
 {
-  pgbar::ScannerBar<> pbar;
+  pgbar::SweepBar<> pbar;
 
   pbar.config().tasks( 100 );
   for ( auto i = 0; i < 100; ++i ) {
@@ -1015,13 +1129,13 @@ int main()
 #### Thread safety
 All methods of configuring the type `ScanBar` are thread-safe, which means that you can modify the data in the progress bar while it is running.
 
-Only the `tick()`, `tick_to()` and `reset()` methods of `ScannerBar` are thread-safe; The rest of the methods, especially `iterate()`, are thread-unsafe.
+Only the `tick()`, `tick_to()` and `reset()` methods of `SweepBar` are thread-safe; The rest of the methods, especially `iterate()`, are thread-unsafe.
 
 This means that the progress bar allows multiple threads to call its `tick()`, `tick_to()` or `reset()` methods simultaneously; This does not include moving assignments, moving constructs, and swapping two objects, as well as the `iterate()` method.
 
 And you should never attempt to move or swap the current object while the progress bar is running.
 #### Output stream
-`ScannerBar` defaults to output string to standard error stream `stderr`; The output stream for the specific binding is defined by the first template parameter.
+`SweepBar` defaults to output string to standard error stream `stderr`; The output stream for the specific binding is defined by the first template parameter.
 
 ```cpp
 #include "pgbar/pgbar.hpp"
@@ -1029,17 +1143,73 @@ And you should never attempt to move or swap the current object while the progre
 
 int main()
 {
-  static_assert( std::is_same<pgbar::ScannerBar<>,
-                              pgbar::ScannerBar<pgbar::Channel::Stderr>>::value,
+  static_assert( std::is_same<pgbar::SweepBar<>,
+                              pgbar::SweepBar<pgbar::Channel::Stderr>>::value,
                  "" );
 
-  pgbar::ScannerBar<pgbar::Channel::Stdout> bar; // Bind to stdout
+  pgbar::SweepBar<pgbar::Channel::Stdout> bar; // Bind to stdout
 }
 ```
 
 Especially it is important to note that the binding to the same output stream objects are not allowed to run at the same time, otherwise it will throw an exception `pgbar::exception::InvalidState`; For a detailed explanation of this, see [FAQ - Design of renderer](#design-of-renderer).
 
 If the output stream is not bound to the terminal, the progress bar will not be rendered. You can see this in [Global configuration - Output stream detection](#output-stream-detection).
+#### Rendering strategy
+There are two ways for `SweepBar` to render the progress bar to the terminal: synchronously (`pgbar::Policy::Sync`) or asynchronously (`pgbar::Policy::Async`); different rendering strategies will hand over the rendering behavior to different threads for execution.
+
+When asynchronous rendering (default) is enabled, the progress bar rendering is automatically completed by a background thread at fixed time intervals.
+
+In the synchronous rendering mode, the rendering action is executed by the thread that calls `tick()` or `tick_to()` each time;  each call to `tick()` not only updates the progress status but also immediately outputs the latest progress bar to the terminal.
+
+The specific rendering strategy is defined by the second template parameter.
+
+```cpp
+#include "pgbar/pgbar.hpp"
+#include <type_traits>
+
+int main()
+{
+  static_assert( std::is_same<pgbar::SweepBar<>,
+                              pgbar::SweepBar<pgbar::Channel::Stderr, pgbar::Policy::Async>>::value,
+                 "" );
+
+  pgbar::SweepBar<pgbar::Channel::Stderr, pgbar::Policy::Sync> bar; // use synchronous rendering
+}
+```
+
+In asynchronous rendering mode, the timing and frequency of the progress bar rendering are uncontrollable. At this point, no other information should be written to the same output stream; otherwise, it will cause confusion in the terminal interface rendering.
+
+Synchronous rendering, on the other hand, only executes the rendering function each time `tick()` is called, thus allowing information to be output to the same output stream while the progress bar is running.
+
+It is obvious that the asynchronous rendering strategy can greatly enhance the performance of the foreground thread. Therefore, by default, `pgbar` always adopts the asynchronous rendering strategy.
+
+> Because the rendering structure of the progress bar is two lines: one line for the progress bar string and one blank line.
+>
+> Therefore, when using the synchronous strategy, if additional information needs to be output, two extra line breaks must be inserted after the output.
+>
+> Otherwise, due to the progress bar occupying a two-line structure, subsequent rendering will incorrectly overwrite the existing output.
+>
+> For example:
+
+```cpp
+#include "pgbar/pgbar.hpp"
+#include <iostream>
+
+int main()
+{
+  pgbar::SweepBar<pgbar::Channel::Stderr, pgbar::Policy::Sync> bar;
+  bar.config().tasks( 100 );
+
+  for ( size_t i = 0; i < 95; ++i )
+    bar.tick(); /* do something... */
+
+  // Notice: At least two newlines must be inserted after the output information
+  std::cerr << "Extra log information" << std::endl << std::endl;
+
+  while ( bar.is_running() )
+    bar.tick();
+}
+```
 ### Interaction with iterable types
 `pgbar` provides an easier way to iterate when dealing with iterable types or numeric ranges: the `iterate()` method.
 
@@ -1054,7 +1224,7 @@ using namespace std;
 
 int main()
 {
-  pgbar::ScannerBar<> bar;
+  pgbar::SweepBar<> bar;
 
   // Iteration range: [100, 0), step: -1
   for ( auto num : bar.iterate( 100, 1, -1 ) ) {
@@ -1072,7 +1242,7 @@ In the first two Enhanced-for cases, the `iterate()` method actually returns `pg
 
 For use of numeric type ranges, see [Auxiliary type - `NumericSpan`](#numericspan).
 
-In addition to working within numeric ranges, `ScannerBar` can also interact with types that have iterators, such as `std::vector` and raw arrays.
+In addition to working within numeric ranges, `SweepBar` can also interact with types that have iterators, such as `std::vector` and raw arrays.
 
 ```cpp
 #include "pgbar/pgbar.hpp"
@@ -1082,7 +1252,7 @@ using namespace std;
 
 int main()
 {
-  pgbar::ScannerBar<> bar;
+  pgbar::SweepBar<> bar;
 
   vector<int> arr1 {
     0, 1, 2, 3, 4, 5, 6,
@@ -1112,7 +1282,7 @@ using namespace std;
 
 int main()
 {
-  pgbar::ScannerBar<> bar;
+  pgbar::SweepBar<> bar;
 
   vector<int> arr1 {
     0, 1, 2, 3, 4, 5, 6,
@@ -1130,10 +1300,10 @@ int main()
 
 - - -
 
-## `SpinnerBar`
-![spbar](../images/spinnerbar.gif)
+## `SpinBar`
+![spbar](../images/spinbar.gif)
 ### How to use
-`pgbar::SpinnerBar` is a template type; It does not care about the specific number of tasks, so you do not need to configure the number of tasks for it to be used.
+`pgbar::SpinBar` is a template type; It does not care about the specific number of tasks, so you do not need to configure the number of tasks for it to be used.
 
 If you need to display a specific number of tasks, you can also do this by calling the `config().tasks()` method and passing parameters, using the `pgbar::option::Tasks` wrapper type passed to the constructor.
 
@@ -1143,11 +1313,11 @@ If you need to display a specific number of tasks, you can also do this by calli
 int main()
 {
   {
-    pgbar::SpinnerBar<> bar;
+    pgbar::SpinBar<> bar;
     bar.tick(); // no problem
   }
   {
-    pgbar::SpinnerBar<> bar;
+    pgbar::SpinBar<> bar;
     bar.config().tasks( 200 );
 
     bar.tick( 20 );    // 20 steps forward
@@ -1157,7 +1327,7 @@ int main()
       bar.tick(); // Only one step forward per call
   }
   {
-    pgbar::SpinnerBar<> bar { pbar::option::Tasks( 150 ) };
+    pgbar::SpinBar<> bar { pbar::option::Tasks( 150 ) };
     bar.tick_to( 20 );  // Set the progress to 20%
     bar.tick_to( 130 ); // Anything more than 100% is discarded and the progress bar is locked to 100%
   }
@@ -1166,11 +1336,11 @@ int main()
 
 In some special scenarios, if you want to check the progress bar running, or forcibly stop the progress bar running, you can use the `is_running()` and `reset()` methods.
 
-Note: Because `SpinnerBar` is allowed to start when the number of tasks is zero, in this case `SpinnerBar` will not know when it should automatically stop.
+Note: Because `SpinBar` is allowed to start when the number of tasks is zero, in this case `SpinBar` will not know when it should automatically stop.
 
-This also means that if a `SpinnerBar` with no number of tasks needs to be stopped, the `reset()` method must be called manually.
+This also means that if a `SpinBar` with no number of tasks needs to be stopped, the `reset()` method must be called manually.
 
-> It is also possible to stop the `SpinnerBar` from running by allowing it to go out of scope and be destructed, but this is not recommended.
+> It is also possible to stop the `SpinBar` from running by allowing it to go out of scope and be destructed, but this is not recommended.
 
 ```cpp
 #include "pgbar/pgbar.hpp"
@@ -1178,7 +1348,7 @@ This also means that if a `SpinnerBar` with no number of tasks needs to be stopp
 
 int main()
 {
-  pgbar::SpinnerBar<> bar;
+  pgbar::SpinBar<> bar;
 
   bar.tick();
   // Note that the progress bar does not run until the tick() is called once
@@ -1190,16 +1360,16 @@ int main()
 }
 ```
 
-`SpinnerBar` is a move only and swappable type, so you can use another object to move constructs or exchange each other's configuration data with another object.
+`SpinBar` is a move only and swappable type, so you can use another object to move constructs or exchange each other's configuration data with another object.
 
 ```cpp
 {
-  pgbar::SpinnerBar<> bar1 { /* Pass some complex configuration data */ };
-  pgbar::SpinnerBar<> bar2 { std::move( bar1 ) };
+  pgbar::SpinBar<> bar1 { /* Pass some complex configuration data */ };
+  pgbar::SpinBar<> bar2 { std::move( bar1 ) };
 }
 {
-  pgbar::SpinnerBar<> bar1 { /* Pass some complex configuration data */ };
-  pgbar::SpinnerBar<> bar2;
+  pgbar::SpinBar<> bar1 { /* Pass some complex configuration data */ };
+  pgbar::SpinBar<> bar2;
   bar2.swap( bar1 );
   // or
   using std::swap;
@@ -1210,26 +1380,26 @@ int main()
 However, it is not allowed to swap or move objects during the progress bar operation, otherwise it will cause unpredictable errors.
 
 ```cpp
-pgbar::SpinnerBar<> bar1;
+pgbar::SpinBar<> bar1;
 
 bar1.tick();
 assert( bar1.is_running() );
 
-// pgbar::SpinnerBar<> bar2 { std::move( bar1 ) }; No!
+// pgbar::SpinBar<> bar2 { std::move( bar1 ) }; No!
 ```
 ### Configuration
-As mentioned in the previous section, all configuration operations for `SpinnerBar` need to be done via the method `config()`.
+As mentioned in the previous section, all configuration operations for `SpinBar` need to be done via the method `config()`.
 
-This method returns a reference to an internal configuration object whose type can be found in `pgbar::config`, which is `pgbar::config::SpinBar`.
+This method returns a reference to an internal configuration object whose type can be found in `pgbar::config`, which is `pgbar::config::Spin`.
 
-`pgbar::config::SpinBar` is a data type that stores all the data members used to describe the `SpinnerBar` elements; It can be copied, movable and swappable.
+`pgbar::config::Spin` is a data type that stores all the data members used to describe the `SpinBar` elements; It can be copied, movable and swappable.
 
 ```cpp
 #include "pgbar/pgbar.hpp"
 
 int main()
 {
-  pgbar::config::SpinBar cfg1;
+  pgbar::config::Spin cfg1;
 
   auto cfg2 = cfg1;              // copy
   auto cfg3 = std::move( cfg1 ); // move
@@ -1240,7 +1410,7 @@ int main()
 }
 ```
 #### Constituent element
-`SpinnerBar` consists of the following elements:
+`SpinBar` consists of the following elements:
 
 ```text
 {LeftBorder}{Description}{Lead}{Percent}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
@@ -1280,18 +1450,18 @@ pgbar::option::InfoColor;    // Modify the color of Divider, Percent, Counter, S
 
 > `TrueMesg` and `FalseMesg` can be used to display whether the task of progress bar iteration is successfully executed. They can be switched by passing a `bool` parameter to the `reset()` method; By default, the progress bar stops on its own, or calling the `reset()` method without arguments selects `TrueMesg`.
 
-The argument to `pgbar::option::Style` can be obtained by a bit operation performed by multiple static members of `pgbar::config::SpinBar`:
+The argument to `pgbar::option::Style` can be obtained by a bit operation performed by multiple static members of `pgbar::config::Spin`:
 
 ```cpp
-pgbar::SpinnerBar<> bar { pgbar::option::Style( pgbar::config::SpinBar::Sped | pgbar::config::SpinBar::Per
-                                                | pgbar::config::SpinBar::Elpsd
-                                                | pgbar::config::SpinBar::Cntdwn ) };
+pgbar::SpinBar<> bar { pgbar::option::Style( pgbar::config::Spin::Sped | pgbar::config::Spin::Per
+                                                | pgbar::config::Spin::Elpsd
+                                                | pgbar::config::Spin::Cntdwn ) };
 ```
 
 This method configuration can be cumbersome, so `ScanBar` provides two helper methods, `enable()` and `disable()`, to simplify the above operation.
 
 ```cpp
-pgbar::SpinnerBar<> bar;
+pgbar::SpinBar<> bar;
 bar.config().enable().speed().percent().elapsed().countdown();
 // or
 bar.config().enable().entire();
@@ -1300,16 +1470,16 @@ bar.config().disable().animation().counter();
 // And not all elements can be turned off, such as Description.
 ```
 
-The above elements all have methods with the same name in `SpinBar`, and calling these methods and passing parameters to them can also modify the data information.
+The above elements all have methods with the same name in `Spin`, and calling these methods and passing parameters to them can also modify the data information.
 #### Data configuration
-`SpinBar` has two methods of data configuration: variable parameter construction based on wrapper type, and stream interface style based on chain call.
+`Spin` has two methods of data configuration: variable parameter construction based on wrapper type, and stream interface style based on chain call.
 
 ```cpp
 #include "pgbar/pgbar.hpp"
 
 int main()
 {
-  pgbar::config::SpinBar config1 {
+  pgbar::config::Spin config1 {
     pgbar::option::SpeedUnit( { "B/s", "kiB/s", "MiB/s", "GiB/s" } ),
     pgbar::option::Magnitude( 1024 ),
     pgbar::option::InfoColor( "#39C5BB" )
@@ -1317,7 +1487,7 @@ int main()
   };
   // Note: Passing the same wrapper type twice results in a compilation error
 
-  pgbar::config::SpinBar config2;
+  pgbar::config::Spin config2;
   config2.speed_unit( { "B/s", "kiB/s", "MiB/s", "GiB/s" } )
     .magnitude( 1024 )
     .info_color( "#39C5BB" );
@@ -1334,7 +1504,7 @@ Although configuration types can be modified during the progress bar run, this c
 
 int main()
 {
-  pgbar::SpinnerBar<> pbar;
+  pgbar::SpinBar<> pbar;
 
   pbar.config().tasks( 100 );
   for ( auto i = 0; i < 100; ++i ) {
@@ -1346,15 +1516,15 @@ int main()
 }
 ```
 #### Thread safety
-All methods of configuring the type `SpinBar` are thread-safe, which means that you can modify the data in the progress bar while it is running.
+All methods of configuring the type `Spin` are thread-safe, which means that you can modify the data in the progress bar while it is running.
 
-Only the `tick()`, `tick_to()` and `reset()` methods of `SpinnerBar` are thread-safe; The rest of the methods, especially `iterate()`, are thread-unsafe.
+Only the `tick()`, `tick_to()` and `reset()` methods of `SpinBar` are thread-safe; The rest of the methods, especially `iterate()`, are thread-unsafe.
 
 This means that the progress bar allows multiple threads to call its `tick()`, `tick_to()` or `reset()` methods simultaneously; This does not include moving assignments, moving constructs, and swapping two objects, as well as the `iterate()` method.
 
 And you should never attempt to move or swap the current object while the progress bar is running.
 #### Output stream
-`SpinnerBar` defaults to output string to standard error stream `stderr`; The output stream for the specific binding is defined by the first template parameter.
+`SpinBar` defaults to output string to standard error stream `stderr`; The output stream for the specific binding is defined by the first template parameter.
 
 ```cpp
 #include "pgbar/pgbar.hpp"
@@ -1362,17 +1532,73 @@ And you should never attempt to move or swap the current object while the progre
 
 int main()
 {
-  static_assert( std::is_same<pgbar::SpinnerBar<>,
-                              pgbar::SpinnerBar<pgbar::Channel::Stderr>>::value,
+  static_assert( std::is_same<pgbar::SpinBar<>,
+                              pgbar::SpinBar<pgbar::Channel::Stderr>>::value,
                  "" );
 
-  pgbar::SpinnerBar<pgbar::Channel::Stdout> bar; // Bind to stdout
+  pgbar::SpinBar<pgbar::Channel::Stdout> bar; // Bind to stdout
 }
 ```
 
 Especially it is important to note that the binding to the same output stream objects are not allowed to run at the same time, otherwise it will throw an exception `pgbar::exception::InvalidState`; For a detailed explanation of this, see [FAQ - Design of renderer](#design-of-renderer).
 
 If the output stream is not bound to the terminal, the progress bar will not be rendered. You can see this in [Global configuration - Output stream detection](#output-stream-detection).
+#### Rendering strategy
+There are two ways for `SpinBar` to render the progress bar to the terminal: synchronously (`pgbar::Policy::Sync`) or asynchronously (`pgbar::Policy::Async`); different rendering strategies will hand over the rendering behavior to different threads for execution.
+
+When asynchronous rendering (default) is enabled, the progress bar rendering is automatically completed by a background thread at fixed time intervals.
+
+In the synchronous rendering mode, the rendering action is executed by the thread that calls `tick()` or `tick_to()` each time;  each call to `tick()` not only updates the progress status but also immediately outputs the latest progress bar to the terminal.
+
+The specific rendering strategy is defined by the second template parameter.
+
+```cpp
+#include "pgbar/pgbar.hpp"
+#include <type_traits>
+
+int main()
+{
+  static_assert( std::is_same<pgbar::SpinBar<>,
+                              pgbar::SpinBar<pgbar::Channel::Stderr, pgbar::Policy::Async>>::value,
+                 "" );
+
+  pgbar::SpinBar<pgbar::Channel::Stderr, pgbar::Policy::Sync> bar; // use synchronous rendering
+}
+```
+
+In asynchronous rendering mode, the timing and frequency of the progress bar rendering are uncontrollable. At this point, no other information should be written to the same output stream; otherwise, it will cause confusion in the terminal interface rendering.
+
+Synchronous rendering, on the other hand, only executes the rendering function each time `tick()` is called, thus allowing information to be output to the same output stream while the progress bar is running.
+
+It is obvious that the asynchronous rendering strategy can greatly enhance the performance of the foreground thread. Therefore, by default, `pgbar` always adopts the asynchronous rendering strategy.
+
+> Because the rendering structure of the progress bar is two lines: one line for the progress bar string and one blank line.
+>
+> Therefore, when using the synchronous strategy, if additional information needs to be output, two extra line breaks must be inserted after the output.
+>
+> Otherwise, due to the progress bar occupying a two-line structure, subsequent rendering will incorrectly overwrite the existing output.
+>
+> For example:
+
+```cpp
+#include "pgbar/pgbar.hpp"
+#include <iostream>
+
+int main()
+{
+  pgbar::SpinBar<pgbar::Channel::Stderr, pgbar::Policy::Sync> bar;
+  bar.config().tasks( 100 );
+
+  for ( size_t i = 0; i < 95; ++i )
+    bar.tick(); /* do something... */
+
+  // Notice: At least two newlines must be inserted after the output information
+  std::cerr << "Extra log information" << std::endl << std::endl;
+
+  while ( bar.is_running() )
+    bar.tick();
+}
+```
 ### Interaction with iterable types
 `pgbar` provides an easier way to iterate when dealing with iterable types or numeric ranges: the `iterate()` method.
 
@@ -1387,7 +1613,7 @@ using namespace std;
 
 int main()
 {
-  pgbar::SpinnerBar<> bar;
+  pgbar::SpinBar<> bar;
 
   // Iteration range: [100, 0), step: -1
   for ( auto num : bar.iterate( 100, 1, -1 ) ) {
@@ -1406,7 +1632,7 @@ In the first two Enhanced-for cases, the `iterate()` method actually returns `pg
 
 For use of numeric type ranges, see [Auxiliary type - `NumericSpan`](#numericspan).
 
-In addition to working within numeric ranges, `SpinnerBar` can also interact with types that have iterators, such as `std::vector` and raw arrays.
+In addition to working within numeric ranges, `SpinBar` can also interact with types that have iterators, such as `std::vector` and raw arrays.
 
 ```cpp
 #include "pgbar/pgbar.hpp"
@@ -1416,7 +1642,7 @@ using namespace std;
 
 int main()
 {
-  pgbar::SpinnerBar<> bar;
+  pgbar::SpinBar<> bar;
 
   vector<int> arr1 {
     0, 1, 2, 3, 4, 5, 6,
@@ -1446,7 +1672,7 @@ using namespace std;
 
 int main()
 {
-  pgbar::SpinnerBar<> bar;
+  pgbar::SpinBar<> bar;
 
   vector<int> arr1 {
     0, 1, 2, 3, 4, 5, 6,
@@ -1477,11 +1703,11 @@ int main()
 
 int main()
 {
-  pgbar::MultiBar<pgbar::ProgressBar<>, pgbar::ProgressBar<>, pgbar::BlockProgressBar<>> bar1;
+  pgbar::MultiBar<pgbar::ProgressBar<>, pgbar::ProgressBar<>, pgbar::BlockBar<>> bar1;
   // or
   pgbar::MultiBar<pgbar::ProgressBar<pgbar::Channel::Stdout>,
                   pgbar::ProgressBar<pgbar::Channel::Stdout>,
-                  pgbar::BlockProgressBar<pgbar::Channel::Stdout>>
+                  pgbar::BlockBar<pgbar::Channel::Stdout>>
     bar2;
 
   mbar.config<0>().tasks( 100 );
@@ -1508,23 +1734,23 @@ int main()
   // you can pass an output stream pointing to different progress bar objects.
   // MultiBar simply requires that all types in its template parameter list must have the same output stream property.
   pgbar::ProgressBar<> bar1;
-  pgbar::BlockProgressBar<pgbar::Channel::Stdout> bar2, bar3;
+  pgbar::BlockBar<pgbar::Channel::Stdout> bar2, bar3;
 
   // Because MultiBar only accesses the configuration data type of the progress bar,
   // it is fine not to use std::move on progress bar objects.
   auto mbar1 =
-    pgbar::MultiBar<pgbar::ProgressBar<>, pgbar::BlockProgressBar<>, pgbar::ProgressBar<>>( std::move( bar1 ),
-                                                                                            std::move( bar2 ),
-                                                                                            bar3 );
-  auto mbar2 = pgbar::MultiBar<pgbar::ProgressBar<>, pgbar::BlockProgressBar<>, pgbar::ProgressBar<>>(
-    pgbar::config::CharBar(),
-    pgbar::config::BlckBar(),
-    pgbar::config::CharBar() );
+    pgbar::MultiBar<pgbar::ProgressBar<>, pgbar::BlockBar<>, pgbar::ProgressBar<>>( std::move( bar1 ),
+                                                                                    std::move( bar2 ),
+                                                                                    bar3 );
+  auto mbar2 = pgbar::MultiBar<pgbar::ProgressBar<>, pgbar::BlockBar<>, pgbar::ProgressBar<>>(
+    pgbar::config::Line(),
+    pgbar::config::Block(),
+    pgbar::config::Line() );
 
 #if __cplusplus >= 201703L
   // If it was after C++17, the following statements would be legal
   auto mbar3 =
-    pgbar::MultiBar( pgbar::config::CharBar(), pgbar::config::BlckBar(), pgbar::config::CharBar() );
+    pgbar::MultiBar( pgbar::config::Line(), pgbar::config::Block(), pgbar::config::Line() );
   // The object's type will be MultiBar pointing to pgbar::Channel::Stderr
 
   static_assert( std::is_same<decltype( mbar3 ), decltype( mbar2 )>::value, "" );
@@ -1550,20 +1776,20 @@ These functions and their roles are:
 int main()
 {
   // Create a MultiBar of the same size as the number of parameters
-  auto bar1 = pgbar::make_multi<pgbar::Channel::Stdout>( pgbar::config::CharBar(), pgbar::config::BlckBar() );
+  auto bar1 = pgbar::make_multi<pgbar::Channel::Stdout>( pgbar::config::Line(), pgbar::config::Block() );
   auto bar2 =
-    pgbar::make_multi<>( pgbar::ProgressBar<pgbar::Channel::Stdout>(), pgbar::BlockProgressBar<>() );
+    pgbar::make_multi<>( pgbar::ProgressBar<pgbar::Channel::Stdout>(), pgbar::BlockBar<>() );
 
   // Creates a fixed-length MultiBar with the same type for all progress bars,
   // and initializes all internal progress bar objects using the configuration objects provided by the parameters.
-  auto bar3 = pgbar::make_multi<6, pgbar::Channel::Stdout>( pgbar::config::SpinBar() );
-  auto bar4 = pgbar::make_multi<6>( pgbar::SpinnerBar<pgbar::Channel::Stdout>() );
+  auto bar3 = pgbar::make_multi<6, pgbar::Channel::Stdout>( pgbar::config::Spin() );
+  auto bar4 = pgbar::make_multi<6>( pgbar::SpinBar<pgbar::Channel::Stdout>() );
   // The configuration data for all progress bars in bar3 and bar4 is the same
 
   // Creates a fixed-length MultiBar with all progress bar types the same,
   // with the provided parameters acting on the internal progress bar objects in order.
   auto bar5 = pgbar::make_multi<3, pgbar::config::ScanBar>( pgbar::config::ScanBar() );
-  auto bar6 = pgbar::make_multi<3, pgbar::ScannerBar<pgbar::Channel::Stdout>>( pgbar::ScannerBar<>() );
+  auto bar6 = pgbar::make_multi<3, pgbar::SweepBar<pgbar::Channel::Stdout>>( pgbar::SweepBar<>() );
   // bar5 and bar6 only the first progress bar object is initialized to the parameters specified;
   // the other two progress bars are initialized by default.
 }
@@ -1770,6 +1996,8 @@ If the C++ standard is above C++20, `pgbar` will also accept the standard librar
 
 Specifically, methods such as `tick()` and `tick_to()` of each sole progress bar are treated as a status update and apply the state change to the atomic variables within the progress bar type; On the first global `tick()` call of each progress bar instance, a task is sent to `pgbar`'s global singleton renderer, which is cleared at the end of the iteration.
 
+> When using the synchronous rendering mode `Policy::Sync` *in most cases* the render task is not performed using the background rendering thread, but is actively performed by the thread calling `tick()` or `tick_to()`.
+
 After the task is appointed, the progress bar instance will start the renderer. During this period, the thread that calls the `tick()` method will loop and wait for the background rendering thread to start. Similarly, when the progress bar instance stops the renderer, it will also wait for the background rendering thread to suspend.
 
 Progress bar instances can work on different output streams, so the global singleton renderer is also divided into two separate instances pointing to `stdout` and `stderr`; They do not affect each other and there is no dependency.
@@ -1788,8 +2016,8 @@ int main()
 {
   {
     pgbar::ProgressBar<> bar1;
-    pgbar::ScannerBar<> bar2;
-    pgbar::SpinnerBar<pgbar::Channel::Stdout> bar3;
+    pgbar::SweepBar<> bar2;
+    pgbar::SpinBar<pgbar::Channel::Stdout> bar3;
 
     bar1.config().tasks( 100 );
     bar1.tick();
@@ -1829,7 +2057,7 @@ If multiple progress bar output is required, use ['pgbar::MultiBar'](#multibar).
 
 If the Windows platform, `pgbar` unable to get to the current process flow standard output Handle, then throws a local system error exception ` pgbar::exception::SystemError`.
 
-If the background rendering thread receives a thrown exception, it stores the exception in the internal exception type container and terminates the current rendering. Waiting for the next time the foreground thread tries to start or suspend the rendering thread, the caught exception will be thrown again at the point of call.
+If the background rendering thread receives a thrown exception, it stores the exception in the internal exception type container and terminates the current rendering. Waiting for the next time the foreground thread tries to start the rendering thread, the caught exception will be thrown again at the point of call.
 
 If the rendering thread already has an unhandled exception in its exception container, and another exception is thrown inside the thread, the rendering thread will enter a `dead` state. In this state, new exceptions are not caught, but are allowed to propagate until the rendering thread terminates.
 

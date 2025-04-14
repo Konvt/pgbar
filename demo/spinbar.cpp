@@ -2,7 +2,7 @@
 
 int main()
 {
-  pgbar::SpinnerBar<> spibar;
+  pgbar::SpinBar<> spibar;
   spibar.config()
     .description( "Working" )
     .lead( { ".", "..", "..." } )
