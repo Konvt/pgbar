@@ -1367,7 +1367,7 @@ namespace pgbar {
             const auto start_point = raw_u8_str + i;
             // After RFC 3629, the maximum length of each standard UTF-8 character is 4 bytes.
             const auto first_byte  = static_cast<types::UCodePoint>( *start_point );
-            auto validator         = [start_point, raw_u8_str, &u8_str]( types::Size expected_len ) -> void {
+            auto validator         = [start_point, raw_u8_str, &u8_str]( types::Size expected_len ) {
               __PGBAR_PURE_ASSUME( start_point >= raw_u8_str );
               if ( u8_str.size() - ( start_point - raw_u8_str ) < expected_len )
                 __PGBAR_UNLIKELY throw exception::InvalidArgument( "pgbar: incomplete UTF-8 string" );
@@ -2210,11 +2210,11 @@ namespace pgbar {
     std::chrono::steady_clock::time_point zero_point_;
     bool final_mesg_;
 
-    enum class State : __details::types::Byte { Awake, StrictRefresh, LenientRefresh, Finish, Stopped };
+    enum class State : __details::types::Byte { Stop, Awake, StrictRefresh, LenientRefresh, Finish };
     std::atomic<State> state_;
 
   public:
-    Indicator() noexcept : state_ { State::Stopped } {}
+    Indicator() noexcept : state_ { State::Stop } {}
     Indicator( Indicator&& rhs ) noexcept : Indicator()
     {
       __PGBAR_ASSERT( rhs.is_running() == false );
@@ -2235,12 +2235,12 @@ namespace pgbar {
     virtual void tick_to( std::uint8_t percentage ) &       = 0;
     virtual void reset( bool final_mesg = true )            = 0;
 
-    // Wait until the indicator is stopped.
+    // Wait until the indicator is Stop.
     void wait() const noexcept
     {
       __details::concurrent::adaptive_wait( [this]() noexcept { return !is_running(); } );
     }
-    // Wait for the indicator is stopped or timed out.
+    // Wait for the indicator is Stop or timed out.
     template<class Rep, class Period>
     __PGBAR_NODISCARD bool wait_for( const std::chrono::duration<Rep, Period>& timeout ) const noexcept
     {
@@ -2249,7 +2249,7 @@ namespace pgbar {
 
     __PGBAR_NODISCARD bool is_running() const noexcept
     {
-      return state_.load( std::memory_order_acquire ) != State::Stopped;
+      return state_.load( std::memory_order_acquire ) != State::Stop;
     }
   };
 
@@ -2733,6 +2733,24 @@ namespace pgbar {
 
         wrappers::UniqueFunction<void()> task_;
 
+        // Execute the task once with the background thread.
+        __PGBAR_INLINE_FN void act_once() & noexcept
+        {
+          auto expected = State::Dormant;
+          if ( state_.compare_exchange_strong( expected,
+                                               State::Active,
+                                               std::memory_order_release,
+                                               std::memory_order_relaxed ) ) {
+            {
+              std::lock_guard<std::mutex> lock { mtx_ };
+              cond_var_.notify_one();
+            }
+            concurrent::adaptive_wait(
+              [this]() noexcept { return state_.load( std::memory_order_acquire ) == State::Dormant; } );
+            std::lock_guard<std::mutex> lock { mtx_ };
+          }
+        }
+
         Renderer() noexcept : state_ { State::Quit } {}
 
       public:
@@ -2747,14 +2765,17 @@ namespace pgbar {
         ~Renderer() noexcept { appoint(); }
 
         __PGBAR_INLINE_FN void suspend() noexcept { /* Empty Implementation */ }
+        // `activate` guarantees to perform the render task at least once.
         void activate() & noexcept( false )
         {
-          std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
+          std::lock_guard<concurrent::SharedMutex> lock1 { rw_mtx_ };
           // Internal component does not make validity judgments.
           __PGBAR_ASSERT( task_ != nullptr );
           __PGBAR_ASSERT( state_ == State::Dormant );
           ThreadRenderer<Tag>::itself().activate();
-          task_();
+          act_once();
+          // The task should not be executed directly here, otherwise the calling point will not know whether
+          // the thrown exception came from the background thread or the rendering function.
         }
 
         void appoint() noexcept
@@ -2848,19 +2869,7 @@ namespace pgbar {
            * so if task_ needs to be executed with synchronous semantics in some functions marked as noexcept,
            * the execution operation needs to be dispatched to another thread.
            */
-          auto expected = State::Dormant;
-          if ( state_.compare_exchange_strong( expected,
-                                               State::Active,
-                                               std::memory_order_release,
-                                               std::memory_order_relaxed ) ) {
-            {
-              std::lock_guard<std::mutex> lock2 { mtx_ };
-              cond_var_.notify_one();
-            }
-            concurrent::adaptive_wait(
-              [this]() noexcept { return state_.load( std::memory_order_acquire ) == State::Dormant; } );
-            std::lock_guard<std::mutex> lock2 { mtx_ };
-          }
+          act_once();
         }
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN bool empty() const noexcept
@@ -4323,7 +4332,7 @@ namespace pgbar {
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN types::String time_formatter( types::TimeUnit duration ) const
         {
-          const auto time2str = []( std::int64_t num_time ) -> types::String {
+          const auto time2str = []( std::int64_t num_time ) {
             auto ret = utils::format( num_time );
             if ( ret.size() < 2 )
               ret.insert( 0, 1, '0' );
@@ -5669,42 +5678,42 @@ namespace pgbar {
         {
           auto& executor = render::Renderer<Outlet, Strategy>::itself();
           if ( !executor.try_appoint( [this]() {
-                 try {
-                   auto& ostream = io::OStream<Outlet>::itself();
-                   switch ( this->state_.load( std::memory_order_acquire ) ) {
-                   case Self::State::Awake: {
-                     ostream << console::escodes::linewipe;
-                     render::RenderAction<Config>::boot( *this );
-                     ostream << console::escodes::nextline;
-                     ostream << io::flush;
-                   }
-                     __PGBAR_FALLTHROUGH;
-                   case Self::State::StrictRefresh:  __PGBAR_FALLTHROUGH;
-                   case Self::State::LenientRefresh: {
-                     ostream << console::escodes::prevline << console::escodes::linestart
-                             << console::escodes::linewipe;
-                     render::RenderAction<Config>::process( *this );
-                     ostream << console::escodes::nextline;
-                     ostream << io::flush;
-                   } break;
-                   case Self::State::Finish: {
-                     ostream << console::escodes::prevline << console::escodes::linestart
-                             << console::escodes::linewipe;
-                     render::RenderAction<Config>::finish( *this );
-                     ostream << console::escodes::nextline;
-                     ostream << io::flush << io::release;
-                   } break;
-                   default: return;
-                   }
-                 } catch ( ... ) {
-                   this->state_.store( Self::State::Stopped );
-                   throw;
+                 // No exceptions are caught here, this should be done by the thread manager.
+                 auto& ostream = io::OStream<Outlet>::itself();
+                 switch ( this->state_.load( std::memory_order_acquire ) ) {
+                 case Self::State::Awake: {
+                   ostream << console::escodes::linewipe;
+                   render::RenderAction<Config>::boot( *this );
+                   ostream << console::escodes::nextline;
+                   ostream << io::flush;
+                 } break;
+                 case Self::State::StrictRefresh:  __PGBAR_FALLTHROUGH;
+                 case Self::State::LenientRefresh: {
+                   ostream << console::escodes::prevline << console::escodes::linestart
+                           << console::escodes::linewipe;
+                   render::RenderAction<Config>::process( *this );
+                   ostream << console::escodes::nextline;
+                   ostream << io::flush;
+                 } break;
+                 case Self::State::Finish: {
+                   ostream << console::escodes::prevline << console::escodes::linestart
+                           << console::escodes::linewipe;
+                   render::RenderAction<Config>::finish( *this );
+                   ostream << console::escodes::nextline;
+                   ostream << io::flush << io::release;
+                 } break;
+                 default: return;
                  }
                } ) )
             __PGBAR_UNLIKELY throw exception::InvalidState(
               "pgbar: another progress bar instance is already running" );
 
-          executor.activate();
+          try {
+            executor.activate();
+          } catch ( ... ) {
+            executor.appoint();
+            throw;
+          }
         }
 
         enum class ResetMode : types::Byte { Failure = false, Success = true, Forced };
@@ -5714,7 +5723,7 @@ namespace pgbar {
           if ( this->is_running() ) {
             switch ( mode ) {
             case ResetMode::Forced: {
-              this->state_.store( Indicator::State::Stopped, std::memory_order_release );
+              this->state_.store( Indicator::State::Stop, std::memory_order_release );
             } break;
             default: {
               this->final_mesg_ = static_cast<bool>( mode );
@@ -5730,7 +5739,7 @@ namespace pgbar {
             }
             do_terminate( mode == ResetMode::Forced );
           } else
-            this->state_.store( Indicator::State::Stopped, std::memory_order_release );
+            this->state_.store( Indicator::State::Stop, std::memory_order_release );
         }
         template<typename F>
         __PGBAR_INLINE_FN void do_tick( F&& action ) & noexcept( false )
@@ -5738,9 +5747,9 @@ namespace pgbar {
           static_assert( traits::is_void_functor<F>::value,
                          "pgbar::__details::prefabs:BasicBar::do_tick: Invalid type" );
           switch ( this->state_.load( std::memory_order_acquire ) ) {
-          case Indicator::State::Stopped: {
+          case Indicator::State::Stop: {
             std::lock_guard<std::mutex> lock { mtx_ };
-            if ( this->state_.load( std::memory_order_acquire ) == Indicator::State::Stopped ) {
+            if ( this->state_.load( std::memory_order_acquire ) == Indicator::State::Stop ) {
               this->task_end_.store( config_.tasks(), std::memory_order_release );
               if __PGBAR_CXX17_CNSTXPR ( std::is_same<Config, config::Line>::value
                                          || std::is_same<Config, config::Block>::value )
@@ -5753,20 +5762,17 @@ namespace pgbar {
               try {
                 do_setup();
               } catch ( ... ) {
-                this->state_.store( Indicator::State::Stopped, std::memory_order_release );
+                this->state_.store( Indicator::State::Stop, std::memory_order_release );
                 throw;
               }
             }
           }
             __PGBAR_FALLTHROUGH;
           case Indicator::State::Awake: {
-            if __PGBAR_CXX17_CNSTXPR ( !std::is_same<Config, config::Line>::value
-                                       && !std::is_same<Config, config::Block>::value ) {
-              if __PGBAR_CXX17_CNSTXPR ( Strategy == Policy::Sync )
-                render::Renderer<Outlet, Strategy>::itself().execute();
+            if __PGBAR_CXX17_CNSTXPR ( std::is_same<Config, config::Spin>::value
+                                       || std::is_same<Config, config::Sweep>::value )
               if ( this->task_end_.load( std::memory_order_acquire ) == 0 )
-                return; // should jump to LenientRefresh
-            }
+                return;
           }
             __PGBAR_FALLTHROUGH;
           case Indicator::State::StrictRefresh: {
@@ -5816,11 +5822,11 @@ namespace pgbar {
 
         void tick() & override final
         {
-          do_tick( [this]() { this->task_cnt_.fetch_add( 1, std::memory_order_release ); } );
+          do_tick( [this]() noexcept { this->task_cnt_.fetch_add( 1, std::memory_order_release ); } );
         }
         void tick( types::Size next_step ) & override final
         {
-          do_tick( [&]() {
+          do_tick( [&]() noexcept {
             const auto task_cnt = this->task_cnt_.load( std::memory_order_acquire );
             const auto task_end = this->task_end_.load( std::memory_order_acquire );
             this->task_cnt_.fetch_add( task_cnt + next_step > task_end ? task_end - task_cnt : next_step );
@@ -5835,8 +5841,8 @@ namespace pgbar {
          */
         void tick_to( std::uint8_t percentage ) & override final
         {
-          do_tick( [&]() {
-            auto updater = [this]( __details::types::Size target ) {
+          do_tick( [&]() noexcept {
+            auto updater = [this]( __details::types::Size target ) noexcept {
               auto current = this->task_cnt_.load( std::memory_order_acquire );
               while ( !this->task_cnt_.compare_exchange_weak( current,
                                                               target,
@@ -5981,7 +5987,7 @@ namespace pgbar {
                              bar.task_end_.load( std::memory_order_acquire ),
                              bar.final_mesg_,
                              bar.zero_point_ );
-          bar.state_.store( Self::State::Stopped, std::memory_order_release );
+          bar.state_.store( Self::State::Stop, std::memory_order_release );
         }
       };
 
@@ -6020,7 +6026,7 @@ namespace pgbar {
                              bar.task_end_.load( std::memory_order_acquire ),
                              bar.final_mesg_,
                              bar.zero_point_ );
-          bar.state_.store( Self::State::Stopped, std::memory_order_release );
+          bar.state_.store( Self::State::Stop, std::memory_order_release );
         }
       };
 
@@ -6093,7 +6099,7 @@ namespace pgbar {
 
         std::atomic<types::Size> alive_cnt_;
         // cb: CombinedBar
-        enum class CBState : types::Byte { Stopped, Awake, Refresh };
+        enum class CBState : types::Byte { Stop, Awake, Refresh };
         std::atomic<CBState> cb_state_;
         mutable std::mutex cb_mtx_;
 
@@ -6134,7 +6140,7 @@ namespace pgbar {
               }
               executor.appoint();
               io::OStream<Outlet>::itself().release();
-              cb_state_.store( CBState::Stopped, std::memory_order_release );
+              cb_state_.store( CBState::Stop, std::memory_order_release );
             } else
               executor.attempt();
           }
@@ -6142,43 +6148,40 @@ namespace pgbar {
         void do_setup() & override final
         {
           std::lock_guard<std::mutex> lock { cb_mtx_ };
-          if ( cb_state_.load( std::memory_order_acquire ) == CBState::Stopped ) {
+          if ( cb_state_.load( std::memory_order_acquire ) == CBState::Stop ) {
             auto& executor = render::Renderer<Outlet, Strategy>::itself();
             if ( !executor.try_appoint( [this]() {
-                   try {
-                     auto& ostream = io::OStream<Outlet>::itself();
-                     switch ( cb_state_.load( std::memory_order_acquire ) ) {
-                     case CBState::Awake: {
-                       active_mask_.reset();
-                       do_render();
-                       ostream << io::flush;
+                   auto& ostream = io::OStream<Outlet>::itself();
+                   switch ( cb_state_.load( std::memory_order_acquire ) ) {
+                   case CBState::Awake: {
+                     active_mask_.reset();
+                     do_render();
+                     ostream << io::flush;
 
-                       auto expected = CBState::Awake;
-                       cb_state_.compare_exchange_strong( expected,
-                                                          CBState::Refresh,
-                                                          std::memory_order_release,
-                                                          std::memory_order_relaxed );
-                     } break;
-                     case CBState::Refresh: {
-                       ostream.append( console::escodes::prevline, active_mask_.count() )
-                         .append( console::escodes::linestart );
-                       do_render();
-                       ostream << io::flush;
-                     } break;
-                     default: break;
-                     }
-                   } catch ( ... ) {
-                     cb_state_.store( CBState::Stopped, std::memory_order_release );
-                     throw;
+                     auto expected = CBState::Awake;
+                     cb_state_.compare_exchange_strong( expected,
+                                                        CBState::Refresh,
+                                                        std::memory_order_release,
+                                                        std::memory_order_relaxed );
+                   } break;
+                   case CBState::Refresh: {
+                     ostream.append( console::escodes::prevline, active_mask_.count() )
+                       .append( console::escodes::linestart );
+                     do_render();
+                     ostream << io::flush;
+                   } break;
+                   default: break;
                    }
                  } ) )
-              throw exception::InvalidState( "pgbar: another progress bar instance is already running" );
+              __PGBAR_UNLIKELY throw exception::InvalidState(
+                "pgbar: another progress bar instance is already running" );
 
             cb_state_.store( CBState::Awake, std::memory_order_release );
             try {
               executor.activate();
             } catch ( ... ) {
-              cb_state_.store( CBState::Stopped, std::memory_order_release );
+              cb_state_.store( CBState::Stop, std::memory_order_release );
+              executor.appoint();
               throw;
             }
           }
@@ -6190,7 +6193,7 @@ namespace pgbar {
           noexcept( std::tuple_size<typename std::decay<Tuple>::type>::value == sizeof...( Bars ) )
           : ElementAt_t<Is>( utils::forward_or<Is, ElementAt_t<Is>>( std::forward<Tuple>( tup ) ) )...
           , alive_cnt_ { 0 }
-          , cb_state_ { CBState::Stopped }
+          , cb_state_ { CBState::Stop }
         {
           static_assert( std::tuple_size<typename std::decay<Tuple>::type>::value <= sizeof...( Is ),
                          "pgbar::__details::assets::TupleBar::ctor: Unexpected tuple size mismatch" );
@@ -6211,7 +6214,7 @@ namespace pgbar {
         TupleBar( TupleBar&& rhs ) noexcept
           : TupleSlot<Tags, Bars<Configs, Outlet, Strategy>>( std::move( rhs ) )...
           , alive_cnt_ { 0 }
-          , cb_state_ { CBState::Stopped }
+          , cb_state_ { CBState::Stop }
         {}
         TupleBar& operator=( TupleBar&& ) & = default;
         ~TupleBar()                         = default;
@@ -6227,7 +6230,7 @@ namespace pgbar {
         }
         __PGBAR_NODISCARD __PGBAR_INLINE_FN bool active() const noexcept
         {
-          return cb_state_.load( std::memory_order_acquire ) != CBState::Stopped;
+          return cb_state_.load( std::memory_order_acquire ) != CBState::Stop;
         }
 
         void swap( TupleBar& rhs ) noexcept
