@@ -123,7 +123,7 @@ int main()
     bar.tick();
   }
 
-  assert( bar.progress() == 399 ); // This method can obtain the current iteration number of the progress bar
+  assert( bar.progress() == 400 ); // This method can obtain the current iteration number of the progress bar
   bar.reset();
   assert( bar.is_running() == false );
 }
@@ -256,12 +256,12 @@ In between the `Starting` and `Ending` elements is a progress indicator called t
 
 For the latter, directly use the corresponding interface to adjust the parameters;   The former requires a helper method to obtain the length of parts other than the progress indicator in order to correctly calculate the length just enough to fill a row with the progress bar.
 
-The method is `config().fixed_size()`。
+The method is `config().fixed_length()`。
 
 ```cpp
 pgbar::ProgressBar<> bar;
 assert( bar.config().bar_length() == 30 ); // default value
-assert( bar.config().fixed_size() != 0 );  // The exact value depends on the content of the data member
+assert( bar.config().fixed_length() != 0 );  // The exact value depends on the content of the data member
 ```
 #### Data configuration
 `Line` has two methods of data configuration: variable parameter construction based on wrapper type, and stream interface style based on chain call.
@@ -538,7 +538,7 @@ int main()
     bar.tick();
   }
 
-  assert( bar.progress() == 399 ); // This method can obtain the current iteration number of the progress bar
+  assert( bar.progress() == 400 ); // This method can obtain the current iteration number of the progress bar
   bar.reset();
   assert( bar.is_running() == false );
 }
@@ -664,12 +664,12 @@ The element BlockBar of `BlockBar` is also called as Animation. It is a progress
 
 For the latter, directly use the corresponding interface to adjust the parameters;   The former requires a helper method to obtain the length of parts other than the progress indicator in order to correctly calculate the length just enough to fill a row with the progress bar.
 
-The method is `config().fixed_size()`。
+The method is `config().fixed_length()`。
 
 ```cpp
 pgbar::BlockBar<> bar;
 assert( bar.config().bar_length() == 30 ); // default value
-assert( bar.config().fixed_size() != 0 );  // The exact value depends on the content of the data member
+assert( bar.config().fixed_length() != 0 );  // The exact value depends on the content of the data member
 ```
 #### Data configuration
 `Block` has two methods of data configuration: variable parameter construction based on wrapper type, and stream interface style based on chain call.
@@ -1075,12 +1075,12 @@ In between the Starting and Ending elements is a scanning progress bar called An
 
 For the latter, directly use the corresponding interface to adjust the parameters;   The former requires a helper method to obtain the length of parts other than the progress indicator in order to correctly calculate the length just enough to fill a row with the progress bar.
 
-The method is `config().fixed_size()`。
+The method is `config().fixed_length()`。
 
 ```cpp
 pgbar::SweepBar<> bar;
 assert( bar.config().bar_length() == 30 ); // default value
-assert( bar.config().fixed_size() != 0 );  // The exact value depends on the content of the data member
+assert( bar.config().fixed_length() != 0 );  // The exact value depends on the content of the data member
 ```
 #### Data configuration
 `ScanBar` has two methods of data configuration: variable parameter construction based on wrapper type, and stream interface style based on chain call.

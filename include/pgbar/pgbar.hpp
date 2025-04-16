@@ -1797,7 +1797,7 @@ namespace pgbar {
       N start_, end_, step_;
 
     public:
-      class iterator final {
+      class iterator {
         N itr_start_, itr_step_;
         __details::types::Size itr_cnt_;
 
@@ -2006,7 +2006,7 @@ namespace pgbar {
                      "pgbar::scope::IterSpan<I>: Only available for iterator types" );
 
     public:
-      class iterator final {
+      class iterator {
         I current_;
 
       public:
@@ -2094,7 +2094,7 @@ namespace pgbar {
                      "pgbar::scope::IterSpan<P*>: Only available for pointer types" );
 
     public:
-      class iterator final {
+      class iterator {
       public:
         P* current_;
         bool reversed_;
@@ -2578,7 +2578,7 @@ namespace pgbar {
 
         void launch() & noexcept( false )
         {
-          __PGBAR_ASSERT( td_.id() == std::thread::get_id() );
+          __PGBAR_ASSERT( td_.get_id() == std::thread::id() );
           state_.store( State::Dormant, std::memory_order_release );
           try {
             td_ = std::thread( [this]() {
@@ -2627,8 +2627,7 @@ namespace pgbar {
           }
           if ( td_.joinable() )
             td_.join();
-          td_   = std::thread();
-          task_ = nullptr;
+          td_ = std::thread();
         }
 
         ThreadRenderer() noexcept : state_ { State::Dead } {}
@@ -4935,7 +4934,7 @@ namespace pgbar {
           return static_cast<Derived&>( *this );
         }
 
-        __PGBAR_NODISCARD types::Size fixed_size() const
+        __PGBAR_NODISCARD types::Size fixed_length() const
         {
           concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
           return static_cast<const Derived*>( this )->fixed_render_size();
@@ -5669,31 +5668,36 @@ namespace pgbar {
         {
           auto& executor = render::Renderer<Outlet, Strategy>::itself();
           if ( !executor.try_appoint( [this]() {
-                 auto& ostream = io::OStream<Outlet>::itself();
-                 switch ( this->state_.load( std::memory_order_acquire ) ) {
-                 case Self::State::Begin: {
-                   ostream << console::escodes::linewipe;
-                   render::RenderAction<Config>::boot( *this );
-                   ostream << console::escodes::nextline;
-                   ostream << io::flush;
-                 }
-                   __PGBAR_FALLTHROUGH;
-                 case Self::State::StrictRefresh:  __PGBAR_FALLTHROUGH;
-                 case Self::State::LenientRefresh: {
-                   ostream << console::escodes::prevline << console::escodes::linestart
-                           << console::escodes::linewipe;
-                   render::RenderAction<Config>::process( *this );
-                   ostream << console::escodes::nextline;
-                   ostream << io::flush;
-                 } break;
-                 case Self::State::Finish: {
-                   ostream << console::escodes::prevline << console::escodes::linestart
-                           << console::escodes::linewipe;
-                   render::RenderAction<Config>::finish( *this );
-                   ostream << console::escodes::nextline;
-                   ostream << io::flush << io::release;
-                 } break;
-                 default: return;
+                 try {
+                   auto& ostream = io::OStream<Outlet>::itself();
+                   switch ( this->state_.load( std::memory_order_acquire ) ) {
+                   case Self::State::Begin: {
+                     ostream << console::escodes::linewipe;
+                     render::RenderAction<Config>::boot( *this );
+                     ostream << console::escodes::nextline;
+                     ostream << io::flush;
+                   }
+                     __PGBAR_FALLTHROUGH;
+                   case Self::State::StrictRefresh:  __PGBAR_FALLTHROUGH;
+                   case Self::State::LenientRefresh: {
+                     ostream << console::escodes::prevline << console::escodes::linestart
+                             << console::escodes::linewipe;
+                     render::RenderAction<Config>::process( *this );
+                     ostream << console::escodes::nextline;
+                     ostream << io::flush;
+                   } break;
+                   case Self::State::Finish: {
+                     ostream << console::escodes::prevline << console::escodes::linestart
+                             << console::escodes::linewipe;
+                     render::RenderAction<Config>::finish( *this );
+                     ostream << console::escodes::nextline;
+                     ostream << io::flush << io::release;
+                   } break;
+                   default: return;
+                   }
+                 } catch ( ... ) {
+                   this->state_.store( Self::State::Stopped );
+                   throw;
                  }
                } ) )
             __PGBAR_UNLIKELY throw exception::InvalidState(
@@ -6140,26 +6144,31 @@ namespace pgbar {
           if ( cb_state_.load( std::memory_order_acquire ) == CBState::Stopped ) {
             auto& executor = render::Renderer<Outlet, Strategy>::itself();
             if ( !executor.try_appoint( [this]() {
-                   auto& ostream = io::OStream<Outlet>::itself();
-                   switch ( cb_state_.load( std::memory_order_acquire ) ) {
-                   case CBState::Awake: {
-                     active_mask_.reset();
-                     do_render();
-                     ostream << io::flush;
+                   try {
+                     auto& ostream = io::OStream<Outlet>::itself();
+                     switch ( cb_state_.load( std::memory_order_acquire ) ) {
+                     case CBState::Awake: {
+                       active_mask_.reset();
+                       do_render();
+                       ostream << io::flush;
 
-                     auto expected = CBState::Awake;
-                     cb_state_.compare_exchange_strong( expected,
-                                                        CBState::Refresh,
-                                                        std::memory_order_release,
-                                                        std::memory_order_relaxed );
-                   } break;
-                   case CBState::Refresh: {
-                     ostream.append( console::escodes::prevline, active_mask_.count() )
-                       .append( console::escodes::linestart );
-                     do_render();
-                     ostream << io::flush;
-                   } break;
-                   default: break;
+                       auto expected = CBState::Awake;
+                       cb_state_.compare_exchange_strong( expected,
+                                                          CBState::Refresh,
+                                                          std::memory_order_release,
+                                                          std::memory_order_relaxed );
+                     } break;
+                     case CBState::Refresh: {
+                       ostream.append( console::escodes::prevline, active_mask_.count() )
+                         .append( console::escodes::linestart );
+                       do_render();
+                       ostream << io::flush;
+                     } break;
+                     default: break;
+                     }
+                   } catch ( ... ) {
+                     cb_state_.store( CBState::Stopped, std::memory_order_release );
+                     throw;
                    }
                  } ) )
               throw exception::InvalidState( "pgbar: another progress bar instance is already running" );
@@ -6259,7 +6268,7 @@ namespace pgbar {
            class Bar,
            template<typename, Channel, Policy>
            class... Bars>
-  class MultiBar<Bar<Config, Outlet, Strategy>, Bars<Configs, Outlet, Strategy>...> final {
+  class MultiBar<Bar<Config, Outlet, Strategy>, Bars<Configs, Outlet, Strategy>...> {
     static_assert( __details::traits::AllOf<__details::traits::is_bar<Bar<Config, Outlet, Strategy>>,
                                             __details::traits::is_bar<Bars<Configs, Outlet, Strategy>>...,
                                             __details::traits::is_config<Config>,
