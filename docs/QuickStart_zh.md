@@ -124,7 +124,7 @@ int main()
     bar.tick();
   }
 
-  assert( bar.progress() == 399 ); // 该方法可以获取进度条当前的迭代数
+  assert( bar.progress() == 400 ); // 该方法可以获取进度条当前的迭代数
   bar.reset();
   assert( bar.is_running() == false );
 }
@@ -257,12 +257,12 @@ bar.config().disable().animation().counter();
 
 对于后者，直接使用对应的接口调整参数即可；而前者则需要一个辅助方法获取除了进度指示器之外部分的长度，才能正确计算得到恰好能让进度条占满一行的长度。
 
-这个方法就是 `config().fixed_size()`。
+这个方法就是 `config().fixed_length()`。
 
 ```cpp
 pgbar::ProgressBar<> bar;
 assert( bar.config().bar_length() == 30 ); // 默认值
-assert( bar.config().fixed_size() != 0 );  // 具体值取决于数据成员的内容
+assert( bar.config().fixed_length() != 0 );  // 具体值取决于数据成员的内容
 ```
 #### 数据配置
 `Line` 有两种数据配置方法：基于包装器类型的可变参数构造，和基于链式调用的流式接口风格。
@@ -539,7 +539,7 @@ int main()
     bar.tick();
   }
 
-  assert( bar.progress() == 399 ); // 该方法可以获取进度条当前的迭代数
+  assert( bar.progress() == 400 ); // 该方法可以获取进度条当前的迭代数
   bar.reset();
   assert( bar.is_running() == false );
 }
@@ -665,12 +665,12 @@ bar.config().disable().animation().counter();
 
 对于后者，直接使用对应的接口调整参数即可；而前者则需要一个辅助方法获取除了进度指示器之外部分的长度，才能正确计算得到恰好能让进度条占满一行的长度。
 
-这个方法就是 `config().fixed_size()`。
+这个方法就是 `config().fixed_length()`。
 
 ```cpp
 pgbar::BlockBar<> bar;
 assert( bar.config().bar_length() == 30 ); // 默认值
-assert( bar.config().fixed_size() != 0 );  // 具体值取决于数据成员的内容
+assert( bar.config().fixed_length() != 0 );  // 具体值取决于数据成员的内容
 ```
 #### 数据配置
 `Block` 有两种数据配置方法：基于包装器类型的可变参数构造，和基于链式调用的流式接口风格。
@@ -1076,12 +1076,12 @@ bar.config().disable().animation().counter();
 
 对于后者，直接使用对应的接口调整参数即可；而前者则需要一个辅助方法获取除了扫描进度条之外部分的长度，才能正确计算得到恰好能让进度条占满一行的长度。
 
-这个方法就是 `config().fixed_size()`。
+这个方法就是 `config().fixed_length()`。
 
 ```cpp
 pgbar::SweepBar<> bar;
 assert( bar.config().bar_length() == 30 ); // 默认值
-assert( bar.config().fixed_size() != 0 );  // 具体值取决于数据成员的内容
+assert( bar.config().fixed_length() != 0 );  // 具体值取决于数据成员的内容
 ```
 #### 数据配置
 `Sweep` 有两种数据配置方法：基于包装器类型的可变参数构造，和基于链式调用的流式接口风格。
