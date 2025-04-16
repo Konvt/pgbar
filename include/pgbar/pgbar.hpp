@@ -2210,7 +2210,7 @@ namespace pgbar {
     std::chrono::steady_clock::time_point zero_point_;
     bool final_mesg_;
 
-    enum class State : __details::types::Byte { Begin, StrictRefresh, LenientRefresh, Finish, Stopped };
+    enum class State : __details::types::Byte { Awake, StrictRefresh, LenientRefresh, Finish, Stopped };
     std::atomic<State> state_;
 
   public:
@@ -2812,7 +2812,7 @@ namespace pgbar {
           return true;
         }
 
-        __PGBAR_INLINE_FN void execute() & noexcept( false )
+        __PGBAR_INLINE_FN void execute() const& noexcept( false )
         { /**
            * Although not relevant here,
            * OStream is called non-atomically for each rendering task,
@@ -2824,7 +2824,8 @@ namespace pgbar {
            * and it does not prevent concurrent threads from simultaneously
            * trying to concatenate the string in the same OStream.
            */
-          std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
+          concurrent::SharedLock<concurrent::SharedMutex> lock1 { rw_mtx_ };
+          std::lock_guard<std::mutex> lock2 { mtx_ }; // Fixed locking order.
           __PGBAR_ASSERT( task_ != nullptr );
           task_();
           /**
@@ -2837,7 +2838,7 @@ namespace pgbar {
         // Exception-free version of `execute`.
         void attempt() & noexcept
         {
-          std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
+          concurrent::SharedLock<concurrent::SharedMutex> lock1 { rw_mtx_ };
           // The lock here is to ensure that only one thread executes the task_ at any given time.
           // And synchronization semantics require that no call request be dropped.
           __PGBAR_ASSERT( task_ != nullptr );
@@ -2853,12 +2854,12 @@ namespace pgbar {
                                                std::memory_order_release,
                                                std::memory_order_relaxed ) ) {
             {
-              std::lock_guard<std::mutex> lock { mtx_ };
+              std::lock_guard<std::mutex> lock2 { mtx_ };
               cond_var_.notify_one();
             }
             concurrent::adaptive_wait(
               [this]() noexcept { return state_.load( std::memory_order_acquire ) == State::Dormant; } );
-            std::lock_guard<std::mutex> lock { mtx_ };
+            std::lock_guard<std::mutex> lock2 { mtx_ };
           }
         }
 
@@ -3000,7 +3001,7 @@ namespace pgbar {
           return true;
         }
 
-        __PGBAR_INLINE_FN void execute() & noexcept { /* Empty implementation */ }
+        __PGBAR_INLINE_FN void execute() const& noexcept { /* Empty implementation */ }
         __PGBAR_INLINE_FN void attempt() & noexcept { /* Empty implementation */ }
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN bool empty() const noexcept
@@ -5671,7 +5672,7 @@ namespace pgbar {
                  try {
                    auto& ostream = io::OStream<Outlet>::itself();
                    switch ( this->state_.load( std::memory_order_acquire ) ) {
-                   case Self::State::Begin: {
+                   case Self::State::Awake: {
                      ostream << console::escodes::linewipe;
                      render::RenderAction<Config>::boot( *this );
                      ostream << console::escodes::nextline;
@@ -5723,7 +5724,7 @@ namespace pgbar {
                                                              std::memory_order_release,
                                                              std::memory_order_acquire );
               };
-              try_update( Indicator::State::Begin ) || try_update( Indicator::State::StrictRefresh )
+              try_update( Indicator::State::Awake ) || try_update( Indicator::State::StrictRefresh )
                 || try_update( Indicator::State::LenientRefresh );
             } break;
             }
@@ -5748,7 +5749,7 @@ namespace pgbar {
 
               this->task_cnt_.store( 0, std::memory_order_release );
               this->zero_point_ = std::chrono::steady_clock::now();
-              this->state_.store( Indicator::State::Begin, std::memory_order_release );
+              this->state_.store( Indicator::State::Awake, std::memory_order_release );
               try {
                 do_setup();
               } catch ( ... ) {
@@ -5758,11 +5759,14 @@ namespace pgbar {
             }
           }
             __PGBAR_FALLTHROUGH;
-          case Indicator::State::Begin: {
+          case Indicator::State::Awake: {
             if __PGBAR_CXX17_CNSTXPR ( !std::is_same<Config, config::Line>::value
-                                       && !std::is_same<Config, config::Block>::value )
+                                       && !std::is_same<Config, config::Block>::value ) {
+              if __PGBAR_CXX17_CNSTXPR ( Strategy == Policy::Sync )
+                render::Renderer<Outlet, Strategy>::itself().execute();
               if ( this->task_end_.load( std::memory_order_acquire ) == 0 )
-                return;
+                return; // should jump to LenientRefresh
+            }
           }
             __PGBAR_FALLTHROUGH;
           case Indicator::State::StrictRefresh: {
@@ -5771,19 +5775,16 @@ namespace pgbar {
             if ( this->task_cnt_.load( std::memory_order_acquire )
                  >= this->task_end_.load( std::memory_order_acquire ) )
               __PGBAR_UNLIKELY do_reset( ResetMode::Success );
-            else if __PGBAR_CXX17_CNSTXPR ( Strategy == Policy::Sync ) {
-              std::lock_guard<std::mutex> lock { mtx_ };
-              /**
-               * Double-check to prevent race conditions where another thread may call `do_reset()`
-               * and clear the renderer before this thread executes `Renderer::execute()`.
-               * The `is_running()` check ensures that the tasks are still valid before execution.
-               */
-              if ( this->is_running() ) // double check
-                render::Renderer<Outlet, Strategy>::itself().execute();
-            }
+            else if __PGBAR_CXX17_CNSTXPR ( Strategy == Policy::Sync )
+              render::Renderer<Outlet, Strategy>::itself().execute();
           } break;
 
-          default: return;
+          case Indicator::State::LenientRefresh: {
+            if __PGBAR_CXX17_CNSTXPR ( Strategy == Policy::Sync )
+              render::Renderer<Outlet, Strategy>::itself().execute();
+          } break;
+
+          default: __PGBAR_UNREACHABLE;
           }
         }
 
@@ -5943,7 +5944,7 @@ namespace pgbar {
                              bar.task_cnt_.load( std::memory_order_acquire ),
                              bar.task_end_.load( std::memory_order_acquire ),
                              bar.zero_point_ );
-          auto expected = Self::State::Begin;
+          auto expected = Self::State::Awake;
           if __PGBAR_CXX17_CNSTXPR ( std::is_same<Config, config::Line>::value )
             bar.state_.compare_exchange_strong( expected,
                                                 Self::State::StrictRefresh,
@@ -5994,7 +5995,7 @@ namespace pgbar {
                              bar.task_cnt_.load( std::memory_order_acquire ),
                              bar.task_end_.load( std::memory_order_acquire ),
                              bar.zero_point_ );
-          auto expected = Self::State::Begin;
+          auto expected = Self::State::Awake;
           bar.state_.compare_exchange_strong( expected,
                                               Self::State::StrictRefresh,
                                               std::memory_order_release,
@@ -6030,7 +6031,7 @@ namespace pgbar {
         {
           using Self = prefabs::BasicBar<Config, Outlet, Strategy>;
           switch ( bar.state_.load( std::memory_order_acquire ) ) {
-          case Self::State::Begin: {
+          case Self::State::Awake: {
             RenderAction<Config>::boot( bar );
           } break;
           case Self::State::StrictRefresh:  __PGBAR_FALLTHROUGH;
