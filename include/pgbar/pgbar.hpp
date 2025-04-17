@@ -2651,7 +2651,7 @@ namespace pgbar {
                                                std::memory_order_release,
                                                std::memory_order_relaxed ) ) {
             concurrent::adaptive_wait(
-              [this]() noexcept { return state_.load( std::memory_order_acquire ) == State::Dormant; } );
+              [this]() noexcept { return state_.load( std::memory_order_acquire ) != State::Suspend; } );
             std::lock_guard<std::mutex> lock { mtx_ };
             // Ensure that the background thread is truely suspended.
           }
@@ -2706,6 +2706,7 @@ namespace pgbar {
           std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
           shutdown();
         }
+        void throw_if() noexcept( false ) { box_.rethrow(); }
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN bool empty() const noexcept
         {
@@ -2733,24 +2734,6 @@ namespace pgbar {
 
         wrappers::UniqueFunction<void()> task_;
 
-        // Execute the task once with the background thread.
-        __PGBAR_INLINE_FN void act_once() & noexcept
-        {
-          auto expected = State::Dormant;
-          if ( state_.compare_exchange_strong( expected,
-                                               State::Active,
-                                               std::memory_order_release,
-                                               std::memory_order_relaxed ) ) {
-            {
-              std::lock_guard<std::mutex> lock { mtx_ };
-              cond_var_.notify_one();
-            }
-            concurrent::adaptive_wait(
-              [this]() noexcept { return state_.load( std::memory_order_acquire ) == State::Dormant; } );
-            std::lock_guard<std::mutex> lock { mtx_ };
-          }
-        }
-
         Renderer() noexcept : state_ { State::Quit } {}
 
       public:
@@ -2773,9 +2756,8 @@ namespace pgbar {
           __PGBAR_ASSERT( task_ != nullptr );
           __PGBAR_ASSERT( state_ == State::Dormant );
           ThreadRenderer<Tag>::itself().activate();
-          act_once();
-          // The task should not be executed directly here, otherwise the calling point will not know whether
-          // the thrown exception came from the background thread or the rendering function.
+          task_();
+          // If the rendering task throws some exception, this rendering should be abandoned.
         }
 
         void appoint() noexcept
@@ -2869,7 +2851,19 @@ namespace pgbar {
            * so if task_ needs to be executed with synchronous semantics in some functions marked as noexcept,
            * the execution operation needs to be dispatched to another thread.
            */
-          act_once();
+          auto expected = State::Dormant;
+          if ( state_.compare_exchange_strong( expected,
+                                               State::Active,
+                                               std::memory_order_release,
+                                               std::memory_order_relaxed ) ) {
+            {
+              std::lock_guard<std::mutex> lock { mtx_ };
+              cond_var_.notify_one();
+            }
+            concurrent::adaptive_wait(
+              [this]() noexcept { return state_.load( std::memory_order_acquire ) != State::Active; } );
+            std::lock_guard<std::mutex> lock { mtx_ };
+          }
         }
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN bool empty() const noexcept
@@ -2929,7 +2923,7 @@ namespace pgbar {
           };
           if ( try_update( State::Awake ) || try_update( State::Active ) ) {
             concurrent::adaptive_wait(
-              [this]() noexcept { return state_.load( std::memory_order_acquire ) == State::Quit; } );
+              [this]() noexcept { return state_.load( std::memory_order_acquire ) != State::Finish; } );
           }
         }
         void activate() & noexcept( false )
@@ -2940,8 +2934,9 @@ namespace pgbar {
                                                std::memory_order_release,
                                                std::memory_order_relaxed ) ) {
             __PGBAR_ASSERT( task_ != nullptr );
+            auto& renderer = ThreadRenderer<Tag>::itself();
             try {
-              ThreadRenderer<Tag>::itself().activate();
+              renderer.activate();
             } catch ( ... ) {
               /**
                * In ThreadRenderer::activate, there are only two sources of exceptions,
@@ -2953,7 +2948,10 @@ namespace pgbar {
               throw;
             }
             concurrent::adaptive_wait(
-              [this]() noexcept { return state_.load( std::memory_order_acquire ) == State::Active; } );
+              [this]() noexcept { return state_.load( std::memory_order_acquire ) != State::Awake; } );
+            renderer.throw_if();
+            // Recheck whether any exceptions have been received in the background thread.
+            // If so, abandon this rendering.
           }
         }
 
@@ -5712,13 +5710,13 @@ namespace pgbar {
             __PGBAR_UNLIKELY throw exception::InvalidState(
               "pgbar: another progress bar instance is already running" );
 
+          io::OStream<Outlet>::itself() << io::release; // reset the state.
           try {
             executor.activate();
           } catch ( ... ) {
             executor.appoint();
             throw;
           }
-          io::OStream<Outlet>::itself() << io::release; // reset the state.
         }
 
         enum class ResetMode : types::Byte { Failure = false, Success = true, Forced };
@@ -6181,6 +6179,7 @@ namespace pgbar {
               __PGBAR_UNLIKELY throw exception::InvalidState(
                 "pgbar: another progress bar instance is already running" );
 
+            io::OStream<Outlet>::itself() << io::release;
             cb_state_.store( CBState::Awake, std::memory_order_release );
             try {
               executor.activate();
@@ -6189,7 +6188,6 @@ namespace pgbar {
               executor.appoint();
               throw;
             }
-            io::OStream<Outlet>::itself() << io::release;
           }
           alive_cnt_.fetch_add( 1, std::memory_order_release );
         }
