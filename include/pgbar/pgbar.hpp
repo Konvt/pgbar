@@ -5662,6 +5662,8 @@ namespace pgbar {
         mutable std::mutex mtx_;
 
       protected:
+        // An extension point that performs global resource cleanup related to the progress bar semantics
+        // themselves.
         virtual void do_terminate( bool forced = false ) noexcept
         {
           auto& executor = render::Renderer<Outlet, Strategy>::itself();
@@ -5674,6 +5676,8 @@ namespace pgbar {
             executor.appoint();
           }
         }
+        // An extension point that performs global initialization related to the progress bar type semantics
+        // themselves
         virtual void do_setup() & noexcept( false )
         {
           auto& executor = render::Renderer<Outlet, Strategy>::itself();
@@ -5714,6 +5718,7 @@ namespace pgbar {
             executor.appoint();
             throw;
           }
+          io::OStream<Outlet>::itself() << io::release; // reset the state.
         }
 
         enum class ResetMode : types::Byte { Failure = false, Success = true, Forced };
@@ -5747,7 +5752,8 @@ namespace pgbar {
           static_assert( traits::is_void_functor<F>::value,
                          "pgbar::__details::prefabs:BasicBar::do_tick: Invalid type" );
           switch ( this->state_.load( std::memory_order_acquire ) ) {
-          case Indicator::State::Stop: {
+          case Indicator::State::Stop:  __PGBAR_FALLTHROUGH;
+          case Indicator::State::Awake: {
             std::lock_guard<std::mutex> lock { mtx_ };
             if ( this->state_.load( std::memory_order_acquire ) == Indicator::State::Stop ) {
               this->task_end_.store( config_.tasks(), std::memory_order_release );
@@ -5766,14 +5772,13 @@ namespace pgbar {
                 throw;
               }
             }
-          }
-            __PGBAR_FALLTHROUGH;
-          case Indicator::State::Awake: {
+          } // Make sure that the state has already exited from Awake,
+            // so that it is not necessary to rely on whether task_end_ is zero
+            // to determine whether to exit the function.
             if __PGBAR_CXX17_CNSTXPR ( std::is_same<Config, config::Spin>::value
                                        || std::is_same<Config, config::Sweep>::value )
-              if ( this->task_end_.load( std::memory_order_acquire ) == 0 )
+              if ( this->state_.load( std::memory_order_acquire ) == Indicator::State::LenientRefresh )
                 return;
-          }
             __PGBAR_FALLTHROUGH;
           case Indicator::State::StrictRefresh: {
             action();
@@ -6184,6 +6189,7 @@ namespace pgbar {
               executor.appoint();
               throw;
             }
+            io::OStream<Outlet>::itself() << io::release;
           }
           alive_cnt_.fetch_add( 1, std::memory_order_release );
         }
@@ -6461,7 +6467,7 @@ namespace pgbar {
 
 # if __PGBAR_CXX17
   // CTAD, only generates the default version,
-  // which means the the Outlet is `Channel::Stderr`.
+  // which means the the Outlet is `Channel::Stderr` and Strategy is `Policy::Async`.
 #  if __PGBAR_CXX20
   template<typename Config, typename... Configs>
     requires( __details::traits::is_config<Config>::value
