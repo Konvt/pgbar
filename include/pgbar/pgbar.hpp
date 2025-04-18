@@ -1751,7 +1751,7 @@ namespace pgbar {
           SharedLock<SharedMutex> lock { rw_mtx_ };
           return exception_;
         }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN Self& clear() noexcept
+        __PGBAR_INLINE_FN Self& clear() noexcept
         {
           std::lock_guard<SharedMutex> lock { rw_mtx_ };
           exception_ = std::exception_ptr();
@@ -2654,6 +2654,11 @@ namespace pgbar {
               [this]() noexcept { return state_.load( std::memory_order_acquire ) != State::Suspend; } );
             std::lock_guard<std::mutex> lock { mtx_ };
             // Ensure that the background thread is truely suspended.
+
+            // Discard the current cycle's captured exception.
+            // Reason: Delaying the exception and throwing it on the next `activate()` call is meaningless,
+            // as it refers to a previous cycle's failure and will no longer be relevant in the new cycle.
+            box_.clear();
           }
         }
         void activate() & noexcept( false )
