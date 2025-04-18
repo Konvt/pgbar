@@ -2749,7 +2749,12 @@ namespace pgbar {
         __PGBAR_INLINE_FN void suspend() noexcept { /* Empty Implementation */ }
         // `activate` guarantees to perform the render task at least once.
         void activate() & noexcept( false )
-        {
+        { /**
+           * Since the rendering function is a state machine,
+           * `activate` must ensure it runs at least once to trigger state transitions.
+           * As asynchronous renderers do not provide an interface that guarantees at-least-once execution,
+           * `activate` must explicitly invoke the rendering function during scheduling.
+           */
           std::lock_guard<concurrent::SharedMutex> lock1 { rw_mtx_ };
           // Internal component does not make validity judgments.
           __PGBAR_ASSERT( task_ != nullptr );
@@ -2831,7 +2836,7 @@ namespace pgbar {
           __PGBAR_ASSERT( task_ != nullptr );
           task_();
           /**
-           * In short: The writer lock here is to prevent multiple progress bars in MultiBar
+           * In short: The mtx_ here is to prevent multiple progress bars in MultiBar
            * from concurrently attempting to render strings in synchronous rendering mode;
            * each of these progress bars will lock itself before rendering,
            * but they cannot mutually exclusively access the renderer.
