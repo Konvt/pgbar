@@ -1737,12 +1737,14 @@ namespace pgbar {
           return !static_cast<bool>( exception_ );
         }
 
-        __PGBAR_INLINE_FN Self& store( std::exception_ptr e ) & noexcept
+        // Store the exception if it is empty and return true, otherwise return false.
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool try_store( std::exception_ptr e ) & noexcept
         {
           std::lock_guard<SharedMutex> lock { rw_mtx_ };
-          if ( !exception_ )
-            exception_ = e;
-          return *this;
+          if ( exception_ )
+            return false;
+          exception_ = e;
+          return true;
         }
         __PGBAR_INLINE_FN std::exception_ptr load() const noexcept
         {
@@ -1756,16 +1758,16 @@ namespace pgbar {
           return *this;
         }
 
-        // Rethrow the exception pointed if it is'nt null.
+        // Rethrow the exception pointed if it isn't null.
         __PGBAR_INLINE_FN void rethrow() noexcept( false )
         {
           std::lock_guard<SharedMutex> lock { rw_mtx_ };
-          if ( !exception_ )
-            return;
-          auto exception_ptr = exception_;
-          exception_         = std::exception_ptr();
-          if ( exception_ptr )
-            std::rethrow_exception( std::move( exception_ptr ) );
+          if ( exception_ ) {
+            auto exception_ptr = exception_;
+            exception_         = std::exception_ptr();
+            if ( exception_ptr )
+              std::rethrow_exception( std::move( exception_ptr ) );
+          }
         }
 
         void swap( ExceptionBox& lhs ) noexcept
@@ -2604,9 +2606,7 @@ namespace pgbar {
                   }
                 }
               } catch ( ... ) {
-                if ( box_.empty() )
-                  box_.store( std::current_exception() );
-                else {
+                if ( !box_.try_store( std::current_exception() ) ) {
                   state_.store( State::Dead, std::memory_order_release );
                   throw;
                 }
@@ -2670,8 +2670,7 @@ namespace pgbar {
 
           // The operations below are all thread safe without locking.
           // Also, only one thread needs to be able to execute concurrently.
-          if ( !box_.empty() )
-            box_.rethrow();
+          box_.rethrow();
           __PGBAR_ASSERT( state_ != State::Dead );
           __PGBAR_ASSERT( task_ != nullptr );
           auto expected = State::Dormant;
