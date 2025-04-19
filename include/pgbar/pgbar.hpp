@@ -2731,6 +2731,7 @@ namespace pgbar {
 
         enum class State : types::Byte { Dormant, Finish, Active, Quit };
         std::atomic<State> state_;
+        std::atomic<bool> intty_;
 
         mutable concurrent::SharedMutex rw_mtx_;
         mutable std::mutex mtx_;
@@ -2760,12 +2761,14 @@ namespace pgbar {
            * As asynchronous renderers do not provide an interface that guarantees at-least-once execution,
            * `activate` must explicitly invoke the rendering function during scheduling.
            */
-          std::lock_guard<concurrent::SharedMutex> lock1 { rw_mtx_ };
-          // Internal component does not make validity judgments.
-          __PGBAR_ASSERT( task_ != nullptr );
-          __PGBAR_ASSERT( state_ == State::Dormant );
-          ThreadRenderer<Tag>::itself().activate();
-          task_();
+          if ( intty_.load( std::memory_order_acquire ) ) {
+            std::lock_guard<concurrent::SharedMutex> lock1 { rw_mtx_ };
+            // Internal component does not make validity judgments.
+            __PGBAR_ASSERT( task_ != nullptr );
+            __PGBAR_ASSERT( state_ == State::Dormant );
+            ThreadRenderer<Tag>::itself().activate();
+            task_();
+          }
           // If the rendering task throws some exception, this rendering should be abandoned.
         }
 
@@ -2821,6 +2824,7 @@ namespace pgbar {
             return false;
           state_.store( State::Dormant, std::memory_order_release );
           task_.swap( task );
+          intty_.store( console::intty( Tag ), std::memory_order_release );
           return true;
         }
 
@@ -2836,10 +2840,12 @@ namespace pgbar {
            * and it does not prevent concurrent threads from simultaneously
            * trying to concatenate the string in the same OStream.
            */
-          concurrent::SharedLock<concurrent::SharedMutex> lock1 { rw_mtx_ };
-          std::lock_guard<std::mutex> lock2 { mtx_ }; // Fixed locking order.
-          __PGBAR_ASSERT( task_ != nullptr );
-          task_();
+          if ( intty_.load( std::memory_order_acquire ) ) {
+            concurrent::SharedLock<concurrent::SharedMutex> lock1 { rw_mtx_ };
+            std::lock_guard<std::mutex> lock2 { mtx_ }; // Fixed locking order.
+            __PGBAR_ASSERT( task_ != nullptr );
+            task_();
+          }
           /**
            * In short: The mtx_ here is to prevent multiple progress bars in MultiBar
            * from concurrently attempting to render strings in synchronous rendering mode;
@@ -2938,10 +2944,11 @@ namespace pgbar {
         void activate() & noexcept( false )
         {
           auto expected = State::Quit;
-          if ( state_.compare_exchange_strong( expected,
-                                               State::Awake,
-                                               std::memory_order_release,
-                                               std::memory_order_relaxed ) ) {
+          if ( console::intty( Tag )
+               && state_.compare_exchange_strong( expected,
+                                                  State::Awake,
+                                                  std::memory_order_release,
+                                                  std::memory_order_relaxed ) ) {
             __PGBAR_ASSERT( task_ != nullptr );
             auto& renderer = ThreadRenderer<Tag>::itself();
             try {
