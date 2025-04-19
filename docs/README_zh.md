@@ -48,7 +48,7 @@ int main()
 {
   pgbar::ProgressBar<> bar { pgbar::option::Remains( "-" ),
                              pgbar::option::Filler( "=" ),
-                             pgbar::option::Styles( pgbar::config::CharBar::Entire ),
+                             pgbar::option::Styles( pgbar::config::Line::Entire ),
                              pgbar::option::TodoColor( "#A52A2A" ),
                              pgbar::option::DoneColor( 0x0099FF ),
                              pgbar::option::StatusColor( pgbar::color::Yellow ),

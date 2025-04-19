@@ -105,7 +105,6 @@
 # endif
 # if __PGBAR_CC_STD >= 201703L
 #  include <charconv>
-#  include <shared_mutex>
 #  include <string_view>
 #  define __PGBAR_CXX17         1
 #  define __PGBAR_CXX17_CNSTXPR constexpr
@@ -126,6 +125,7 @@
 #  endif
 # endif
 # if __PGBAR_CC_STD >= 201402L
+#  include <shared_mutex>
 #  define __PGBAR_CXX14         1
 #  define __PGBAR_CXX14_CNSTXPR constexpr
 # else
