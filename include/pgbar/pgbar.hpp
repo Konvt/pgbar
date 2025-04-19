@@ -1696,6 +1696,9 @@ namespace pgbar {
         {
           mtx_.lock_shared();
         }
+        // Internal component, assume that the lock object always holds a mutex when destructing.
+        SharedLock( mutex_type& m, std::defer_lock_t ) noexcept : mtx_ { m } {}
+        SharedLock( mutex_type& m, std::adopt_lock_t ) noexcept : mtx_ { m } {}
         ~SharedLock() noexcept { mtx_.unlock_shared(); }
 
         void lock() & noexcept { mtx_.lock_shared(); }
