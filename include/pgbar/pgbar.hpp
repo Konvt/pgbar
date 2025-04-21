@@ -1066,9 +1066,9 @@ namespace pgbar {
           Bytes* dptr_;
         };
         struct VTable final {
-          R ( *const invoke )( const AnyFn&, Args&&... );
-          void ( *const destroy )( AnyFn& ) noexcept;
-          void ( *const move )( AnyFn& dst, AnyFn& src ) noexcept;
+          const typename std::add_pointer<R( const AnyFn&, Args&&... )>::type invoke;
+          const typename std::add_pointer<void( AnyFn& ) noexcept>::type destroy;
+          const typename std::add_pointer<void( AnyFn& dst, AnyFn& src ) noexcept>::type move;
         };
 
         template<typename T, typename = void>
@@ -2755,7 +2755,6 @@ namespace pgbar {
 
         ~Renderer() noexcept { appoint(); }
 
-        __PGBAR_INLINE_FN void suspend() noexcept { /* Empty Implementation */ }
         // `activate` guarantees to perform the render task at least once.
         void activate() & noexcept( false )
         { /**
@@ -2831,6 +2830,7 @@ namespace pgbar {
           return true;
         }
 
+        // Assume that the task is not empty and execute it once.
         __PGBAR_INLINE_FN void execute() const& noexcept( false )
         { /**
            * Although not relevant here,
@@ -2856,13 +2856,12 @@ namespace pgbar {
            * but they cannot mutually exclusively access the renderer.
            */
         }
-        // Exception-free version of `execute`.
+        // When the task is not empty, execute at least one task.
         void attempt() & noexcept
         {
-          concurrent::SharedLock<concurrent::SharedMutex> lock1 { rw_mtx_ };
           // The lock here is to ensure that only one thread executes the task_ at any given time.
           // And synchronization semantics require that no call request be dropped.
-          __PGBAR_ASSERT( task_ != nullptr );
+          concurrent::SharedLock<concurrent::SharedMutex> lock1 { rw_mtx_ };
           /**
            * Here, asynchronous threads and forced state checks are used to achieve synchronous semantics;
            * this is because task_ is not exception-free,
@@ -2902,7 +2901,7 @@ namespace pgbar {
          * asynchronous renderers do not require the background thread to be suspended for a long time,
          * so the condition variable is simplified away here.
          */
-        enum class State : types::Byte { Awake, Active, Finish, Quit };
+        enum class State : types::Byte { Awake, Active, Attempt, Quit };
         std::atomic<State> state_;
         wrappers::UniqueFunction<void()> task_;
         mutable concurrent::SharedMutex rw_mtx_;
@@ -2931,19 +2930,6 @@ namespace pgbar {
         Self& operator=( const Self& ) & = delete;
         ~Renderer() noexcept { appoint(); }
 
-        void suspend() noexcept
-        {
-          auto try_update = [this]( State expected ) noexcept {
-            return state_.compare_exchange_strong( expected,
-                                                   State::Finish,
-                                                   std::memory_order_release,
-                                                   std::memory_order_acquire );
-          };
-          if ( try_update( State::Awake ) || try_update( State::Active ) ) {
-            concurrent::adaptive_wait(
-              [this]() noexcept { return state_.load( std::memory_order_acquire ) != State::Finish; } );
-          }
-        }
         void activate() & noexcept( false )
         {
           auto expected = State::Quit;
@@ -3004,11 +2990,11 @@ namespace pgbar {
                        std::this_thread::sleep_for( working_interval() );
                      } break;
 
-                     case State::Finish: {
+                     case State::Attempt: {
                        task_();
-                       auto expected = State::Finish;
+                       auto expected = State::Attempt;
                        state_.compare_exchange_strong( expected,
-                                                       State::Quit,
+                                                       State::Active,
                                                        std::memory_order_release,
                                                        std::memory_order_relaxed );
                      } break;
@@ -3028,7 +3014,20 @@ namespace pgbar {
         }
 
         __PGBAR_INLINE_FN void execute() const& noexcept { /* Empty implementation */ }
-        __PGBAR_INLINE_FN void attempt() & noexcept { /* Empty implementation */ }
+        __PGBAR_INLINE_FN void attempt() & noexcept
+        {
+          // Each call should not be discarded.
+          std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
+          auto try_update = [this]( State expected ) noexcept {
+            return state_.compare_exchange_strong( expected,
+                                                   State::Attempt,
+                                                   std::memory_order_release,
+                                                   std::memory_order_relaxed );
+          };
+          if ( try_update( State::Awake ) || try_update( State::Active ) )
+            concurrent::adaptive_wait(
+              [this]() noexcept { return state_.load( std::memory_order_acquire ) != State::Attempt; } );
+        }
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN bool empty() const noexcept
         {
@@ -5685,10 +5684,9 @@ namespace pgbar {
         {
           auto& executor = render::Renderer<Outlet, Strategy>::itself();
           if ( !executor.empty() ) {
-            if ( !forced ) {
+            if ( !forced )
               executor.attempt();
-              executor.suspend();
-            } else
+            else
               io::OStream<Outlet>::itself().release();
             executor.appoint();
           }
@@ -6155,23 +6153,20 @@ namespace pgbar {
             auto& executor = render::Renderer<Outlet, Strategy>::itself();
             __PGBAR_ASSERT( executor.empty() == false );
             std::lock_guard<std::mutex> lock { cb_mtx_ };
+            if ( !forced )
+              executor.attempt();
             if ( alive_cnt_.fetch_sub( 1, std::memory_order_acq_rel ) == 1 ) {
-              if ( !forced ) {
-                executor.attempt();
-                executor.suspend();
-              }
               executor.appoint();
               io::OStream<Outlet>::itself().release();
               cb_state_.store( CBState::Stop, std::memory_order_release );
-            } else
-              executor.attempt();
+            }
           }
         }
         void do_setup() & override final
         {
           std::lock_guard<std::mutex> lock { cb_mtx_ };
+          auto& executor = render::Renderer<Outlet, Strategy>::itself();
           if ( cb_state_.load( std::memory_order_acquire ) == CBState::Stop ) {
-            auto& executor = render::Renderer<Outlet, Strategy>::itself();
             if ( !executor.try_appoint( [this]() {
                    auto& ostream = io::OStream<Outlet>::itself();
                    switch ( cb_state_.load( std::memory_order_acquire ) ) {
@@ -6207,7 +6202,8 @@ namespace pgbar {
               executor.appoint();
               throw;
             }
-          }
+          } else
+            executor.attempt();
           alive_cnt_.fetch_add( 1, std::memory_order_release );
         }
 
@@ -6816,6 +6812,394 @@ namespace pgbar {
       constexpr explicit operator bool() const noexcept { return empty(); }
     };
   } // namespace scope
+
+  namespace __details {
+    namespace prefabs {
+      template<typename Config, Channel Outlet, Policy Strategy>
+      class SharedBar;
+    }
+
+    namespace assets {
+      template<Channel Outlet, Policy Strategy>
+      class DynamicContext final {
+        struct Slot final {
+        private:
+          using Self = Slot;
+
+          template<typename Derived>
+          static void render( Indicator* bar )
+          {
+            static_assert(
+              std::is_base_of<Indicator, Derived>::value,
+              "pgbar::__details::assets::DynamicContext::Slot::render: Derived must inherit from Indicator" );
+            __PGBAR_PURE_ASSUME( bar != nullptr );
+            render::RenderAction<void>::automate( static_cast<Derived&>( *bar ) );
+          }
+          template<typename Derived>
+          static void halt( Indicator* bar ) noexcept
+          {
+            static_assert(
+              std::is_base_of<Indicator, Derived>::value,
+              "pgbar::__details::assets::DynamicContext::Slot::halt: Derived must inherit from Indicator" );
+            __PGBAR_PURE_ASSUME( bar != nullptr );
+            static_cast<Derived*>( bar )->halt();
+          }
+
+        public:
+          typename std::add_pointer<void( Indicator* ) noexcept>::type halt_;
+          typename std::add_pointer<void( Indicator* )>::type render_;
+          std::weak_ptr<Indicator> target_;
+
+          template<typename Config>
+          Slot( const std::shared_ptr<prefabs::SharedBar<Config, Outlet, Strategy>>& bar ) noexcept
+            : halt_ { halt<prefabs::SharedBar<Config, Outlet, Strategy>> }
+            , render_ { render<prefabs::BasicBar<Config, Outlet, Strategy>> }
+            , target_ { bar }
+          {}
+        };
+
+        enum class State : types::Byte { Stop, Awake, Refresh };
+        std::atomic<State> state_;
+
+        types::Size alive_cnt_;
+        std::vector<Slot> bars_;
+        mutable concurrent::SharedMutex res_mtx_;
+        mutable std::mutex sched_mtx_;
+
+        void do_render() &
+        {
+          for ( types::Size i = 0; i < bars_.size(); ++i ) {
+            auto bar_ptr  = bars_[i].target_.lock();
+            auto& ostream = io::OStream<Outlet>::itself();
+            if ( bars_[i].render_ != nullptr && bar_ptr != nullptr && bar_ptr->is_running() ) {
+              ostream << console::escodes::linewipe;
+              ( *bars_[i].render_ )( bar_ptr.get() );
+            }
+            ostream << console::escodes::nextline;
+          }
+          alive_cnt_ = bars_.size();
+        }
+
+      public:
+        DynamicContext() noexcept : state_ { State::Stop }, alive_cnt_ { 0 } {}
+        DynamicContext( const DynamicContext& )              = delete;
+        DynamicContext& operator=( const DynamicContext& ) & = delete;
+        ~DynamicContext() noexcept { halt(); }
+
+        void halt() noexcept
+        {
+          std::lock_guard<std::mutex> lock1 { sched_mtx_ };
+          if ( state_.load( std::memory_order_acquire ) != State::Stop )
+            render::Renderer<Outlet, Strategy>::itself().appoint();
+          state_.store( State::Stop, std::memory_order_release );
+
+          std::lock_guard<concurrent::SharedMutex> lock2 { res_mtx_ };
+          for ( types::Size i = 0; i < bars_.size(); ++i ) {
+            auto bar_ptr = bars_[i].target_.lock();
+            if ( bars_[i].render_ != nullptr && bar_ptr != nullptr ) {
+              __PGBAR_ASSERT( bars_[i].halt_ != nullptr );
+              ( *bars_[i].halt_ )( bar_ptr.get() );
+            }
+          }
+          bars_.clear();
+          alive_cnt_ = 0;
+        }
+
+        template<typename C>
+        void append( std::shared_ptr<prefabs::SharedBar<C, Outlet, Strategy>> bar ) & noexcept( false )
+        {
+          std::lock_guard<std::mutex> lock1 { sched_mtx_ };
+          auto& executor     = render::Renderer<Outlet, Strategy>::itself();
+          bool activate_flag = false;
+          {
+            concurrent::SharedLock<concurrent::SharedMutex> lock2 { res_mtx_ };
+            activate_flag = bars_.empty();
+          }
+          if ( activate_flag ) {
+            if ( !executor.try_appoint( [this]() {
+                   auto& ostream = io::OStream<Outlet>::itself();
+                   switch ( state_.load( std::memory_order_acquire ) ) {
+                   case State::Awake: {
+                     {
+                       concurrent::SharedLock<concurrent::SharedMutex> lock { res_mtx_ };
+                       do_render();
+                     }
+                     ostream << io::flush;
+                     auto expected = State::Awake;
+                     state_.compare_exchange_strong( expected,
+                                                     State::Refresh,
+                                                     std::memory_order_release,
+                                                     std::memory_order_relaxed );
+                   } break;
+                   case State::Refresh: {
+                     {
+                       concurrent::SharedLock<concurrent::SharedMutex> lock { res_mtx_ };
+                       ostream.append( console::escodes::prevline, alive_cnt_ )
+                         .append( console::escodes::linestart );
+                       do_render();
+                     }
+                     ostream << io::flush;
+                   } break;
+                   default: return;
+                   }
+                 } ) )
+              __PGBAR_UNLIKELY throw exception::InvalidState(
+                "pgbar: another progress bar instance is already running" );
+            io::OStream<Outlet>::itself() << io::release;
+            state_.store( State::Awake, std::memory_order_release );
+            try {
+              {
+                std::lock_guard<concurrent::SharedMutex> lock2 { res_mtx_ };
+                bars_.emplace_back( std::move( bar ) );
+              }
+              executor.activate();
+            } catch ( ... ) {
+              std::lock_guard<concurrent::SharedMutex> lock2 { res_mtx_ };
+              bars_.clear();
+              state_.store( State::Stop, std::memory_order_release );
+              throw;
+            }
+          } else {
+            { // Search for the first k invalid or destructed progress bars and remove them.
+              std::lock_guard<concurrent::SharedMutex> lock2 { res_mtx_ };
+              const auto num_erased =
+                std::distance( bars_.cbegin(),
+                               std::find_if( bars_.cbegin(), bars_.cend(), []( const Slot& slot ) noexcept {
+                                 return !slot.target_.expired() && slot.render_ != nullptr;
+                               } ) );
+              bars_.erase( bars_.begin(), bars_.begin() + num_erased );
+              __PGBAR_ASSERT( alive_cnt_ >= num_erased );
+              alive_cnt_ -= num_erased;
+              bars_.emplace_back( std::move( bar ) );
+            }
+            executor.attempt();
+          }
+        }
+        /**
+         * Note: A raw pointer (`const Indicator*`) is used here instead of a `shared_ptr` for the following
+         reasons:
+         * `pop` may be called from within the destructor of the target object (`SharedBar`),
+         * where `shared_from_this()` is not usable,
+         * and `weak_ptr::lock()` will return a null pointer at this time,
+         * making it impossible to construct a valid `shared_ptr`;
+
+         * using a raw pointer as an identifier allows compatibility with both destructor and non-destructor
+         contexts,
+         * and combined with expired checks on `weak_ptr`s in `do_render`,
+         * enables safe matching and resource cleanup.
+         */
+        void pop( const Indicator* bar, bool forced = false ) noexcept
+        {
+          std::lock_guard<std::mutex> lock1 { sched_mtx_ };
+          __PGBAR_ASSERT( size() != 0 );
+          if ( !forced )
+            render::Renderer<Outlet, Strategy>::itself().attempt();
+
+          std::lock_guard<concurrent::SharedMutex> lock2 { res_mtx_ };
+          const auto itr = std::find_if( bars_.begin(), bars_.end(), [bar]( const Slot& slot ) noexcept {
+            // If during the destructuring process, the lock() here will return nullptr.
+            return bar == slot.target_.lock().get();
+          } );
+          // Mark render_ as empty,
+          // and then search for the first k invalid or destructed progress bars and remove them.
+          if ( itr != bars_.end() )
+            itr->render_ = nullptr;
+          const auto num_erased =
+            std::distance( bars_.cbegin(),
+                           std::find_if( bars_.cbegin(), bars_.cend(), []( const Slot& slot ) noexcept {
+                             return !slot.target_.expired() && slot.render_ != nullptr;
+                           } ) );
+          bars_.erase( bars_.begin(), bars_.begin() + num_erased );
+          __PGBAR_ASSERT( alive_cnt_ >= num_erased );
+          alive_cnt_ -= num_erased;
+
+          if ( bars_.empty() ) {
+            state_.store( State::Stop, std::memory_order_release );
+            render::Renderer<Outlet, Strategy>::itself().appoint();
+            io::OStream<Outlet>::itself() << io::release;
+            alive_cnt_ = 0;
+          }
+        }
+
+        __PGBAR_NODISCARD types::Size size() const noexcept
+        {
+          concurrent::SharedLock<concurrent::SharedMutex> lock { res_mtx_ };
+          return bars_.size();
+        }
+      };
+    } // namespace assets
+
+    namespace prefabs {
+      template<typename Config, Channel Outlet, Policy Strategy>
+      class SharedBar
+        : public BasicBar<Config, Outlet, Strategy>
+        , public std::enable_shared_from_this<SharedBar<Config, Outlet, Strategy>> {
+        using Base   = BasicBar<Config, Outlet, Strategy>;
+        using Server = std::shared_ptr<assets::DynamicContext<Outlet, Strategy>>;
+
+        Server server_;
+
+        void do_terminate( bool forced ) noexcept override final { server_->pop( this, forced ); }
+        void do_setup() & override final { server_->append( this->shared_from_this() ); }
+
+      public:
+        SharedBar( Server server, Config config ) noexcept
+          : Base( std::move( config ) ), server_ { std::move( server ) }
+        {}
+        template<typename... Args>
+        SharedBar( Server server, Args&&... args )
+          : Base( std::forward<Args>( args )... ), server_ { std::move( server ) }
+        {}
+
+        SharedBar( const SharedBar& )              = delete;
+        SharedBar& operator=( const SharedBar& ) & = delete;
+        /**
+         * The object model of C++ requires that derived classes be destructed first.
+         * When the derived class is destructed and the base class destructor attempts to call `do_reset`,
+         * the internal virtual function `do_terminate` will point to a non-existent derived class.
+
+         * Therefore, here it is necessary to explicitly re-call the base class's `do_reset`
+         * to shut down any possible running state.
+
+         * After calling `do_reset`, the object state will switch to Stop,
+         * and further calls to `do_reset` will have no effect.
+         * So even if the base class destructor calls `do_reset` again, it is safe.
+         */
+        virtual ~SharedBar() noexcept { halt(); }
+
+        void halt() noexcept { this->do_reset( Base::ResetMode::Forced ); }
+      };
+    } // namespace prefabs
+  } // namespace __details
+
+  template<Channel Outlet = Channel::Stderr, Policy Strategy = Policy::Async>
+  class DynamicBar {
+    using Self = DynamicBar;
+    std::shared_ptr<__details::assets::DynamicContext<Outlet, Strategy>> core_;
+
+  public:
+    DynamicBar() noexcept( false )
+      : core_ { std::make_shared<__details::assets::DynamicContext<Outlet, Strategy>>() }
+    {}
+    DynamicBar( Self&& )        = default;
+    Self& operator=( Self&& ) & = default;
+    ~DynamicBar()               = default;
+
+    __PGBAR_NODISCARD bool is_running() const noexcept
+    {
+      __PGBAR_ASSERT( core_ != nullptr );
+      return core_->size() != 0;
+    }
+    __PGBAR_NODISCARD __details::types::Size size() const noexcept
+    {
+      __PGBAR_ASSERT( core_ != nullptr );
+      return core_->size();
+    }
+    void reset() noexcept
+    {
+      __PGBAR_ASSERT( core_ != nullptr );
+      core_->halt();
+    }
+
+    // Wait until the indicator is Stop.
+    void wait() const noexcept
+    {
+      __details::concurrent::adaptive_wait( [this]() noexcept { return !is_running(); } );
+    }
+    // Wait for the indicator is Stop or timed out.
+    template<class Rep, class Period>
+    __PGBAR_NODISCARD bool wait_for( const std::chrono::duration<Rep, Period>& timeout ) const noexcept
+    {
+      return __details::concurrent::adaptive_wait_for( [this]() noexcept { return !is_running(); }, timeout );
+    }
+
+    template<typename Config>
+# if __PGBAR_CXX20
+      requires __details::traits::is_config<Config>::value
+    __PGBAR_NODISCARD std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Strategy>>
+# else
+    __PGBAR_NODISCARD
+      typename std::enable_if<__details::traits::is_config<Config>::value,
+                              std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Strategy>>>::type
+# endif
+      insert( Config cfg ) & noexcept
+    {
+      __PGBAR_ASSERT( core_ != nullptr );
+      return std::make_shared<__details::prefabs::SharedBar<Config, Outlet, Strategy>>( core_,
+                                                                                        std::move( cfg ) );
+    }
+# if __PGBAR_CXX20
+    template<typename Bar>
+      requires __details::traits::is_bar<Bar>::value
+# else
+    template<typename Bar, typename = typename std::enable_if<__details::traits::is_bar<Bar>::value>::type>
+# endif
+    __PGBAR_NODISCARD
+      std::shared_ptr<__details::prefabs::BasicBar<typename Bar::ConfigType, Outlet, Strategy>>
+      insert( Bar&& bar ) & noexcept( !std::is_lvalue_reference<Bar>::value )
+    {
+      __PGBAR_ASSERT( core_ != nullptr );
+      return std::make_shared<__details::prefabs::SharedBar<typename Bar::ConfigType, Outlet, Strategy>>(
+        core_,
+        std::forward<Bar>( bar ).config() );
+    }
+
+# if __PGBAR_CXX20
+    template<typename Bar, typename... Options>
+      requires(
+        !__details::traits::Repeat<__details::traits::TypeList<Options...>>::value
+        && __details::traits::is_bar<Bar>::value
+        && std::is_constructible_v<__details::prefabs::BasicBar<typename Bar::ConfigType, Outlet, Strategy>,
+                                   Options...> )
+# else
+    template<typename Bar,
+             typename... Options,
+             typename = typename std::enable_if<__details::traits::AllOf<
+               __details::traits::Not<__details::traits::Repeat<__details::traits::TypeList<Options...>>>,
+               __details::traits::is_bar<Bar>,
+               std::is_constructible<__details::prefabs::BasicBar<typename Bar::ConfigType, Outlet, Strategy>,
+                                     Options...>>::value>::type>
+# endif
+    __PGBAR_NODISCARD
+      std::shared_ptr<__details::prefabs::BasicBar<typename Bar::ConfigType, Outlet, Strategy>>
+      insert( Options&&... options ) &
+    {
+      __PGBAR_ASSERT( core_ != nullptr );
+      return std::make_shared<__details::prefabs::SharedBar<typename Bar::ConfigType, Outlet, Strategy>>(
+        core_,
+        std::forward<Options>( options )... );
+    }
+# if __PGBAR_CXX20
+    template<typename Config, typename... Options>
+      requires(
+        !__details::traits::Repeat<__details::traits::TypeList<Options...>>::value
+        && __details::traits::is_config<Config>::value
+        && std::is_constructible_v<__details::prefabs::BasicBar<Config, Outlet, Strategy>, Options...> )
+# else
+    template<typename Config,
+             typename... Options,
+             typename = typename std::enable_if<__details::traits::AllOf<
+               __details::traits::Not<__details::traits::Repeat<__details::traits::TypeList<Options...>>>,
+               __details::traits::is_config<Config>,
+               std::is_constructible<__details::prefabs::BasicBar<Config, Outlet, Strategy>,
+                                     Options...>>::value>::type>
+# endif
+    __PGBAR_NODISCARD std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Strategy>> insert(
+      Options&&... options ) &
+    {
+      __PGBAR_ASSERT( core_ != nullptr );
+      return std::make_shared<__details::prefabs::SharedBar<Config, Outlet, Strategy>>(
+        core_,
+        std::forward<Options>( options )... );
+    }
+
+    void swap( Self& lhs ) noexcept
+    {
+      __PGBAR_PURE_ASSUME( this != &lhs );
+      core_.swap( lhs.core_ );
+    }
+    friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
+  };
 } // namespace pgbar
 
 # undef __PGBAR_COMPONENT_REGISTER

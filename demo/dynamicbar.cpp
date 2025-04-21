@@ -1,0 +1,51 @@
+#include "../include/pgbar/pgbar.hpp"
+#include <chrono>
+#include <thread>
+#include <vector>
+using namespace std;
+
+int main()
+{
+  pgbar::DynamicBar<> dbar;
+
+  auto bar1 = dbar.insert<pgbar::ProgressBar<>>();
+  auto bar2 =
+    dbar.insert( pgbar::config::Line( pgbar::option::Description( "No.2" ), pgbar::option::Tasks( 8000 ) ) );
+
+  vector<thread> pool;
+  pool.emplace_back( [bar1]() {
+    bar1->config().description( "No.1" ).tasks( 1919 );
+    this_thread::sleep_for( 5s );
+    do {
+      bar1->tick();
+      this_thread::sleep_for( 5ms );
+    } while ( bar1->is_running() );
+  } );
+  pool.emplace_back( [bar2]() {
+    this_thread::sleep_for( 3s );
+    do {
+      bar2->tick();
+      this_thread::sleep_for( 900us );
+    } while ( bar2->is_running() );
+  } );
+  pool.emplace_back( [&dbar]() {
+    auto bar =
+      dbar.insert<pgbar::config::Line>( pgbar::option::Description( "No.3" ), pgbar::option::Tasks( 1000 ) );
+    for ( int i = 0; i < 850; ++i ) {
+      bar->tick();
+      this_thread::sleep_for( 5ms );
+    }
+    bar->reset();
+
+    // The "No.3" bar will reappear at the bottom of the terminal.
+    for ( int i = 0; i < 400; ++i ) {
+      bar->tick();
+      this_thread::sleep_for( 5ms );
+    }
+    // let it be destructed.
+  } );
+
+  for ( auto& td : pool )
+    td.join();
+  dbar.wait();
+}
