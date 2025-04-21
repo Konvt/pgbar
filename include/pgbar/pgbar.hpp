@@ -7122,7 +7122,7 @@ namespace pgbar {
       typename std::enable_if<__details::traits::is_config<Config>::value,
                               std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Strategy>>>::type
 # endif
-      insert( Config cfg ) & noexcept
+      insert( Config cfg ) const noexcept
     {
       __PGBAR_ASSERT( core_ != nullptr );
       return std::make_shared<__details::prefabs::SharedBar<Config, Outlet, Strategy>>( core_,
@@ -7136,7 +7136,7 @@ namespace pgbar {
 # endif
     __PGBAR_NODISCARD
       std::shared_ptr<__details::prefabs::BasicBar<typename Bar::ConfigType, Outlet, Strategy>>
-      insert( Bar&& bar ) & noexcept( !std::is_lvalue_reference<Bar>::value )
+      insert( Bar&& bar ) const noexcept( !std::is_lvalue_reference<Bar>::value )
     {
       __PGBAR_ASSERT( core_ != nullptr );
       return std::make_shared<__details::prefabs::SharedBar<typename Bar::ConfigType, Outlet, Strategy>>(
@@ -7162,7 +7162,7 @@ namespace pgbar {
 # endif
     __PGBAR_NODISCARD
       std::shared_ptr<__details::prefabs::BasicBar<typename Bar::ConfigType, Outlet, Strategy>>
-      insert( Options&&... options ) &
+      insert( Options&&... options ) const
     {
       __PGBAR_ASSERT( core_ != nullptr );
       return std::make_shared<__details::prefabs::SharedBar<typename Bar::ConfigType, Outlet, Strategy>>(
@@ -7185,7 +7185,7 @@ namespace pgbar {
                                      Options...>>::value>::type>
 # endif
     __PGBAR_NODISCARD std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Strategy>> insert(
-      Options&&... options ) &
+      Options&&... options ) const
     {
       __PGBAR_ASSERT( core_ != nullptr );
       return std::make_shared<__details::prefabs::SharedBar<Config, Outlet, Strategy>>(
