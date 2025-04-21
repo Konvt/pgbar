@@ -40,6 +40,9 @@
 ### MultiBar
 ![multibar](../images/multibar.gif)
 
+### DynamicBar
+![dynamicbar](images/dynamicbar.gif)
+
 ## 用例
 ```cpp
 #include "pgbar/pgbar.hpp"
