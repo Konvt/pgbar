@@ -15,17 +15,17 @@ int main()
   vector<thread> pool;
   pool.emplace_back( [bar1]() {
     bar1->config().description( "No.1" ).tasks( 1919 );
-    this_thread::sleep_for( 5s );
+    this_thread::sleep_for( std::chrono::seconds( 5 ) );
     do {
       bar1->tick();
-      this_thread::sleep_for( 5ms );
+      this_thread::sleep_for( std::chrono::milliseconds( 5 ) );
     } while ( bar1->is_running() );
   } );
   pool.emplace_back( [bar2]() {
-    this_thread::sleep_for( 3s );
+    this_thread::sleep_for( std::chrono::seconds( 3 ) );
     do {
       bar2->tick();
-      this_thread::sleep_for( 900us );
+      this_thread::sleep_for( std::chrono::microseconds( 900 ) );
     } while ( bar2->is_running() );
   } );
   pool.emplace_back( [&dbar]() {
@@ -33,14 +33,14 @@ int main()
       dbar.insert<pgbar::config::Line>( pgbar::option::Description( "No.3" ), pgbar::option::Tasks( 1000 ) );
     for ( int i = 0; i < 850; ++i ) {
       bar->tick();
-      this_thread::sleep_for( 5ms );
+      this_thread::sleep_for( std::chrono::milliseconds( 5 ) );
     }
     bar->reset();
 
     // The "No.3" bar will reappear at the bottom of the terminal.
     for ( int i = 0; i < 400; ++i ) {
       bar->tick();
-      this_thread::sleep_for( 5ms );
+      this_thread::sleep_for( std::chrono::milliseconds( 5 ) );
     }
     // let it be destructed.
   } );
