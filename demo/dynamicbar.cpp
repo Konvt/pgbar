@@ -1,4 +1,4 @@
-#include "../include/pgbar/pgbar.hpp"
+#include "pgbar/pgbar.hpp"
 #include <chrono>
 #include <thread>
 #include <vector>
