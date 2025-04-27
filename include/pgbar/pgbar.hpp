@@ -1200,6 +1200,8 @@ namespace pgbar {
           store_fn( std::forward<F>( fn ), is_inline_type<T>() );
         }
 
+        UniqueFunction( const Self& )    = delete;
+        Self& operator=( const Self& ) & = delete;
         __PGBAR_CXX23_CNSTXPR UniqueFunction( Self&& rhs ) noexcept : vtable_ { rhs.vtable_ }
         {
           __PGBAR_PURE_ASSUME( rhs.vtable_ != nullptr );
@@ -2227,10 +2229,12 @@ namespace pgbar {
 
   class Indicator {
   public:
-    Indicator()                               = default;
-    Indicator( Indicator&& )                  = default;
-    Indicator& operator=( Indicator&& rhs ) & = default;
-    virtual ~Indicator()                      = default;
+    Indicator()                                = default;
+    Indicator( const Indicator& )              = delete;
+    Indicator& operator=( const Indicator& ) & = delete;
+    Indicator( Indicator&& )                   = default;
+    Indicator& operator=( Indicator&& ) &      = default;
+    virtual ~Indicator()                       = default;
 
     virtual void reset() noexcept                              = 0;
     __PGBAR_NODISCARD virtual bool is_running() const noexcept = 0;
@@ -5824,9 +5828,11 @@ namespace pgbar {
 # endif
         BasicBar( Args&&... args ) : BasicBar( Soul( std::forward<Args>( args )... ) )
         {}
+
+        BasicBar( const Self& )          = delete;
+        Self& operator=( const Self& ) & = delete;
         // There is nothing to move in the base classes.
         BasicBar( Self&& rhs ) noexcept : state_ { State::Stop }, config_ { std::move( rhs.config_ ) } {}
-
         Self& operator=( Self&& rhs ) & noexcept
         { // There is nothing to move in the base classes.
           __PGBAR_PURE_ASSUME( this != &rhs );
@@ -5906,14 +5912,14 @@ namespace pgbar {
       template<typename B>
       struct is_bar {
       private:
-        template<typename T>
-        struct Result : std::false_type {};
-        template<template<typename, Channel, Policy> class Tmp, typename C, Channel O, Policy S>
-        struct Result<Tmp<C, O, S>> : is_config<C> {};
+        template<typename C, Channel O, Policy S>
+        static constexpr std::true_type check( const prefabs::BasicBar<C, O, S>& );
+        static constexpr std::false_type check( ... );
 
       public:
         static constexpr bool value =
-          AllOf<Not<std::is_reference<B>>, Result<typename std::remove_cv<B>::type>>::value;
+          AllOf<Not<std::is_reference<B>>,
+                decltype( check( std::declval<typename std::remove_cv<B>::type>() ) )>::value;
       };
     } // namespace traits
   } // namespace __details
@@ -6081,7 +6087,6 @@ namespace pgbar {
     namespace assets {
       template<types::Size, typename Base>
       struct TupleSlot : public Base {
-        using Super = Base;
         using Base::Base;
         TupleSlot( TupleSlot&& )              = default;
         TupleSlot& operator=( TupleSlot&& ) & = default;
@@ -6228,6 +6233,8 @@ namespace pgbar {
           : TupleBar( std::forward_as_tuple( std::forward<Objs>( objs )... ),
                       traits::MakeIndexSeq<sizeof...( Configs )>() )
         {}
+        TupleBar( const TupleBar& )              = delete;
+        TupleBar& operator=( const TupleBar& ) & = delete;
         TupleBar( TupleBar&& rhs ) noexcept
           : TupleSlot<Tags, Bars<Configs, Outlet, Mode>>( std::move( rhs ) )...
           , alive_cnt_ { 0 }
@@ -6307,7 +6314,7 @@ namespace pgbar {
     template<__details::types::Size Pos>
     using ConfigAt_t = __details::traits::TypeAt_t<Pos, Config, Configs...>;
     template<__details::types::Size Pos>
-    using BarAt_t = typename Package::template ElementAt_t<Pos>::Super;
+    using BarAt_t = typename Package::template ElementAt_t<Pos>;
 
     Package tuple_;
 
@@ -6360,6 +6367,8 @@ namespace pgbar {
       : tuple_ { std::move( bar ), std::move( bars )... }
     {}
 
+    MultiBar( const Self& )          = delete;
+    Self& operator=( const Self& ) & = delete;
     MultiBar( Self&& rhs ) noexcept : tuple_ { std::move( rhs.tuple_ ) }
     {
       __PGBAR_ASSERT( rhs.is_running() == false );
@@ -7095,9 +7104,11 @@ namespace pgbar {
     DynamicBar() noexcept( false )
       : core_ { std::make_shared<__details::assets::DynamicContext<Outlet, Mode>>() }
     {}
-    DynamicBar( Self&& )        = default;
-    Self& operator=( Self&& ) & = default;
-    ~DynamicBar()               = default;
+    DynamicBar( const Self& )        = delete;
+    Self& operator=( const Self& ) & = delete;
+    DynamicBar( Self&& )             = default;
+    Self& operator=( Self&& ) &      = default;
+    ~DynamicBar()                    = default;
 
     __PGBAR_NODISCARD __PGBAR_INLINE_FN bool is_running() const noexcept
     {
