@@ -6081,6 +6081,7 @@ namespace pgbar {
     namespace assets {
       template<types::Size, typename Base>
       struct TupleSlot : public Base {
+        using Super = Base;
         using Base::Base;
         TupleSlot( TupleSlot&& )              = default;
         TupleSlot& operator=( TupleSlot&& ) & = default;
@@ -6306,7 +6307,7 @@ namespace pgbar {
     template<__details::types::Size Pos>
     using ConfigAt_t = __details::traits::TypeAt_t<Pos, Config, Configs...>;
     template<__details::types::Size Pos>
-    using BarAt_t = typename Package::template ElementAt_t<Pos>;
+    using BarAt_t = typename Package::template ElementAt_t<Pos>::Super;
 
     Package tuple_;
 
@@ -6610,29 +6611,34 @@ namespace pgbar {
   }
 
   /**
-   * Creates a MultiBar with a fixed number of BasicBar instances using mutiple bar objects.
+   * Creates a MultiBar with a fixed number of bars using mutiple bar/configuration objects.
    * The ctor sequentially initializes the first few instances corresponding to the provided arguments;
    * **any remaining instances with no corresponding arguments will be default-initialized.**
    */
-  template<typename Bar, __details::types::Size Cnt, typename... Bars>
+  template<typename Bar, __details::types::Size Cnt, typename... Objs>
 # if __PGBAR_CXX20
-    requires( Cnt > 0 && sizeof...( Bars ) <= Cnt && !( std::is_lvalue_reference_v<Bars> || ... )
-              && __details::traits::is_bar<Bar>::value
-              && ( std::is_same_v<std::remove_cv_t<Bar>, std::remove_cv_t<Bars>> && ... ) )
+    requires( Cnt > 0 && sizeof...( Objs ) <= Cnt && __details::traits::is_bar<Bar>::value
+              && ( ( ( std::is_same_v<std::remove_cv_t<Bar>, std::decay_t<Objs>> && ... )
+                     && !( std::is_lvalue_reference_v<Objs> || ... ) )
+                   || ( std::is_same_v<typename Bar::Config, std::decay_t<Objs>> && ... ) ) )
   __PGBAR_NODISCARD __PGBAR_INLINE_FN __details::traits::FillTemplate_t<Bar, MultiBar, Cnt>
 # else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
     __details::traits::AllOf<
       std::integral_constant<bool, ( Cnt > 0 )>,
-      std::integral_constant<bool, ( sizeof...( Bars ) <= Cnt )>,
-      __details::traits::Not<__details::traits::AnyOf<std::is_lvalue_reference<Bars>...>>,
+      std::integral_constant<bool, ( sizeof...( Objs ) <= Cnt )>,
       __details::traits::is_bar<Bar>,
-      std::is_same<typename std::remove_cv<Bar>::type, typename std::remove_cv<Bars>::type>...>::value,
+      __details::traits::AnyOf<
+        __details::traits::AllOf<
+          std::is_same<typename std::remove_cv<Bar>::type, typename std::decay<Objs>::type>...,
+          __details::traits::Not<__details::traits::AnyOf<std::is_lvalue_reference<Objs>...>>>,
+        __details::traits::AllOf<std::is_same<typename Bar::Config, typename std::decay<Objs>::type>...>>>::
+      value,
     __details::traits::FillTemplate_t<Bar, MultiBar, Cnt>>::type
 # endif
-    make_multi( Bars&&... bars ) noexcept( sizeof...( Bars ) == Cnt )
+    make_multi( Objs&&... objs ) noexcept( sizeof...( Objs ) == Cnt )
   {
-    return { std::forward<Bars>( bars )... };
+    return { std::forward<Objs>( objs )... };
   }
   /**
    * Creates a MultiBar with a fixed number of BasicBar instances using mutiple configuration objects.
@@ -7319,37 +7325,43 @@ namespace pgbar {
   }
 
   /**
-   * Creates a vector of shared_ptr with a fixed number of BasicBar instances using mutiple bar objects.
+   * Creates a vector of shared_ptr with a fixed number of bars using mutiple bar/configuration objects.
    * The ctor sequentially initializes the first few instances corresponding to the provided arguments;
    * **An unmatched count and Bars number will cause an exception `pgbar::exception::InvalidArgument`.**
    */
-  template<typename Bar, typename... Bars>
+  template<typename Bar, typename... Objs>
 # if __PGBAR_CXX20
-    requires( !( std::is_lvalue_reference_v<Bars> || ... ) && __details::traits::is_bar<Bar>::value
-              && ( std::is_same_v<std::remove_cv_t<Bar>, std::remove_cv_t<Bars>> && ... ) )
+    requires( __details::traits::is_bar<Bar>::value
+              && ( ( ( std::is_same_v<std::remove_cv_t<Bar>, std::remove_cv_t<Objs>> && ... )
+                     && !( std::is_lvalue_reference_v<Objs> || ... ) )
+                   || ( std::is_same<typename Bar::Config, std::decay_t<Objs>>::value && ... ) ) )
   __PGBAR_NODISCARD __PGBAR_INLINE_FN std::vector<std::shared_ptr<Bar>>
 # else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
     __details::traits::AllOf<
-      __details::traits::Not<__details::traits::AnyOf<std::is_lvalue_reference<Bars>...>>,
       __details::traits::is_bar<Bar>,
-      std::is_same<typename std::remove_cv<Bar>::type, typename std::remove_cv<Bars>::type>...>::value,
+      __details::traits::AnyOf<
+        __details::traits::AllOf<
+          std::is_same<typename std::remove_cv<Bar>::type, typename std::remove_cv<Objs>::type>...,
+          __details::traits::Not<__details::traits::AnyOf<std::is_lvalue_reference<Objs>...>>>,
+        __details::traits::AllOf<std::is_same<typename Bar::Config, typename std::decay<Objs>::type>...>>>::
+      value,
     std::vector<std::shared_ptr<Bar>>>::type
 # endif
-    make_dynamic( __details::types::Size count, Bars&&... bars ) noexcept( false )
-  { // A right value reference is added to Bars to ensure strong exception safety.
+    make_dynamic( __details::types::Size count, Objs&&... objs ) noexcept( false )
+  {
     if ( count == 0 )
       __PGBAR_UNLIKELY return {};
-    else if ( count < sizeof...( Bars ) )
+    else if ( count < sizeof...( Objs ) )
       __PGBAR_UNLIKELY throw exception::InvalidArgument(
         "pgbar: the number of arguments mismatch with the provided count" );
 
     DynamicBar<Bar::Sink, Bar::Strategy> factory;
     std::vector<std::shared_ptr<Bar>> products;
     (void)std::initializer_list<char> {
-      ( products.emplace_back( factory.insert( std::forward<Bars>( bars ).config() ) ), '\0' )...
+      ( products.emplace_back( factory.insert( std::forward<Objs>( objs ) ) ), '\0' )...
     };
-    std::generate_n( std::back_inserter( products ), count - sizeof...( Bars ), [&factory]() {
+    std::generate_n( std::back_inserter( products ), count - sizeof...( Objs ), [&factory]() {
       return factory.template insert<Bar>();
     } );
     return products;

@@ -41,7 +41,7 @@
 ![multibar](../images/multibar.gif)
 
 ### DynamicBar
-![dynamicbar](images/dynamicbar.gif)
+![dynamicbar](../images/dynamicbar.gif)
 
 ## 用例
 ```cpp
