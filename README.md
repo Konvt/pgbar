@@ -92,6 +92,8 @@ int main()
 However, the smoothness of the display will depend on the single-core performance of your processor.
 ### Is it compatible with Windows/Linux?
 Absolutely. I designed this library to work seamlessly on both systems, providing a unified visualization of iteration progress.
+
+Btw, it should be noted that if it is on the Windows platform, then `pgbar` will depend on the `Windows.h` header file; Moreover, `NOMINMAX` will be defined to disable the `min` and `max` macros.
 ### Does it support Unicode?
 As pointed out at the beginning, there is no problem.
 

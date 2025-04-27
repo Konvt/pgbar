@@ -43,6 +43,11 @@
   - [`MultiBar`](#multibar)
     - [How to use](#how-to-use-4)
     - [Helper functions](#helper-functions)
+    - [Rendering strategy](#rendering-strategy-4)
+  - [`DynamicBar`](#dynamicbar)
+    - [How to use](#how-to-use-5)
+    - [Helper functions](#helper-functions-1)
+    - [Rendering strategy](#rendering-strategy-5)
 - [Global configuration](#global-configuration)
   - [Coloring effect](#coloring-effect)
   - [Output stream detection](#output-stream-detection)
@@ -64,6 +69,7 @@
   - [Unicode support](#unicode-support)
   - [Design of renderer](#design-of-renderer)
   - [Propagation mechanism of exception](#propagation-mechanism-of-exception)
+  - [Compilation time issue](#compilation-time-issue)
   - [Code structure](#code-structure)
     - [Basic data structure design](#basic-data-structure-design)
     - [Progress bar type design](#progress-bar-type-design)
@@ -1730,22 +1736,19 @@ If the C++ standard is higher than C++17, `pgbar` also adds a class template arg
 
 int main()
 {
-  // Thanks to the separation of data objects and progress bar types,
-  // you can pass an output stream pointing to different progress bar objects.
-  // MultiBar simply requires that all types in its template parameter list must have the same output stream property.
+  // MultiBar simply requires that all types in its template parameter list must have the same output stream property and execution policy.
   pgbar::ProgressBar<> bar1;
-  pgbar::BlockBar<pgbar::Channel::Stdout> bar2, bar3;
+  pgbar::BlockBar<> bar2, bar3;
 
-  // Because MultiBar only accesses the configuration data type of the progress bar,
-  // it is fine not to use std::move on progress bar objects.
+  // Since bar is a move-only object, std::move must be used here
   auto mbar1 =
-    pgbar::MultiBar<pgbar::ProgressBar<>, pgbar::BlockBar<>, pgbar::ProgressBar<>>( std::move( bar1 ),
-                                                                                    std::move( bar2 ),
-                                                                                    bar3 );
-  auto mbar2 = pgbar::MultiBar<pgbar::ProgressBar<>, pgbar::BlockBar<>, pgbar::ProgressBar<>>(
-    pgbar::config::Line(),
-    pgbar::config::Block(),
-    pgbar::config::Line() );
+    pgbar::MultiBar<pgbar::ProgressBar<>, pgbar::BlockBar<>, pgbar::BlockBar<>>( std::move( bar1 ),
+                                                                                 std::move( bar2 ),
+                                                                                 std::move( bar3 ) );
+  auto mbar2 =
+    pgbar::MultiBar<pgbar::ProgressBar<>, pgbar::BlockBar<>, pgbar::ProgressBar<>>( pgbar::config::Line(),
+                                                                                    pgbar::config::Block(),
+                                                                                    pgbar::config::Line() );
 
 #if __cplusplus >= 201703L
   // If it was after C++17, the following statements would be legal
@@ -1777,21 +1780,232 @@ int main()
 {
   // Create a MultiBar of the same size as the number of parameters
   auto bar1 = pgbar::make_multi<pgbar::Channel::Stdout>( pgbar::config::Line(), pgbar::config::Block() );
-  auto bar2 =
-    pgbar::make_multi<>( pgbar::ProgressBar<pgbar::Channel::Stdout>(), pgbar::BlockBar<>() );
+  auto bar2 = pgbar::make_multi<>( pgbar::ProgressBar<>(), pgbar::BlockBar<>() );
 
   // Creates a fixed-length MultiBar with the same type for all progress bars,
   // and initializes all internal progress bar objects using the configuration objects provided by the parameters.
   auto bar3 = pgbar::make_multi<6, pgbar::Channel::Stdout>( pgbar::config::Spin() );
   auto bar4 = pgbar::make_multi<6>( pgbar::SpinBar<pgbar::Channel::Stdout>() );
-  // The configuration data for all progress bars in bar3 and bar4 is the same
+  // The configuration data for all progress bars inside bar3 and bar4 is the same
 
   // Creates a fixed-length MultiBar with all progress bar types the same,
   // with the provided parameters acting on the internal progress bar objects in order.
-  auto bar5 = pgbar::make_multi<3, pgbar::config::ScanBar>( pgbar::config::ScanBar() );
-  auto bar6 = pgbar::make_multi<3, pgbar::SweepBar<pgbar::Channel::Stdout>>( pgbar::SweepBar<>() );
+  auto bar5 = pgbar::make_multi<pgbar::config::Sweep, 3>( pgbar::config::Sweep() );
+  auto bar6 = pgbar::make_multi<pgbar::SweepBar<pgbar::Channel::Stdout>, 3>(
+    pgbar::SweepBar<pgbar::Channel::Stdout>() );
   // bar5 and bar6 only the first progress bar object is initialized to the parameters specified;
   // the other two progress bars are initialized by default.
+}
+```
+### Rendering strategy
+The rendering strategy of `MutliBar` is the same as that of the sole progress bar, but the rendering behavior is slightly different.
+
+Because `MutliBar` renders multiple progress bars simultaneously on multiple lines, when using the synchronous rendering strategy, the number of lines occupied by the rendering structure of the progress bar will be determined by the number of progress bar types accommodated by `MutliBar`.
+
+The number of progress bars accommodated by `MutliBar` can be obtained by the `active_size()` method, and the number of rows occupied by the rendering structure will be the number returned by this method +1.
+
+For example:
+
+```cpp
+#include "pgbar/pgbar.hpp"
+#include <iostream>
+
+int main()
+{
+  auto bar = pgbar::make_multi<pgbar::Channel::Stderr, pgbar::Policy::Sync>(
+    pgbar::config::Line( pgbar::option::Tasks( 100 ) ),
+    pgbar::config::Line( pgbar::option::Tasks( 150 ) ),
+    pgbar::config::Line( pgbar::option::Tasks( 200 ) ) );
+
+  for ( size_t i = 0; i < 95; ++i ) {
+    bar.tick<0>();
+    bar.tick<1>();
+  }
+
+  std::cerr << "Extra log information";
+  // Notice: At least `active_size() + 1` nextline must be inserted after the output information
+  for ( size_t i = 0; i < bar.active_size() + 1; ++i )
+    std::cerr << '\n';
+  std::cerr << std::flush;
+
+  bar.tick<2>();
+  while ( bar.is_running<0>() )
+    bar.tick<0>();
+  while ( bar.is_running<1>() )
+    bar.tick<1>();
+  while ( bar.is_running<2>() )
+    bar.tick<2>();
+}
+```
+
+## `DynamicBar`
+![dmbar](../images/dynamicbar.gif)
+### How to use
+`pgbar::DynamicBar` is a factory type. It (almost) holds no data and is only responsible for establishing certain lifecycle relationships for different progress bar types.
+
+`DynamicBar` is different from other types. This type receives the progress bar type or configuration class type and returns a `std::shared_ptr` object pointing to the corresponding progress bar type; All actions that call the progress bar method require dereferencing this returned pointer object.
+
+Each `std::shared_ptr` returned by `DynamicBar` can enable the progress bar rendering of the terminal; However, the terminal rendering work will stop only when all `std::shared_ptr` are destructed or stopped running.
+
+`DynamicBar` can be destructed when multiple `std::shared_ptr` have been created, which will only result in the inability to check whether this `DynamicBar` is running anymore. And it is also impossible to close all the progress bar objects pointed to by `std::shared_ptr` created by it through this `DynamicBar`.
+
+If the `std::shared_ptr` object returned by `DynamicBar` is destructed because all references are invalid, then if `DynamicBar` is running at this time, it can also safely identify all invalid objects and remove them from the rendering list later.
+
+Based on the above principle, `DynamicBar` can receive any number of progress bar objects at runtime and coordinate the order in which they are rendered to the terminal in the background. The output order of the progress bars will depend on the time when they are started. The later the progress bars are started, the lower they will appear in the terminal.
+
+Similarly, `DynamicBar` also requires that all incoming progress bar types must point to the same output stream.
+
+```cpp
+#include "pgbar/pgbar.hpp"
+#include <cassert>
+#include <chrono>
+#include <thread>
+#include <vector>
+using namespace std;
+
+int main()
+{
+  vector<thread> pool;
+  {
+    pgbar::DynamicBar<> dbar;
+
+    auto bar1 = dbar.insert<pgbar::ProgressBar<>>();
+    // bar1, bar2, bar3 are all objects of type std::shared_ptr</* ProgressBar */>.
+    auto bar2 = dbar.insert(
+      pgbar::config::Line( pgbar::option::Description( "No.2" ), pgbar::option::Tasks( 8000 ) ) );
+
+    pool.emplace_back( [bar1]() {
+      bar1->config().description( "No.1" ).tasks( 1919 );
+      this_thread::sleep_for( std::chrono::seconds( 5 ) );
+      do {
+        bar1->tick();
+        this_thread::sleep_for( std::chrono::milliseconds( 5 ) );
+      } while ( bar1->is_running() );
+    } );
+    pool.emplace_back( [bar2]() {
+      this_thread::sleep_for( std::chrono::seconds( 3 ) );
+      do {
+        bar2->tick();
+        this_thread::sleep_for( std::chrono::microseconds( 900 ) );
+      } while ( bar2->is_running() );
+    } );
+    pool.emplace_back( [&dbar]() {
+      auto bar = dbar.insert<pgbar::config::Line>( pgbar::option::Description( "No.3" ),
+                                                   pgbar::option::Tasks( 1000 ) );
+      for ( int i = 0; i < 850; ++i ) {
+        bar->tick();
+        this_thread::sleep_for( std::chrono::milliseconds( 5 ) );
+      }
+      bar->reset();
+
+      // The "No.3" bar will reappear at the bottom of the terminal.
+      for ( int i = 0; i < 400; ++i ) {
+        bar->tick();
+        this_thread::sleep_for( std::chrono::milliseconds( 5 ) );
+      }
+      // let it be destructed.
+    } );
+
+    std::this_thread::sleep_for( std::chrono::seconds( 1 ) );
+    assert( dbar.is_running() );
+  } // dbar is destructed here, it's still safe.
+
+  for ( auto& td : pool )
+    td.join();
+}
+```
+### Helper functions
+Because `DynamicBar` allows being destructed in the presence of multiple `std::shared_ptr` created by it, `pgbar` provides a `make_dynamic` function. It is used to simplify the object construction process in the case of not caring about `DynamicBar` and all the `std::shared_ptr` it manages.
+
+Note: The object type returned by this function is `std::shared_ptr`, and the object pointed to by `std::shared_ptr` itself **does not have the function of reverse checking whether it belongs to the same `DynamicBar`** with another object; So it is necessary to separately distinguish the `std::shared_ptr` returned by different functions.
+
+A reasonable strategy is to use only all `std::shared_ptr` returned by the same function each time.
+
+> Mixture of different sources of `std::shared_ptr` tend to throw an exception `pgbar::exception::InvalidState`, told that already exists a running instances of the progress bar.
+
+```cpp
+#include "pgbar/pgbar.hpp"
+#include <iostream>
+
+int main()
+{
+  // Obtain std::shared_ptr with the same number of parameters
+  auto bars1 = pgbar::make_dynamic<pgbar::Channel::Stdout>( pgbar::config::Line(), pgbar::config::Block() );
+  auto bars2 = pgbar::make_dynamic<>( pgbar::ProgressBar<>(), pgbar::BlockBar<>() );
+  // To store different progress bar types, both bars1 and bars2 are of the std::tuple type,
+  // containing multiple std::shared_ptr objects.
+  // If the C++ standard used is greater than 17,
+  // then structured binding can be used to directly obtain the content of the return value
+#if __cplusplus >= 201703L
+  auto& [progressbar, blockbar] = bars1;
+#endif
+
+  // Create a std::vector<std::shared_ptr</* Bar Type */>> where all progress bar types are the same.
+  // And initialize all the internal progress bar objects using the configuration objects provided by the parameters.
+  auto bar3 = pgbar::make_dynamic<pgbar::Channel::Stdout>( pgbar::config::Spin(), 6 );
+  auto bar4 = pgbar::make_dynamic( pgbar::SpinBar<pgbar::Channel::Stdout>(), 6 );
+  // The configuration data of all progress bars inside bar3 and bar4 are the same.
+
+  // Create a std::vector<std::shared_ptr</* Bar Type */>> where all progress bar types are the same.
+  // The provided parameters will act in sequence on the internal progress bar object.
+  auto bar5 = pgbar::make_dynamic<pgbar::config::Sweep>( 3, pgbar::config::Sweep() );
+  auto bar6 =
+    pgbar::make_dynamic<pgbar::SweepBar<pgbar::Channel::Stdout>>( 3,
+                                                                  pgbar::SweepBar<pgbar::Channel::Stdout>() );
+  // bar5 and bar6 only the first progress bar object is initialized to the parameters specified;
+  // the other two progress bars are initialized by default.
+
+  // For the last two functions, if the incoming number and a given number of objects,
+  // throws an exception pgbar::exception::InvalidArgument
+  try {
+    auto _ = pgbar::make_dynamic<pgbar::config::Sweep>( 2,
+                                                        pgbar::config::Sweep(),
+                                                        pgbar::config::Sweep(),
+                                                        pgbar::config::Sweep() );
+  } catch ( const pgbar::exception::InvalidArgument& e ) {
+    std::cerr << "Oops! " << e.what() << std::endl;
+  }
+}
+```
+### Rendering strategy
+The rendering strategy of `DynamicBar` is the same as that of the sole progress bar, but the rendering behavior is slightly different.
+
+Because `DynamicBar` renders multiple progress bars simultaneously on multiple lines, when using the synchronous rendering strategy, the number of lines occupied by the rendering structure of the progress bar will be determined by the number of running progress bars in `DynamicBar`.
+
+The number of running progress bars by `DynamicBar` can be obtained by the `active_size()` method, and the number of rows occupied by the rendering structure will be the number returned by this method +1.
+
+For example:
+
+```cpp
+#include "pgbar/pgbar.hpp"
+#include <iostream>
+
+int main()
+{
+  pgbar::DynamicBar<pgbar::Channel::Stderr, pgbar::Policy::Sync> dbar;
+
+  auto bar1 = dbar.insert( pgbar::config::Line( pgbar::option::Tasks( 100 ) ) );
+  auto bar2 = dbar.insert( pgbar::config::Line( pgbar::option::Tasks( 150 ) ) );
+  auto bar3 = dbar.insert( pgbar::config::Line( pgbar::option::Tasks( 200 ) ) );
+
+  for ( size_t i = 0; i < 95; ++i ) {
+    bar1->tick();
+    bar2->tick();
+  }
+
+  std::cerr << "Extra log information";
+  // Notice: At least `active_size() + 1` nextline must be inserted after the output information
+  for ( size_t i = 0; i < dbar.active_size() + 1; ++i )
+    std::cerr << '\n';
+  std::cerr << std::flush;
+
+  bar3->tick();
+  while ( bar1->is_running() )
+    bar1->tick();
+  while ( bar2->is_running() )
+    bar2->tick();
+  while ( bar3->is_running() )
+    bar3->tick();
 }
 ```
 
@@ -2064,6 +2278,11 @@ If the rendering thread already has an unhandled exception in its exception cont
 In the `dead` state, a new attempt to start the background rendering thread will attempt to create a new rendering thread object; During this process, the last unhandled exception will be thrown before a new rendering thread is created and can start working.
 
 In contexts that do not interact with the rendering thread, exceptions are thrown and passed following the C++ standard mechanism.
+
+## Compilation time issue
+The extensive use of template metaprogramming in `pgbar` introduces significant compile-time overhead, especially when using "more static" types like `pgbar::MultiBar`. This results in a substantial amount of template computation, which severely impacts compilation speed.
+
+Due to constraints in the [Code structure](#code-structure), some of `pgbar`'s low-level types rely entirely on template metaprogramming to generate themselves at compile time, rather than being hardcoded into source files. As a result, this compile-time overhead currently lacks an optimal solution.
 
 ## Code structure
 ### Basic data structure design

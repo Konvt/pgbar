@@ -44,6 +44,10 @@
     - [交互方式](#交互方式-4)
     - [辅助函数](#辅助函数)
     - [渲染策略](#渲染策略-4)
+  - [`DynamicBar`](#dynamicbar)
+    - [交互方式](#交互方式-5)
+    - [辅助函数](#辅助函数-1)
+    - [渲染策略](#渲染策略-5)
 - [全局设置](#全局设置)
   - [着色效果](#着色效果)
   - [输出流检测](#输出流检测)
@@ -65,6 +69,7 @@
   - [Unicode 支持](#unicode-支持)
   - [渲染器设计](#渲染器设计)
   - [异常传播机制](#异常传播机制)
+  - [编译时长问题](#编译时长问题)
   - [设计架构](#设计架构)
     - [基础数据结构设计](#基础数据结构设计)
     - [进度条类型设计](#进度条类型设计)
@@ -1732,25 +1737,23 @@ int main()
 
 int main()
 {
-  // 得益于数据对象和进度条类型分离的设计，所以你完全可以传递一个输出流指向不同的进度条对象
-  // MultiBar 只要求它的模板参数列表中的所有类型，必须具有相同输出流属性
+  // MultiBar 要求它的模板参数列表中的所有类型，必须具有相同输出流属性和执行策略
   pgbar::ProgressBar<> bar1;
-  pgbar::BlockBar<pgbar::Channel::Stdout> bar2, bar3;
+  pgbar::BlockBar<> bar2, bar3;
 
-  // 因为 MultiBar 只会访问进度条的配置数据类型，所以不对进度条对象使用 std::move 也是没问题的
+  // 由于 bar 是 move-only 对象，因此此处必须使用 std::move
   auto mbar1 =
-    pgbar::MultiBar<pgbar::ProgressBar<>, pgbar::BlockBar<>, pgbar::ProgressBar<>>( std::move( bar1 ),
-                                                                                    std::move( bar2 ),
-                                                                                    bar3 );
-  auto mbar2 = pgbar::MultiBar<pgbar::ProgressBar<>, pgbar::BlockBar<>, pgbar::ProgressBar<>>(
-    pgbar::config::Line(),
-    pgbar::config::Block(),
-    pgbar::config::Line() );
+    pgbar::MultiBar<pgbar::ProgressBar<>, pgbar::BlockBar<>, pgbar::BlockBar<>>( std::move( bar1 ),
+                                                                                 std::move( bar2 ),
+                                                                                 std::move( bar3 ) );
+  auto mbar2 =
+    pgbar::MultiBar<pgbar::ProgressBar<>, pgbar::BlockBar<>, pgbar::ProgressBar<>>( pgbar::config::Line(),
+                                                                                    pgbar::config::Block(),
+                                                                                    pgbar::config::Line() );
 
 #if __cplusplus >= 201703L
   // 如果在 C++17 之后，以下语句将是合法的
-  auto mbar3 =
-    pgbar::MultiBar( pgbar::config::Line(), pgbar::config::Block(), pgbar::config::Line() );
+  auto mbar3 = pgbar::MultiBar( pgbar::config::Line(), pgbar::config::Block(), pgbar::config::Line() );
   // 这个对象的类型将会是指向 pgbar::Channel::Stderr 的 MultiBar
 
   static_assert( std::is_same<decltype( mbar3 ), decltype( mbar2 )>::value, "" );
@@ -1777,8 +1780,7 @@ int main()
 {
   // 创建与参数数量相同大小的 MultiBar
   auto bar1 = pgbar::make_multi<pgbar::Channel::Stdout>( pgbar::config::Line(), pgbar::config::Block() );
-  auto bar2 =
-    pgbar::make_multi<>( pgbar::ProgressBar<pgbar::Channel::Stdout>(), pgbar::BlockBar<>() );
+  auto bar2 = pgbar::make_multi<>( pgbar::ProgressBar<>(), pgbar::BlockBar<>() );
 
   // 创建一个固定长度、所有进度条类型都相同的 MultiBar，并使用参数提供的配置对象初始化内部所有进度条对象
   auto bar3 = pgbar::make_multi<6, pgbar::Channel::Stdout>( pgbar::config::Spin() );
@@ -1786,8 +1788,9 @@ int main()
   // bar3 和 bar4 内部的所有进度条的配置数据都是相同的
 
   // 创建一个固定长度、所有进度条类型都相同的 MultiBar，提供的参数会按顺序作用在内部的进度条对象上
-  auto bar5 = pgbar::make_multi<3, pgbar::config::Sweep>( pgbar::config::Sweep() );
-  auto bar6 = pgbar::make_multi<3, pgbar::SweepBar<pgbar::Channel::Stdout>>( pgbar::SweepBar<>() );
+  auto bar5 = pgbar::make_multi<pgbar::config::Sweep, 3>( pgbar::config::Sweep() );
+  auto bar6 = pgbar::make_multi<pgbar::SweepBar<pgbar::Channel::Stdout>, 3>(
+    pgbar::SweepBar<pgbar::Channel::Stdout>() );
   // bar5 和 bar6 只有第一个进度条对象被初始化为参数指定的内容，其他两个进度条均被默认初始化
 }
 ```
@@ -1796,7 +1799,7 @@ int main()
 
 因为 `MutliBar` 会在多行同时渲染多个进度条，因此使用同步渲染策略时，进度条的渲染结构所占的行数将会由 `MutliBar` 容纳的进度条类型数量决定。
 
-`MutliBar` 容纳的进度条数量可由 `size()` 方法得到，而渲染结构所占行数将会是该方法返回的数量 +1。
+`MutliBar` 容纳的进度条数量可由 `active_size()` 方法得到，而渲染结构所占行数将会是该方法返回的数量 +1。
 
 示例：
 
@@ -1814,21 +1817,188 @@ int main()
   for ( size_t i = 0; i < 95; ++i ) {
     bar.tick<0>();
     bar.tick<1>();
-    bar.tick<2>();
   }
 
   std::cerr << "Extra log information";
-  // Notice: At least `size() + 1` nextline must be inserted after the output information
-  for ( size_t i = 0; i < bar.size() + 1; ++i )
+  // Notice: At least `active_size() + 1` nextline must be inserted after the output information
+  for ( size_t i = 0; i < bar.active_size() + 1; ++i )
     std::cerr << '\n';
   std::cerr << std::flush;
 
+  bar.tick<2>();
   while ( bar.is_running<0>() )
     bar.tick<0>();
   while ( bar.is_running<1>() )
     bar.tick<1>();
   while ( bar.is_running<2>() )
     bar.tick<2>();
+}
+```
+
+## `DynamicBar`
+![dmbar](../images/dynamicbar.gif)
+### 交互方式
+`pgbar::DynamicBar` 是一个工厂类型，它（几乎）不持有任何数据，只负责为不同的进度条类型建立起一定的生命周期关系。
+
+`DynamicBar` 与其他类型不同，该类型接收进度条类型或配置类类型，并返回一个指向对应进度条类型的 `std::shared_ptr` 对象；所有调用进度条方法的行为都需要解引用这个返回的指针对象。
+
+`DynamicBar` 所返回的每一个 `std::shared_ptr` 都可以开启终端的进度条渲染；但只有所有的 `std::shared_ptr` 都被析构或者停止运行，终端渲染工作才会停止。
+
+`DynamicBar` 可以在已创建多个 `std::shared_ptr` 的情况下被析构，这只会导致不能再查看这个 `DynamicBar` 是否正在运行，并且也不能经由这个 `DynamicBar` 关闭所有由它创建的 `std::shared_ptr` 指向的进度条对象。
+
+如果 `DynamicBar` 返回的 `std::shared_ptr` 对象因为引用全部失效而被析构，那么如果此时 `DynamicBar` 正在运行中，它也能安全的识别所有已失效对象，并在稍后将它们移除出渲染列表。
+
+根据以上原理，`DynamicBar` 可以在运行时接收任意多的进度条对象，并在后台协调它们向终端渲染的顺序；进度条的输出顺序将取决于它们被启动时的时间，越晚启动的进度条会出现在终端更下方。
+
+同理，`DynamicBar` 也要求所有传入的进度条类型必须指向相同的输出流。
+
+```cpp
+#include "pgbar/pgbar.hpp"
+#include <cassert>
+#include <chrono>
+#include <thread>
+#include <vector>
+using namespace std;
+
+int main()
+{
+  vector<thread> pool;
+  {
+    pgbar::DynamicBar<> dbar;
+
+    auto bar1 = dbar.insert<pgbar::ProgressBar<>>();
+    // bar1, bar2, bar3 都是 std::shared_ptr</* ProgressBar */> 类型的对象
+    auto bar2 = dbar.insert(
+      pgbar::config::Line( pgbar::option::Description( "No.2" ), pgbar::option::Tasks( 8000 ) ) );
+
+    pool.emplace_back( [bar1]() {
+      bar1->config().description( "No.1" ).tasks( 1919 );
+      this_thread::sleep_for( std::chrono::seconds( 5 ) );
+      do {
+        bar1->tick();
+        this_thread::sleep_for( std::chrono::milliseconds( 5 ) );
+      } while ( bar1->is_running() );
+    } );
+    pool.emplace_back( [bar2]() {
+      this_thread::sleep_for( std::chrono::seconds( 3 ) );
+      do {
+        bar2->tick();
+        this_thread::sleep_for( std::chrono::microseconds( 900 ) );
+      } while ( bar2->is_running() );
+    } );
+    pool.emplace_back( [&dbar]() {
+      auto bar = dbar.insert<pgbar::config::Line>( pgbar::option::Description( "No.3" ),
+                                                   pgbar::option::Tasks( 1000 ) );
+      for ( int i = 0; i < 850; ++i ) {
+        bar->tick();
+        this_thread::sleep_for( std::chrono::milliseconds( 5 ) );
+      }
+      bar->reset();
+
+      // "No.3" 将会重新出现在终端的底部
+      for ( int i = 0; i < 400; ++i ) {
+        bar->tick();
+        this_thread::sleep_for( std::chrono::milliseconds( 5 ) );
+      }
+      // 让 bar 被析构
+    } );
+
+    std::this_thread::sleep_for( std::chrono::seconds( 1 ) );
+    assert( dbar.is_running() );
+  } // dbar 在这里被析构了，但这是安全的
+
+  for ( auto& td : pool )
+    td.join();
+}
+```
+### 辅助函数
+因为 `DynamicBar` 允许在由它创建的多个 `std::shared_ptr` 存在的情况下被析构，所以 `pgbar` 提供了一个 `make_dynamic` 函数，用以简化不关心 `DynamicBar` 以及它所掌管的所有 `std::shared_ptr` 情况下的对象构造过程。
+
+注意：这个函数返回的对象类型是 `std::shared_ptr`，而 `std::shared_ptr` 指向的对象本身**没有反向判断自身与另一个对象是否归属于同一个 `DynamicBar`**的功能；所以需要额外区分不同函数返回的 `std::shared_ptr`。
+
+合理的策略是每次只使用同一个函数返回的所有 `std::shared_ptr`。
+
+> 混用不同来源的 `std::shared_ptr` 往往会抛出异常 `pgbar::exception::InvalidState`，告知已经存在一个正在运行的进度条实例。
+
+```cpp
+#include "pgbar/pgbar.hpp"
+#include <iostream>
+
+int main()
+{
+  // 获得与参数数量相同的 std::shared_ptr
+  auto bars1 = pgbar::make_dynamic<pgbar::Channel::Stdout>( pgbar::config::Line(), pgbar::config::Block() );
+  auto bars2 = pgbar::make_dynamic<>( pgbar::ProgressBar<>(), pgbar::BlockBar<>() );
+  // 为了存储不同进度条类型，bars1 和 bars2 都是 std::tuple 类型，内含多个 std::shared_ptr 对象
+  // 如果使用的 C++ 标准大于 17，那么可以使用结构化绑定直接获取返回值的内容
+#if __cplusplus >= 201703L
+  auto& [progressbar, blockbar] = bars1;
+#endif
+
+  // 创建一个所有进度条类型都相同的 std::vector<std::shared_ptr</* Bar Type */>>
+  // 并使用参数提供的配置对象初始化内部所有进度条对象
+  auto bar3 = pgbar::make_dynamic<pgbar::Channel::Stdout>( pgbar::config::Spin(), 6 );
+  auto bar4 = pgbar::make_dynamic( pgbar::SpinBar<pgbar::Channel::Stdout>(), 6 );
+  // bar3 和 bar4 内部的所有进度条的配置数据都是相同的
+
+  // 创建一个所有进度条类型都相同的 std::vector<std::shared_ptr</* Bar Type */>>
+  // 提供的参数会按顺序作用在内部的进度条对象上
+  auto bar5 = pgbar::make_dynamic<pgbar::config::Sweep>( 3, pgbar::config::Sweep() );
+  auto bar6 =
+    pgbar::make_dynamic<pgbar::SweepBar<pgbar::Channel::Stdout>>( 3,
+                                                                  pgbar::SweepBar<pgbar::Channel::Stdout>() );
+  // bar5 和 bar6 只有第一个进度条对象被初始化为参数指定的内容，其他两个进度条均被默认初始化
+
+  // 对于最后两个函数，如果传入的数值和给定的对象数量不一致，会抛出异常 pgbar::exception::InvalidArgument
+  try {
+    auto _ = pgbar::make_dynamic<pgbar::config::Sweep>( 2,
+                                                        pgbar::config::Sweep(),
+                                                        pgbar::config::Sweep(),
+                                                        pgbar::config::Sweep() );
+  } catch ( const pgbar::exception::InvalidArgument& e ) {
+    std::cerr << "Oops! " << e.what() << std::endl;
+  }
+}
+```
+### 渲染策略
+`DynamicBar` 的渲染策略与独立进度条相同，但渲染行为略有差异。
+
+因为 `DynamicBar` 会在多行同时渲染多个进度条，因此使用同步渲染策略时，进度条的渲染结构所占的行数将会由 `DynamicBar` 中正在运行的进度条数量决定。
+
+`DynamicBar` 容纳的进度条数量可由 `active_size()` 方法得到，而渲染结构所占行数将会是该方法返回的数量 +1。
+
+示例：
+
+```cpp
+#include "pgbar/pgbar.hpp"
+#include <iostream>
+
+int main()
+{
+  pgbar::DynamicBar<pgbar::Channel::Stderr, pgbar::Policy::Sync> dbar;
+
+  auto bar1 = dbar.insert( pgbar::config::Line( pgbar::option::Tasks( 100 ) ) );
+  auto bar2 = dbar.insert( pgbar::config::Line( pgbar::option::Tasks( 150 ) ) );
+  auto bar3 = dbar.insert( pgbar::config::Line( pgbar::option::Tasks( 200 ) ) );
+
+  for ( size_t i = 0; i < 95; ++i ) {
+    bar1->tick();
+    bar2->tick();
+  }
+
+  std::cerr << "Extra log information";
+  // Notice: At least `active_size() + 1` nextline must be inserted after the output information
+  for ( size_t i = 0; i < dbar.active_size() + 1; ++i )
+    std::cerr << '\n';
+  std::cerr << std::flush;
+
+  bar3->tick();
+  while ( bar1->is_running() )
+    bar1->tick();
+  while ( bar2->is_running() )
+    bar2->tick();
+  while ( bar3->is_running() )
+    bar3->tick();
 }
 ```
 
@@ -2101,6 +2271,11 @@ int main()
 在凋亡状态下，重新尝试启动后台渲染线程将会尝试创建一个新的渲染线程对象；这个过程中，上一次未被处理的异常将会在新的渲染线程创建完毕、且开始工作之前抛出。
 
 在不与渲染线程发生交互的上下文中，异常遵循 C++ 标准机制抛出并传递。
+
+## 编译时长问题
+因为 `pgbar` 内部使用了大量模板元编程技巧实现更复杂的抽象能力，所以在使用一些“更静态”的类型（如 `pgbar::MultiBar`）时会产生相当多的模板计算工作，进而严重降低编译速度。
+
+由于受到下节[设计架构](#设计架构)的约束，`pgbar` 的一些底层类型完全依赖模板元编程在编译期生成它自身，而不是直接编码在代码文件中，所以编译时长长的这一缺点目前没有很好的解决方法。
 
 ## 设计架构
 ### 基础数据结构设计
