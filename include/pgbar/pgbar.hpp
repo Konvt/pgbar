@@ -5826,7 +5826,7 @@ namespace pgbar {
         template<typename... Args,
                  typename = typename std::enable_if<std::is_constructible<Config, Args...>::value>::type>
 # endif
-        BasicBar( Args&&... args ) : BasicBar( Soul( std::forward<Args>( args )... ) )
+        explicit BasicBar( Args&&... args ) : BasicBar( Soul( std::forward<Args>( args )... ) )
         {}
 
         BasicBar( const Self& )          = delete;
@@ -6677,6 +6677,35 @@ namespace pgbar {
   {
     return { std::forward<Configs>( configs )... };
   }
+  /**
+   * Creates a MultiBar with a fixed number of BasicBar instances using mutiple bar objects.
+   * The ctor sequentially initializes the first few instances corresponding to the provided objects;
+   * **any remaining instances with no corresponding configurations will be default-initialized.**
+   */
+  template<typename Config,
+           __details::types::Size Cnt,
+           Channel Outlet = Channel::Stderr,
+           Policy Mode    = Policy::Async,
+           typename... Configs>
+# if __PGBAR_CXX20
+    requires( Cnt > 0 && sizeof...( Configs ) <= Cnt && __details::traits::is_config<Config>::value
+              && ( std::is_same_v<Config, std::decay_t<Configs>> && ... ) )
+  __PGBAR_NODISCARD __PGBAR_INLINE_FN
+    __details::traits::FillTemplate_t<__details::prefabs::BasicBar<Config, Outlet, Mode>, MultiBar, Cnt>
+# else
+  __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
+    __details::traits::AllOf<std::integral_constant<bool, ( Cnt > 0 )>,
+                             std::integral_constant<bool, ( sizeof...( Configs ) <= Cnt )>,
+                             __details::traits::is_config<Config>,
+                             std::is_same<Config, typename std::decay<Configs>::type>&&...>::value,
+    __details::traits::FillTemplate_t<__details::prefabs::BasicBar<Config, Outlet, Mode>, MultiBar, Cnt>>::
+    type
+# endif
+    make_multi( __details::prefabs::BasicBar<Configs, Outlet, Mode>&&... bars )
+      noexcept( sizeof...( Configs ) == Cnt )
+  {
+    return { std::move( bars )... };
+  }
 
   namespace scope {
     /**
@@ -6844,7 +6873,7 @@ namespace pgbar {
           static void halt( Indicator* bar ) noexcept
           {
             static_assert(
-              std::is_base_of<Indicator, Derived>::value,
+              traits::AllOf<std::is_base_of<Indicator, Derived>, traits::is_bar<Derived>>::value,
               "pgbar::__details::assets::DynamicContext::Slot::halt: Derived must inherit from Indicator" );
             __PGBAR_PURE_ASSUME( bar != nullptr );
             static_cast<Derived*>( bar )->halt();
@@ -6853,7 +6882,7 @@ namespace pgbar {
           static void render( Indicator* bar )
           {
             static_assert(
-              std::is_base_of<Indicator, Derived>::value,
+              traits::AllOf<std::is_base_of<Indicator, Derived>, traits::is_bar<Derived>>::value,
               "pgbar::__details::assets::DynamicContext::Slot::render: Derived must inherit from Indicator" );
             __PGBAR_PURE_ASSUME( bar != nullptr );
             render::RenderAction<void>::automate( static_cast<Derived&>( *bar ) );
@@ -7302,7 +7331,7 @@ namespace pgbar {
     std::generate_n( std::back_inserter( products ), count - 1, [&factory, &bar]() {
       return factory.insert( bar.config() );
     } );
-    products.emplace_back( factory.insert( std::move( bar ).config() ) );
+    products.emplace_back( factory.insert( std::move( bar ) ) );
     return products;
   }
   /**
@@ -7411,6 +7440,44 @@ namespace pgbar {
     (void)std::initializer_list<char> {
       ( products.emplace_back( factory.insert( std::forward<Configs>( cfgs ) ) ), '\0' )...
     };
+    std::generate_n( std::back_inserter( products ), count - sizeof...( Configs ) - 1, [&factory]() {
+      return factory.template insert<Config>();
+    } );
+    return products;
+  }
+  /**
+   * Creates a vector of shared_ptr with a fixed number of BasicBar instances using multiple bar objects.
+   * The ctor sequentially initializes the first few instances corresponding to the provided objects;
+   * **An unmatched count and Bars number will cause an exception `pgbar::exception::InvalidArgument`.**
+   */
+  template<typename Config,
+           Channel Outlet = Channel::Stderr,
+           Policy Mode    = Policy::Async,
+           typename... Configs>
+# if __PGBAR_CXX20
+    requires( __details::traits::is_config<Config>::value
+              && ( std::is_same_v<Config, std::decay_t<Configs>> && ... ) )
+  __PGBAR_NODISCARD __PGBAR_INLINE_FN
+    std::vector<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode>>>
+# else
+  __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
+    __details::traits::AllOf<__details::traits::is_config<Config>,
+                             std::is_same<Config, typename std::decay<Configs>::type>...>::value,
+    std::vector<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode>>>>::type
+# endif
+    make_dynamic( __details::types::Size count,
+                  __details::prefabs::BasicBar<Configs, Outlet, Mode>&&... bars ) noexcept( false )
+  {
+    if ( count == 0 )
+      __PGBAR_UNLIKELY return {};
+    else if ( count < sizeof...( Configs ) )
+      __PGBAR_UNLIKELY throw exception::InvalidArgument(
+        "pgbar: the number of arguments mismatch with the provided count" );
+
+    DynamicBar<Outlet, Mode> factory;
+    std::vector<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode>>> products;
+    (void)std::initializer_list<char> { ( products.emplace_back( factory.insert( std::move( bars ) ) ),
+                                          '\0' )... };
     std::generate_n( std::back_inserter( products ), count - sizeof...( Configs ) - 1, [&factory]() {
       return factory.template insert<Config>();
     } );
