@@ -3146,9 +3146,14 @@ namespace pgbar {
       __PGBAR_OPTIONS( Ending, __details::charcodes::U8String, _ending )
     };
 
-    // A wrapper that stores the description text.
-    struct Description final : __PGBAR_BASE( __details::charcodes::U8String ) {
-      __PGBAR_OPTIONS( Description, __details::charcodes::U8String, _desc )
+    // A wrapper that stores the prefix text.
+    struct Prefix final : __PGBAR_BASE( __details::charcodes::U8String ) {
+      __PGBAR_OPTIONS( Prefix, __details::charcodes::U8String, _prefix )
+    };
+
+    // A wrapper that stores the postfix text.
+    struct Postfix final : __PGBAR_BASE( __details::charcodes::U8String ) {
+      __PGBAR_OPTIONS( Postfix, __details::charcodes::U8String, _postfix )
     };
 
     // A wrapper that stores the `true` message text.
@@ -3189,9 +3194,14 @@ namespace pgbar {
      : Base( __details::console::escodes::rgb2ansi( ParamName ) )                              \
    {}
 
-    // A wrapper that stores the description text color.
-    struct DescColor final : __PGBAR_BASE( __details::types::String ) {
-      __PGBAR_OPTIONS( DescColor, __details::types::String, _desc_color )
+    // A wrapper that stores the prefix text color.
+    struct PrefixColor final : __PGBAR_BASE( __details::types::String ) {
+      __PGBAR_OPTIONS( PrefixColor, __details::types::String, _prfx_color )
+    };
+
+    // A wrapper that stores the postfix text color.
+    struct PostfixColor final : __PGBAR_BASE( __details::types::String ) {
+      __PGBAR_OPTIONS( PostfixColor, __details::types::String, _pstfx_color )
     };
 
     // A wrapper that stores the `true` message text color.
@@ -3931,56 +3941,55 @@ namespace pgbar {
       };
 
       template<typename Base, typename Derived>
-      class Description : public Base {
-# define __PGBAR_UNPAKING( OptionName, MemberName, Constexpr )                                             \
-   friend __PGBAR_INLINE_FN Constexpr void unpacker( Description& cfg, option::OptionName&& val ) noexcept \
-   {                                                                                                       \
-     cfg.MemberName = std::move( val.value() );                                                            \
+      class Prefix : public Base {
+# define __PGBAR_UNPAKING( OptionName, MemberName, Constexpr )                                        \
+   friend __PGBAR_INLINE_FN Constexpr void unpacker( Prefix& cfg, option::OptionName&& val ) noexcept \
+   {                                                                                                  \
+     cfg.MemberName = std::move( val.value() );                                                       \
    }
-        __PGBAR_UNPAKING( Description, description_, __PGBAR_CXX20_CNSTXPR )
+        __PGBAR_UNPAKING( Prefix, prefix_, __PGBAR_CXX20_CNSTXPR )
         __PGBAR_UNPAKING( TrueMesg, true_mesg_, __PGBAR_CXX20_CNSTXPR )
         __PGBAR_UNPAKING( FalseMesg, false_mesg_, __PGBAR_CXX20_CNSTXPR )
-        __PGBAR_UNPAKING( DescColor, desc_col_, )
+        __PGBAR_UNPAKING( PrefixColor, prfx_col_, )
         __PGBAR_UNPAKING( TrueColor, true_col_, )
         __PGBAR_UNPAKING( FalseColor, false_col_, )
 # undef __PGBAR_UNPAKING
 
       protected:
-        types::String desc_col_;
+        types::String prfx_col_;
         types::String true_col_;
         types::String false_col_;
 
-        charcodes::U8String description_;
+        charcodes::U8String prefix_;
         charcodes::U8String true_mesg_;
         charcodes::U8String false_mesg_;
 
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& build_description(
-          io::Stringbuf& buffer ) const
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& build_prefix( io::Stringbuf& buffer ) const
         {
-          if ( description_.empty() )
+          if ( prefix_.empty() )
             return buffer;
           buffer << console::escodes::fontreset;
-          return this->build_font( buffer, desc_col_ ) << description_;
+          return this->build_font( buffer, prfx_col_ ) << prefix_;
         }
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& build_description( io::Stringbuf& buffer,
-                                                                                  bool final_mesg ) const
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& build_prefix( io::Stringbuf& buffer,
+                                                                             bool final_mesg ) const
         {
           if ( ( final_mesg ? true_mesg_ : false_mesg_ ).empty() )
-            return build_description( buffer );
+            return build_prefix( buffer );
           buffer << console::escodes::fontreset;
           return this->build_font( buffer, final_mesg ? true_col_ : false_col_ )
               << ( final_mesg ? true_mesg_ : false_mesg_ );
         }
 
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::Size fixed_len_description()
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::Size fixed_len_prefix()
           const noexcept
         {
-          return ( std::max )( ( std::max )( true_mesg_.size(), false_mesg_.size() ), description_.size() );
+          return ( std::max )( ( std::max )( true_mesg_.size(), false_mesg_.size() ), prefix_.size() );
         }
 
       public:
-        __PGBAR_CXX20_CNSTXPR Description() = default;
-        __PGBAR_NONEMPTY_CLASS( Description, __PGBAR_CXX20_CNSTXPR )
+        __PGBAR_CXX20_CNSTXPR Prefix() = default;
+        __PGBAR_NONEMPTY_CLASS( Prefix, __PGBAR_CXX20_CNSTXPR )
 
 # define __PGBAR_METHOD( OptionName, ParamName, Operation )         \
    std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
@@ -3992,7 +4001,7 @@ namespace pgbar {
          *
          * If the passed parameters are not coding in UTF-8.
          */
-        Derived& description( types::String _desc ) & { __PGBAR_METHOD( Description, _desc, std::move ); }
+        Derived& prefix( types::String _prefix ) & { __PGBAR_METHOD( Prefix, _prefix, std::move ); }
         /**
          * @throw exception::InvalidArgument
          *
@@ -4012,18 +4021,18 @@ namespace pgbar {
           __PGBAR_METHOD( FalseMesg, _false_mesg, std::move );
         }
 # if __PGBAR_CXX20
-        Derived& description( std::u8string_view _desc ) & { __PGBAR_METHOD( Description, _desc, ); }
+        Derived& prefix( std::u8string_view _prefix ) & { __PGBAR_METHOD( Prefix, _prefix, ); }
         Derived& true_mesg( std::u8string_view _true_mesg ) & { __PGBAR_METHOD( TrueMesg, _true_mesg, ); }
         Derived& false_mesg( std::u8string_view _false_mesg ) & { __PGBAR_METHOD( FalseMesg, _false_mesg, ); }
 # endif
 
-        Derived& desc_color( types::HexRGB _desc_color ) & { __PGBAR_METHOD( DescColor, _desc_color, ); }
+        Derived& prefix_color( types::HexRGB _prfx_color ) & { __PGBAR_METHOD( PrefixColor, _prfx_color, ); }
         /**
          * @throw exception::InvalidArgument
          *
          * If the passed parameters is not a valid RGB color string.
          */
-        Derived& desc_color( types::ROStr _desc_color ) & { __PGBAR_METHOD( DescColor, _desc_color, ); }
+        Derived& prefix_color( types::ROStr _prfx_color ) & { __PGBAR_METHOD( PrefixColor, _prfx_color, ); }
         Derived& true_color( types::HexRGB _true_color ) & { __PGBAR_METHOD( TrueColor, _true_color, ); }
         /**
          * @throw exception::InvalidArgument
@@ -4041,14 +4050,86 @@ namespace pgbar {
 
 # undef __PGBAR_METHOD
 
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void swap( Description& lhs ) noexcept
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void swap( Prefix& lhs ) noexcept
         {
-          desc_col_.swap( lhs.desc_col_ );
+          prfx_col_.swap( lhs.prfx_col_ );
           true_col_.swap( lhs.true_col_ );
           false_col_.swap( lhs.false_col_ );
-          description_.swap( lhs.description_ );
+          prefix_.swap( lhs.prefix_ );
           true_mesg_.swap( lhs.true_mesg_ );
           false_mesg_.swap( lhs.false_mesg_ );
+          Base::swap( lhs );
+        }
+      };
+
+      template<typename Base, typename Derived>
+      class Postfix : public Base {
+# define __PGBAR_UNPAKING( OptionName, MemberName, Constexpr )                                         \
+   friend __PGBAR_INLINE_FN Constexpr void unpacker( Postfix& cfg, option::OptionName&& val ) noexcept \
+   {                                                                                                   \
+     cfg.MemberName = std::move( val.value() );                                                        \
+   }
+        __PGBAR_UNPAKING( Postfix, postfix_, __PGBAR_CXX20_CNSTXPR )
+        __PGBAR_UNPAKING( PostfixColor, pstfx_col_, )
+# undef __PGBAR_UNPAKING
+
+      protected:
+        types::String pstfx_col_;
+        charcodes::U8String postfix_;
+
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& build_postfix( io::Stringbuf& buffer ) const
+        {
+          if ( postfix_.empty() )
+            return buffer;
+          buffer << console::escodes::fontreset;
+          return this->build_font( buffer, pstfx_col_ ) << postfix_;
+        }
+
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::Size fixed_len_postfix()
+          const noexcept
+        {
+          return postfix_.size();
+        }
+
+      public:
+        __PGBAR_CXX20_CNSTXPR Postfix() = default;
+        __PGBAR_NONEMPTY_CLASS( Postfix, __PGBAR_CXX20_CNSTXPR )
+
+# define __PGBAR_METHOD( OptionName, ParamName, Operation )         \
+   std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
+   unpacker( *this, option::OptionName( Operation( ParamName ) ) ); \
+   return static_cast<Derived&>( *this )
+
+        /**
+         * @throw exception::InvalidArgument
+         *
+         * If the passed parameters are not coding in UTF-8.
+         */
+        Derived& postfix( types::String _postfix ) & { __PGBAR_METHOD( Postfix, _postfix, std::move ); }
+# if __PGBAR_CXX20
+        Derived& postfix( std::u8string_view _postfix ) & { __PGBAR_METHOD( Postfix, _postfix, ); }
+# endif
+
+        Derived& postfix_color( types::HexRGB _pstfx_color ) &
+        {
+          __PGBAR_METHOD( PostfixColor, _pstfx_color, );
+        }
+        /**
+         * @throw exception::InvalidArgument
+         *
+         * If the passed parameters is not a valid RGB color string.
+         */
+        Derived& postfix_color( types::ROStr _pstfx_color ) &
+        {
+          __PGBAR_METHOD( PostfixColor, _pstfx_color, );
+        }
+
+# undef __PGBAR_METHOD
+
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void swap( Postfix& lhs ) noexcept
+        {
+          pstfx_col_.swap( lhs.pstfx_col_ );
+          postfix_.swap( lhs.postfix_ );
           Base::swap( lhs );
         }
       };
@@ -4681,13 +4762,14 @@ namespace pgbar {
 
       __PGBAR_COMPONENT_REGISTER( assets::Core, option::Colored, option::Bolded );
       __PGBAR_COMPONENT_REGISTER( assets::TaskQuantity, option::Tasks );
-      __PGBAR_COMPONENT_REGISTER( assets::Description,
-                                  option::Description,
+      __PGBAR_COMPONENT_REGISTER( assets::Prefix,
+                                  option::Prefix,
                                   option::TrueMesg,
                                   option::FalseMesg,
-                                  option::DescColor,
+                                  option::PrefixColor,
                                   option::TrueColor,
                                   option::FalseColor );
+      __PGBAR_COMPONENT_REGISTER( assets::Postfix, option::Postfix, option::PostfixColor );
       __PGBAR_COMPONENT_REGISTER( assets::Segment,
                                   option::Divider,
                                   option::LeftBorder,
@@ -4736,7 +4818,8 @@ namespace pgbar {
       template<template<typename...> class BarType, typename Derived>
       class BasicConfig
         : public traits::LI_t<BarType,
-                              assets::Description,
+                              assets::Prefix,
+                              assets::Postfix,
                               assets::Segment,
                               assets::PercentMeter,
                               assets::SpeedMeter,
@@ -4751,7 +4834,8 @@ namespace pgbar {
 
         using Self       = BasicConfig;
         using Base       = typename traits::LI_t<BarType,
-                                                 assets::Description,
+                                                 assets::Prefix,
+                                                 assets::Postfix,
                                                  assets::Segment,
                                                  assets::PercentMeter,
                                                  assets::SpeedMeter,
@@ -4759,7 +4843,8 @@ namespace pgbar {
                                                  assets::Timer>::template type<assets::Core<Derived>, Derived>;
         using Constraint = traits::Merge_t<traits::TypeList<option::Style>,
                                            traits::ComponentTraits_t<BarType>,
-                                           traits::ComponentTraits_t<assets::Description>,
+                                           traits::ComponentTraits_t<assets::Prefix>,
+                                           traits::ComponentTraits_t<assets::Postfix>,
                                            traits::ComponentTraits_t<assets::Segment>,
                                            traits::ComponentTraits_t<assets::SpeedMeter>,
                                            traits::ComponentTraits_t<assets::Timer>>;
@@ -4832,7 +4917,8 @@ namespace pgbar {
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN types::Size common_render_size() const noexcept
         {
-          return ( visual_masks_[utils::as_val( Mask::Per )] ? this->fixed_len_percent() : 0 )
+          return this->fixed_len_prefix() + this->fixed_len_postfix()
+               + ( visual_masks_[utils::as_val( Mask::Per )] ? this->fixed_len_percent() : 0 )
                + ( visual_masks_[utils::as_val( Mask::Cnt )] ? this->fixed_len_counter() : 0 )
                + ( visual_masks_[utils::as_val( Mask::Sped )] ? this->fixed_len_speed() : 0 )
                + ( visual_masks_[utils::as_val( Mask::Elpsd )] && visual_masks_[utils::as_val( Mask::Cntdwn )]
@@ -4844,7 +4930,12 @@ namespace pgbar {
                                  : 0 ) ) )
                + ( visual_masks_[utils::as_val( Mask::Elpsd )] && visual_masks_[utils::as_val( Mask::Cntdwn )]
                      ? 3
-                     : 0 );
+                     : 0 )
+               + this->fixed_len_segment( this->visual_masks_.count()
+                                          - ( this->visual_masks_[utils::as_val( Mask::Cntdwn )]
+                                              && this->visual_masks_[utils::as_val( Mask::Elpsd )] )
+                                          + ( !this->true_mesg_.empty() || !this->false_mesg_.empty()
+                                              || !this->prefix_.empty() || !this->postfix_.empty() ) );
         }
 
       public:
@@ -5035,14 +5126,9 @@ namespace pgbar {
     protected:
       __PGBAR_NODISCARD __PGBAR_INLINE_FN __details::types::Size fixed_render_size() const noexcept
       {
-        return this->common_render_size() + this->fixed_len_description()
+        return this->common_render_size()
              + ( this->visual_masks_[__details::utils::as_val( Base::Mask::Ani )] ? this->fixed_len_bar()
-                                                                                  : 0 )
-             + this->fixed_len_segment(
-               this->visual_masks_.count()
-               - ( this->visual_masks_[__details::utils::as_val( Base::Mask::Cntdwn )]
-                   && this->visual_masks_[__details::utils::as_val( Base::Mask::Elpsd )] )
-               + ( !this->true_mesg_.empty() || !this->false_mesg_.empty() || !this->description_.empty() ) );
+                                                                                  : 0 );
       }
 
     public:
@@ -5081,14 +5167,9 @@ namespace pgbar {
     protected:
       __PGBAR_NODISCARD __PGBAR_INLINE_FN __details::types::Size fixed_render_size() const noexcept
       {
-        return this->common_render_size() + this->fixed_len_description()
+        return this->common_render_size()
              + ( this->visual_masks_[__details::utils::as_val( Base::Mask::Ani )] ? this->fixed_len_bar()
-                                                                                  : 0 )
-             + this->fixed_len_segment(
-               this->visual_masks_.count()
-               - ( this->visual_masks_[__details::utils::as_val( Base::Mask::Cntdwn )]
-                   && this->visual_masks_[__details::utils::as_val( Base::Mask::Elpsd )] )
-               + ( !this->true_mesg_.empty() || !this->false_mesg_.empty() || !this->description_.empty() ) );
+                                                                                  : 0 );
       }
 
     public:
@@ -5131,14 +5212,10 @@ namespace pgbar {
       {
         return this->common_render_size()
              + ( this->visual_masks_[__details::utils::as_val( Base::Mask::Ani )]
-                   ? this->fixed_len_animation() + this->fixed_len_description()
-                       + ( !this->true_mesg_.empty() || !this->false_mesg_.empty()
-                           || !this->description_.empty() )
-                   : 0 )
-             + this->fixed_len_segment(
-               this->visual_masks_.count()
-               - ( this->visual_masks_[__details::utils::as_val( Base::Mask::Cntdwn )]
-                   && this->visual_masks_[__details::utils::as_val( Base::Mask::Elpsd )] ) );
+                   ? this->fixed_len_animation()
+                       + ( ( this->true_mesg_.empty() || this->false_mesg_.empty() )
+                           && !this->prefix_.empty() )
+                   : 0 );
       }
 
     public:
@@ -5187,14 +5264,9 @@ namespace pgbar {
     protected:
       __PGBAR_NODISCARD __PGBAR_INLINE_FN __details::types::Size fixed_render_size() const noexcept
       {
-        return this->common_render_size() + this->fixed_len_description()
+        return this->common_render_size()
              + ( this->visual_masks_[__details::utils::as_val( Base::Mask::Ani )] ? this->fixed_len_bar()
-                                                                                  : 0 )
-             + this->fixed_len_segment(
-               this->visual_masks_.count()
-               - ( this->visual_masks_[__details::utils::as_val( Base::Mask::Cntdwn )]
-                   && this->visual_masks_[__details::utils::as_val( Base::Mask::Elpsd )] )
-               + ( !this->true_mesg_.empty() || !this->false_mesg_.empty() || !this->description_.empty() ) );
+                                                                                  : 0 );
       }
 
     public:
@@ -5322,11 +5394,11 @@ namespace pgbar {
           const std::chrono::steady_clock::time_point& zero_point,
           Args&&... args ) const
         {
-          if ( !this->description_.empty() || this->visual_masks_.any() )
+          if ( !this->prefix_.empty() || !this->postfix_.empty() || this->visual_masks_.any() )
             this->build_lborder( buffer );
 
-          this->build_description( buffer );
-          if ( !this->description_.empty() && this->visual_masks_.any() )
+          this->build_prefix( buffer );
+          if ( ( !this->prefix_.empty() && this->visual_masks_.any() ) || !this->postfix_.empty() )
             this->build_divider( buffer );
           if ( this->visual_masks_[utils::as_val( Self::Mask::Per )] ) {
             this->build_font( buffer, this->info_col_ );
@@ -5345,7 +5417,10 @@ namespace pgbar {
           }
           this->common_build( buffer, num_task_done, num_all_tasks, zero_point );
 
-          if ( !this->description_.empty() || this->visual_masks_.any() )
+          if ( !this->prefix_.empty() || this->visual_masks_.any() )
+            this->build_divider( buffer );
+          this->build_postfix( buffer );
+          if ( !this->prefix_.empty() || !this->postfix_.empty() || this->visual_masks_.any() )
             this->build_rborder( buffer );
           return buffer << console::escodes::fontreset;
         }
@@ -5359,14 +5434,13 @@ namespace pgbar {
           const std::chrono::steady_clock::time_point& zero_point,
           Args&&... args ) const
         {
-          if ( ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty()
-                 || !this->description_.empty() )
+          if ( ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty()
+                 || !this->postfix_.empty() )
                || this->visual_masks_.any() )
             this->build_lborder( buffer );
 
-          this->build_description( buffer, final_mesg );
-          if ( ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty()
-                 || !this->description_.empty() )
+          this->build_prefix( buffer, final_mesg );
+          if ( ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty() )
                && this->visual_masks_.any() )
             this->build_divider( buffer );
           if ( this->visual_masks_[utils::as_val( Self::Mask::Per )] ) {
@@ -5386,7 +5460,13 @@ namespace pgbar {
           }
           this->common_build( buffer, num_task_done, num_all_tasks, zero_point );
 
-          if ( !this->description_.empty() || this->visual_masks_.any() )
+          if ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty()
+               || this->visual_masks_.any() )
+            this->build_divider( buffer );
+          this->build_postfix( buffer );
+          if ( ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty()
+                 || !this->postfix_.empty() )
+               || this->visual_masks_.any() )
             this->build_rborder( buffer );
           return buffer << console::escodes::fontreset;
         }
@@ -5575,12 +5655,12 @@ namespace pgbar {
           const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
 
           concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          if ( this->visual_masks_.any() )
+          if ( !this->prefix_.empty() || !this->postfix_.empty() || this->visual_masks_.any() )
             this->build_lborder( buffer );
 
+          this->build_prefix( buffer );
           if ( this->visual_masks_[utils::as_val( Self::Mask::Ani )] ) {
-            this->build_description( buffer );
-            if ( !this->description_.empty() )
+            if ( !this->prefix_.empty() )
               buffer << constants::blank;
             this->build_spinner( buffer, num_frame_cnt );
             auto masks = this->visual_masks_;
@@ -5598,7 +5678,10 @@ namespace pgbar {
           }
           this->common_build( buffer, num_task_done, num_all_tasks, zero_point );
 
-          if ( this->visual_masks_.any() )
+          if ( !this->prefix_.empty() || this->visual_masks_.any() )
+            this->build_divider( buffer );
+          this->build_postfix( buffer );
+          if ( !this->prefix_.empty() || !this->postfix_.empty() || this->visual_masks_.any() )
             this->build_rborder( buffer );
           return buffer << console::escodes::fontreset;
         }
@@ -5614,13 +5697,15 @@ namespace pgbar {
           const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
 
           concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          if ( this->visual_masks_.any() )
+          if ( ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty()
+                 || !this->postfix_.empty() )
+               || this->visual_masks_.any() )
             this->build_lborder( buffer );
 
+          this->build_prefix( buffer, final_mesg );
           if ( this->visual_masks_[utils::as_val( Self::Mask::Ani )] ) {
-            this->build_description( buffer, final_mesg );
             if ( ( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() ) {
-              if ( !this->description_.empty() )
+              if ( !this->prefix_.empty() )
                 buffer << constants::blank;
               this->build_spinner( buffer, num_frame_cnt );
             }
@@ -5639,7 +5724,13 @@ namespace pgbar {
           }
           this->common_build( buffer, num_task_done, num_all_tasks, zero_point );
 
-          if ( this->visual_masks_.any() )
+          if ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty()
+               || this->visual_masks_.any() )
+            this->build_divider( buffer );
+          this->build_postfix( buffer );
+          if ( ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty()
+                 || !this->postfix_.empty() )
+               || this->visual_masks_.any() )
             this->build_rborder( buffer );
           return buffer << console::escodes::fontreset;
         }
@@ -5925,7 +6016,7 @@ namespace pgbar {
    * The simplest progress bar, which is what you think it is.
    *
    * It's structure is shown below:
-   * {LeftBorder}{Description}{Percent}{Starting}{Filler}{Lead}{Remains}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
+   * {LeftBorder}{Prefix}{Percent}{Starting}{Filler}{Lead}{Remains}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{Postfix}{RightBorder}
    */
   template<Channel Outlet = Channel::Stderr, Policy Mode = Policy::Async>
   using ProgressBar = __details::prefabs::BasicBar<config::Line, Outlet, Mode>;
@@ -5933,7 +6024,7 @@ namespace pgbar {
    * A progress bar with a smoother bar, requires an Unicode-supported terminal.
    *
    * It's structure is shown below:
-   * {LeftBorder}{Description}{Percent}{Starting}{BlockBar}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
+   * {LeftBorder}{Prefix}{Percent}{Starting}{BlockBar}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{Postfix}{RightBorder}
    */
   template<Channel Outlet = Channel::Stderr, Policy Mode = Policy::Async>
   using BlockBar = __details::prefabs::BasicBar<config::Block, Outlet, Mode>;
@@ -5941,7 +6032,7 @@ namespace pgbar {
    * A progress bar without bar indicator, replaced by a fixed animation component.
    *
    * It's structure is shown below:
-   * {LeftBorder}{Lead}{Description}{Percent}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
+   * {LeftBorder}{Lead}{Prefix}{Percent}{Counter}{Speed}{Elapsed}{Countdown}{Postfix}{RightBorder}
    */
   template<Channel Outlet = Channel::Stderr, Policy Mode = Policy::Async>
   using SpinBar = __details::prefabs::BasicBar<config::Spin, Outlet, Mode>;
@@ -5949,7 +6040,7 @@ namespace pgbar {
    * The indeterminate progress bar.
    *
    * It's structure is shown below:
-   * {LeftBorder}{Description}{Percent}{Starting}{Filler}{Lead}{Filler}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
+   * {LeftBorder}{Prefix}{Percent}{Starting}{Filler}{Lead}{Filler}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{Postfix}{RightBorder}
    */
   template<Channel Outlet = Channel::Stderr, Policy Mode = Policy::Async>
   using SweepBar = __details::prefabs::BasicBar<config::Sweep, Outlet, Mode>;

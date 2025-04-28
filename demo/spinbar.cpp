@@ -4,7 +4,7 @@ int main()
 {
   pgbar::SpinBar<> spibar;
   spibar.config()
-    .description( "Working" )
+    .prefix( "Working" )
     .lead( { ".", "..", "..." } )
     .tasks( 2147483647 )
     .disable()

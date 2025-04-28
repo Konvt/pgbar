@@ -10,11 +10,11 @@ int main()
 
   auto bar1 = dbar.insert<pgbar::ProgressBar<>>();
   auto bar2 =
-    dbar.insert( pgbar::config::Line( pgbar::option::Description( "No.2" ), pgbar::option::Tasks( 8000 ) ) );
+    dbar.insert( pgbar::config::Line( pgbar::option::Prefix( "No.2" ), pgbar::option::Tasks( 8000 ) ) );
 
   vector<thread> pool;
   pool.emplace_back( [bar1]() {
-    bar1->config().description( "No.1" ).tasks( 1919 );
+    bar1->config().prefix( "No.1" ).tasks( 1919 );
     this_thread::sleep_for( chrono::seconds( 3 ) );
     do {
       bar1->tick();
@@ -30,7 +30,7 @@ int main()
   } );
   pool.emplace_back( [&dbar]() {
     auto bar =
-      dbar.insert<pgbar::config::Line>( pgbar::option::Description( "No.3" ), pgbar::option::Tasks( 1000 ) );
+      dbar.insert<pgbar::config::Line>( pgbar::option::Prefix( "No.3" ), pgbar::option::Tasks( 1000 ) );
     for ( int i = 0; i < 850; ++i ) {
       bar->tick();
       this_thread::sleep_for( chrono::milliseconds( 5 ) );
