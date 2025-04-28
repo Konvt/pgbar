@@ -189,10 +189,10 @@ int main()
 `ProgressBar` consists of the following elements:
 
 ```text
-{LeftBorder}{Description}{Percent}{Starting}{Filler}{Lead}{Remains}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
+{LeftBorder}{Prefix}{Percent}{Starting}{Filler}{Lead}{Remains}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
 ```
 
-The customizable sections are: `LeftBorder`, `Description`, `Starting`, `Filler`, `Lead`, `Remains`, `Ending`, `Speed`, and `RightBorder`, all of which have the same method as the name.
+The customizable sections are: `LeftBorder`, `Prefix`, `Starting`, `Filler`, `Lead`, `Remains`, `Ending`, `Speed`, `Postfix` and `RightBorder`, all of which have the same method as the name.
 
 These elements can be found directly in `pgbar::option` with the corresponding wrapper type:
 
@@ -204,9 +204,10 @@ pgbar::option::Bolded;  // Switch font bold effect
 pgbar::option::LeftBorder;  // Modify the starting border to the left of the entire progress bar
 pgbar::option::RightBorder; // Modify the end border to the right of the entire progress bar
 
-pgbar::option::Description; // Modify the task description
-pgbar::option::TrueMesg;    // Modify the element used to replace the Description section when the progress bar ends
-pgbar::option::FalseMesg;   // Modify the element used to replace the Description section when the progress bar ends
+pgbar::option::Prefix;      // Modify the pre-description information
+pgbar::option::Postfix;     // Modify the post-description information
+pgbar::option::TrueMesg;    // Modify the element used to replace the Prefix section when the progress bar ends
+pgbar::option::FalseMesg;   // Modify the element used to replace the Prefix section when the progress bar ends
 
 pgbar::option::Starting;  // Modify the elements left of the progress bar and right of Percent
 pgbar::option::Ending;    // Modify the elements right of the progress bar and left of the Counter
@@ -222,7 +223,8 @@ pgbar::option::Magnitude; // Adjust the carry ratio in the Speed section
 pgbar::option::Tasks;   // Modify the task number
 pgbar::option::Divider; // Modifies the divider between two elements
 
-pgbar::option::DescColor;    // Modify the color of Description
+pgbar::option::PrefixColor;  // Modify the color of Prefix
+pgbar::option::PostfixColor; // Modify the color of Postfix
 pgbar::option::TrueColor;    // Modify the color of TrueMesg
 pgbar::option::FalseColor;   // Modify the color of FalseMesg
 pgbar::option::StartColor;   // Modify the color of Starting
@@ -252,7 +254,7 @@ bar.config().enable().speed().percent().elapsed().countdown();
 bar.config().enable().entire();
 bar.config().disable().animation().counter();
 // Animation is the progress indicator itself.
-// And not all elements can be turned off, such as Description.
+// And not all elements can be turned off, such as Prefix.
 ```
 
 The above elements all have methods with the same name in `Line`, and calling these methods and passing parameters to them can also modify the data information.
@@ -294,7 +296,7 @@ int main()
     .info_color( "#39C5BB" );
 
   auto config3 = config2; // It can also be adjusted using variable template parameters after construction
-  config3.set( pgbar::option::Description( "Do something" ), pgbar::option::DescColor( 0xFFE211 ) );
+  config3.set( pgbar::option::Prefix( "Do something" ), pgbar::option::PrefixColor( 0xFFE211 ) );
 }
 ```
 
@@ -604,10 +606,10 @@ int main()
 `BlockBar` consists of the following elements:
 
 ```text
-{LeftBorder}{Description}{Percent}{Starting}{BlockBar}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
+{LeftBorder}{Prefix}{Percent}{Starting}{BlockBar}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
 ```
 
-The customizable sections are: `LeftBorder`、`Description`、`Starting`、`Ending`、`Speed` and `RightBorder`, all of which have the same method as the name.
+The customizable sections are: `LeftBorder`, `Prefix`, `Starting`, `Ending`, `Speed`, `Postfix` and `RightBorder`, all of which have the same method as the name.
 
 These elements can be found directly in `pgbar::option` with the corresponding wrapper type:
 
@@ -619,9 +621,10 @@ pgbar::option::Bolded;  // Switch font bold effect
 pgbar::option::LeftBorder;  // Modify the starting border to the left of the entire progress bar
 pgbar::option::RightBorder; // Modify the end border to the right of the entire progress bar
 
-pgbar::option::Description; // Modify the task description
-pgbar::option::TrueMesg;    // Modify the element used to replace the Description section when the progress bar ends
-pgbar::option::FalseMesg;   // Modify the element used to replace the Description section when the progress bar ends
+pgbar::option::Prefix;      // Modify the pre-description information
+pgbar::option::Postfix;     // Modify the post-description information
+pgbar::option::TrueMesg;    // Modify the element used to replace the Prefix section when the progress bar ends
+pgbar::option::FalseMesg;   // Modify the element used to replace the Prefix section when the progress bar ends
 
 pgbar::option::Starting;  // Modify the elements left of the progress bar and right of Percent
 pgbar::option::Ending;    // Modify the elements right of the progress bar and left of the Counter
@@ -633,7 +636,8 @@ pgbar::option::Magnitude; // Adjust the carry ratio in the Speed section
 pgbar::option::Tasks;   // Modify the task number
 pgbar::option::Divider; // Modifies the divider between two elements
 
-pgbar::option::DescColor;    // Modify the color of Description
+pgbar::option::PrefixColor;  // Modify the color of Prefix
+pgbar::option::PostfixColor; // Modify the color of Postfix
 pgbar::option::TrueColor;    // Modify the color of TrueMesg
 pgbar::option::FalseColor;   // Modify the color of FalseMesg
 pgbar::option::StartColor;   // Modify the color of Starting
@@ -660,7 +664,7 @@ bar.config().enable().speed().percent().elapsed().countdown();
 bar.config().enable().entire();
 bar.config().disable().animation().counter();
 // Animation is the BlockBar itself.
-// And not all elements can be turned off, such as Description.
+// And not all elements can be turned off, such as Prefix.
 ```
 
 The above elements all have methods with the same name in `Block`, and calling these methods and passing parameters to them can also modify the data information.
@@ -702,7 +706,7 @@ int main()
     .info_color( "#39C5BB" );
 
   auto config3 = config2; // It can also be adjusted using variable template parameters after construction
-  config3.set( pgbar::option::Description( "Do something" ), pgbar::option::DescColor( 0xFFE211 ) );
+  config3.set( pgbar::option::Prefix( "Do something" ), pgbar::option::PrefixColor( 0xFFE211 ) );
 }
 ```
 
@@ -1010,10 +1014,10 @@ int main()
 `SweepBar` consists of the following elements:
 
 ```text
-{LeftBorder}{Description}{Percent}{Starting}{Filler}{Lead}{Filler}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
+{LeftBorder}{Prefix}{Percent}{Starting}{Filler}{Lead}{Filler}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
 ```
 
-The customizable sections are: `LeftBorder`、`Description`、`Starting`、`Filler`、`Lead`、`Ending`、`Speed` and `RightBorder`, all of which have the same method as the name.
+The customizable sections are: `LeftBorder`, `Prefix`, `Starting`, `Filler`, `Lead`, `Ending`, `Speed`, `Postfix` and `RightBorder`, all of which have the same method as the name.
 
 These elements can be found directly in `pgbar::option` with the corresponding wrapper type:
 
@@ -1025,9 +1029,10 @@ pgbar::option::Bolded;  // Switch font bold effect
 pgbar::option::LeftBorder;  // Modify the starting border to the left of the entire progress bar
 pgbar::option::RightBorder; // Modify the end border to the right of the entire progress bar
 
-pgbar::option::Description; // Modify the task description
-pgbar::option::TrueMesg;    // Modify the element used to replace the Description section when the progress bar ends
-pgbar::option::FalseMesg;   // Modify the element used to replace the Description section when the progress bar ends
+pgbar::option::Prefix;      // Modify the pre-description information
+pgbar::option::Postfix;     // Modify the post-description information
+pgbar::option::TrueMesg;    // Modify the element used to replace the Prefix section when the progress bar ends
+pgbar::option::FalseMesg;   // Modify the element used to replace the Prefix section when the progress bar ends
 
 pgbar::option::Starting;  // Modify the elements left of the progress bar and right of Percent
 pgbar::option::Ending;    // Modify the elements right of the progress bar and left of the Counter
@@ -1042,7 +1047,8 @@ pgbar::option::Magnitude; // Adjust the carry ratio in the Speed section
 pgbar::option::Tasks;   // Modify the task number
 pgbar::option::Divider; // Modifies the divider between two elements
 
-pgbar::option::DescColor;    // Modify the color of Description
+pgbar::option::PrefixColor;  // Modify the color of Prefix
+pgbar::option::PostfixColor; // Modify the color of Postfix
 pgbar::option::TrueColor;    // Modify the color of TrueMesg
 pgbar::option::FalseColor;   // Modify the color of FalseMesg
 pgbar::option::StartColor;   // Modify the color of Starting
@@ -1071,7 +1077,7 @@ bar.config().enable().speed().percent().elapsed().countdown();
 bar.config().enable().entire();
 bar.config().disable().animation().counter();
 // Animation refers to the progress bar that is scanned back and forth
-// And not all elements can be turned off, such as Description.
+// And not all elements can be turned off, such as Prefix.
 ```
 
 The above elements all have methods with the same name in `ScanBar`, and calling these methods and passing parameters to them can also modify the data information.
@@ -1111,7 +1117,7 @@ int main()
     .info_color( "#39C5BB" );
 
   auto config3 = config2; // It can also be adjusted using variable template parameters after construction
-  config3.set( pgbar::option::Description( "Do something" ), pgbar::option::DescColor( 0xFFE211 ) );
+  config3.set( pgbar::option::Prefix( "Do something" ), pgbar::option::PrefixColor( 0xFFE211 ) );
 }
 ```
 
@@ -1420,10 +1426,10 @@ int main()
 `SpinBar` consists of the following elements:
 
 ```text
-{LeftBorder}{Description}{Lead}{Percent}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
+{LeftBorder}{Prefix}{Lead}{Percent}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
 ```
 
-The customizable sections are: `LeftBorder`、`Description`、`Lead`、`Speed` and `RightBorder`, all of which have the same method as the name.
+The customizable sections are: `LeftBorder`, `Prefix`, `Lead`, `Speed`, `Postfix` and `RightBorder`, all of which have the same method as the name.
 
 These elements can be found directly in `pgbar::option` with the corresponding wrapper type:
 
@@ -1435,9 +1441,10 @@ pgbar::option::Bolded;  // Switch font bold effect
 pgbar::option::LeftBorder;  // Modify the starting border to the left of the entire progress bar
 pgbar::option::RightBorder; // Modify the end border to the right of the entire progress bar
 
-pgbar::option::Description; // Modify the task description
-pgbar::option::TrueMesg;    // Modify the element used to replace the Description section when the progress bar ends
-pgbar::option::FalseMesg;   // Modify the element used to replace the Description section when the progress bar ends
+pgbar::option::Prefix;      // Modify the pre-description information
+pgbar::option::Postfix;     // Modify the post-description information
+pgbar::option::TrueMesg;    // Modify the element used to replace the Prefix section when the progress bar ends
+pgbar::option::FalseMesg;   // Modify the element used to replace the Prefix section when the progress bar ends
 
 pgbar::option::Lead;      // Modify the frames of the animation section
 pgbar::option::Shift;     // Adjust the animation speed of the animation section (Lead)
@@ -1448,7 +1455,8 @@ pgbar::option::Magnitude; // Adjust the carry ratio in the Speed section
 pgbar::option::Tasks;   // Modify the task number
 pgbar::option::Divider; // Modifies the divider between two elements
 
-pgbar::option::DescColor;    // Modify the color of Description
+pgbar::option::PrefixColor;  // Modify the color of Prefix
+pgbar::option::PostfixColor; // Modify the color of Postfix
 pgbar::option::TrueColor;    // Modify the color of TrueMesg
 pgbar::option::FalseColor;   // Modify the color of FalseMesg
 pgbar::option::LeadColor;    // Modify the color of Lead
@@ -1474,7 +1482,7 @@ bar.config().enable().speed().percent().elapsed().countdown();
 bar.config().enable().entire();
 bar.config().disable().animation().counter();
 // Animation refers to the animation component Lead on the left.
-// And not all elements can be turned off, such as Description.
+// And not all elements can be turned off, such as Prefix.
 ```
 
 The above elements all have methods with the same name in `Spin`, and calling these methods and passing parameters to them can also modify the data information.
@@ -1500,7 +1508,7 @@ int main()
     .info_color( "#39C5BB" );
 
   auto config3 = config2; // It can also be adjusted using variable template parameters after construction
-  config3.set( pgbar::option::Description( "Do something" ), pgbar::option::DescColor( 0xFFE211 ) );
+  config3.set( pgbar::option::Prefix( "Do something" ), pgbar::option::PrefixColor( 0xFFE211 ) );
 }
 ```
 
@@ -1873,10 +1881,10 @@ int main()
     auto bar1 = dbar.insert<pgbar::ProgressBar<>>();
     // bar1, bar2, bar3 are all objects of type std::shared_ptr</* ProgressBar */>.
     auto bar2 = dbar.insert(
-      pgbar::config::Line( pgbar::option::Description( "No.2" ), pgbar::option::Tasks( 8000 ) ) );
+      pgbar::config::Line( pgbar::option::Prefix( "No.2" ), pgbar::option::Tasks( 8000 ) ) );
 
     pool.emplace_back( [bar1]() {
-      bar1->config().description( "No.1" ).tasks( 1919 );
+      bar1->config().prefix( "No.1" ).tasks( 1919 );
       this_thread::sleep_for( std::chrono::seconds( 5 ) );
       do {
         bar1->tick();
@@ -1891,7 +1899,7 @@ int main()
       } while ( bar2->is_running() );
     } );
     pool.emplace_back( [&dbar]() {
-      auto bar = dbar.insert<pgbar::config::Line>( pgbar::option::Description( "No.3" ),
+      auto bar = dbar.insert<pgbar::config::Line>( pgbar::option::Prefix( "No.3" ),
                                                    pgbar::option::Tasks( 1000 ) );
       for ( int i = 0; i < 850; ++i ) {
         bar->tick();
@@ -2196,7 +2204,7 @@ int main()
     -0.01,
     []( int ) { this_thread::sleep_for( 100ms ); },
     pgbar::option::InfoColor( "#FFDD88" ),
-    pgbar::option::Description( "Iterating..." ) );
+    pgbar::option::Prefix( "Iterating..." ) );
 
   // Iteration range: [100, 0), step: 1
   pgbar::iterate<pgbar::ProgressBar<>>(
@@ -2242,7 +2250,7 @@ The lifecycle of each progress bar object is subject to the C++ standard object 
 
 The life cycle issue is mentioned here because the progress bar, while being destructed, immediately terminates regardless of the current iteration progress.
 
-This forced termination is different from calling the `reset()` method to stop: the `reset()` method allows the progress bar to stop, depending on the passed parameter, with a pre-defined `TrueMesg` or `FalseMesg` to replace the contents of the element `Description` at the location; Destruction-induced terminations do not perform this process, but immediately close the global renderer associated with it and clean up the resources.
+This forced termination is different from calling the `reset()` method to stop: the `reset()` method allows the progress bar to stop, depending on the passed parameter, with a pre-defined `TrueMesg` or `FalseMesg` to replace the contents of the element `Prefix` at the location; Destruction-induced terminations do not perform this process, but immediately close the global renderer associated with it and clean up the resources.
 
 A progress bar that is stopped by destructing does not append any more information to the terminal, so this can cause some confusion in terminal rendering.
 

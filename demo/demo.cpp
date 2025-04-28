@@ -11,13 +11,13 @@ int main()
   system( "chcp 65001" );
 #endif
 
-  auto bar = pgbar::make_multi( pgbar::config::Line( pgbar::option::Description( "Eating something...." ),
+  auto bar = pgbar::make_multi( pgbar::config::Line( pgbar::option::Prefix( "Eating something...." ),
                                                      pgbar::option::TrueMesg( "✔ Mission Accomplished" ),
                                                      pgbar::option::TrueColor( pgbar::color::Green ),
                                                      pgbar::option::FalseMesg( "❌ Mission failed" ),
                                                      pgbar::option::FalseColor( pgbar::color::Red ),
                                                      pgbar::option::InfoColor( "#7D7" ) ),
-                                pgbar::config::Line( pgbar::option::Description( "Picking something..." ),
+                                pgbar::config::Line( pgbar::option::Prefix( "Picking something..." ),
                                                      pgbar::option::TrueMesg( "✔ Mission Complete" ),
                                                      pgbar::option::TrueColor( pgbar::color::Green ),
                                                      pgbar::option::FalseMesg( "❌ Mission failed" ),

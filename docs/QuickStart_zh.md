@@ -189,10 +189,10 @@ int main()
 `ProgressBar` 由以下几种元素组成：
 
 ```text
-{LeftBorder}{Description}{Percent}{Starting}{Filler}{Lead}{Remains}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
+{LeftBorder}{Prefix}{Percent}{Starting}{Filler}{Lead}{Remains}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
 ```
 
-其中可以自定义的部分有：`LeftBorder`、`Description`、`Starting`、`Filler`、`Lead`、`Remains`、`Ending`、`Speed` 和 `RightBorder`，它们的功能与名字相同。
+其中可以自定义的部分有：`LeftBorder`、`Prefix`、`Starting`、`Filler`、`Lead`、`Remains`、`Ending`、`Speed`、`Postfix` 和 `RightBorder`，它们的功能与名字相同。
 
 这些元素可以直接在 `pgbar::option` 中找到对应的包装类型：
 
@@ -204,9 +204,10 @@ pgbar::option::Bolded;  // 开关字体加粗效果
 pgbar::option::LeftBorder;  // 修改整个进度条左侧的起始边框
 pgbar::option::RightBorder; // 修改整个进度条右侧的终止边框
 
-pgbar::option::Description; // 修改任务描述信息
-pgbar::option::TrueMesg;    // 修改进度条结束时，用于替换 Description 部分的元素
-pgbar::option::FalseMesg;   // 修改进度条结束时，用于替换 Description 部分的元素
+pgbar::option::Prefix;      // 修改前置描述信息
+pgbar::option::Postfix;     // 修改尾随描述信息
+pgbar::option::TrueMesg;    // 修改进度条结束时，用于替换 Prefix 部分的元素
+pgbar::option::FalseMesg;   // 修改进度条结束时，用于替换 Prefix 部分的元素
 
 pgbar::option::Starting;  // 修改进度条块左侧、Percent 右侧的元素
 pgbar::option::Ending;    // 修改进度条块右侧、Counter 左侧的元素
@@ -222,7 +223,8 @@ pgbar::option::Magnitude; // 调整 Speed 部分的进位倍率
 pgbar::option::Tasks;   // 调整任务数量
 pgbar::option::Divider; // 修改位于两个元素之间的间隔符
 
-pgbar::option::DescColor;    // 修改 Description 的颜色
+pgbar::option::PrefixColor;  // 修改 Prefix 的颜色
+pgbar::option::PostfixColor; // 修改 Postfix 的颜色
 pgbar::option::TrueColor;    // 修改 TrueMesg 的颜色
 pgbar::option::FalseColor;   // 修改 FalseMesg 的颜色
 pgbar::option::StartColor;   // 修改 Starting 的颜色
@@ -252,7 +254,7 @@ bar.config().enable().speed().percent().elapsed().countdown();
 bar.config().enable().entire();
 bar.config().disable().animation().counter();
 // Animation 就是进度指示器本身
-// 并且不是所有元素都可以被关闭，例如 Description 就不行
+// 并且不是所有元素都可以被关闭，例如 Prefix 就不行
 ```
 
 以上元素在 `Line` 都有同名方法，调用这些方法并向其中传递参数同样能做到修改数据信息。
@@ -294,7 +296,7 @@ int main()
     .info_color( "#39C5BB" );
 
   auto config3 = config2; // 构造完毕后也能使用可变模板参数调整
-  config3.set( pgbar::option::Description( "Do something" ), pgbar::option::DescColor( 0xFFE211 ) );
+  config3.set( pgbar::option::Prefix( "Do something" ), pgbar::option::PrefixColor( 0xFFE211 ) );
 }
 ```
 
@@ -604,10 +606,10 @@ int main()
 `BlockBar` 由以下几种元素组成：
 
 ```text
-{LeftBorder}{Description}{Percent}{Starting}{BlockBar}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
+{LeftBorder}{Prefix}{Percent}{Starting}{BlockBar}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
 ```
 
-其中可以自定义的部分有：`LeftBorder`、`Description`、`Starting`、`Ending`、`Speed` 和 `RightBorder`，它们的功能与名字相同。
+其中可以自定义的部分有：`LeftBorder`、`Prefix`、`Starting`、`Ending`、`Speed`、`Postfix` 和 `RightBorder`，它们的功能与名字相同。
 
 这些元素可以直接在 `pgbar::option` 中找到对应的包装类型：
 
@@ -619,9 +621,10 @@ pgbar::option::Bolded;  // 开关字体加粗效果
 pgbar::option::LeftBorder;  // 修改整个进度条左侧的起始边框
 pgbar::option::RightBorder; // 修改整个进度条右侧的终止边框
 
-pgbar::option::Description; // 修改任务描述信息
-pgbar::option::TrueMesg;    // 修改进度条结束时，用于替换 Description 部分的元素
-pgbar::option::FalseMesg;   // 修改进度条结束时，用于替换 Description 部分的元素
+pgbar::option::Prefix;      // 修改前置描述信息
+pgbar::option::Postfix;     // 修改尾随描述信息
+pgbar::option::TrueMesg;    // 修改进度条结束时，用于替换 Prefix 部分的元素
+pgbar::option::FalseMesg;   // 修改进度条结束时，用于替换 Prefix 部分的元素
 
 pgbar::option::Starting;  // 修改进度条块左侧、Percent 右侧的元素
 pgbar::option::Ending;    // 修改进度条块右侧、Counter 左侧的元素
@@ -633,7 +636,8 @@ pgbar::option::Magnitude; // 调整 Speed 部分的进位倍率
 pgbar::option::Tasks;   // 调整任务数量
 pgbar::option::Divider; // 修改位于两个元素之间的间隔符
 
-pgbar::option::DescColor;    // 修改 Description 的颜色
+pgbar::option::PrefixColor;  // 修改 Prefix 的颜色
+pgbar::option::PostfixColor; // 修改 Postfix 的颜色
 pgbar::option::TrueColor;    // 修改 TrueMesg 的颜色
 pgbar::option::FalseColor;   // 修改 FalseMesg 的颜色
 pgbar::option::StartColor;   // 修改 Starting 的颜色
@@ -660,7 +664,7 @@ bar.config().enable().speed().percent().elapsed().countdown();
 bar.config().enable().entire();
 bar.config().disable().animation().counter();
 // Animation 就是指 BlockBar
-// 并且不是所有元素都可以被关闭，例如 Description 就不行
+// 并且不是所有元素都可以被关闭，例如 Prefix 就不行
 ```
 
 以上元素在 `Block` 都有同名方法，调用这些方法并向其中传递参数同样能做到修改数据信息。
@@ -702,7 +706,7 @@ int main()
     .info_color( "#39C5BB" );
 
   auto config3 = config2; // 构造完毕后也能使用可变模板参数调整
-  config3.set( pgbar::option::Description( "Do something" ), pgbar::option::DescColor( 0xFFE211 ) );
+  config3.set( pgbar::option::Prefix( "Do something" ), pgbar::option::PrefixColor( 0xFFE211 ) );
 }
 ```
 
@@ -1010,10 +1014,10 @@ int main()
 `SweepBar` 由以下几种元素组成：
 
 ```text
-{LeftBorder}{Description}{Percent}{Starting}{Filler}{Lead}{Filler}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
+{LeftBorder}{Prefix}{Percent}{Starting}{Filler}{Lead}{Filler}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
 ```
 
-其中可以自定义的部分有：`LeftBorder`、`Description`、`Starting`、`Filler`、`Lead`、`Ending`、`Speed` 和 `RightBorder`，它们的功能与名字相同。
+其中可以自定义的部分有：`LeftBorder`、`Prefix`、`Starting`、`Filler`、`Lead`、`Ending`、`Speed`、`Postfix` 和 `RightBorder`，它们的功能与名字相同。
 
 这些元素可以直接在 `pgbar::option` 中找到对应的包装类型：
 
@@ -1025,9 +1029,10 @@ pgbar::option::Bolded;  // 开关字体加粗效果
 pgbar::option::LeftBorder;  // 修改整个进度条左侧的起始边框
 pgbar::option::RightBorder; // 修改整个进度条右侧的终止边框
 
-pgbar::option::Description; // 修改任务描述信息
-pgbar::option::TrueMesg;    // 修改进度条结束时，用于替换 Description 部分的元素
-pgbar::option::FalseMesg;   // 修改进度条结束时，用于替换 Description 部分的元素
+pgbar::option::Prefix;      // 修改前置描述信息
+pgbar::option::Postfix;     // 修改尾随描述信息
+pgbar::option::TrueMesg;    // 修改进度条结束时，用于替换 Prefix 部分的元素
+pgbar::option::FalseMesg;   // 修改进度条结束时，用于替换 Prefix 部分的元素
 
 pgbar::option::Starting;  // 修改进度条块左侧、Percent 右侧的元素
 pgbar::option::Ending;    // 修改进度条块右侧、Counter 左侧的元素
@@ -1042,7 +1047,8 @@ pgbar::option::Magnitude; // 调整 Speed 部分的进位倍率
 pgbar::option::Tasks;   // 调整任务数量
 pgbar::option::Divider; // 修改位于两个元素之间的间隔符
 
-pgbar::option::DescColor;    // 修改 Description 的颜色
+pgbar::option::PrefixColor;  // 修改 Prefix 的颜色
+pgbar::option::PostfixColor; // 修改 Postfix 的颜色
 pgbar::option::TrueColor;    // 修改 TrueMesg 的颜色
 pgbar::option::FalseColor;   // 修改 FalseMesg 的颜色
 pgbar::option::StartColor;   // 修改 Starting 的颜色
@@ -1071,7 +1077,7 @@ bar.config().enable().speed().percent().elapsed().countdown();
 bar.config().enable().entire();
 bar.config().disable().animation().counter();
 // Animation 指的是来回扫描的进度条
-// 并且不是所有元素都可以被关闭，例如 Description 就不行
+// 并且不是所有元素都可以被关闭，例如 Prefix 就不行
 ```
 
 以上元素在 `Sweep` 都有同名方法，调用这些方法并向其中传递参数同样能做到修改数据信息。
@@ -1111,7 +1117,7 @@ int main()
     .info_color( "#39C5BB" );
 
   auto config3 = config2; // 构造完毕后也能使用可变模板参数调整
-  config3.set( pgbar::option::Description( "Do something" ), pgbar::option::DescColor( 0xFFE211 ) );
+  config3.set( pgbar::option::Prefix( "Do something" ), pgbar::option::PrefixColor( 0xFFE211 ) );
 }
 ```
 
@@ -1421,10 +1427,10 @@ int main()
 `SpinBar` 由以下几种元素组成：
 
 ```text
-{LeftBorder}{Description}{Lead}{Percent}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
+{LeftBorder}{Prefix}{Lead}{Percent}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
 ```
 
-其中可以自定义的部分有：`LeftBorder`、`Description`、`Lead`、`Speed` 和 `RightBorder`，它们的功能与名字相同。
+其中可以自定义的部分有：`LeftBorder`、`Prefix`、`Lead`、`Speed`、`Postfix` 和 `RightBorder`，它们的功能与名字相同。
 
 这些元素可以直接在 `pgbar::option` 中找到对应的包装类型：
 
@@ -1436,9 +1442,10 @@ pgbar::option::Bolded;  // 开关字体加粗效果
 pgbar::option::LeftBorder;  // 修改整个进度条左侧的起始边框
 pgbar::option::RightBorder; // 修改整个进度条右侧的终止边框
 
-pgbar::option::Description; // 修改任务描述信息
-pgbar::option::TrueMesg;    // 修改进度条结束时，用于替换 Description 部分的元素
-pgbar::option::FalseMesg;   // 修改进度条结束时，用于替换 Description 部分的元素
+pgbar::option::Prefix;      // 修改前置描述信息
+pgbar::option::Postfix;     // 修改尾随描述信息
+pgbar::option::TrueMesg;    // 修改进度条结束时，用于替换 Prefix 部分的元素
+pgbar::option::FalseMesg;   // 修改进度条结束时，用于替换 Prefix 部分的元素
 
 pgbar::option::Lead;      // 修改可变动画部分的各个帧
 pgbar::option::Shift;     // 调整动画部分（Lead）的动画速度
@@ -1449,7 +1456,8 @@ pgbar::option::Magnitude; // 调整 Speed 部分的进位倍率
 pgbar::option::Tasks;   // 调整任务数量
 pgbar::option::Divider; // 修改位于两个元素之间的间隔符
 
-pgbar::option::DescColor;    // 修改 Description 的颜色
+pgbar::option::PrefixColor;  // 修改 Prefix 的颜色
+pgbar::option::PostfixColor; // 修改 Postfix 的颜色
 pgbar::option::TrueColor;    // 修改 TrueMesg 的颜色
 pgbar::option::FalseColor;   // 修改 FalseMesg 的颜色
 pgbar::option::LeadColor;    // 修改 Lead 的颜色
@@ -1475,7 +1483,7 @@ bar.config().enable().speed().percent().elapsed().countdown();
 bar.config().enable().entire();
 bar.config().disable().animation().counter();
 // Animation 指的是左侧的动画组件 Lead
-// 并且不是所有元素都可以被关闭，例如 Description 就不行
+// 并且不是所有元素都可以被关闭，例如 Prefix 就不行
 ```
 
 以上元素在 `Spin` 都有同名方法，调用这些方法并向其中传递参数同样能做到修改数据信息。
@@ -1501,7 +1509,7 @@ int main()
     .info_color( "#39C5BB" );
 
   auto config3 = config2; // 构造完毕后也能使用可变模板参数调整
-  config3.set( pgbar::option::Description( "Do something" ), pgbar::option::DescColor( 0xFFE211 ) );
+  config3.set( pgbar::option::Prefix( "Do something" ), pgbar::option::PrefixColor( 0xFFE211 ) );
 }
 ```
 
@@ -1870,10 +1878,10 @@ int main()
     auto bar1 = dbar.insert<pgbar::ProgressBar<>>();
     // bar1, bar2, bar3 都是 std::shared_ptr</* ProgressBar */> 类型的对象
     auto bar2 = dbar.insert(
-      pgbar::config::Line( pgbar::option::Description( "No.2" ), pgbar::option::Tasks( 8000 ) ) );
+      pgbar::config::Line( pgbar::option::Prefix( "No.2" ), pgbar::option::Tasks( 8000 ) ) );
 
     pool.emplace_back( [bar1]() {
-      bar1->config().description( "No.1" ).tasks( 1919 );
+      bar1->config().prefix( "No.1" ).tasks( 1919 );
       this_thread::sleep_for( std::chrono::seconds( 5 ) );
       do {
         bar1->tick();
@@ -1888,7 +1896,7 @@ int main()
       } while ( bar2->is_running() );
     } );
     pool.emplace_back( [&dbar]() {
-      auto bar = dbar.insert<pgbar::config::Line>( pgbar::option::Description( "No.3" ),
+      auto bar = dbar.insert<pgbar::config::Line>( pgbar::option::Prefix( "No.3" ),
                                                    pgbar::option::Tasks( 1000 ) );
       for ( int i = 0; i < 850; ++i ) {
         bar->tick();
@@ -2191,7 +2199,7 @@ int main()
     -0.01,
     []( int ) { this_thread::sleep_for( 100ms ); },
     pgbar::option::InfoColor( "#FFDD88" ),
-    pgbar::option::Description( "Iterating..." ) );
+    pgbar::option::Prefix( "Iterating..." ) );
 
   // Iteration range: [100, 0), step: 1
   pgbar::iterate<pgbar::ProgressBar<>>(
@@ -2237,7 +2245,7 @@ int main()
 
 这里之所以提及生命周期问题，是因为进度条在被析构过程中，会无视当前迭代进度立即终止运行。
 
-这种强制性终止与调用 `reset()` 方法停止不同：`reset()` 方法允许进度条在停止时，根据传递的参数，使用预先定义好的 `TrueMesg` 或 `FalseMesg` 替换元素 `Description` 所在位置的内容；而析构导致的终止则不会执行这个过程，而是立即关闭与之关联的全局渲染器并清理资源。
+这种强制性终止与调用 `reset()` 方法停止不同：`reset()` 方法允许进度条在停止时，根据传递的参数，使用预先定义好的 `TrueMesg` 或 `FalseMesg` 替换元素 `Prefix` 所在位置的内容；而析构导致的终止则不会执行这个过程，而是立即关闭与之关联的全局渲染器并清理资源。
 
 因析构而停止的进度条不会向终端再追加任何信息，因此这可能会导致一定程度上的终端渲染混乱。
 
