@@ -53,7 +53,7 @@
   - [Output stream detection](#output-stream-detection)
   - [Working interval of renderer](#working-interval-of-renderer)
   - [Assertion](#assertion)
-- [Auxiliary type](#auxiliary-type)
+- [Auxiliary facilities](#auxiliary-facilities)
   - [`NumericSpan`](#numericspan)
     - [Member method](#member-method)
     - [Iterator type](#iterator-type)
@@ -63,6 +63,7 @@
   - [`ProxySpan`](#proxyspan)
     - [Member method](#member-method-2)
     - [Iterator type](#iterator-type-2)
+  - [`iterate`](#iterate)
 - [FAQ](#faq)
   - [The tick count should be the same as the total number of tasks](#the-tick-count-should-be-the-same-as-the-total-number-of-tasks)
   - [Life cycle of the progress bar object](#life-cycle-of-the-progress-bar-object)
@@ -416,14 +417,14 @@ int main()
   pgbar::ProgressBar<> bar;
 
   // Iteration range: [100, 0), step: -1
-  for ( auto num : bar.iterate( 100, 1, -1 ) ) {
+  for ( auto num : bar.iterate( 100, 0, -1 ) ) {
     this_thread::sleep_for( 100ms );
   }
   // Iteration range: [0.0, -2.0), step: -0.01
   for ( auto fnum : bar.iterate( -2.0, -0.01 ) ) {
     this_thread::sleep_for( 100ms );
   }
-  // Iteration range: [100, 1), step: -1
+  // Iteration range: [0, 100), step: 1
   bar.iterate( 100, []( int ) { this_thread::sleep_for( 100ms ); } );
 }
 ```
@@ -822,14 +823,14 @@ int main()
   pgbar::BlockBar<> bar;
 
   // Iteration range: [100, 0), step: -1
-  for ( auto num : bar.iterate( 100, 1, -1 ) ) {
+  for ( auto num : bar.iterate( 100, 0, -1 ) ) {
     this_thread::sleep_for( 100ms );
   }
   // Iteration range: [0.0, -2.0), step: -0.01
   for ( auto fnum : bar.iterate( -2.0, -0.01 ) ) {
     this_thread::sleep_for( 100ms );
   }
-  // Iteration range: [100, 1), step: -1
+  // Iteration range: [0, 100), step: 1
   bar.iterate( 100, []( int ) { this_thread::sleep_for( 100ms ); } );
 }
 ```
@@ -1233,14 +1234,14 @@ int main()
   pgbar::SweepBar<> bar;
 
   // Iteration range: [100, 0), step: -1
-  for ( auto num : bar.iterate( 100, 1, -1 ) ) {
+  for ( auto num : bar.iterate( 100, 0, -1 ) ) {
     this_thread::sleep_for( 100ms );
   }
   // Iteration range: [0.0, -2.0), step: -0.01
   for ( auto fnum : bar.iterate( -2.0, -0.01 ) ) {
     this_thread::sleep_for( 100ms );
   }
-  // Iteration range: [100, 1), step: -1
+  // Iteration range: [0, 100), step: 1
   bar.iterate( 100, []( int ) { this_thread::sleep_for( 100ms ); } );
 }
 ```
@@ -1622,14 +1623,14 @@ int main()
   pgbar::SpinBar<> bar;
 
   // Iteration range: [100, 0), step: -1
-  for ( auto num : bar.iterate( 100, 1, -1 ) ) {
+  for ( auto num : bar.iterate( 100, 0, -1 ) ) {
     this_thread::sleep_for( 100ms );
   }
   // Iteration range: [0.0, -2.0), step: -0.01
   for ( auto fnum : bar.iterate( -2.0, -0.01 ) ) {
     this_thread::sleep_for( 100ms );
   }
-  // Iteration range: [100, 1), step: -1
+  // Iteration range: [0, 100), step: 1
   bar.iterate( 100, []( int ) { this_thread::sleep_for( 100ms ); } );
 }
 ```
@@ -2074,7 +2075,7 @@ The self-assignment operation is also checked and rejected by the assertion.
 
 - - -
 
-# Auxiliary type
+# Auxiliary facilities
 ## `NumericSpan`
 `pgbar::scope::NumericSpan` is a template type, it is used to express a numerical range of starting point and end point and step length; This range of values is mathematically expressed as: `[start, end)`.
 
@@ -2170,6 +2171,57 @@ void swap( ProxySpan& ) noexcept; // Exchange two ProxySpan
 ```
 ### Iterator type
 `ProxySpan::iterator` is a forward iterator whose increment operator attempts to call the `tick()` method of the progress bar instance bound to it, thus it will trigger side effects in unexpected scenarios.
+
+## `iterate`
+`iterate` is the overloaded name of a series of template functions, and it serves as a wrapper interface for the `iterate` method of [the sole progress bar type](#sole-progress-bar).
+
+This function enables the visualization of an iterative progress process using the `iterate` method of a progress bar without explicitly constructing a progress bar object.
+
+The usage method is the same as the `iterate` method; however, the `iterate` function allows for the passing of any number of additional parameters to customize the style of the progress bar.
+
+```cpp
+#include "pgbar/pgbar.hpp"
+#include <thread>
+#include <vector>
+using namespace std;
+
+int main()
+{
+  // Iteration range: [100, 0), step: -1
+  pgbar::iterate<pgbar::ProgressBar<>>( 100, 0, -1, []( int ) { this_thread::sleep_for( 100ms ); } );
+
+  // Iteration range: [0.0, -2.0), step: -0.01
+  pgbar::iterate<pgbar::config::Line>(
+    -2.0,
+    -0.01,
+    []( int ) { this_thread::sleep_for( 100ms ); },
+    pgbar::option::InfoColor( "#FFDD88" ),
+    pgbar::option::Description( "Iterating..." ) );
+
+  // Iteration range: [100, 0), step: 1
+  pgbar::iterate<pgbar::ProgressBar<>>(
+    100,
+    []( int ) { this_thread::sleep_for( 100ms ); },
+    pgbar::config::Line( pgbar::option::InfoColor( "#FF8899" ),
+                         pgbar::option::SpeedUnit( { "files/s", "k files/s", "M files/s", "G files/s" } ) ) );
+
+  int arr1[] { 100, 99, 98, 97, 96, 95, 94, 93, 92, 91 };
+  vector<int> arr2 {
+    0, 1, 2, 3, 4, 5, 6,
+  };
+
+  pgbar::iterate<pgbar::BlockBar<pgbar::Channel::Stdout>>( arr1,
+                                                           arr1 + ( sizeof( arr1 ) / sizeof( int ) ),
+                                                           []( int& ele ) {
+                                                             ele += 1;
+                                                             this_thread::sleep_for( 300ms );
+                                                           } );
+  // Iteration over a STL container.
+  pgbar::iterate<pgbar::config::Block, pgbar::Channel::Stderr, pgbar::Policy::Sync>( arr2, []( int ) {
+    this_thread::sleep_for( 300ms );
+  } );
+}
+```
 
 - - -
 
