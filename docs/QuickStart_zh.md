@@ -53,7 +53,7 @@
   - [输出流检测](#输出流检测)
   - [渲染器工作间隔](#渲染器工作间隔)
   - [断言检查](#断言检查)
-- [辅助类型](#辅助类型)
+- [辅助设施](#辅助设施)
   - [`NumericSpan`](#numericspan)
     - [成员方法](#成员方法)
     - [迭代器类型](#迭代器类型)
@@ -63,6 +63,7 @@
   - [`ProxySpan`](#proxyspan)
     - [成员方法](#成员方法-2)
     - [迭代器类型](#迭代器类型-2)
+  - [`iterate`](#iterate)
 - [FAQ](#faq)
   - [更新计数与任务总数一致性](#更新计数与任务总数一致性)
   - [进度条对象的生命周期](#进度条对象的生命周期)
@@ -416,14 +417,14 @@ int main()
   pgbar::ProgressBar<> bar;
 
   // Iteration range: [100, 0), step: -1
-  for ( auto num : bar.iterate( 100, 1, -1 ) ) {
+  for ( auto num : bar.iterate( 100, 0, -1 ) ) {
     this_thread::sleep_for( 100ms );
   }
   // Iteration range: [0.0, -2.0), step: -0.01
   for ( auto fnum : bar.iterate( -2.0, -0.01 ) ) {
     this_thread::sleep_for( 100ms );
   }
-  // Iteration range: [100, 1), step: -1
+  // Iteration range: [0, 100), step: 1
   bar.iterate( 100, []( int ) { this_thread::sleep_for( 100ms ); } );
 }
 ```
@@ -822,14 +823,14 @@ int main()
   pgbar::BlockBar<> bar;
 
   // Iteration range: [100, 0), step: -1
-  for ( auto num : bar.iterate( 100, 1, -1 ) ) {
+  for ( auto num : bar.iterate( 100, 0, -1 ) ) {
     this_thread::sleep_for( 100ms );
   }
   // Iteration range: [0.0, -2.0), step: -0.01
   for ( auto fnum : bar.iterate( -2.0, -0.01 ) ) {
     this_thread::sleep_for( 100ms );
   }
-  // Iteration range: [100, 1), step: -1
+  // Iteration range: [0, 100), step: 1
   bar.iterate( 100, []( int ) { this_thread::sleep_for( 100ms ); } );
 }
 ```
@@ -1233,14 +1234,14 @@ int main()
   pgbar::SweepBar<> bar;
 
   // Iteration range: [100, 0), step: -1
-  for ( auto num : bar.iterate( 100, 1, -1 ) ) {
+  for ( auto num : bar.iterate( 100, 0, -1 ) ) {
     this_thread::sleep_for( 100ms );
   }
   // Iteration range: [0.0, -2.0), step: -0.01
   for ( auto fnum : bar.iterate( -2.0, -0.01 ) ) {
     this_thread::sleep_for( 100ms );
   }
-  // Iteration range: [100, 1), step: -1
+  // Iteration range: [0, 100), step: 1
   bar.iterate( 100, []( int ) { this_thread::sleep_for( 100ms ); } );
 }
 ```
@@ -1623,14 +1624,14 @@ int main()
   pgbar::SpinBar<> bar;
 
   // Iteration range: [100, 0), step: -1
-  for ( auto num : bar.iterate( 100, 1, -1 ) ) {
+  for ( auto num : bar.iterate( 100, 0, -1 ) ) {
     this_thread::sleep_for( 100ms );
   }
   // Iteration range: [0.0, -2.0), step: -0.01
   for ( auto fnum : bar.iterate( -2.0, -0.01 ) ) {
     this_thread::sleep_for( 100ms );
   }
-  // Iteration range: [100, 1), step: -1
+  // Iteration range: [100, 0), step: 1
   bar.iterate( 100, []( int ) { this_thread::sleep_for( 100ms ); } );
 }
 ```
@@ -2067,7 +2068,7 @@ pgbar::config::refresh_interval<pgbar::Channel::Stderr>(
 
 - - -
 
-# 辅助类型
+# 辅助设施
 ## `NumericSpan`
 `pgbar::scope::NumericSpan` 是一个模板类型，它被用于表达一个数值范围的起始点、终止点和步长；该数值范围在数学上被表示为：`[start, end)`。
 
@@ -2163,6 +2164,59 @@ void swap( ProxySpan& ) noexcept; // 交换两个代理范围
 ```
 ### 迭代器类型
 `ProxySpan::iterator` 属于前向迭代器，该迭代器的自增运算符会尝试调用与之绑定的进度条实例的 `tick()` 方法，因此会在意料之外的场景触发副作用。
+
+- - -
+
+## `iterate`
+`iterate` 是一系列模板函数的重载名称，它是[独立进度条类型](#独立进度条)的 `iterate` 方法的包装接口。
+
+这个函数允许不显式构造一个进度条对象，同时使用进度条的 `iterate` 方法可视化一个迭代进度过程。
+
+使用方法与 `iterate` 方法相同；但 `iterate` 函数允许传入任意数量的额外参数以定制进度条的样式。
+
+```cpp
+#include "pgbar/pgbar.hpp"
+#include <thread>
+#include <vector>
+using namespace std;
+
+int main()
+{
+  // Iteration range: [100, 0), step: -1
+  pgbar::iterate<pgbar::ProgressBar<>>( 100, 0, -1, []( int ) { this_thread::sleep_for( 100ms ); } );
+
+  // Iteration range: [0.0, -2.0), step: -0.01
+  pgbar::iterate<pgbar::config::Line>(
+    -2.0,
+    -0.01,
+    []( int ) { this_thread::sleep_for( 100ms ); },
+    pgbar::option::InfoColor( "#FFDD88" ),
+    pgbar::option::Description( "Iterating..." ) );
+
+  // Iteration range: [100, 0), step: 1
+  pgbar::iterate<pgbar::ProgressBar<>>(
+    100,
+    []( int ) { this_thread::sleep_for( 100ms ); },
+    pgbar::config::Line( pgbar::option::InfoColor( "#FF8899" ),
+                         pgbar::option::SpeedUnit( { "files/s", "k files/s", "M files/s", "G files/s" } ) ) );
+
+  int arr1[] { 100, 99, 98, 97, 96, 95, 94, 93, 92, 91 };
+  vector<int> arr2 {
+    0, 1, 2, 3, 4, 5, 6,
+  };
+
+  pgbar::iterate<pgbar::BlockBar<pgbar::Channel::Stdout>>( arr1,
+                                                           arr1 + ( sizeof( arr1 ) / sizeof( int ) ),
+                                                           []( int& ele ) {
+                                                             ele += 1;
+                                                             this_thread::sleep_for( 300ms );
+                                                           } );
+  // Iteration over a STL container.
+  pgbar::iterate<pgbar::config::Block, pgbar::Channel::Stderr, pgbar::Policy::Sync>( arr2, []( int ) {
+    this_thread::sleep_for( 300ms );
+  } );
+}
+```
 
 - - -
 
