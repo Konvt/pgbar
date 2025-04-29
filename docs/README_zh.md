@@ -52,9 +52,9 @@ int main()
   pgbar::ProgressBar<> bar { pgbar::option::Remains( "-" ),
                              pgbar::option::Filler( "=" ),
                              pgbar::option::Styles( pgbar::config::Line::Entire ),
-                             pgbar::option::TodoColor( "#A52A2A" ),
-                             pgbar::option::DoneColor( 0x0099FF ),
-                             pgbar::option::StatusColor( pgbar::color::Yellow ),
+                             pgbar::option::RemainsColor( "#A52A2A" ),
+                             pgbar::option::FillerColor( 0x0099FF ),
+                             pgbar::option::InfoColor( pgbar::color::Yellow ),
                              pgbar::option::Tasks( 100 ) };
 
   for ( auto _ = 0; _ < 100; ++_ )
