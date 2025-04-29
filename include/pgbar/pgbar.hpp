@@ -5415,7 +5415,7 @@ namespace pgbar {
           }
           this->common_build( buffer, num_task_done, num_all_tasks, zero_point );
 
-          if ( !this->prefix_.empty() || this->visual_masks_.any() )
+          if ( !this->postfix_.empty() && ( !this->prefix_.empty() || this->visual_masks_.any() ) )
             this->build_divider( buffer );
           this->build_postfix( buffer );
           if ( !this->prefix_.empty() || !this->postfix_.empty() || this->visual_masks_.any() )
@@ -5458,8 +5458,9 @@ namespace pgbar {
           }
           this->common_build( buffer, num_task_done, num_all_tasks, zero_point );
 
-          if ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty()
-               || this->visual_masks_.any() )
+          if ( !this->postfix_.empty()
+               && ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty()
+                    || this->visual_masks_.any() ) )
             this->build_divider( buffer );
           this->build_postfix( buffer );
           if ( ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty()
@@ -5676,7 +5677,7 @@ namespace pgbar {
           }
           this->common_build( buffer, num_task_done, num_all_tasks, zero_point );
 
-          if ( !this->prefix_.empty() || this->visual_masks_.any() )
+          if ( !this->postfix_.empty() && ( !this->prefix_.empty() || this->visual_masks_.any() ) )
             this->build_divider( buffer );
           this->build_postfix( buffer );
           if ( !this->prefix_.empty() || !this->postfix_.empty() || this->visual_masks_.any() )
@@ -5722,8 +5723,9 @@ namespace pgbar {
           }
           this->common_build( buffer, num_task_done, num_all_tasks, zero_point );
 
-          if ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty()
-               || this->visual_masks_.any() )
+          if ( !this->postfix_.empty()
+               && ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty()
+                    || this->visual_masks_.any() ) )
             this->build_divider( buffer );
           this->build_postfix( buffer );
           if ( ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty()

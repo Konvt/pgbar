@@ -2,13 +2,15 @@
 
 ## Features
 - **Header-only design**: All functionality contained within a single `.hpp` file in `include/pgbar`.
-- **Low-overhead updates**: Microsecond level cost per iteration.
+- **Low-overhead updates**: Nanosecond level cost per call.[^1]
 - **C++11 & later compatible**: Supports all standard revisions from C++11 through C++23.
 - **Unicode support**: Parse each string in UTF-8 encoding.
 - **RGB color support**: Customizable progress bar colors.
 - **Thread-safe design**: Can be safely used in multi-threaded environments.
 - **`tqdm`-like interface**: Chainable methods powered by template metaprogramming.
 - **Modern C++ core**: Leverages `constexpr`, RAII, and type traits for zero-cost abstractions.
+
+[^1]: On AMD Ryzen 7 5800H with `-Og` optimization and `Policy::Async` execution strategy, `tick` call overhead measured `≤5ns` in tight loop tests.
 
 ## Styles
 ### ProgressBar
@@ -70,9 +72,9 @@ For more examples, see [QuickStart.md](docs/QuickStart.md) and [demo/](demo/).
 ### Does updating the progress bar slow down the program?
 No, as mentioned in the [Features](#features) section, updating the progress bar has *essentially* zero overhead.
 
-With `O2/O3` optimizations enabled, the performance overhead of the second iteration in the code below will *approach* that of the first iteration[^1].
+With `O2/O3` optimizations enabled, the performance overhead of the second iteration in the code below will *approach* that of the first iteration.[^2]
 
-[^1]: In practice, the overhead of updating the progress bar only adds the overload of calling jumps and branches a few more times.
+[^2]: In practice, the overhead of updating the progress bar only adds the overload of calling jumps and branches a few more times.
 
 ```cpp
 #include "pgbar/pgbar.hpp"
