@@ -4859,32 +4859,23 @@ namespace pgbar {
         class Modifier final {
           friend Self;
           Self& myself_;
+          std::atomic<bool> owner_;
 
-# if __PGBAR_CXX17
-          Modifier( Self& myself ) noexcept : myself_ { myself } { myself_.rw_mtx_.lock(); }
-
-        public:
-          ~Modifier() noexcept { myself_.rw_mtx_.unlock(); }
-# else
+          Modifier( Self& myself ) noexcept : myself_ { myself }, owner_ { true } { myself_.rw_mtx_.lock(); }
+          Modifier( Self& myself, std::adopt_lock_t ) noexcept : myself_ { myself }, owner_ { true } {}
+# if !__PGBAR_CXX17
           // There was not standard NRVO support before C++17.
-          std::atomic<bool> is_owner_;
-
-          Modifier( Modifier&& rhs ) noexcept : myself_ { rhs.myself_ }, is_owner_ { true }
+          Modifier( Modifier&& rhs ) noexcept : myself_ { rhs.myself_ }, owner_ { true }
           {
-            rhs.is_owner_.store( false, std::memory_order_release );
+            rhs.owner_.store( false, std::memory_order_release );
           }
-          Modifier( Self& myself ) noexcept : myself_ { myself }, is_owner_ { true }
-          {
-            myself_.rw_mtx_.lock();
-          }
-
+# endif
         public:
           ~Modifier() noexcept
           {
-            if ( is_owner_.load( std::memory_order_acquire ) )
+            if ( owner_.load( std::memory_order_acquire ) )
               myself_.rw_mtx_.unlock();
           }
-# endif
           Modifier( const Modifier& )              = delete;
           Modifier& operator=( const Modifier& ) & = delete;
 
@@ -4908,6 +4899,13 @@ namespace pgbar {
             else
               myself_.visual_masks_.reset();
             return static_cast<Modifier&&>( *this );
+          }
+
+          Modifier<!Enable> negation() && noexcept
+          {
+            auto negation = Modifier<!Enable>( this->myself_, std::adopt_lock );
+            owner_.store( false, std::memory_order_release );
+            return negation;
           }
         };
 
