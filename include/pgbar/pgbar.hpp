@@ -93,6 +93,7 @@
 #  endif
 # endif
 # if __PGBAR_CC_STD >= 202002L
+#  include <ranges>
 #  define __PGBAR_CXX20         1
 #  define __PGBAR_UNLIKELY      [[unlikely]]
 #  define __PGBAR_CXX20_CNSTXPR constexpr
@@ -687,6 +688,12 @@ namespace pgbar {
       template<typename T>
       using IteratorTrait_t = typename IteratorTrait<T>::type;
 
+# if __PGBAR_CXX20
+      template<typename T>
+      concept TraversableIterator = std::movable<T> && std::weakly_incrementable<T>
+                                 && std::indirectly_readable<T> && std::sized_sentinel_for<T, T>;
+# endif
+
       template<typename T, typename = void>
       struct is_void_functor : std::false_type {};
       template<typename T>
@@ -868,7 +875,7 @@ namespace pgbar {
        * @throw exception::InvalidArgument
        * If the size of RGB color string is not 7 or 4, and doesn't begin with character `#`.
        */
-      __PGBAR_CXX20_CNSTXPR types::HexRGB hex2rgb( types::ROStr hex ) noexcept( false )
+      __PGBAR_CXX20_CNSTXPR inline types::HexRGB hex2rgb( types::ROStr hex ) noexcept( false )
       {
         if ( ( hex.size() != 7 && hex.size() != 4 ) || hex.front() != '#' )
           throw exception::InvalidArgument( "pgbar: invalid hex color format" );
@@ -946,24 +953,34 @@ namespace pgbar {
 
     namespace wrappers {
       template<typename I>
+# if __PGBAR_CXX20
+        requires( traits::TraversableIterator<I>
+                  && std::convertible_to<std::iter_difference_t<I>, types::Size> )
+# endif
       class IterSpanBase {
+# if !__PGBAR_CXX20
         static_assert( traits::AnyOf<std::is_class<I>, std::is_pointer<I>>::value,
                        "pgbar::__details::wrappers::IterSpanBase: Only available for iterator types" );
-        static_assert( !std::is_void<typename std::iterator_traits<I>::difference_type>::value,
-                       "pgbar::__details::wrappers::IterSpanBase: The 'difference_type' of the given "
-                       "iterators cannot be 'void'" );
+        static_assert(
+          std::is_convertible<typename std::iterator_traits<I>::difference_type, types::Size>::value,
+          "pgbar::__details::wrappers::IterSpanBase: The 'difference_type' is non-convertible" );
         static_assert(
           traits::AnyOf<std::is_copy_constructible<I>, std::is_move_constructible<I>>::value,
           "pgbar::__details::wrappers::IterSpanBase: The given iterators must be copyable or movable " );
+# endif
 
         // Measure the length of the iteration range.
         __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR types::Size measure() const noexcept
         {
+# if __PGBAR_CXX20
+          const auto length = std::ranges::distance( start_, end_ );
+# else
           const auto length = std::distance( start_, end_ );
+# endif
           if __PGBAR_CXX17_CNSTXPR ( std::is_pointer<I>::value )
-            return length >= 0 ? length : -length;
+            return static_cast<types::Size>( length >= 0 ? length : -length );
           else
-            return length;
+            return static_cast<types::Size>( length );
         }
 
       protected:
@@ -2290,7 +2307,7 @@ namespace pgbar {
          *
          * Return nothing if defined `PGBAR_COLORLESS`.
          */
-        types::String rgb2ansi( types::HexRGB rgb )
+        inline types::String rgb2ansi( types::HexRGB rgb )
 # ifdef PGBAR_COLORLESS
           noexcept( std::is_nothrow_default_constructible<types::String>::value )
         {
@@ -2325,7 +2342,7 @@ namespace pgbar {
        * Always returns true if defined `PGBAR_INTTY`,
        * or the local platform is neither `Windows` nor `unix-like`.
        */
-      __PGBAR_NODISCARD bool intty( Channel outlet ) noexcept
+      __PGBAR_NODISCARD inline bool intty( Channel outlet ) noexcept
       {
 # if defined( PGBAR_INTTY ) || __PGBAR_UNKNOWN
         return true;
@@ -4645,7 +4662,7 @@ namespace pgbar {
         // Visualize unidirectional traversal of a iterator interval defined by parameters.
         template<typename I>
 # if __PGBAR_CXX20
-          requires( !std::is_arithmetic_v<I> )
+          requires traits::TraversableIterator<I>
         __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR scope::ProxySpan<scope::IterSpan<I>, Derived>
 # else
         __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR
@@ -4660,7 +4677,7 @@ namespace pgbar {
         }
         template<typename I, typename F>
 # if __PGBAR_CXX20
-          requires std::negation_v<std::is_arithmetic<I>>
+          requires traits::TraversableIterator<I>
         __PGBAR_CXX14_CNSTXPR void
 # else
         __PGBAR_CXX14_CNSTXPR typename std::enable_if<!std::is_arithmetic<I>::value>::type
@@ -4675,7 +4692,7 @@ namespace pgbar {
         // scope.
         template<class R>
 # if __PGBAR_CXX20
-          requires( std::is_class_v<std::decay_t<R>> || std::is_array_v<std::remove_reference_t<R>> )
+          requires std::ranges::range<R>
         __PGBAR_NODISCARD __PGBAR_CXX17_CNSTXPR
           scope::ProxySpan<scope::IterSpan<traits::IteratorTrait_t<std::remove_reference_t<R>>>, Derived>
 # else
@@ -4697,7 +4714,7 @@ namespace pgbar {
         }
         template<class R, typename F>
 # if __PGBAR_CXX20
-          requires( std::is_class_v<std::decay_t<R>> || std::is_array_v<std::remove_reference_t<R>> )
+          requires std::ranges::range<R>
         __PGBAR_CXX17_CNSTXPR void
 # else
         __PGBAR_CXX17_CNSTXPR typename std::enable_if<
@@ -6965,8 +6982,8 @@ namespace pgbar {
 
   template<typename Bar, typename I, typename F, typename... Options>
 # if __PGBAR_CXX20
-    requires( __details::traits::is_iterable_bar<Bar>::value && std::is_constructible_v<Bar, Options...>,
-              !std::is_arithmetic_v<I> )
+    requires( __details::traits::TraversableIterator<I> && __details::traits::is_iterable_bar<Bar>::value
+              && std::is_constructible_v<Bar, Options...> )
   __PGBAR_INLINE_FN void
 # else
   __PGBAR_INLINE_FN typename std::enable_if<
@@ -6986,9 +7003,9 @@ namespace pgbar {
            typename F,
            typename... Options>
 # if __PGBAR_CXX20
-    requires( __details::traits::is_config<Config>::value
+    requires( __details::traits::TraversableIterator<I> && __details::traits::is_config<Config>::value
               && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode>>::value
-              && std::is_constructible_v<Config, Options...> && !std::is_arithmetic_v<I> )
+              && std::is_constructible_v<Config, Options...> )
   __PGBAR_INLINE_FN void
 # else
   __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
@@ -7008,8 +7025,8 @@ namespace pgbar {
 
   template<typename Bar, class R, typename F, typename... Options>
 # if __PGBAR_CXX20
-    requires( __details::traits::is_iterable_bar<Bar>::value && std::is_constructible_v<Bar, Options...>
-              && (std::is_class_v<std::decay_t<R>> || std::is_array_v<std::remove_reference_t<R>>))
+    requires( std::ranges::range<R> && __details::traits::is_iterable_bar<Bar>::value
+              && std::is_constructible_v<Bar, Options...> )
   __PGBAR_INLINE_FN void
 # else
   __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
@@ -7030,10 +7047,9 @@ namespace pgbar {
            typename F,
            typename... Options>
 # if __PGBAR_CXX20
-    requires( __details::traits::is_config<Config>::value
+    requires( std::ranges::range<R> && __details::traits::is_config<Config>::value
               && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode>>::value
-              && std::is_constructible_v<Config, Options...>
-              && (std::is_class_v<std::decay_t<R>> || std::is_array_v<std::remove_reference_t<R>>))
+              && std::is_constructible_v<Config, Options...> )
   __PGBAR_INLINE_FN void
 # else
   __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
