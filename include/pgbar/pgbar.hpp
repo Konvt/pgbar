@@ -875,7 +875,7 @@ namespace pgbar {
        * @throw exception::InvalidArgument
        * If the size of RGB color string is not 7 or 4, and doesn't begin with character `#`.
        */
-      __PGBAR_CXX20_CNSTXPR types::HexRGB hex2rgb( types::ROStr hex ) noexcept( false )
+      __PGBAR_CXX20_CNSTXPR inline types::HexRGB hex2rgb( types::ROStr hex ) noexcept( false )
       {
         if ( ( hex.size() != 7 && hex.size() != 4 ) || hex.front() != '#' )
           throw exception::InvalidArgument( "pgbar: invalid hex color format" );
@@ -2307,7 +2307,7 @@ namespace pgbar {
          *
          * Return nothing if defined `PGBAR_COLORLESS`.
          */
-        types::String rgb2ansi( types::HexRGB rgb )
+        inline types::String rgb2ansi( types::HexRGB rgb )
 # ifdef PGBAR_COLORLESS
           noexcept( std::is_nothrow_default_constructible<types::String>::value )
         {
@@ -2342,7 +2342,7 @@ namespace pgbar {
        * Always returns true if defined `PGBAR_INTTY`,
        * or the local platform is neither `Windows` nor `unix-like`.
        */
-      __PGBAR_NODISCARD bool intty( Channel outlet ) noexcept
+      __PGBAR_NODISCARD inline bool intty( Channel outlet ) noexcept
       {
 # if defined( PGBAR_INTTY ) || __PGBAR_UNKNOWN
         return true;
