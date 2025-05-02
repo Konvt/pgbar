@@ -385,14 +385,28 @@ namespace pgbar {
         : std::conditional<std::is_same<T, Head>::value, std::true_type, Belong<T, TypeList<Tail...>>>::type {
       };
 
+      // Check whether the list contains duplicate types.
+      template<typename TpList>
+      struct Repeat;
+      template<>
+      struct Repeat<TypeList<>> : std::false_type {};
+      template<typename Head, typename... Tail>
+      struct Repeat<TypeList<Head, Tail...>>
+        : std::conditional<Belong<Head, TypeList<Tail...>>::value,
+                           std::true_type,
+                           Repeat<TypeList<Tail...>>>::type {};
+
       /**
        * A TypeList without duplicates;
        * the presence of duplicate elements will result in a hard compile error.
        */
       template<typename... Ts>
-      // Wrapping the elements with a TypeList is to avoid the issue that basic data types cannot be
-      // inherited.
       struct TypeSet : TypeList<Ts>... {};
+
+      template<typename T, typename TpSet>
+      struct Exist;
+      template<typename T, typename... Ts>
+      struct Exist<T, TypeSet<Ts...>> : std::is_base_of<TypeList<T>, TypeSet<Ts...>> {};
 
       template<typename TpList>
       struct MakeSet;
@@ -404,19 +418,6 @@ namespace pgbar {
         using type = TypeSet<Ts...>;
       };
 
-      // Check whether the list contains duplicate types.
-      template<typename TpList, typename = void>
-      struct Repeat : std::true_type {};
-      template<typename... Ts>
-      struct Repeat<TypeList<Ts...>,
-                    typename std::enable_if<std::is_same<TypeSet<Ts...>, TypeSet<Ts...>>::value>::type>
-        : std::false_type {};
-
-      template<typename TpSet, typename T>
-      struct Contain;
-      template<typename... Ts, typename T>
-      struct Contain<TypeSet<Ts...>, T> : std::is_base_of<TypeList<T>, TypeSet<Ts...>> {};
-
       // A kind of `std::is_same` that applies to template class types.
       template<template<typename...> class T, template<typename...> class U>
       struct Equal : std::false_type {};
@@ -425,7 +426,20 @@ namespace pgbar {
 
       // A lightweight tuple type that stores multiple template class types.
       template<template<typename...> class... Ts>
-      struct TemplateList;
+      struct TemplateList {};
+
+      // Check whether a TemplateList contains given template `T`.
+      template<typename TmpList, template<typename...> class T>
+      struct Include;
+      template<template<typename...> class T>
+      struct Include<TemplateList<>, T> : std::false_type {};
+      template<template<typename...> class Head,
+               template<typename...>
+               class... Tail,
+               template<typename...>
+               class T>
+      struct Include<TemplateList<Head, Tail...>, T>
+        : std::conditional<Equal<Head, T>::value, std::true_type, Include<TemplateList<Tail...>, T>>::type {};
 
       // Insert a new template type into the head of the TemplateList.
       template<typename TmpList, template<typename...> class T>
@@ -439,18 +453,33 @@ namespace pgbar {
         using type = TemplateList<T, Ts...>;
       };
 
-      // Check whether a TemplateList contains given template `T`.
-      template<template<typename...> class T, typename TmpList>
-      struct Within;
-      template<template<typename...> class T>
-      struct Within<T, TemplateList<>> : std::false_type {};
-      template<template<typename...> class T,
-               template<typename...>
-               class Head,
-               template<typename...>
-               class... Tail>
-      struct Within<T, TemplateList<Head, Tail...>>
-        : std::conditional<Equal<Head, T>::value, std::true_type, Within<T, TemplateList<Tail...>>>::type {};
+      template<template<typename...> class... Ts>
+      struct TemplateSet : TemplateList<Ts>... {};
+
+      template<typename TmpSet, template<typename...> class T>
+      struct Contain;
+      template<template<typename...> class... Ts, template<typename...> class T>
+      struct Contain<TemplateSet<Ts...>, T> : std::is_base_of<TemplateList<T>, TemplateSet<Ts...>> {};
+
+      template<typename TmpSet, template<typename...> class T>
+      struct Extend {
+      private:
+        template<typename Set, template<typename...> class U, bool Repeated>
+        struct Helper;
+        template<typename Set, template<typename...> class U>
+        struct Helper<Set, U, true> {
+          using type = Set;
+        };
+        template<template<typename...> class... Us, template<typename...> class U>
+        struct Helper<TemplateSet<Us...>, U, false> {
+          using type = TemplateSet<Us..., U>;
+        };
+
+      public:
+        using type = typename Helper<TmpSet, T, Contain<TmpSet, T>::value>::type;
+      };
+      template<typename TmpSet, template<typename...> class T>
+      using Extend_t = typename Extend<TmpSet, T>::type;
 
       /**
        * A template class that records the inheritance structure of a template class.
@@ -508,16 +537,16 @@ namespace pgbar {
       struct TopoSort<TemplateList<NVB, NVBs...>, TemplateList<VBs...>> {
       private:
         // VI: Virtual Inherit
-        template<bool VI, typename List, typename SortedList, typename VisitedVBs>
+        template<bool VI, typename NodeList, typename SortedList, typename VisitedVBs>
         struct Helper;
         /* Return the virtual base class node that was accessed during the recursive process.
          * pt: path type. */
-        template<bool VI, typename List, typename SortedList, typename VisitedVBs>
-        using Helper_pt = typename Helper<VI, List, SortedList, VisitedVBs>::path;
+        template<bool VI, typename NodeList, typename SortedList, typename VisitedVBs>
+        using Helper_pt = typename Helper<VI, NodeList, SortedList, VisitedVBs>::path;
         /* Return the sorted list.
          * tp: type. */
-        template<bool VI, typename List, typename SortedList, typename VisitedVBs>
-        using Helper_tp = typename Helper<VI, List, SortedList, VisitedVBs>::type;
+        template<bool VI, typename NodeList, typename SortedList, typename VisitedVBs>
+        using Helper_tp = typename Helper<VI, NodeList, SortedList, VisitedVBs>::type;
 
         template<bool VI, typename SortedList, typename VisitedVBs>
         struct Helper<VI, TemplateList<>, SortedList, VisitedVBs> {
@@ -541,9 +570,9 @@ namespace pgbar {
           using MarkNVB_t = Helper_pt<false, InheritFrom_nvbt<Head>, SortTail_t, MarkTail_t>;
 
         public:
-          using path = Prepend_t<MarkNVB_t, Head>;
+          using path = Extend_t<MarkNVB_t, Head>;
           using type =
-            typename std::conditional<AnyOf<Within<Head, VisitedVBs>, Within<Head, MarkTail_t>>::value,
+            typename std::conditional<AnyOf<Contain<VisitedVBs, Head>, Contain<MarkTail_t, Head>>::value,
                                       Helper_tp<true, TemplateList<Tail...>, SortedList, VisitedVBs>,
                                       Prepend_t<SortNVB_t, Head>>::type;
         };
@@ -571,8 +600,8 @@ namespace pgbar {
       public:
         using type = Helper_tp<false,
                                TemplateList<NVB, NVBs...>,
-                               Helper_tp<true, TemplateList<VBs...>, TemplateList<>, TemplateList<>>,
-                               Helper_pt<true, TemplateList<VBs...>, TemplateList<>, TemplateList<>>>;
+                               Helper_tp<true, TemplateList<VBs...>, TemplateList<>, TemplateSet<>>,
+                               Helper_pt<true, TemplateList<VBs...>, TemplateList<>, TemplateSet<>>>;
       };
       // Get a list of topological sorting results for the input template classes.
       template<typename NVBList, typename VBList = TemplateList<>>
@@ -4845,11 +4874,11 @@ namespace pgbar {
                               assets::CounterMeter,
                               assets::Timer>::template type<assets::Core<Derived>, Derived> {
         // BarType must inherit from BasicIndicator or BasicAnimation
-        static_assert(
-          traits::AnyOf<
-            traits::Within<assets::BasicIndicator, traits::TopoSort_t<traits::TemplateList<BarType>>>,
-            traits::Within<assets::BasicAnimation, traits::TopoSort_t<traits::TemplateList<BarType>>>>::value,
-          "pgbar::__details::prefabs::BasicConfig: Invalid progress bar type" );
+        static_assert( traits::AnyOf<traits::Include<traits::TopoSort_t<traits::TemplateList<BarType>>,
+                                                     assets::BasicIndicator>,
+                                     traits::Include<traits::TopoSort_t<traits::TemplateList<BarType>>,
+                                                     assets::BasicAnimation>>::value,
+                       "pgbar::__details::prefabs::BasicConfig: Invalid progress bar type" );
 
         using Self       = BasicConfig;
         using Base       = typename traits::LI_t<BarType,
@@ -4974,12 +5003,12 @@ namespace pgbar {
 # if __PGBAR_CXX20
         template<typename... Args>
           requires( !traits::Repeat<traits::TypeList<Args...>>::value
-                    && ( traits::Contain<traits::MakeSet_t<Constraint>, Args>::value && ... ) )
+                    && ( traits::Exist<Args, traits::MakeSet_t<Constraint>>::value && ... ) )
 # else
         template<typename... Args,
                  typename = typename std::enable_if<
                    traits::AllOf<traits::Not<traits::Repeat<traits::TypeList<Args...>>>,
-                                 traits::Contain<traits::MakeSet_t<Constraint>, Args>...>::value>::type>
+                                 traits::Exist<Args, traits::MakeSet_t<Constraint>>...>::value>::type>
 # endif
         BasicConfig( Args... args )
         {
@@ -5042,13 +5071,13 @@ namespace pgbar {
         template<typename Arg, typename... Args>
 # if __PGBAR_CXX20
           requires( !traits::Repeat<traits::TypeList<Arg, Args...>>::value
-                    && traits::Contain<traits::MakeSet_t<Constraint>, Arg>::value
-                    && ( traits::Contain<traits::MakeSet_t<Constraint>, Args>::value && ... ) )
+                    && traits::Exist<Arg, traits::MakeSet_t<Constraint>>::value
+                    && ( traits::Exist<Args, traits::MakeSet_t<Constraint>>::value && ... ) )
         Derived&
 # else
         typename std::enable_if<traits::AllOf<traits::Not<traits::Repeat<traits::TypeList<Arg, Args...>>>,
-                                              traits::Contain<traits::MakeSet_t<Constraint>, Arg>,
-                                              traits::Contain<traits::MakeSet_t<Constraint>, Args>...>::value,
+                                              traits::Exist<Arg, traits::MakeSet_t<Constraint>>,
+                                              traits::Exist<Args, traits::MakeSet_t<Constraint>>...>::value,
                                 Derived&>::type
 # endif
           set( Arg arg, Args... args ) &
@@ -5767,7 +5796,7 @@ namespace pgbar {
                                                                          BasicBar<Soul, Outlet, Mode>> {
         static_assert(
           traits::AllOf<traits::is_config<Soul>,
-                        traits::Within<assets::TaskCounter, traits::ConfigTraits_t<Soul>>>::value,
+                        traits::Include<traits::ConfigTraits_t<Soul>, assets::TaskCounter>>::value,
           "pgbar::__details::prefabs::BasicBar: Invalid config type" );
         using Self = BasicBar;
         using Base = typename traits::LI<traits::ConfigTraits_t<Soul>>::template type<Indicator, Self>;
