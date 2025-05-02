@@ -19,14 +19,14 @@ int main()
     do {
       bar1->tick();
       this_thread::sleep_for( chrono::milliseconds( 5 ) );
-    } while ( bar1->is_running() );
+    } while ( bar1->active() );
   } );
   pool.emplace_back( [bar2]() {
     this_thread::sleep_for( chrono::seconds( 2 ) );
     do {
       bar2->tick();
       this_thread::sleep_for( chrono::microseconds( 900 ) );
-    } while ( bar2->is_running() );
+    } while ( bar2->active() );
   } );
   pool.emplace_back( [&dbar]() {
     auto bar =

@@ -2255,19 +2255,19 @@ namespace pgbar {
     Indicator& operator=( Indicator&& ) &      = default;
     virtual ~Indicator()                       = default;
 
-    virtual void reset() noexcept                              = 0;
-    __PGBAR_NODISCARD virtual bool is_running() const noexcept = 0;
+    virtual void reset() noexcept                          = 0;
+    __PGBAR_NODISCARD virtual bool active() const noexcept = 0;
 
     // Wait until the indicator is Stop.
     void wait() const noexcept
     {
-      __details::concurrent::adaptive_wait( [this]() noexcept { return !is_running(); } );
+      __details::concurrent::adaptive_wait( [this]() noexcept { return !active(); } );
     }
     // Wait for the indicator is Stop or timed out.
     template<class Rep, class Period>
     __PGBAR_NODISCARD bool wait_for( const std::chrono::duration<Rep, Period>& timeout ) const noexcept
     {
-      return __details::concurrent::adaptive_wait_for( [this]() noexcept { return !is_running(); }, timeout );
+      return __details::concurrent::adaptive_wait_for( [this]() noexcept { return !active(); }, timeout );
     }
   };
 
@@ -2715,8 +2715,8 @@ namespace pgbar {
           std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
           if ( task_ != nullptr )
             return false;
-          // Under normal circumstances, `active() == false` implies that `task_ == nullptr`.
-          __PGBAR_ASSERT( active() == false );
+          // Under normal circumstances, `online() == false` implies that `task_ == nullptr`.
+          __PGBAR_ASSERT( online() == false );
           task_.swap( task );
           return true;
         }
@@ -2733,7 +2733,7 @@ namespace pgbar {
           std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
           return task_ == nullptr;
         }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool active() const noexcept
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool online() const noexcept
         {
           return state_.load( std::memory_order_acquire ) == State::Active;
         }
@@ -5787,7 +5787,7 @@ namespace pgbar {
       protected:
         // An extension point that performs global resource cleanup related to the progress bar semantics
         // themselves.
-        virtual void do_terminate( bool forced = false ) noexcept
+        virtual void do_halt( bool forced = false ) noexcept
         {
           auto& executor = render::Renderer<Outlet, Mode>::itself();
           if ( !executor.empty() ) {
@@ -5800,7 +5800,7 @@ namespace pgbar {
         }
         // An extension point that performs global initialization related to the progress bar type semantics
         // themselves
-        virtual void do_setup() & noexcept( false )
+        virtual void do_boot() & noexcept( false )
         {
           auto& executor = render::Renderer<Outlet, Mode>::itself();
           if ( !executor.try_appoint( [this]() {
@@ -5847,7 +5847,7 @@ namespace pgbar {
         __PGBAR_INLINE_FN void do_reset( ResetMode mode ) noexcept
         {
           std::lock_guard<std::mutex> lock { mtx_ };
-          if ( is_running() ) {
+          if ( active() ) {
             switch ( mode ) {
             case ResetMode::Forced: {
               state_.store( State::Stop, std::memory_order_release );
@@ -5864,7 +5864,7 @@ namespace pgbar {
                 || try_update( State::LenientRefresh );
             } break;
             }
-            do_terminate( mode == ResetMode::Forced );
+            do_halt( mode == ResetMode::Forced );
           } else
             state_.store( State::Stop, std::memory_order_release );
         }
@@ -5888,7 +5888,7 @@ namespace pgbar {
               zero_point_ = std::chrono::steady_clock::now();
               state_.store( State::Awake, std::memory_order_release );
               try {
-                do_setup();
+                do_boot();
               } catch ( ... ) {
                 state_.store( State::Stop, std::memory_order_release );
                 throw;
@@ -5989,14 +5989,14 @@ namespace pgbar {
           } );
         }
 
-        __PGBAR_NODISCARD bool is_running() const noexcept override final
+        __PGBAR_NODISCARD bool active() const noexcept override final
         {
           return state_.load( std::memory_order_acquire ) != State::Stop;
         }
         void reset( bool final_mesg ) noexcept
         {
           do_reset( static_cast<ResetMode>( final_mesg ) );
-          __PGBAR_ASSERT( is_running() == false );
+          __PGBAR_ASSERT( active() == false );
         }
         void reset() noexcept override final { reset( true ); }
 
@@ -6007,8 +6007,8 @@ namespace pgbar {
         __PGBAR_CXX20_CNSTXPR void swap( BasicBar& lhs ) noexcept
         {
           __PGBAR_PURE_ASSUME( this != &lhs );
-          __PGBAR_ASSERT( is_running() == false );
-          __PGBAR_ASSERT( lhs.is_running() == false );
+          __PGBAR_ASSERT( active() == false );
+          __PGBAR_ASSERT( lhs.active() == false );
           Base::swap( lhs );
           config_.swap( lhs.config_ );
         }
@@ -6239,9 +6239,9 @@ namespace pgbar {
         inline typename std::enable_if<( Pos < sizeof...( Bars ) )>::type do_render() &
         {
           using std::get;
-          __PGBAR_ASSERT( active() );
+          __PGBAR_ASSERT( online() );
           auto& ostream = io::OStream<Outlet>::itself();
-          if ( get<Pos>( *this ).is_running() ) {
+          if ( get<Pos>( *this ).active() ) {
             auto copy = active_mask_.load( std::memory_order_acquire );
             copy.set( Pos );
             active_mask_.store( copy, std::memory_order_release );
@@ -6253,11 +6253,11 @@ namespace pgbar {
           return do_render<Pos + 1>(); // tail recursive
         }
 
-        void do_terminate( bool forced ) noexcept override final
+        void do_halt( bool forced ) noexcept override final
         { // This virtual function is invoked only via the vtable,
           // hence the default arguments from the base class declaration are always used.
           // Any default arguments provided in the derived class are ignored.
-          if ( active() ) {
+          if ( online() ) {
             auto& executor = render::Renderer<Outlet, Mode>::itself();
             __PGBAR_ASSERT( executor.empty() == false );
             std::lock_guard<std::mutex> lock { sched_mtx_ };
@@ -6270,7 +6270,7 @@ namespace pgbar {
             }
           }
         }
-        void do_setup() & override final
+        void do_boot() & override final
         {
           std::lock_guard<std::mutex> lock { sched_mtx_ };
           auto& executor = render::Renderer<Outlet, Mode>::itself();
@@ -6353,14 +6353,14 @@ namespace pgbar {
 
         void halt() noexcept
         {
-          if ( active() && !__details::render::Renderer<Outlet, Mode>::itself().empty() )
+          if ( online() && !__details::render::Renderer<Outlet, Mode>::itself().empty() )
             (void)std::initializer_list<char> {
               ( this->ElementAt_t<Tags>::do_reset( ElementAt_t<Tags>::ResetMode::Forced ), '\0' )...
             };
           __PGBAR_ASSERT( alive_cnt_ == 0 );
-          __PGBAR_ASSERT( active() == false );
+          __PGBAR_ASSERT( online() == false );
         }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool active() const noexcept
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool online() const noexcept
         {
           return cb_state_.load( std::memory_order_acquire ) != CBState::Stop;
         }
@@ -6372,8 +6372,8 @@ namespace pgbar {
         void swap( TupleBar& rhs ) noexcept
         {
           __PGBAR_PURE_ASSUME( this != &rhs );
-          __PGBAR_ASSERT( active() == false );
-          __PGBAR_ASSERT( rhs.active() == false );
+          __PGBAR_ASSERT( online() == false );
+          __PGBAR_ASSERT( rhs.online() == false );
           (void)std::initializer_list<char> {
             ( this->ElementAt_t<Tags>::swap( static_cast<ElementAt_t<Tags>&>( rhs ) ), '\0' )...
           };
@@ -6479,20 +6479,20 @@ namespace pgbar {
     Self& operator=( const Self& ) & = delete;
     MultiBar( Self&& rhs ) noexcept : tuple_ { std::move( rhs.tuple_ ) }
     {
-      __PGBAR_ASSERT( rhs.is_running() == false );
+      __PGBAR_ASSERT( rhs.active() == false );
     }
     Self& operator=( Self&& rhs ) & noexcept
     {
       __PGBAR_PURE_ASSUME( this != &rhs );
-      __PGBAR_ASSERT( is_running() == false );
-      __PGBAR_ASSERT( rhs.is_running() == false );
+      __PGBAR_ASSERT( active() == false );
+      __PGBAR_ASSERT( rhs.active() == false );
       tuple_ = std::move( rhs );
       return *this;
     }
     ~MultiBar() noexcept { reset(); }
 
     // Check whether a progress bar is running
-    __PGBAR_NODISCARD __PGBAR_INLINE_FN bool is_running() const noexcept { return tuple_.active(); }
+    __PGBAR_NODISCARD __PGBAR_INLINE_FN bool active() const noexcept { return tuple_.online(); }
     // Reset all the progress bars.
     __PGBAR_INLINE_FN void reset() noexcept { tuple_.halt(); }
     // Returns the number of progress bars.
@@ -6508,13 +6508,13 @@ namespace pgbar {
     // Wait for all progress bars to stop.
     void wait() const noexcept
     {
-      __details::concurrent::adaptive_wait( [this]() noexcept { return !is_running(); } );
+      __details::concurrent::adaptive_wait( [this]() noexcept { return !active(); } );
     }
     // Wait for all progress bars to stop or time out.
     template<class Rep, class Period>
     __PGBAR_NODISCARD bool wait_for( const std::chrono::duration<Rep, Period>& timeout ) const noexcept
     {
-      return __details::concurrent::adaptive_wait_for( [this]() noexcept { return !is_running(); }, timeout );
+      return __details::concurrent::adaptive_wait_for( [this]() noexcept { return !active(); }, timeout );
     }
 
     template<__details::types::Size Pos>
@@ -6555,10 +6555,10 @@ namespace pgbar {
       return get<Pos>( tuple_ ).wait_for( timeout );
     }
     template<__details::types::Size Pos>
-    __PGBAR_NODISCARD __PGBAR_INLINE_FN bool is_running() const noexcept
+    __PGBAR_NODISCARD __PGBAR_INLINE_FN bool active() const noexcept
     {
       using std::get;
-      return get<Pos>( tuple_ ).is_running();
+      return get<Pos>( tuple_ ).active();
     }
     template<__details::types::Size Pos>
     __PGBAR_INLINE_FN ConfigAt_t<Pos>& config() &
@@ -7277,7 +7277,7 @@ namespace pgbar {
           for ( types::Size i = 0; i < bars_.size(); ++i ) {
             auto bar_ptr  = bars_[i].target_.lock();
             auto& ostream = io::OStream<Outlet>::itself();
-            if ( bars_[i].render_ != nullptr && bar_ptr != nullptr && bar_ptr->is_running() ) {
+            if ( bars_[i].render_ != nullptr && bar_ptr != nullptr && bar_ptr->active() ) {
               ostream << console::escodes::linewipe;
               ( *bars_[i].render_ )( bar_ptr.get() );
             }
@@ -7454,8 +7454,8 @@ namespace pgbar {
 
         Server server_;
 
-        void do_terminate( bool forced ) noexcept override final { server_->pop( this, forced ); }
-        void do_setup() & override final { server_->append( this->shared_from_this() ); }
+        void do_halt( bool forced ) noexcept override final { server_->pop( this, forced ); }
+        void do_boot() & override final { server_->append( this->shared_from_this() ); }
 
       public:
         SharedBar( Server server, Config config ) noexcept
@@ -7471,7 +7471,7 @@ namespace pgbar {
         /**
          * The object model of C++ requires that derived classes be destructed first.
          * When the derived class is destructed and the base class destructor attempts to call `do_reset`,
-         * the internal virtual function `do_terminate` will point to a non-existent derived class.
+         * the internal virtual function `do_halt` will point to a non-existent derived class.
 
          * Therefore, here it is necessary to explicitly re-call the base class's `do_reset`
          * to shut down any possible running state.
@@ -7502,7 +7502,7 @@ namespace pgbar {
     Self& operator=( Self&& ) &      = default;
     ~DynamicBar()                    = default;
 
-    __PGBAR_NODISCARD __PGBAR_INLINE_FN bool is_running() const noexcept
+    __PGBAR_NODISCARD __PGBAR_INLINE_FN bool active() const noexcept
     {
       __PGBAR_ASSERT( core_ != nullptr );
       return core_->size() != 0;
@@ -7527,14 +7527,14 @@ namespace pgbar {
     // Wait until the indicator is Stop.
     __PGBAR_INLINE_FN void wait() const noexcept
     {
-      __details::concurrent::adaptive_wait( [this]() noexcept { return !is_running(); } );
+      __details::concurrent::adaptive_wait( [this]() noexcept { return !active(); } );
     }
     // Wait for the indicator is Stop or timed out.
     template<class Rep, class Period>
     __PGBAR_NODISCARD __PGBAR_INLINE_FN bool wait_for(
       const std::chrono::duration<Rep, Period>& timeout ) const noexcept
     {
-      return __details::concurrent::adaptive_wait_for( [this]() noexcept { return !is_running(); }, timeout );
+      return __details::concurrent::adaptive_wait_for( [this]() noexcept { return !active(); }, timeout );
     }
 
     template<typename Config>
