@@ -114,7 +114,7 @@ int main()
 }
 ```
 
-In some special scenarios, if you want to check the progress bar running, or forcibly stop the progress bar running, you can use the `is_running()` and `reset()` methods.
+In some special scenarios, if you want to check the progress bar running, or forcibly stop the progress bar running, you can use the `active()` and `reset()` methods.
 
 ```cpp
 #include "pgbar/pgbar.hpp"
@@ -126,13 +126,13 @@ int main()
 
   for ( int i = 0; i < 400; ++i ) {
     if ( i > 0 ) // Note that the progress bar does not run until the tick() is called once
-      assert( bar.is_running() );
+      assert( bar.active() );
     bar.tick();
   }
 
   assert( bar.progress() == 400 ); // This method can obtain the current iteration number of the progress bar
   bar.reset();
-  assert( bar.is_running() == false );
+  assert( bar.active() == false );
 }
 ```
 
@@ -159,7 +159,7 @@ However, it is not allowed to swap or move objects during the progress bar opera
 pgbar::ProgressBar<> bar1 { pgbar::option::Tasks( 500 ) };
 
 bar1.tick();
-assert( bar1.is_running() );
+assert( bar1.active() );
 
 // pgbar::ProgressBar<> bar2 { std::move( bar1 ) }; No!
 ```
@@ -398,7 +398,7 @@ int main()
   // Notice: At least two newlines must be inserted after the output information
   std::cerr << "Extra log information" << std::endl << std::endl;
 
-  while ( bar.is_running() )
+  while ( bar.active() )
     bar.tick();
 }
 ```
@@ -531,7 +531,7 @@ int main()
 }
 ```
 
-In some special scenarios, if you want to check the progress bar running, or forcibly stop the progress bar running, you can use the `is_running()` and `reset()` methods.
+In some special scenarios, if you want to check the progress bar running, or forcibly stop the progress bar running, you can use the `active()` and `reset()` methods.
 
 ```cpp
 #include "pgbar/pgbar.hpp"
@@ -543,13 +543,13 @@ int main()
 
   for ( int i = 0; i < 400; ++i ) {
     if ( i > 0 ) // Note that the progress bar does not run until the tick() is called once
-      assert( bar.is_running() );
+      assert( bar.active() );
     bar.tick();
   }
 
   assert( bar.progress() == 400 ); // This method can obtain the current iteration number of the progress bar
   bar.reset();
-  assert( bar.is_running() == false );
+  assert( bar.active() == false );
 }
 ```
 
@@ -576,7 +576,7 @@ However, it is not allowed to swap or move objects during the progress bar opera
 pgbar::BlockBar<> bar1 { pgbar::option::Tasks( 500 ) };
 
 bar1.tick();
-assert( bar1.is_running() );
+assert( bar1.active() );
 
 // pgbar::BlockBar<> bar2 { std::move( bar1 ) }; No!
 ```
@@ -806,7 +806,7 @@ int main()
   // Notice: At least two newlines must be inserted after the output information
   std::cerr << "Extra log information" << std::endl << std::endl;
 
-  while ( bar.is_running() )
+  while ( bar.active() )
     bar.tick();
 }
 ```
@@ -935,7 +935,7 @@ int main()
 }
 ```
 
-In some special scenarios, if you want to check the progress bar running, or forcibly stop the progress bar running, you can use the `is_running()` and `reset()` methods.
+In some special scenarios, if you want to check the progress bar running, or forcibly stop the progress bar running, you can use the `active()` and `reset()` methods.
 
 Note: Because `SweepBar` is allowed to start when the number of tasks is zero, in this case `SweepBar` will not know when it should automatically stop.
 
@@ -953,11 +953,11 @@ int main()
 
   bar.tick();
   // Note that the progress bar does not run until the tick() is called once
-  assert( bar.is_running() );
+  assert( bar.active() );
 
   assert( bar.progress() == 0 ); // This method can obtain the current iteration number of the progress bar
   bar.reset();
-  assert( bar.is_running() == false );
+  assert( bar.active() == false );
 }
 ```
 
@@ -984,7 +984,7 @@ However, it is not allowed to swap or move objects during the progress bar opera
 pgbar::SweepBar<> bar1;
 
 bar1.tick();
-assert( bar1.is_running() );
+assert( bar1.active() );
 
 // pgbar::SweepBar<> bar2 { std::move( bar1 ) }; No!
 ```
@@ -1219,7 +1219,7 @@ int main()
   // Notice: At least two newlines must be inserted after the output information
   std::cerr << "Extra log information" << std::endl << std::endl;
 
-  while ( bar.is_running() )
+  while ( bar.active() )
     bar.tick();
 }
 ```
@@ -1347,7 +1347,7 @@ int main()
 }
 ```
 
-In some special scenarios, if you want to check the progress bar running, or forcibly stop the progress bar running, you can use the `is_running()` and `reset()` methods.
+In some special scenarios, if you want to check the progress bar running, or forcibly stop the progress bar running, you can use the `active()` and `reset()` methods.
 
 Note: Because `SpinBar` is allowed to start when the number of tasks is zero, in this case `SpinBar` will not know when it should automatically stop.
 
@@ -1365,11 +1365,11 @@ int main()
 
   bar.tick();
   // Note that the progress bar does not run until the tick() is called once
-  assert( bar.is_running() );
+  assert( bar.active() );
 
   assert( bar.progress() == 0 ); // This method can obtain the current iteration number of the progress bar
   bar.reset();
-  assert( bar.is_running() == false );
+  assert( bar.active() == false );
 }
 ```
 
@@ -1396,7 +1396,7 @@ However, it is not allowed to swap or move objects during the progress bar opera
 pgbar::SpinBar<> bar1;
 
 bar1.tick();
-assert( bar1.is_running() );
+assert( bar1.active() );
 
 // pgbar::SpinBar<> bar2 { std::move( bar1 ) }; No!
 ```
@@ -1610,7 +1610,7 @@ int main()
   // Notice: At least two newlines must be inserted after the output information
   std::cerr << "Extra log information" << std::endl << std::endl;
 
-  while ( bar.is_running() )
+  while ( bar.active() )
     bar.tick();
 }
 ```
@@ -1730,7 +1730,7 @@ int main()
   mbar.config<2>().tasks( 300 );
 
   // Methods without template parameters represent access to the MultiBar object itself
-  assert( mbar.is_running() );
+  assert( mbar.active() );
 
   // do tasks...
 }
@@ -1889,14 +1889,14 @@ int main()
       do {
         bar1->tick();
         this_thread::sleep_for( std::chrono::milliseconds( 5 ) );
-      } while ( bar1->is_running() );
+      } while ( bar1->active() );
     } );
     pool.emplace_back( [bar2]() {
       this_thread::sleep_for( std::chrono::seconds( 3 ) );
       do {
         bar2->tick();
         this_thread::sleep_for( std::chrono::microseconds( 900 ) );
-      } while ( bar2->is_running() );
+      } while ( bar2->active() );
     } );
     pool.emplace_back( [&dbar]() {
       auto bar = dbar.insert<pgbar::config::Line>( pgbar::option::Prefix( "No.3" ),
@@ -1916,7 +1916,7 @@ int main()
     } );
 
     std::this_thread::sleep_for( std::chrono::seconds( 1 ) );
-    assert( dbar.is_running() );
+    assert( dbar.active() );
   } // dbar is destructed here, it's still safe.
 
   for ( auto& td : pool )
@@ -2009,11 +2009,11 @@ int main()
   std::cerr << std::flush;
 
   bar3->tick();
-  while ( bar1->is_running() )
+  while ( bar1->active() )
     bar1->tick();
-  while ( bar2->is_running() )
+  while ( bar2->active() )
     bar2->tick();
-  while ( bar3->is_running() )
+  while ( bar3->active() )
     bar3->tick();
 }
 ```
@@ -2077,7 +2077,7 @@ If you only want to modify the visual fluency of an animation component, you can
 
 The vast majority of assertions are made to confirm the validity of some parameter in the internal component, and only a few assertions are placed in places such as constructors and assignment operators, which are used to check whether the current object state is as expected.
 
-For example, `pgbar` does not allow any progress bar object to call `operator=()` or `swap()` functions when its method `is_running()` returns `true`, so the assertion of these positions helps to check if such an illegal situation exists in the program.
+For example, `pgbar` does not allow any progress bar object to call `operator=()` or `swap()` functions when its method `active()` returns `true`, so the assertion of these positions helps to check if such an illegal situation exists in the program.
 
 The self-assignment operation is also checked and rejected by the assertion.
 

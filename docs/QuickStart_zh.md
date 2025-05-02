@@ -114,7 +114,7 @@ int main()
 }
 ```
 
-在一些特别的场景中，如果想要检查进度条运行情况，或是强行终止进度条的运行，那么可以使用 `is_running()` 和 `reset()` 方法。
+在一些特别的场景中，如果想要检查进度条运行情况，或是强行终止进度条的运行，那么可以使用 `active()` 和 `reset()` 方法。
 
 ```cpp
 #include "pgbar/pgbar.hpp"
@@ -126,13 +126,13 @@ int main()
 
   for ( int i = 0; i < 400; ++i ) {
     if ( i > 0 ) // 要注意，只有调用一次 tick() 后进度条才开始运行
-      assert( bar.is_running() );
+      assert( bar.active() );
     bar.tick();
   }
 
   assert( bar.progress() == 400 ); // 该方法可以获取进度条当前的迭代数
   bar.reset();
-  assert( bar.is_running() == false );
+  assert( bar.active() == false );
 }
 ```
 
@@ -159,7 +159,7 @@ int main()
 pgbar::ProgressBar<> bar1 { pgbar::option::Tasks( 500 ) };
 
 bar1.tick();
-assert( bar1.is_running() );
+assert( bar1.active() );
 
 // pgbar::ProgressBar<> bar2 { std::move( bar1 ) }; No!
 ```
@@ -398,7 +398,7 @@ int main()
   // Notice: At least two newlines must be inserted after the output information
   std::cerr << "Extra log information" << std::endl << std::endl;
 
-  while ( bar.is_running() )
+  while ( bar.active() )
     bar.tick();
 }
 ```
@@ -531,7 +531,7 @@ int main()
 }
 ```
 
-在一些特别的场景中，如果想要检查进度条运行情况，或是强行终止进度条的运行，那么可以使用 `is_running()` 和 `reset()` 方法。
+在一些特别的场景中，如果想要检查进度条运行情况，或是强行终止进度条的运行，那么可以使用 `active()` 和 `reset()` 方法。
 
 ```cpp
 #include "pgbar/pgbar.hpp"
@@ -543,13 +543,13 @@ int main()
 
   for ( int i = 0; i < 400; ++i ) {
     if ( i > 0 ) // 要注意，只有调用一次 tick() 后进度条才开始运行
-      assert( bar.is_running() );
+      assert( bar.active() );
     bar.tick();
   }
 
   assert( bar.progress() == 400 ); // 该方法可以获取进度条当前的迭代数
   bar.reset();
-  assert( bar.is_running() == false );
+  assert( bar.active() == false );
 }
 ```
 
@@ -576,7 +576,7 @@ int main()
 pgbar::BlockBar<> bar1 { pgbar::option::Tasks( 500 ) };
 
 bar1.tick();
-assert( bar1.is_running() );
+assert( bar1.active() );
 
 // pgbar::BlockBar<> bar2 { std::move( bar1 ) }; No!
 ```
@@ -806,7 +806,7 @@ int main()
   // Notice: At least two newlines must be inserted after the output information
   std::cerr << "Extra log information" << std::endl << std::endl;
 
-  while ( bar.is_running() )
+  while ( bar.active() )
     bar.tick();
 }
 ```
@@ -935,7 +935,7 @@ int main()
 }
 ```
 
-在一些特别的场景中，如果想要检查进度条运行情况，或是强行终止进度条的运行，那么可以使用 `is_running()` 和 `reset()` 方法。
+在一些特别的场景中，如果想要检查进度条运行情况，或是强行终止进度条的运行，那么可以使用 `active()` 和 `reset()` 方法。
 
 注意：因为 `SweepBar` 允许在任务数量为零的情况下启动，因此这种情况下 `SweepBar` 不会知道它应该在什么时候自动停止。
 
@@ -953,11 +953,11 @@ int main()
 
   bar.tick();
   // 要注意，只有调用一次 tick() 后进度条才开始运行
-  assert( bar.is_running() );
+  assert( bar.active() );
 
   assert( bar.progress() == 0 ); // 该方法可以获取进度条当前的迭代数
   bar.reset();
-  assert( bar.is_running() == false );
+  assert( bar.active() == false );
 }
 ```
 
@@ -984,7 +984,7 @@ int main()
 pgbar::SweepBar<> bar1;
 
 bar1.tick();
-assert( bar1.is_running() );
+assert( bar1.active() );
 
 // pgbar::SweepBar<> bar2 { std::move( bar1 ) }; No!
 ```
@@ -1219,7 +1219,7 @@ int main()
   // Notice: At least two newlines must be inserted after the output information
   std::cerr << "Extra log information" << std::endl << std::endl;
 
-  while ( bar.is_running() )
+  while ( bar.active() )
     bar.tick();
 }
 ```
@@ -1348,7 +1348,7 @@ int main()
 }
 ```
 
-在一些特别的场景中，如果想要检查进度条运行情况，或是强行终止进度条的运行，那么可以使用 `is_running()` 和 `reset()` 方法。
+在一些特别的场景中，如果想要检查进度条运行情况，或是强行终止进度条的运行，那么可以使用 `active()` 和 `reset()` 方法。
 
 注意：因为 `SpinBar` 允许在任务数量为零的情况下启动，因此这种情况下 `SpinBar` 不会知道它应该在什么时候自动停止。
 
@@ -1366,11 +1366,11 @@ int main()
 
   bar.tick();
   // 要注意，只有调用一次 tick() 后进度条才开始运行
-  assert( bar.is_running() );
+  assert( bar.active() );
 
   assert( bar.progress() == 0 ); // 该方法可以获取进度条当前的迭代数
   bar.reset();
-  assert( bar.is_running() == false );
+  assert( bar.active() == false );
 }
 ```
 
@@ -1397,7 +1397,7 @@ int main()
 pgbar::SpinBar<> bar1;
 
 bar1.tick();
-assert( bar1.is_running() );
+assert( bar1.active() );
 
 // pgbar::SpinBar<> bar2 { std::move( bar1 ) }; No!
 ```
@@ -1611,7 +1611,7 @@ int main()
   // Notice: At least two newlines must be inserted after the output information
   std::cerr << "Extra log information" << std::endl << std::endl;
 
-  while ( bar.is_running() )
+  while ( bar.active() )
     bar.tick();
 }
 ```
@@ -1731,7 +1731,7 @@ int main()
   mbar.config<2>().tasks( 300 );
 
   // 不带模板参数的方法表示访问 MultiBar 对象本身
-  assert( mbar.is_running() );
+  assert( mbar.active() );
 
   // do tasks...
 }
@@ -1886,14 +1886,14 @@ int main()
       do {
         bar1->tick();
         this_thread::sleep_for( std::chrono::milliseconds( 5 ) );
-      } while ( bar1->is_running() );
+      } while ( bar1->active() );
     } );
     pool.emplace_back( [bar2]() {
       this_thread::sleep_for( std::chrono::seconds( 3 ) );
       do {
         bar2->tick();
         this_thread::sleep_for( std::chrono::microseconds( 900 ) );
-      } while ( bar2->is_running() );
+      } while ( bar2->active() );
     } );
     pool.emplace_back( [&dbar]() {
       auto bar = dbar.insert<pgbar::config::Line>( pgbar::option::Prefix( "No.3" ),
@@ -1913,7 +1913,7 @@ int main()
     } );
 
     std::this_thread::sleep_for( std::chrono::seconds( 1 ) );
-    assert( dbar.is_running() );
+    assert( dbar.active() );
   } // dbar 在这里被析构了，但这是安全的
 
   for ( auto& td : pool )
@@ -2002,11 +2002,11 @@ int main()
   std::cerr << std::flush;
 
   bar3->tick();
-  while ( bar1->is_running() )
+  while ( bar1->active() )
     bar1->tick();
-  while ( bar2->is_running() )
+  while ( bar2->active() )
     bar2->tick();
-  while ( bar3->is_running() )
+  while ( bar3->active() )
     bar3->tick();
 }
 ```
@@ -2070,7 +2070,7 @@ pgbar::config::refresh_interval<pgbar::Channel::Stderr>(
 
 绝大多数的断言都是为了在内部组件中确认某些参数的有效性，仅有少数断言会被放置在诸如构造函数和赋值运算符等位置，这些断言用于检查当前对象状态是否符合预期。
 
-例如，`pgbar` 不允许任何进度条对象在其方法 `is_running()` 返回 `true` 时调用 `operator=()` 或 `swap()` 函数，因此这些位置的断言有助于检查程序中是否存在这样的非法情况。
+例如，`pgbar` 不允许任何进度条对象在其方法 `active()` 返回 `true` 时调用 `operator=()` 或 `swap()` 函数，因此这些位置的断言有助于检查程序中是否存在这样的非法情况。
 
 自赋值操作同样会被断言检查并拒绝。
 
