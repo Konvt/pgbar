@@ -228,7 +228,7 @@ namespace pgbar {
       using Byte       = std::uint8_t;
 
 # if __PGBAR_CXX20 || defined( __GNUC__ ) || defined( __clang__ ) || defined( _MSC_VER )
-      using ID = types::Size;
+      using ID = std::uint64_t;
 # endif
     } // namespace types
 
@@ -400,21 +400,24 @@ namespace pgbar {
       template<typename T>
       struct TypeID {
       private:
-        static __PGBAR_CNSTEVAL types::Size sum( const char* arr, types::Size pos = 0 ) noexcept
+        static __PGBAR_CNSTEVAL types::ID fnv1a( const types::Char* type_name,
+                                                 types::ID hash = 14695981039346656037ULL ) noexcept
         {
-          return arr[pos] == '\0' ? 0 : static_cast<types::Size>( arr[pos] ) + sum( arr, pos + 1 );
+          return *type_name == '\0'
+                 ? hash
+                 : fnv1a( type_name + 1, ( hash ^ static_cast<types::ID>( *type_name ) ) * 1099511628211ULL );
         }
 
         template<typename U>
-        static __PGBAR_CNSTEVAL types::Size id() noexcept
+        static __PGBAR_CNSTEVAL types::ID id() noexcept
         {
 #  if __PGBAR_CXX20
           const auto location = std::source_location::current();
-          return sum( location.function_name() );
+          return fnv1a( location.function_name() );
 #  elif defined( _MSC_VER )
-          return sum( __FUNCSIG__ );
+          return fnv1a( __FUNCSIG__ );
 #  else
-          return sum( __PRETTY_FUNCTION__ );
+          return fnv1a( __PRETTY_FUNCTION__ );
 #  endif
         }
 
