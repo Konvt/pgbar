@@ -94,6 +94,7 @@
 # endif
 # if __PGBAR_CC_STD >= 202002L
 #  include <ranges>
+#  include <source_location>
 #  define __PGBAR_CXX20         1
 #  define __PGBAR_UNLIKELY      [[unlikely]]
 #  define __PGBAR_CXX20_CNSTXPR constexpr
@@ -225,6 +226,10 @@ namespace pgbar {
       using Float      = double;
       using TimeUnit   = std::chrono::nanoseconds;
       using Byte       = std::uint8_t;
+
+# if __PGBAR_CXX20 || defined( __GNUC__ ) || defined( __clang__ ) || defined( _MSC_VER )
+      using ID = types::Size;
+# endif
     } // namespace types
 
     namespace constants {
@@ -390,11 +395,135 @@ namespace pgbar {
       struct Repeat;
       template<>
       struct Repeat<TypeList<>> : std::false_type {};
+
+# if __PGBAR_CXX20 || defined( __GNUC__ ) || defined( __clang__ ) || defined( _MSC_VER )
+      template<typename T>
+      struct TypeID {
+      private:
+        static __PGBAR_CNSTEVAL types::Size sum( const char* arr, types::Size pos = 0 ) noexcept
+        {
+          return arr[pos] == '\0' ? 0 : static_cast<types::Size>( arr[pos] ) + sum( arr, pos + 1 );
+        }
+
+        template<typename U>
+        static __PGBAR_CNSTEVAL types::Size id() noexcept
+        {
+#  if __PGBAR_CXX20
+          const auto location = std::source_location::current();
+          return sum( location.function_name() );
+#  elif defined( _MSC_VER )
+          return sum( __FUNCSIG__ );
+#  else
+          return sum( __PRETTY_FUNCTION__ );
+#  endif
+        }
+
+      public:
+        static constexpr types::ID value = id<T>();
+      };
+
+      template<typename TpList>
+      struct Split;
+      template<typename TpList>
+      using Split_l = typename Split<TpList>::left;
+      template<typename TpList>
+      using Split_r = typename Split<TpList>::right;
+
+      template<>
+      struct Split<TypeList<>> {
+        using left  = TypeList<>;
+        using right = TypeList<>;
+      };
+      template<typename T, typename... Ts>
+      struct Split<TypeList<T, Ts...>> {
+      private:
+        static constexpr types::Size N = 1 + sizeof...( Ts );
+        static constexpr types::Size H = N / 2;
+
+        template<types::Size... I>
+        static constexpr TypeList<TypeAt_t<I, T, Ts...>...> make_first( IndexSeq<I...> );
+        template<types::Size... I>
+        static constexpr TypeList<TypeAt_t<I + H, T, Ts...>...> make_second( IndexSeq<I...> );
+
+      public:
+        using left  = decltype( make_first( MakeIndexSeq<H> {} ) );
+        using right = decltype( make_second( MakeIndexSeq<N - H> {} ) );
+      };
+
+      template<typename TpList, typename T>
+      struct PushFront;
+      template<typename TpList, typename T>
+      using PushFront_t = typename PushFront<TpList, T>::type;
+
+      template<typename... Ts, typename T>
+      struct PushFront<TypeList<Ts...>, T> {
+        using type = TypeList<T, Ts...>;
+      };
+
+      template<typename TpList>
+      struct MergeSort;
+      template<typename TpList>
+      using MergeSort_t = typename MergeSort<TpList>::type;
+
+      template<>
+      struct MergeSort<TypeList<>> {
+        using type = TypeList<>;
+      };
+      template<typename T>
+      struct MergeSort<TypeList<T>> {
+        using type = TypeList<T>;
+      };
+      template<typename... Ts>
+      struct MergeSort<TypeList<Ts...>> {
+      private:
+        template<typename LeftList, typename RightList>
+        struct Conquer;
+        template<typename LeftList, typename RightList>
+        using Conquer_t = typename Conquer<LeftList, RightList>::type;
+
+        template<typename... Us>
+        struct Conquer<TypeList<>, TypeList<Us...>> {
+          using type = TypeList<Us...>;
+        };
+        template<typename... Us>
+        struct Conquer<TypeList<Us...>, TypeList<>> {
+          using type = TypeList<Us...>;
+        };
+        template<typename U, typename... Us, typename V, typename... Vs>
+        struct Conquer<TypeList<U, Us...>, TypeList<V, Vs...>> {
+          using type =
+            typename std::conditional<( TypeID<U>::value < TypeID<V>::value ),
+                                      PushFront_t<U, Conquer_t<TypeList<Us...>, TypeList<V, Vs...>>>,
+                                      PushFront_t<V, Conquer_t<TypeList<U, Us...>, TypeList<Vs...>>>>::type;
+        };
+
+      public:
+        using type = Conquer_t<Split_l<TypeList<Ts...>>, Split_r<TypeList<Ts...>>>;
+      };
+
+      template<typename TpList>
+      struct Repeat {
+      private:
+        template<typename Types>
+        struct Helper;
+        template<typename T>
+        struct Helper<TypeList<T>> : std::false_type {};
+        template<typename T1, typename T2, typename... Ts>
+        struct Helper<TypeList<T1, T2, Ts...>>
+          : std::conditional<std::is_same<T1, T2>::value, std::true_type, Helper<TypeList<T2, Ts...>>>::type {
+        };
+
+      public:
+        static constexpr bool value = Helper<MergeSort_t<TpList>>::value;
+      };
+# else
+      // If there is static reflection, the check here can be completed with O(nlogn) as above.
       template<typename Head, typename... Tail>
       struct Repeat<TypeList<Head, Tail...>>
         : std::conditional<Belong<Head, TypeList<Tail...>>::value,
                            std::true_type,
                            Repeat<TypeList<Tail...>>>::type {};
+# endif
 
       /**
        * A TypeList without duplicates;
