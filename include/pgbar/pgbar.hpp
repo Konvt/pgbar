@@ -415,6 +415,96 @@ namespace pgbar {
         static constexpr bool value = decltype( conditional<std::is_same<T, Head>::value>() )::value;
       };
 
+      template<typename TpList>
+      struct Split;
+      template<typename TpList>
+      using Split_l = typename Split<TpList>::left;
+      template<typename TpList>
+      using Split_r = typename Split<TpList>::right;
+
+      template<>
+      struct Split<TypeList<>> {
+        using left  = TypeList<>;
+        using right = TypeList<>;
+      };
+      template<typename T, typename... Ts>
+      struct Split<TypeList<T, Ts...>> {
+      private:
+        static constexpr types::Size N = 1 + sizeof...( Ts );
+        static constexpr types::Size H = N / 2;
+
+        template<types::Size... I>
+        static constexpr TypeList<TypeAt_t<I, T, Ts...>...> make_first( const IndexSeq<I...>& );
+        template<types::Size... I>
+        static constexpr TypeList<TypeAt_t<I + H, T, Ts...>...> make_second( const IndexSeq<I...>& );
+
+      public:
+        using left  = decltype( make_first( MakeIndexSeq<H> {} ) );
+        using right = decltype( make_second( MakeIndexSeq<N - H> {} ) );
+      };
+
+      template<typename TpList, typename T>
+      struct PushFront;
+      template<typename TpList, typename T>
+      using PushFront_t = typename PushFront<TpList, T>::type;
+
+      template<typename... Ts, typename T>
+      struct PushFront<TypeList<Ts...>, T> {
+        using type = TypeList<T, Ts...>;
+      };
+
+      template<typename TpList, template<typename, typename> class Cmp>
+      struct MergeSort;
+      template<typename TpList, template<typename, typename> class Cmp>
+      using MergeSort_t = typename MergeSort<TpList, Cmp>::type;
+
+      template<template<typename, typename> class Cmp>
+      struct MergeSort<TypeList<>, Cmp> {
+        using type = TypeList<>;
+      };
+      template<typename T, template<typename, typename> class Cmp>
+      struct MergeSort<TypeList<T>, Cmp> {
+        using type = TypeList<T>;
+      };
+      template<typename... Ts, template<typename, typename> class Cmp>
+      struct MergeSort<TypeList<Ts...>, Cmp> {
+      private:
+        template<typename LeftList, typename RightList>
+        struct Conquer;
+        template<typename LeftList, typename RightList>
+        using Conquer_t = typename Conquer<LeftList, RightList>::type;
+
+        template<typename... Us>
+        struct Conquer<TypeList<>, TypeList<Us...>> {
+          using type = TypeList<Us...>;
+        };
+        template<typename... Us>
+        struct Conquer<TypeList<Us...>, TypeList<>> {
+          using type = TypeList<Us...>;
+        };
+        template<typename U, typename... Us, typename V, typename... Vs>
+        struct Conquer<TypeList<U, Us...>, TypeList<V, Vs...>> {
+        private:
+          template<bool Cond>
+          static constexpr
+            typename std::enable_if<Cond,
+                                    PushFront_t<Conquer_t<TypeList<Us...>, TypeList<V, Vs...>>, U>>::type
+            conditional();
+          template<bool Cond>
+          static constexpr
+            typename std::enable_if<!Cond,
+                                    PushFront_t<Conquer_t<TypeList<U, Us...>, TypeList<Vs...>>, V>>::type
+            conditional();
+
+        public:
+          using type = decltype( conditional<( Cmp<U, V>::value )>() );
+        };
+
+      public:
+        using type =
+          Conquer_t<MergeSort_t<Split_l<TypeList<Ts...>>, Cmp>, MergeSort_t<Split_r<TypeList<Ts...>>, Cmp>>;
+      };
+
       // Check whether the list contains duplicate types.
       template<typename TpList>
       struct Duplicated;
@@ -461,94 +551,8 @@ namespace pgbar {
           id<typename std::remove_cv<typename std::remove_reference<T>::type>::type>();
       };
 
-      template<typename TpList>
-      struct Split;
-      template<typename TpList>
-      using Split_l = typename Split<TpList>::left;
-      template<typename TpList>
-      using Split_r = typename Split<TpList>::right;
-
-      template<>
-      struct Split<TypeList<>> {
-        using left  = TypeList<>;
-        using right = TypeList<>;
-      };
-      template<typename T, typename... Ts>
-      struct Split<TypeList<T, Ts...>> {
-      private:
-        static constexpr types::Size N = 1 + sizeof...( Ts );
-        static constexpr types::Size H = N / 2;
-
-        template<types::Size... I>
-        static constexpr TypeList<TypeAt_t<I, T, Ts...>...> make_first( IndexSeq<I...> );
-        template<types::Size... I>
-        static constexpr TypeList<TypeAt_t<I + H, T, Ts...>...> make_second( IndexSeq<I...> );
-
-      public:
-        using left  = decltype( make_first( MakeIndexSeq<H> {} ) );
-        using right = decltype( make_second( MakeIndexSeq<N - H> {} ) );
-      };
-
-      template<typename TpList, typename T>
-      struct PushFront;
-      template<typename TpList, typename T>
-      using PushFront_t = typename PushFront<TpList, T>::type;
-
-      template<typename... Ts, typename T>
-      struct PushFront<TypeList<Ts...>, T> {
-        using type = TypeList<T, Ts...>;
-      };
-
-      template<typename TpList>
-      struct MergeSort;
-      template<typename TpList>
-      using MergeSort_t = typename MergeSort<TpList>::type;
-
-      template<>
-      struct MergeSort<TypeList<>> {
-        using type = TypeList<>;
-      };
-      template<typename T>
-      struct MergeSort<TypeList<T>> {
-        using type = TypeList<T>;
-      };
-      template<typename... Ts>
-      struct MergeSort<TypeList<Ts...>> {
-      private:
-        template<typename LeftList, typename RightList>
-        struct Conquer;
-        template<typename LeftList, typename RightList>
-        using Conquer_t = typename Conquer<LeftList, RightList>::type;
-
-        template<typename... Us>
-        struct Conquer<TypeList<>, TypeList<Us...>> {
-          using type = TypeList<Us...>;
-        };
-        template<typename... Us>
-        struct Conquer<TypeList<Us...>, TypeList<>> {
-          using type = TypeList<Us...>;
-        };
-        template<typename U, typename... Us, typename V, typename... Vs>
-        struct Conquer<TypeList<U, Us...>, TypeList<V, Vs...>> {
-        private:
-          template<bool Cond>
-          static constexpr
-            typename std::enable_if<Cond,
-                                    PushFront_t<U, Conquer_t<TypeList<Us...>, TypeList<V, Vs...>>>>::type
-            conditional();
-          template<bool Cond>
-          static constexpr
-            typename std::enable_if<!Cond,
-                                    PushFront_t<V, Conquer_t<TypeList<U, Us...>, TypeList<Vs...>>>>::type
-            conditional();
-
-        public:
-          using type = decltype( conditional<( TypeID<U>::value < TypeID<V>::value )>() );
-        };
-
-      public:
-        using type = Conquer_t<Split_l<TypeList<Ts...>>, Split_r<TypeList<Ts...>>>;
-      };
+      template<typename A, typename B>
+      struct IDLess : std::integral_constant<bool, ( TypeID<A>::value < TypeID<B>::value )> {};
 
       template<typename TpList>
       struct Duplicated {
@@ -570,7 +574,7 @@ namespace pgbar {
         };
 
       public:
-        static constexpr bool value = Helper<MergeSort_t<TpList>>::value;
+        static constexpr bool value = Helper<MergeSort_t<TpList, IDLess>>::value;
       };
 # else
       // If there is static reflection, the check here can be completed with O(nlogn) as above.
