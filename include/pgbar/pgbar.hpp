@@ -293,21 +293,39 @@ namespace pgbar {
       template<typename Pred>
       struct AllOf<Pred> : Pred {};
       template<typename Pred, typename... Preds>
-      struct AllOf<Pred, Preds...> : std::conditional<bool( Pred::value ), AllOf<Preds...>, Pred>::type {};
+      struct AllOf<Pred, Preds...> {
+      private:
+        template<bool Cond>
+        static constexpr typename std::enable_if<Cond, AllOf<Preds...>>::type conditional();
+        template<bool Cond>
+        static constexpr typename std::enable_if<!Cond, std::false_type>::type conditional();
+
+      public:
+        static constexpr bool value = decltype( conditional<bool( Pred::value )>() )::value;
+      };
 
       template<typename... Preds>
       struct AnyOf : std::false_type {};
       template<typename Pred>
       struct AnyOf<Pred> : Pred {};
       template<typename Pred, typename... Preds>
-      struct AnyOf<Pred, Preds...> : std::conditional<bool( Pred::value ), Pred, AnyOf<Preds...>>::type {};
+      struct AnyOf<Pred, Preds...> {
+      private:
+        template<bool Cond>
+        static constexpr typename std::enable_if<Cond, std::true_type>::type conditional();
+        template<bool Cond>
+        static constexpr typename std::enable_if<!Cond, AnyOf<Preds...>>::type conditional();
+
+      public:
+        static constexpr bool value = decltype( conditional<bool( Pred::value )>() )::value;
+      };
 
       template<typename Pred>
       struct Not : std::integral_constant<bool, !bool( Pred::value )> {};
 # endif
 
       template<typename T, template<typename...> class Template, types::Size N>
-      struct FillTemplate {
+      struct Repeat {
       private:
         template<typename U, template<typename...> class Tmp, types::Size M, typename... Us>
         struct Helper : Helper<U, Tmp, M - 1, Us..., U> {};
@@ -320,7 +338,7 @@ namespace pgbar {
         using type = typename Helper<T, Template, N>::type;
       };
       template<typename T, template<typename...> class Template, types::Size N>
-      using FillTemplate_t = typename FillTemplate<T, Template, N>::type;
+      using Repeat_t = typename Repeat<T, Template, N>::type;
 
       template<types::Size Pos, typename... Ts>
       struct TypeAt {
@@ -386,26 +404,43 @@ namespace pgbar {
       template<typename T>
       struct Belong<T, TypeList<>> : std::false_type {};
       template<typename T, typename Head, typename... Tail>
-      struct Belong<T, TypeList<Head, Tail...>>
-        : std::conditional<std::is_same<T, Head>::value, std::true_type, Belong<T, TypeList<Tail...>>>::type {
+      struct Belong<T, TypeList<Head, Tail...>> {
+      private:
+        template<bool Cond>
+        static constexpr typename std::enable_if<Cond, std::true_type>::type conditional();
+        template<bool Cond>
+        static constexpr typename std::enable_if<!Cond, Belong<T, TypeList<Tail...>>>::type conditional();
+
+      public:
+        static constexpr bool value = decltype( conditional<std::is_same<T, Head>::value>() )::value;
       };
 
       // Check whether the list contains duplicate types.
       template<typename TpList>
-      struct Repeat;
+      struct Duplicated;
       template<>
-      struct Repeat<TypeList<>> : std::false_type {};
+      struct Duplicated<TypeList<>> : std::false_type {};
 
 # if __PGBAR_CXX20 || defined( __GNUC__ ) || defined( __clang__ ) || defined( _MSC_VER )
       template<typename T>
       struct TypeID {
       private:
+        static __PGBAR_CNSTEVAL types::ID avalanche( types::ID hash ) noexcept
+        {
+          return ( ( ( ( hash ^ ( hash >> 33 ) ) * 0xFF51AFD7ED558CCDull )
+                     ^ ( ( ( hash ^ ( hash >> 33 ) ) * 0xFF51AFD7ED558CCDull ) >> 33 ) )
+                   * 0xC4CEB9FE1A85EC53ull )
+               ^ ( ( ( ( ( hash ^ ( hash >> 33 ) ) * 0xFF51AFD7ED558CCDull )
+                       ^ ( ( ( hash ^ ( hash >> 33 ) ) * 0xFF51AFD7ED558CCDull ) >> 33 ) )
+                     * 0xC4CEB9FE1A85EC53ull )
+                   >> 33 );
+        }
         static __PGBAR_CNSTEVAL types::ID fnv1a( const types::Char* type_name,
-                                                 types::ID hash = 14695981039346656037ULL ) noexcept
+                                                 types::ID hash = 14695981039346656037ull ) noexcept
         {
           return *type_name == '\0'
-                 ? hash
-                 : fnv1a( type_name + 1, ( hash ^ static_cast<types::ID>( *type_name ) ) * 1099511628211ULL );
+                 ? avalanche( hash )
+                 : fnv1a( type_name + 1, ( hash ^ static_cast<types::ID>( *type_name ) ) * 1099511628211ull );
         }
 
         template<typename U>
@@ -422,7 +457,8 @@ namespace pgbar {
         }
 
       public:
-        static constexpr types::ID value = id<T>();
+        static constexpr types::ID value =
+          id<typename std::remove_cv<typename std::remove_reference<T>::type>::type>();
       };
 
       template<typename TpList>
@@ -494,10 +530,20 @@ namespace pgbar {
         };
         template<typename U, typename... Us, typename V, typename... Vs>
         struct Conquer<TypeList<U, Us...>, TypeList<V, Vs...>> {
-          using type =
-            typename std::conditional<( TypeID<U>::value < TypeID<V>::value ),
-                                      PushFront_t<U, Conquer_t<TypeList<Us...>, TypeList<V, Vs...>>>,
-                                      PushFront_t<V, Conquer_t<TypeList<U, Us...>, TypeList<Vs...>>>>::type;
+        private:
+          template<bool Cond>
+          static constexpr
+            typename std::enable_if<Cond,
+                                    PushFront_t<U, Conquer_t<TypeList<Us...>, TypeList<V, Vs...>>>>::type
+            conditional();
+          template<bool Cond>
+          static constexpr
+            typename std::enable_if<!Cond,
+                                    PushFront_t<V, Conquer_t<TypeList<U, Us...>, TypeList<Vs...>>>>::type
+            conditional();
+
+        public:
+          using type = decltype( conditional<( TypeID<U>::value < TypeID<V>::value )>() );
         };
 
       public:
@@ -505,15 +551,22 @@ namespace pgbar {
       };
 
       template<typename TpList>
-      struct Repeat {
+      struct Duplicated {
       private:
         template<typename Types>
         struct Helper;
         template<typename T>
         struct Helper<TypeList<T>> : std::false_type {};
         template<typename T1, typename T2, typename... Ts>
-        struct Helper<TypeList<T1, T2, Ts...>>
-          : std::conditional<std::is_same<T1, T2>::value, std::true_type, Helper<TypeList<T2, Ts...>>>::type {
+        struct Helper<TypeList<T1, T2, Ts...>> {
+        private:
+          template<bool Cond>
+          static constexpr typename std::enable_if<Cond, std::true_type>::type conditional();
+          template<bool Cond>
+          static constexpr typename std::enable_if<!Cond, Helper<TypeList<T2, Ts...>>>::type conditional();
+
+        public:
+          static constexpr bool value = decltype( conditional<std::is_same<T1, T2>::value>() )::value;
         };
 
       public:
@@ -522,10 +575,17 @@ namespace pgbar {
 # else
       // If there is static reflection, the check here can be completed with O(nlogn) as above.
       template<typename Head, typename... Tail>
-      struct Repeat<TypeList<Head, Tail...>>
-        : std::conditional<Belong<Head, TypeList<Tail...>>::value,
-                           std::true_type,
-                           Repeat<TypeList<Tail...>>>::type {};
+      struct Duplicated<TypeList<Head, Tail...>> {
+      private:
+        template<bool Cond>
+        static constexpr typename std::enable_if<Cond, std::true_type>::type conditional();
+        template<bool Cond>
+        static constexpr typename std::enable_if<!Cond, Duplicated<TypeList<Tail...>>>::type conditional();
+
+      public:
+        static constexpr bool value =
+          decltype( conditional<Belong<Head, TypeList<Tail...>>::value>() )::value;
+      };
 # endif
 
       /**
@@ -570,8 +630,17 @@ namespace pgbar {
                class... Tail,
                template<typename...>
                class T>
-      struct Include<TemplateList<Head, Tail...>, T>
-        : std::conditional<Equal<Head, T>::value, std::true_type, Include<TemplateList<Tail...>, T>>::type {};
+      struct Include<TemplateList<Head, Tail...>, T> {
+      private:
+        template<bool Cond>
+        static constexpr typename std::enable_if<Cond, std::true_type>::type conditional();
+        template<bool Cond>
+        static constexpr typename std::enable_if<!Cond, Include<TemplateList<Tail...>, T>>::type
+          conditional();
+
+      public:
+        static constexpr bool value = decltype( conditional<Equal<Head, T>::value>() )::value;
+      };
 
       // Insert a new template type into the head of the TemplateList.
       template<typename TmpList, template<typename...> class T>
@@ -596,7 +665,7 @@ namespace pgbar {
       template<typename TmpSet, template<typename...> class T>
       struct Extend {
       private:
-        template<typename Set, template<typename...> class U, bool Repeated>
+        template<typename Set, template<typename...> class U, bool Duplicateded>
         struct Helper;
         template<typename Set, template<typename...> class U>
         struct Helper<Set, U, true> {
@@ -701,12 +770,18 @@ namespace pgbar {
           using SortNVB_t = Helper_tp<false, InheritFrom_nvbt<Head>, SortTail_t, MarkTail_t>;
           using MarkNVB_t = Helper_pt<false, InheritFrom_nvbt<Head>, SortTail_t, MarkTail_t>;
 
+          template<bool Cond>
+          static constexpr
+            typename std::enable_if<Cond,
+                                    Helper_tp<true, TemplateList<Tail...>, SortedList, VisitedVBs>>::type
+            conditional();
+          template<bool Cond>
+          static constexpr typename std::enable_if<!Cond, Prepend_t<SortNVB_t, Head>>::type conditional();
+
         public:
           using path = Extend_t<MarkNVB_t, Head>;
           using type =
-            typename std::conditional<AnyOf<Contain<VisitedVBs, Head>, Contain<MarkTail_t, Head>>::value,
-                                      Helper_tp<true, TemplateList<Tail...>, SortedList, VisitedVBs>,
-                                      Prepend_t<SortNVB_t, Head>>::type;
+            decltype( conditional<AnyOf<Contain<VisitedVBs, Head>, Contain<MarkTail_t, Head>>::value>() );
         };
         template<template<typename...> class Head,
                  template<typename...>
@@ -5134,12 +5209,12 @@ namespace pgbar {
 
 # if __PGBAR_CXX20
         template<typename... Args>
-          requires( !traits::Repeat<traits::TypeList<Args...>>::value
+          requires( !traits::Duplicated<traits::TypeList<Args...>>::value
                     && ( traits::Exist<Args, traits::MakeSet_t<Constraint>>::value && ... ) )
 # else
         template<typename... Args,
                  typename = typename std::enable_if<
-                   traits::AllOf<traits::Not<traits::Repeat<traits::TypeList<Args...>>>,
+                   traits::AllOf<traits::Not<traits::Duplicated<traits::TypeList<Args...>>>,
                                  traits::Exist<Args, traits::MakeSet_t<Constraint>>...>::value>::type>
 # endif
         BasicConfig( Args... args )
@@ -5202,12 +5277,12 @@ namespace pgbar {
 
         template<typename Arg, typename... Args>
 # if __PGBAR_CXX20
-          requires( !traits::Repeat<traits::TypeList<Arg, Args...>>::value
+          requires( !traits::Duplicated<traits::TypeList<Arg, Args...>>::value
                     && traits::Exist<Arg, traits::MakeSet_t<Constraint>>::value
                     && ( traits::Exist<Args, traits::MakeSet_t<Constraint>>::value && ... ) )
         Derived&
 # else
-        typename std::enable_if<traits::AllOf<traits::Not<traits::Repeat<traits::TypeList<Arg, Args...>>>,
+        typename std::enable_if<traits::AllOf<traits::Not<traits::Duplicated<traits::TypeList<Arg, Args...>>>,
                                               traits::Exist<Arg, traits::MakeSet_t<Constraint>>,
                                               traits::Exist<Args, traits::MakeSet_t<Constraint>>...>::value,
                                 Derived&>::type
@@ -6825,7 +6900,7 @@ namespace pgbar {
     namespace assets {
       template<types::Size Cnt, Channel O, Policy S, typename C, types::Size... Is>
       __PGBAR_NODISCARD __PGBAR_INLINE_FN
-        traits::FillTemplate_t<prefabs::BasicBar<typename std::decay<C>::type, O, S>, MultiBar, Cnt>
+        traits::Repeat_t<prefabs::BasicBar<typename std::decay<C>::type, O, S>, MultiBar, Cnt>
         make_multi_helper( C&& cfg, const traits::IndexSeq<Is...>& )
           noexcept( __details::traits::AllOf<std::integral_constant<bool, ( Cnt == 1 )>,
                                              __details::traits::Not<std::is_lvalue_reference<C>>>::value )
@@ -6844,13 +6919,12 @@ namespace pgbar {
 # if __PGBAR_CXX20
     requires( Cnt > 0 && __details::traits::is_config<Config>::value )
   __PGBAR_NODISCARD __PGBAR_INLINE_FN
-    __details::traits::FillTemplate_t<__details::prefabs::BasicBar<Config, Outlet, Mode>, MultiBar, Cnt>
+    __details::traits::Repeat_t<__details::prefabs::BasicBar<Config, Outlet, Mode>, MultiBar, Cnt>
 # else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
     __details::traits::AllOf<std::integral_constant<bool, ( Cnt > 0 )>,
                              __details::traits::is_config<Config>>::value,
-    __details::traits::FillTemplate_t<__details::prefabs::BasicBar<Config, Outlet, Mode>, MultiBar, Cnt>>::
-    type
+    __details::traits::Repeat_t<__details::prefabs::BasicBar<Config, Outlet, Mode>, MultiBar, Cnt>>::type
 # endif
     make_multi( __details::prefabs::BasicBar<Config, Outlet, Mode>&& bar ) noexcept( Cnt == 1 )
   {
@@ -6869,15 +6943,14 @@ namespace pgbar {
 # if __PGBAR_CXX20
     requires( Cnt > 0 && __details::traits::is_config<std::decay_t<Config>>::value )
   __PGBAR_NODISCARD __PGBAR_INLINE_FN __details::traits::
-    FillTemplate_t<__details::prefabs::BasicBar<std::decay_t<Config>, Outlet, Mode>, MultiBar, Cnt>
+    Repeat_t<__details::prefabs::BasicBar<std::decay_t<Config>, Outlet, Mode>, MultiBar, Cnt>
 # else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
     __details::traits::AllOf<std::integral_constant<bool, ( Cnt > 0 )>,
                              __details::traits::is_config<typename std::decay<Config>::type>>::value,
-    __details::traits::FillTemplate_t<
-      __details::prefabs::BasicBar<typename std::decay<Config>::type, Outlet, Mode>,
-      MultiBar,
-      Cnt>>::type
+    __details::traits::Repeat_t<__details::prefabs::BasicBar<typename std::decay<Config>::type, Outlet, Mode>,
+                                MultiBar,
+                                Cnt>>::type
 # endif
     make_multi( Config&& cfg )
       noexcept( __details::traits::AllOf<std::integral_constant<bool, ( Cnt == 1 )>,
@@ -6899,7 +6972,7 @@ namespace pgbar {
               && ( ( ( std::is_same_v<std::remove_cv_t<Bar>, std::decay_t<Objs>> && ... )
                      && !( std::is_lvalue_reference_v<Objs> || ... ) )
                    || ( std::is_same_v<typename Bar::Config, std::decay_t<Objs>> && ... ) ) )
-  __PGBAR_NODISCARD __PGBAR_INLINE_FN __details::traits::FillTemplate_t<Bar, MultiBar, Cnt>
+  __PGBAR_NODISCARD __PGBAR_INLINE_FN __details::traits::Repeat_t<Bar, MultiBar, Cnt>
 # else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
     __details::traits::AllOf<
@@ -6912,7 +6985,7 @@ namespace pgbar {
           __details::traits::Not<__details::traits::AnyOf<std::is_lvalue_reference<Objs>...>>>,
         __details::traits::AllOf<std::is_same<typename Bar::Config, typename std::decay<Objs>::type>...>>>::
       value,
-    __details::traits::FillTemplate_t<Bar, MultiBar, Cnt>>::type
+    __details::traits::Repeat_t<Bar, MultiBar, Cnt>>::type
 # endif
     make_multi( Objs&&... objs ) noexcept( sizeof...( Objs ) == Cnt )
   {
@@ -6932,15 +7005,14 @@ namespace pgbar {
     requires( Cnt > 0 && sizeof...( Configs ) <= Cnt && __details::traits::is_config<Config>::value
               && ( std::is_same_v<Config, std::decay_t<Configs>> && ... ) )
   __PGBAR_NODISCARD __PGBAR_INLINE_FN
-    __details::traits::FillTemplate_t<__details::prefabs::BasicBar<Config, Outlet, Mode>, MultiBar, Cnt>
+    __details::traits::Repeat_t<__details::prefabs::BasicBar<Config, Outlet, Mode>, MultiBar, Cnt>
 # else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
     __details::traits::AllOf<std::integral_constant<bool, ( Cnt > 0 )>,
                              std::integral_constant<bool, ( sizeof...( Configs ) <= Cnt )>,
                              __details::traits::is_config<Config>,
                              std::is_same<Config, typename std::decay<Configs>::type>...>::value,
-    __details::traits::FillTemplate_t<__details::prefabs::BasicBar<Config, Outlet, Mode>, MultiBar, Cnt>>::
-    type
+    __details::traits::Repeat_t<__details::prefabs::BasicBar<Config, Outlet, Mode>, MultiBar, Cnt>>::type
 # endif
     make_multi( Configs&&... configs ) noexcept( sizeof...( Configs ) == Cnt )
   {
@@ -6960,15 +7032,14 @@ namespace pgbar {
     requires( Cnt > 0 && sizeof...( Configs ) <= Cnt && __details::traits::is_config<Config>::value
               && ( std::is_same_v<Config, std::decay_t<Configs>> && ... ) )
   __PGBAR_NODISCARD __PGBAR_INLINE_FN
-    __details::traits::FillTemplate_t<__details::prefabs::BasicBar<Config, Outlet, Mode>, MultiBar, Cnt>
+    __details::traits::Repeat_t<__details::prefabs::BasicBar<Config, Outlet, Mode>, MultiBar, Cnt>
 # else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
     __details::traits::AllOf<std::integral_constant<bool, ( Cnt > 0 )>,
                              std::integral_constant<bool, ( sizeof...( Configs ) <= Cnt )>,
                              __details::traits::is_config<Config>,
                              std::is_same<Config, typename std::decay<Configs>::type>&&...>::value,
-    __details::traits::FillTemplate_t<__details::prefabs::BasicBar<Config, Outlet, Mode>, MultiBar, Cnt>>::
-    type
+    __details::traits::Repeat_t<__details::prefabs::BasicBar<Config, Outlet, Mode>, MultiBar, Cnt>>::type
 # endif
     make_multi( __details::prefabs::BasicBar<Configs, Outlet, Mode>&&... bars )
       noexcept( sizeof...( Configs ) == Cnt )
