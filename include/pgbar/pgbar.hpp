@@ -295,13 +295,13 @@ namespace pgbar {
       template<typename Pred, typename... Preds>
       struct AllOf<Pred, Preds...> {
       private:
-        template<bool Cond>
-        static constexpr typename std::enable_if<Cond, AllOf<Preds...>>::type conditional();
-        template<bool Cond>
+        template<bool Cond, typename... Ps>
+        static constexpr typename std::enable_if<Cond, AllOf<Ps...>>::type conditional();
+        template<bool Cond, typename...>
         static constexpr typename std::enable_if<!Cond, std::false_type>::type conditional();
 
       public:
-        static constexpr bool value = decltype( conditional<bool( Pred::value )>() )::value;
+        static constexpr bool value = decltype( conditional<bool( Pred::value ), Preds...>() )::value;
       };
 
       template<typename... Preds>
@@ -311,13 +311,13 @@ namespace pgbar {
       template<typename Pred, typename... Preds>
       struct AnyOf<Pred, Preds...> {
       private:
-        template<bool Cond>
+        template<bool Cond, typename...>
         static constexpr typename std::enable_if<Cond, std::true_type>::type conditional();
-        template<bool Cond>
-        static constexpr typename std::enable_if<!Cond, AnyOf<Preds...>>::type conditional();
+        template<bool Cond, typename... Ps>
+        static constexpr typename std::enable_if<!Cond, AnyOf<Ps...>>::type conditional();
 
       public:
-        static constexpr bool value = decltype( conditional<bool( Pred::value )>() )::value;
+        static constexpr bool value = decltype( conditional<bool( Pred::value ), Preds...>() )::value;
       };
 
       template<typename Pred>
@@ -373,10 +373,18 @@ namespace pgbar {
       template<typename Head, typename... Tail>
       struct StartsWith<TypeList<Head, Tail...>> : std::false_type {};
       template<typename Head, typename... Tail, typename T, typename... Ts>
-      struct StartsWith<TypeList<Head, Tail...>, T, Ts...>
-        : std::conditional<std::is_same<Head, T>::value,
-                           StartsWith<TypeList<Tail...>, Ts...>,
-                           std::false_type>::type {};
+      struct StartsWith<TypeList<Head, Tail...>, T, Ts...> {
+      private:
+        template<bool Cond, typename RestList, typename... RestTargets>
+        static constexpr typename std::enable_if<Cond, StartsWith<RestList, RestTargets...>>::type
+          conditional();
+        template<bool Cond, typename, typename...>
+        static constexpr typename std::enable_if<!Cond, std::false_type>::type conditional();
+
+      public:
+        static constexpr bool value =
+          decltype( conditional<std::is_same<Head, T>::value, TypeList<Tail...>, Ts...>() )::value;
+      };
 
       template<typename HeadTpList, typename TailTpList>
       struct Join;
@@ -399,199 +407,22 @@ namespace pgbar {
       };
 
       // Check whether type `T` belongs to the list `TpList`.
-      template<typename T, typename TpList>
-      struct Belong;
-      template<typename T>
-      struct Belong<T, TypeList<>> : std::false_type {};
-      template<typename T, typename Head, typename... Tail>
-      struct Belong<T, TypeList<Head, Tail...>> {
-      private:
-        template<bool Cond>
-        static constexpr typename std::enable_if<Cond, std::true_type>::type conditional();
-        template<bool Cond>
-        static constexpr typename std::enable_if<!Cond, Belong<T, TypeList<Tail...>>>::type conditional();
-
-      public:
-        static constexpr bool value = decltype( conditional<std::is_same<T, Head>::value>() )::value;
-      };
-
-      template<typename TpList, types::Size Ratio = 2>
-      struct Split;
-      template<typename TpList, types::Size Ratio = 2>
-      using Split_l = typename Split<TpList, Ratio>::left;
-      template<typename TpList, types::Size Ratio = 2>
-      using Split_r = typename Split<TpList, Ratio>::right;
-
-      template<types::Size Ratio>
-      struct Split<TypeList<>, Ratio> {
-        using left  = TypeList<>;
-        using right = TypeList<>;
-      };
-      template<typename T, typename... Ts, types::Size Ratio>
-      struct Split<TypeList<T, Ts...>, Ratio> {
-      private:
-        static_assert( Ratio != 0, "pgbar::__details::traits::Split: Unexpected math error" );
-        static constexpr types::Size N = 1 + sizeof...( Ts );
-        static constexpr types::Size H = N / Ratio;
-
-        template<types::Size... I>
-        static constexpr TypeList<TypeAt_t<I, T, Ts...>...> make_left( const IndexSeq<I...>& );
-        template<types::Size... I>
-        static constexpr TypeList<TypeAt_t<I + H, T, Ts...>...> make_right( const IndexSeq<I...>& );
-
-      public:
-        using left  = decltype( make_left( MakeIndexSeq<H> {} ) );
-        using right = decltype( make_right( MakeIndexSeq<N - H> {} ) );
-      };
-
       template<typename TpList, typename T>
-      struct PushFront;
-      template<typename TpList, typename T>
-      using PushFront_t = typename PushFront<TpList, T>::type;
-
-      template<typename... Ts, typename T>
-      struct PushFront<TypeList<Ts...>, T> {
-        using type = TypeList<T, Ts...>;
-      };
-
-      template<typename TpList, template<typename, typename> class Cmp>
-      struct MergeSort;
-      template<typename TpList, template<typename, typename> class Cmp>
-      using MergeSort_t = typename MergeSort<TpList, Cmp>::type;
-
-      template<template<typename, typename> class Cmp>
-      struct MergeSort<TypeList<>, Cmp> {
-        using type = TypeList<>;
-      };
-      template<typename T, template<typename, typename> class Cmp>
-      struct MergeSort<TypeList<T>, Cmp> {
-        using type = TypeList<T>;
-      };
-      template<typename... Ts, template<typename, typename> class Cmp>
-      struct MergeSort<TypeList<Ts...>, Cmp> {
-      private:
-        template<typename LeftList, typename RightList>
-        struct Conquer;
-        template<typename LeftList, typename RightList>
-        using Conquer_t = typename Conquer<LeftList, RightList>::type;
-
-        template<typename... Us>
-        struct Conquer<TypeList<>, TypeList<Us...>> {
-          using type = TypeList<Us...>;
-        };
-        template<typename... Us>
-        struct Conquer<TypeList<Us...>, TypeList<>> {
-          using type = TypeList<Us...>;
-        };
-        template<typename U, typename... Us, typename V, typename... Vs>
-        struct Conquer<TypeList<U, Us...>, TypeList<V, Vs...>> {
-        private:
-          template<bool Cond>
-          static constexpr
-            typename std::enable_if<Cond,
-                                    PushFront_t<Conquer_t<TypeList<Us...>, TypeList<V, Vs...>>, U>>::type
-            conditional();
-          template<bool Cond>
-          static constexpr
-            typename std::enable_if<!Cond,
-                                    PushFront_t<Conquer_t<TypeList<U, Us...>, TypeList<Vs...>>, V>>::type
-            conditional();
-
-        public:
-          using type = decltype( conditional<( Cmp<U, V>::value )>() );
-        };
-
-      public:
-        using type =
-          Conquer_t<MergeSort_t<Split_l<TypeList<Ts...>>, Cmp>, MergeSort_t<Split_r<TypeList<Ts...>>, Cmp>>;
-      };
-
-      // Check whether the list contains duplicate types.
-      template<typename TpList>
-      struct Duplicated;
-      template<>
-      struct Duplicated<TypeList<>> : std::false_type {};
-
-# if __PGBAR_CXX20 || defined( __GNUC__ ) || defined( __clang__ ) || defined( _MSC_VER )
+      struct Own;
       template<typename T>
-      struct TypeID {
+      struct Own<TypeList<>, T> : std::false_type {};
+      template<typename Head, typename... Tail, typename T>
+      struct Own<TypeList<Head, Tail...>, T> {
       private:
-        static __PGBAR_CNSTEVAL types::ID avalanche( types::ID hash ) noexcept
-        {
-          return ( ( ( ( hash ^ ( hash >> 33 ) ) * 0xFF51AFD7ED558CCDull )
-                     ^ ( ( ( hash ^ ( hash >> 33 ) ) * 0xFF51AFD7ED558CCDull ) >> 33 ) )
-                   * 0xC4CEB9FE1A85EC53ull )
-               ^ ( ( ( ( ( hash ^ ( hash >> 33 ) ) * 0xFF51AFD7ED558CCDull )
-                       ^ ( ( ( hash ^ ( hash >> 33 ) ) * 0xFF51AFD7ED558CCDull ) >> 33 ) )
-                     * 0xC4CEB9FE1A85EC53ull )
-                   >> 33 );
-        }
-        static __PGBAR_CNSTEVAL types::ID fnv1a( const types::Char* type_name,
-                                                 types::ID hash = 14695981039346656037ull ) noexcept
-        {
-          return *type_name == '\0'
-                 ? avalanche( hash )
-                 : fnv1a( type_name + 1, ( hash ^ static_cast<types::ID>( *type_name ) ) * 1099511628211ull );
-        }
-
-        template<typename U>
-        static __PGBAR_CNSTEVAL types::ID id() noexcept
-        {
-#  if __PGBAR_CXX20
-          const auto location = std::source_location::current();
-          return fnv1a( location.function_name() );
-#  elif defined( _MSC_VER )
-          return fnv1a( __FUNCSIG__ );
-#  else
-          return fnv1a( __PRETTY_FUNCTION__ );
-#  endif
-        }
-
-      public:
-        static constexpr types::ID value =
-          id<typename std::remove_cv<typename std::remove_reference<T>::type>::type>();
-      };
-
-      template<typename A, typename B>
-      struct IDLess : std::integral_constant<bool, ( TypeID<A>::value < TypeID<B>::value )> {};
-
-      template<typename TpList>
-      struct Duplicated {
-      private:
-        template<typename Types>
-        struct Helper;
-        template<typename T>
-        struct Helper<TypeList<T>> : std::false_type {};
-        template<typename T1, typename T2, typename... Ts>
-        struct Helper<TypeList<T1, T2, Ts...>> {
-        private:
-          template<bool Cond>
-          static constexpr typename std::enable_if<Cond, std::true_type>::type conditional();
-          template<bool Cond>
-          static constexpr typename std::enable_if<!Cond, Helper<TypeList<T2, Ts...>>>::type conditional();
-
-        public:
-          static constexpr bool value = decltype( conditional<std::is_same<T1, T2>::value>() )::value;
-        };
-
-      public:
-        static constexpr bool value = Helper<MergeSort_t<TpList, IDLess>>::value;
-      };
-# else
-      // If there is static reflection, the check here can be completed with O(nlogn) as above.
-      template<typename Head, typename... Tail>
-      struct Duplicated<TypeList<Head, Tail...>> {
-      private:
-        template<bool Cond>
+        template<bool Cond, typename, typename>
         static constexpr typename std::enable_if<Cond, std::true_type>::type conditional();
-        template<bool Cond>
-        static constexpr typename std::enable_if<!Cond, Duplicated<TypeList<Tail...>>>::type conditional();
+        template<bool Cond, typename RestList, typename Target>
+        static constexpr typename std::enable_if<!Cond, Own<RestList, Target>>::type conditional();
 
       public:
         static constexpr bool value =
-          decltype( conditional<Belong<Head, TypeList<Tail...>>::value>() )::value;
+          decltype( conditional<std::is_same<T, Head>::value, TypeList<Tail...>, T>() )::value;
       };
-# endif
 
       /**
        * A TypeList without duplicates;
@@ -600,10 +431,27 @@ namespace pgbar {
       template<typename... Ts>
       struct TypeSet : TypeList<Ts>... {};
 
-      template<typename T, typename TpSet>
+      template<typename TpSet, typename T>
       struct Exist;
-      template<typename T, typename... Ts>
-      struct Exist<T, TypeSet<Ts...>> : std::is_base_of<TypeList<T>, TypeSet<Ts...>> {};
+      template<typename... Ts, typename T>
+      struct Exist<TypeSet<Ts...>, T> : std::is_base_of<TypeList<T>, TypeSet<Ts...>> {};
+
+      template<typename TpSet, typename T>
+      struct Expand;
+      template<typename TpSet, typename T>
+      using Expand_t = typename Expand<TpSet, T>::type;
+
+      template<typename... Ts, typename T>
+      struct Expand<TypeSet<Ts...>, T> {
+      private:
+        template<bool Cond, typename, typename... Contents>
+        static constexpr typename std::enable_if<Cond, TypeSet<Contents...>>::type conditional();
+        template<bool Cond, typename NewOne, typename... Contents>
+        static constexpr typename std::enable_if<!Cond, TypeSet<Contents..., NewOne>>::type conditional();
+
+      public:
+        using type = decltype( conditional<Exist<TypeSet<Ts...>, T>::value, T, Ts...>() );
+      };
 
       template<typename TpList>
       struct MakeSet;
@@ -613,6 +461,32 @@ namespace pgbar {
       template<typename... Ts>
       struct MakeSet<TypeList<Ts...>> {
         using type = TypeSet<Ts...>;
+      };
+
+      // Check whether the list contains duplicate types.
+      template<typename TpList>
+      struct Duplicated {
+      private:
+        template<typename VisitedSet, typename List>
+        struct Helper;
+        template<typename VisitedSet>
+        struct Helper<VisitedSet, TypeList<>> : std::false_type {};
+        template<typename VisitedSet, typename U, typename... Us>
+        struct Helper<VisitedSet, TypeList<U, Us...>> {
+        private:
+          template<bool Cond, typename, typename, typename>
+          static constexpr typename std::enable_if<Cond, std::true_type>::type conditional();
+          template<bool Cond, typename Track, typename Traced, typename RestList>
+          static constexpr typename std::enable_if<!Cond, Helper<Expand_t<Track, Traced>, RestList>>::type
+            conditional();
+
+        public:
+          static constexpr bool value =
+            decltype( conditional<Exist<VisitedSet, U>::value, VisitedSet, U, TypeList<Us...>>() )::value;
+        };
+
+      public:
+        static constexpr bool value = Helper<TypeSet<>, TpList>::value;
       };
 
       // A kind of `std::is_same` that applies to template class types.
@@ -637,14 +511,14 @@ namespace pgbar {
                class T>
       struct Include<TemplateList<Head, Tail...>, T> {
       private:
-        template<bool Cond>
+        template<bool Cond, typename ReseList, template<typename...> class>
         static constexpr typename std::enable_if<Cond, std::true_type>::type conditional();
-        template<bool Cond>
-        static constexpr typename std::enable_if<!Cond, Include<TemplateList<Tail...>, T>>::type
-          conditional();
+        template<bool Cond, typename ReseList, template<typename...> class Target>
+        static constexpr typename std::enable_if<!Cond, Include<ReseList, Target>>::type conditional();
 
       public:
-        static constexpr bool value = decltype( conditional<Equal<Head, T>::value>() )::value;
+        static constexpr bool value =
+          decltype( conditional<Equal<Head, T>::value, TemplateList<Tail...>, T>() )::value;
       };
 
       // Insert a new template type into the head of the TemplateList.
@@ -668,24 +542,21 @@ namespace pgbar {
       struct Contain<TemplateSet<Ts...>, T> : std::is_base_of<TemplateList<T>, TemplateSet<Ts...>> {};
 
       template<typename TmpSet, template<typename...> class T>
-      struct Extend {
-      private:
-        template<typename Set, template<typename...> class U, bool Duplicateded>
-        struct Helper;
-        template<typename Set, template<typename...> class U>
-        struct Helper<Set, U, true> {
-          using type = Set;
-        };
-        template<template<typename...> class... Us, template<typename...> class U>
-        struct Helper<TemplateSet<Us...>, U, false> {
-          using type = TemplateSet<Us..., U>;
-        };
-
-      public:
-        using type = typename Helper<TmpSet, T, Contain<TmpSet, T>::value>::type;
-      };
+      struct Extend;
       template<typename TmpSet, template<typename...> class T>
       using Extend_t = typename Extend<TmpSet, T>::type;
+
+      template<template<typename...> class... Ts, template<typename...> class T>
+      struct Extend<TemplateSet<Ts...>, T> {
+      private:
+        template<bool Cond, template<typename...> class, template<typename...> class... Contents>
+        static constexpr typename std::enable_if<Cond, TemplateSet<Contents...>>::type conditional();
+        template<bool Cond, template<typename...> class NewOne, template<typename...> class... Contents>
+        static constexpr typename std::enable_if<!Cond, TemplateSet<Contents..., NewOne>>::type conditional();
+
+      public:
+        using type = decltype( conditional<Contain<TemplateSet<Ts...>, T>::value, T, Ts...>() );
+      };
 
       /**
        * A template class that records the inheritance structure of a template class.
@@ -775,18 +646,33 @@ namespace pgbar {
           using SortNVB_t = Helper_tp<false, InheritFrom_nvbt<Head>, SortTail_t, MarkTail_t>;
           using MarkNVB_t = Helper_pt<false, InheritFrom_nvbt<Head>, SortTail_t, MarkTail_t>;
 
-          template<bool Cond>
-          static constexpr
-            typename std::enable_if<Cond,
-                                    Helper_tp<true, TemplateList<Tail...>, SortedList, VisitedVBs>>::type
+          template<bool Cond,
+                   typename RestNodes,
+                   typename Sorted,
+                   typename Visited,
+                   typename,
+                   template<typename...>
+                   class>
+          static constexpr typename std::enable_if<Cond, Helper_tp<true, RestNodes, Sorted, Visited>>::type
             conditional();
-          template<bool Cond>
-          static constexpr typename std::enable_if<!Cond, Prepend_t<SortNVB_t, Head>>::type conditional();
+          template<bool Cond,
+                   typename,
+                   typename,
+                   typename,
+                   typename IList, // Intermediate List
+                   template<typename...>
+                   class Target>
+          static constexpr typename std::enable_if<!Cond, Prepend_t<IList, Target>>::type conditional();
 
         public:
           using path = Extend_t<MarkNVB_t, Head>;
           using type =
-            decltype( conditional<AnyOf<Contain<VisitedVBs, Head>, Contain<MarkTail_t, Head>>::value>() );
+            decltype( conditional<AnyOf<Contain<VisitedVBs, Head>, Contain<MarkTail_t, Head>>::value,
+                                  TemplateList<Tail...>,
+                                  SortedList,
+                                  VisitedVBs,
+                                  SortNVB_t,
+                                  Head>() );
         };
         template<template<typename...> class Head,
                  template<typename...>
@@ -5220,7 +5106,7 @@ namespace pgbar {
         template<typename... Args,
                  typename = typename std::enable_if<
                    traits::AllOf<traits::Not<traits::Duplicated<traits::TypeList<Args...>>>,
-                                 traits::Exist<Args, traits::MakeSet_t<Constraint>>...>::value>::type>
+                                 traits::Exist<traits::MakeSet_t<Constraint>, Args>...>::value>::type>
 # endif
         BasicConfig( Args... args )
         {
@@ -5354,31 +5240,31 @@ namespace pgbar {
       {
         // The types in the tuple are never repeated.
         using ParamList = __details::traits::TypeList<Options...>;
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Belong<option::Shift, ParamList>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Shift>::value )
           unpacker( *this, option::Shift( -2 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Belong<option::Lead, ParamList>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Lead>::value )
           unpacker( *this, option::Lead( ">" ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Belong<option::Starting, ParamList>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Starting>::value )
           unpacker( *this, option::Starting( "[" ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Belong<option::Ending, ParamList>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Ending>::value )
           unpacker( *this, option::Ending( "]" ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Belong<option::BarLength, ParamList>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::BarLength>::value )
           unpacker( *this, option::BarLength( 30 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Belong<option::Filler, ParamList>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Filler>::value )
           unpacker( *this, option::Filler( "=" ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Belong<option::Remains, ParamList>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Remains>::value )
           unpacker( *this, option::Remains( " " ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Belong<option::Divider, ParamList>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Divider>::value )
           unpacker( *this, option::Divider( " | " ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Belong<option::InfoColor, ParamList>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::InfoColor>::value )
           unpacker( *this, option::InfoColor( color::Cyan ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Belong<option::SpeedUnit, ParamList>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::SpeedUnit>::value )
           unpacker(
             *this,
             option::SpeedUnit( std::array<__details::types::String, 4>( { "Hz", "kHz", "MHz", "GHz" } ) ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Belong<option::Magnitude, ParamList>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Magnitude>::value )
           unpacker( *this, option::Magnitude( 1000 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Belong<option::Style, ParamList>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Style>::value )
           unpacker( *this, option::Style( Base::Entire ) );
       }
 
@@ -5407,19 +5293,19 @@ namespace pgbar {
       void initialize()
       {
         using ParamList = __details::traits::TypeList<Options...>;
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Belong<option::BarLength, ParamList>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::BarLength>::value )
           unpacker( *this, option::BarLength( 30 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Belong<option::Divider, ParamList>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Divider>::value )
           unpacker( *this, option::Divider( " | " ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Belong<option::InfoColor, ParamList>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::InfoColor>::value )
           unpacker( *this, option::InfoColor( color::Cyan ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Belong<option::SpeedUnit, ParamList>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::SpeedUnit>::value )
           unpacker(
             *this,
             option::SpeedUnit( std::array<__details::types::String, 4>( { "Hz", "kHz", "MHz", "GHz" } ) ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Belong<option::Magnitude, ParamList>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Magnitude>::value )
           unpacker( *this, option::Magnitude( 1000 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Belong<option::Style, ParamList>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Style>::value )
           unpacker( *this, option::Style( Base::Entire ) );
       }
 
@@ -5448,21 +5334,21 @@ namespace pgbar {
       void initialize()
       {
         using ParamList = __details::traits::TypeList<Options...>;
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Belong<option::Shift, ParamList>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Shift>::value )
           unpacker( *this, option::Shift( -3 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Belong<option::Lead, ParamList>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Lead>::value )
           unpacker( *this, option::Lead( { "/", "-", "\\", "|" } ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Belong<option::Divider, ParamList>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Divider>::value )
           unpacker( *this, option::Divider( " | " ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Belong<option::InfoColor, ParamList>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::InfoColor>::value )
           unpacker( *this, option::InfoColor( color::Cyan ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Belong<option::SpeedUnit, ParamList>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::SpeedUnit>::value )
           unpacker(
             *this,
             option::SpeedUnit( std::array<__details::types::String, 4>( { "Hz", "kHz", "MHz", "GHz" } ) ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Belong<option::Magnitude, ParamList>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Magnitude>::value )
           unpacker( *this, option::Magnitude( 1000 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Belong<option::Style, ParamList>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Style>::value )
           unpacker( *this, option::Style( Base::Ani | Base::Elpsd ) );
       }
 
@@ -5494,29 +5380,29 @@ namespace pgbar {
       void initialize()
       {
         using ParamList = __details::traits::TypeList<Options...>;
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Belong<option::Shift, ParamList>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Shift>::value )
           unpacker( *this, option::Shift( -3 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Belong<option::Starting, ParamList>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Starting>::value )
           unpacker( *this, option::Starting( "[" ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Belong<option::Ending, ParamList>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Ending>::value )
           unpacker( *this, option::Ending( "]" ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Belong<option::BarLength, ParamList>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::BarLength>::value )
           unpacker( *this, option::BarLength( 30 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Belong<option::Filler, ParamList>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Filler>::value )
           unpacker( *this, option::Filler( "-" ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Belong<option::Lead, ParamList>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Lead>::value )
           unpacker( *this, option::Lead( "<==>" ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Belong<option::Divider, ParamList>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Divider>::value )
           unpacker( *this, option::Divider( " | " ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Belong<option::InfoColor, ParamList>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::InfoColor>::value )
           unpacker( *this, option::InfoColor( color::Cyan ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Belong<option::SpeedUnit, ParamList>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::SpeedUnit>::value )
           unpacker(
             *this,
             option::SpeedUnit( std::array<__details::types::String, 4>( { "Hz", "kHz", "MHz", "GHz" } ) ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Belong<option::Magnitude, ParamList>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Magnitude>::value )
           unpacker( *this, option::Magnitude( 1000 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Belong<option::Style, ParamList>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Style>::value )
           unpacker( *this, option::Style( Base::Ani | Base::Elpsd ) );
       }
 
@@ -6573,14 +6459,26 @@ namespace pgbar {
         template<types::Size Pos>
         using ElementAt_t = traits::TypeAt_t<Pos, TupleSlot<Tags, Bars<Configs, Outlet, Mode>>...>;
 
+        template<types::Size... Is, typename... Cs, Channel O, Policy M>
+        TupleBar( const TupleSlot<Is, prefabs::BasicBar<Cs, O, M>>&... ) = delete;
+
         // SFINAE is used here to prevent infinite recursive matching of errors.
-        template<typename... Objs,
-                 typename = typename std::enable_if<traits::AnyOf<
-                   traits::AllOf<traits::is_config<typename std::decay<Objs>::type>...>,
-                   traits::AllOf<traits::is_bar<typename std::decay<Objs>::type>...>>::value>::type>
-        TupleBar( Objs&&... objs ) noexcept( sizeof...( Objs ) == sizeof...( Bars ) )
-          : TupleBar( std::forward_as_tuple( std::forward<Objs>( objs )... ),
-                      traits::MakeIndexSeq<sizeof...( Configs )>() )
+        template<typename... Cfgs,
+                 typename = typename std::enable_if<
+                   traits::AllOf<traits::is_config<typename std::decay<Cfgs>::type>...,
+                                 traits::StartsWith<traits::TypeList<typename std::decay<Cfgs>::type...>,
+                                                    Configs...>>::value>::type>
+        TupleBar( Cfgs&&... cfgs ) noexcept( sizeof...( Cfgs ) == sizeof...( Bars ) )
+          : TupleBar( std::forward_as_tuple( std::forward<Cfgs>( cfgs )... ),
+                      traits::MakeIndexSeq<sizeof...( Cfgs )>() )
+        {}
+        template<typename... Cfgs,
+                 typename = typename std::enable_if<
+                   traits::StartsWith<traits::TypeList<Cfgs...>, Configs...>::value>::type>
+        TupleBar( prefabs::BasicBar<Cfgs, Outlet, Mode>&&... bars )
+          noexcept( sizeof...( Cfgs ) == sizeof...( Bars ) )
+          : TupleBar( std::forward_as_tuple( std::move( bars )... ),
+                      traits::MakeIndexSeq<sizeof...( Cfgs )>() )
         {}
         TupleBar( const TupleBar& )              = delete;
         TupleBar& operator=( const TupleBar& ) & = delete;
