@@ -415,32 +415,33 @@ namespace pgbar {
         static constexpr bool value = decltype( conditional<std::is_same<T, Head>::value>() )::value;
       };
 
-      template<typename TpList>
+      template<typename TpList, types::Size Ratio = 2>
       struct Split;
-      template<typename TpList>
-      using Split_l = typename Split<TpList>::left;
-      template<typename TpList>
-      using Split_r = typename Split<TpList>::right;
+      template<typename TpList, types::Size Ratio = 2>
+      using Split_l = typename Split<TpList, Ratio>::left;
+      template<typename TpList, types::Size Ratio = 2>
+      using Split_r = typename Split<TpList, Ratio>::right;
 
-      template<>
-      struct Split<TypeList<>> {
+      template<types::Size Ratio>
+      struct Split<TypeList<>, Ratio> {
         using left  = TypeList<>;
         using right = TypeList<>;
       };
-      template<typename T, typename... Ts>
-      struct Split<TypeList<T, Ts...>> {
+      template<typename T, typename... Ts, types::Size Ratio>
+      struct Split<TypeList<T, Ts...>, Ratio> {
       private:
+        static_assert( Ratio != 0, "pgbar::__details::traits::Split: Unexpected math error" );
         static constexpr types::Size N = 1 + sizeof...( Ts );
-        static constexpr types::Size H = N / 2;
+        static constexpr types::Size H = N / Ratio;
 
         template<types::Size... I>
-        static constexpr TypeList<TypeAt_t<I, T, Ts...>...> make_first( const IndexSeq<I...>& );
+        static constexpr TypeList<TypeAt_t<I, T, Ts...>...> make_left( const IndexSeq<I...>& );
         template<types::Size... I>
-        static constexpr TypeList<TypeAt_t<I + H, T, Ts...>...> make_second( const IndexSeq<I...>& );
+        static constexpr TypeList<TypeAt_t<I + H, T, Ts...>...> make_right( const IndexSeq<I...>& );
 
       public:
-        using left  = decltype( make_first( MakeIndexSeq<H> {} ) );
-        using right = decltype( make_second( MakeIndexSeq<N - H> {} ) );
+        using left  = decltype( make_left( MakeIndexSeq<H> {} ) );
+        using right = decltype( make_right( MakeIndexSeq<N - H> {} ) );
       };
 
       template<typename TpList, typename T>
