@@ -27,19 +27,19 @@
 ```
 ![BlockBar](images/blockbar.gif)
 
-### SpinBar
-```
-{LeftBorder}{Prefix}{Lead}{Percent}{Counter}{Speed}{Elapsed}{Countdown}{Postfix}{RightBorder}
-\ |  48.64% |  65288807/134217727 |  17.84 MHz | 00:00:03 < 00:00:03
-```
-![spinbar](images/spinbar.gif)
-
 ### SweepBar
 ```
 {LeftBorder}{Prefix}{Percent}{Starting}{Filler}{Lead}{Filler}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{Postfix}{RightBorder}
  39.82% | [---------------------<==>----] |  53458698/134217727 |  17.89 MHz | 00:00:02 < 00:00:04
 ```
 ![sweepbar](images/sweepbar.gif)
+
+### SpinBar
+```
+{LeftBorder}{Prefix}{Lead}{Percent}{Counter}{Speed}{Elapsed}{Countdown}{Postfix}{RightBorder}
+\ |  48.64% |  65288807/134217727 |  17.84 MHz | 00:00:03 < 00:00:03
+```
+![spinbar](images/spinbar.gif)
 
 ### MultiBar
 ![multibar](images/multibar.gif)

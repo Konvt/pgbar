@@ -189,7 +189,7 @@ int main()
 `ProgressBar` 由以下几种元素组成：
 
 ```text
-{LeftBorder}{Prefix}{Percent}{Starting}{Filler}{Lead}{Remains}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
+{LeftBorder}{Prefix}{Percent}{Starting}{Filler}{Lead}{Remains}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{Postfix}{RightBorder}
 ```
 
 其中可以自定义的部分有：`LeftBorder`、`Prefix`、`Starting`、`Filler`、`Lead`、`Remains`、`Ending`、`Speed`、`Postfix` 和 `RightBorder`，它们的功能与名字相同。
@@ -606,7 +606,7 @@ int main()
 `BlockBar` 由以下几种元素组成：
 
 ```text
-{LeftBorder}{Prefix}{Percent}{Starting}{BlockBar}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
+{LeftBorder}{Prefix}{Percent}{Starting}{BlockBar}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{Postfix}{RightBorder}
 ```
 
 其中可以自定义的部分有：`LeftBorder`、`Prefix`、`Starting`、`Ending`、`Speed`、`Postfix` 和 `RightBorder`，它们的功能与名字相同。
@@ -1014,7 +1014,7 @@ int main()
 `SweepBar` 由以下几种元素组成：
 
 ```text
-{LeftBorder}{Prefix}{Percent}{Starting}{Filler}{Lead}{Filler}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
+{LeftBorder}{Prefix}{Percent}{Starting}{Filler}{Lead}{Filler}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{Postfix}{RightBorder}
 ```
 
 其中可以自定义的部分有：`LeftBorder`、`Prefix`、`Starting`、`Filler`、`Lead`、`Ending`、`Speed`、`Postfix` 和 `RightBorder`，它们的功能与名字相同。
@@ -1427,7 +1427,7 @@ int main()
 `SpinBar` 由以下几种元素组成：
 
 ```text
-{LeftBorder}{Prefix}{Lead}{Percent}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
+{LeftBorder}{Prefix}{Lead}{Percent}{Counter}{Speed}{Elapsed}{Countdown}{Postfix}{RightBorder}
 ```
 
 其中可以自定义的部分有：`LeftBorder`、`Prefix`、`Lead`、`Speed`、`Postfix` 和 `RightBorder`，它们的功能与名字相同。
