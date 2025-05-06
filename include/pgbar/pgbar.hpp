@@ -226,10 +226,6 @@ namespace pgbar {
       using Float      = double;
       using TimeUnit   = std::chrono::nanoseconds;
       using Byte       = std::uint8_t;
-
-# if __PGBAR_CXX20 || defined( __GNUC__ ) || defined( __clang__ ) || defined( _MSC_VER )
-      using ID = std::uint64_t;
-# endif
     } // namespace types
 
     namespace constants {
@@ -453,14 +449,29 @@ namespace pgbar {
         using type = decltype( conditional<Exist<TypeSet<Ts...>, T>::value, T, Ts...>() );
       };
 
-      template<typename TpList>
-      struct MakeSet;
-      template<typename TpList>
-      using MakeSet_t = typename MakeSet<TpList>::type;
+      template<typename List>
+      struct Unique;
+      template<typename List>
+      using Unique_t = typename Unique<List>::type;
 
       template<typename... Ts>
-      struct MakeSet<TypeList<Ts...>> {
+      struct Unique<TypeSet<Ts...>> {
         using type = TypeSet<Ts...>;
+      };
+      template<template<typename...> class List, typename... Ts>
+      struct Unique<List<Ts...>> {
+      private:
+        template<typename ResultSet, typename RestList>
+        struct Helper;
+        template<typename ResultSet>
+        struct Helper<ResultSet, List<>> {
+          using type = ResultSet;
+        };
+        template<typename ResultSet, typename U, typename... Us>
+        struct Helper<ResultSet, List<U, Us...>> : Helper<Expand_t<ResultSet, U>, List<Us...>> {};
+
+      public:
+        using type = typename Helper<TypeSet<>, List<Ts...>>::type;
       };
 
       // Check whether the list contains duplicate types.
@@ -5101,12 +5112,12 @@ namespace pgbar {
 # if __PGBAR_CXX20
         template<typename... Args>
           requires( !traits::Duplicated<traits::TypeList<Args...>>::value
-                    && ( traits::Exist<Args, traits::MakeSet_t<Constraint>>::value && ... ) )
+                    && ( traits::Exist<traits::Unique_t<Constraint>, Args>::value && ... ) )
 # else
         template<typename... Args,
                  typename = typename std::enable_if<
                    traits::AllOf<traits::Not<traits::Duplicated<traits::TypeList<Args...>>>,
-                                 traits::Exist<traits::MakeSet_t<Constraint>, Args>...>::value>::type>
+                                 traits::Exist<traits::Unique_t<Constraint>, Args>...>::value>::type>
 # endif
         BasicConfig( Args... args )
         {
@@ -5169,13 +5180,13 @@ namespace pgbar {
         template<typename Arg, typename... Args>
 # if __PGBAR_CXX20
           requires( !traits::Duplicated<traits::TypeList<Arg, Args...>>::value
-                    && traits::Exist<Arg, traits::MakeSet_t<Constraint>>::value
-                    && ( traits::Exist<Args, traits::MakeSet_t<Constraint>>::value && ... ) )
+                    && traits::Exist<traits::Unique_t<Constraint>, Arg>::value
+                    && ( traits::Exist<traits::Unique_t<Constraint>, Args>::value && ... ) )
         Derived&
 # else
         typename std::enable_if<traits::AllOf<traits::Not<traits::Duplicated<traits::TypeList<Arg, Args...>>>,
-                                              traits::Exist<Arg, traits::MakeSet_t<Constraint>>,
-                                              traits::Exist<Args, traits::MakeSet_t<Constraint>>...>::value,
+                                              traits::Exist<traits::Unique_t<Constraint>, Arg>,
+                                              traits::Exist<traits::Unique_t<Constraint>, Args>...>::value,
                                 Derived&>::type
 # endif
           set( Arg arg, Args... args ) &

@@ -189,7 +189,7 @@ int main()
 `ProgressBar` consists of the following elements:
 
 ```text
-{LeftBorder}{Prefix}{Percent}{Starting}{Filler}{Lead}{Remains}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
+{LeftBorder}{Prefix}{Percent}{Starting}{Filler}{Lead}{Remains}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{Postfix}{RightBorder}
 ```
 
 The customizable sections are: `LeftBorder`, `Prefix`, `Starting`, `Filler`, `Lead`, `Remains`, `Ending`, `Speed`, `Postfix` and `RightBorder`, all of which have the same method as the name.
@@ -606,7 +606,7 @@ int main()
 `BlockBar` consists of the following elements:
 
 ```text
-{LeftBorder}{Prefix}{Percent}{Starting}{BlockBar}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
+{LeftBorder}{Prefix}{Percent}{Starting}{BlockBar}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{Postfix}{RightBorder}
 ```
 
 The customizable sections are: `LeftBorder`, `Prefix`, `Starting`, `Ending`, `Speed`, `Postfix` and `RightBorder`, all of which have the same method as the name.
@@ -1014,7 +1014,7 @@ int main()
 `SweepBar` consists of the following elements:
 
 ```text
-{LeftBorder}{Prefix}{Percent}{Starting}{Filler}{Lead}{Filler}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
+{LeftBorder}{Prefix}{Percent}{Starting}{Filler}{Lead}{Filler}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{Postfix}{RightBorder}
 ```
 
 The customizable sections are: `LeftBorder`, `Prefix`, `Starting`, `Filler`, `Lead`, `Ending`, `Speed`, `Postfix` and `RightBorder`, all of which have the same method as the name.
@@ -1426,7 +1426,7 @@ int main()
 `SpinBar` consists of the following elements:
 
 ```text
-{LeftBorder}{Prefix}{Lead}{Percent}{Counter}{Speed}{Elapsed}{Countdown}{RightBorder}
+{LeftBorder}{Prefix}{Lead}{Percent}{Counter}{Speed}{Elapsed}{Countdown}{Postfix}{RightBorder}
 ```
 
 The customizable sections are: `LeftBorder`, `Prefix`, `Lead`, `Speed`, `Postfix` and `RightBorder`, all of which have the same method as the name.
