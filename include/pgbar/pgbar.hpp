@@ -226,10 +226,6 @@ namespace pgbar {
       using Float      = double;
       using TimeUnit   = std::chrono::nanoseconds;
       using Byte       = std::uint8_t;
-
-# if __PGBAR_CXX20 || defined( __GNUC__ ) || defined( __clang__ ) || defined( _MSC_VER )
-      using ID = std::uint64_t;
-# endif
     } // namespace types
 
     namespace constants {
