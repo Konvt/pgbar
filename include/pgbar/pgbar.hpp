@@ -6416,28 +6416,18 @@ namespace pgbar {
             auto new_val = active_mask_.load( std::memory_order_acquire );
             new_val.set( Pos );
             active_mask_.store( new_val, std::memory_order_release );
-            ostream << console::escodes::linewipe;
             render::RenderAction<void>::automate( get<Pos>( *this ) );
 
             if ( !get<Pos>( *this ).active() && config::hide_completed() ) {
-              auto new_val = active_mask_.load( std::memory_order_acquire );
+              // The renderer ensures that each call to do render is atomic.
               new_val.reset( Pos );
               active_mask_.store( new_val, std::memory_order_release );
-
-              const auto num_active = [&new_val]() noexcept {
-                types::Size ret = 0;
-                for ( types::Size i = Pos + 1; i < sizeof...( Bars ); ++i )
-                  ret += new_val.test( i );
-                return ret;
-              }();
-              ostream << console::escodes::linestart << console::escodes::linewipe;
-              for ( types::Size i = 0; i < num_active; ++i )
-                ostream << console::escodes::nextline << console::escodes::linewipe;
-              ostream.append( console::escodes::prevline, num_active ).append( console::escodes::linestart );
+              ostream << console::escodes::linestart;
             }
           }
           if ( active_mask_.load( std::memory_order_acquire )[Pos] )
             ostream << console::escodes::nextline;
+          ostream << console::escodes::linewipe;
           return do_render<Pos + 1>(); // tail recursive
         }
 
@@ -6481,7 +6471,8 @@ namespace pgbar {
                      ostream
                        .append( console::escodes::prevline,
                                 active_mask_.load( std::memory_order_acquire ).count() )
-                       .append( console::escodes::linestart );
+                       .append( console::escodes::linestart )
+                       .append( console::escodes::linewipe );
                      do_render();
                      ostream << io::flush;
                    } break;
@@ -7480,45 +7471,31 @@ namespace pgbar {
           auto& ostream = io::OStream<Outlet>::itself();
           for ( types::Size i = 0; i < bars_.size(); ++i ) {
             auto bar_ptr = bars_[i].target_.lock();
-            if ( bars_[i].render_ != nullptr && bar_ptr != nullptr && bar_ptr->active() ) {
+            if ( bar_ptr == nullptr )
+              continue;
+
+            if ( bars_[i].render_ != nullptr && bar_ptr->active() ) {
               bars_[i].active_ = true;
-              ostream << console::escodes::linewipe;
               ( *bars_[i].render_ )( bar_ptr.get() );
 
               if ( !bar_ptr->active() && config::hide_completed() ) {
                 bars_[i].active_ = false;
-                const auto num_active =
-                  std::count_if( bars_.cbegin() + i + 1, bars_.cend(), []( const Slot& slot ) noexcept {
-                    return slot.active_;
-                  } );
-                __PGBAR_PURE_ASSUME( num_active >= 0 );
-                ostream << console::escodes::linestart << console::escodes::linewipe;
-                for ( types::Size i = 0; i < static_cast<types::Size>( num_active ); ++i )
-                  ostream << console::escodes::nextline << console::escodes::linewipe;
-                ostream.append( console::escodes::prevline, num_active )
-                  .append( console::escodes::linestart );
+                ostream << console::escodes::linestart;
               }
             }
             if ( bars_[i].active_ )
               ostream << console::escodes::nextline;
+            ostream << console::escodes::linewipe;
           }
         }
 
         void eliminate() noexcept
         {
-          if ( config::hide_completed() )
-            bars_.erase( std::remove_if( bars_.begin(),
-                                         bars_.end(),
-                                         []( const Slot& slot ) noexcept {
-                                           return slot.target_.expired() || slot.render_ == nullptr;
-                                         } ),
-                         bars_.end() );
-          else
-            // Search for the first k invalid or destructed progress bars and remove them.
-            bars_.erase( bars_.begin(),
-                         std::find_if( bars_.cbegin(), bars_.cend(), []( const Slot& slot ) noexcept {
-                           return !slot.target_.expired() && slot.render_ != nullptr;
-                         } ) );
+          // Search for the first k invalid or destructed progress bars and remove them.
+          bars_.erase( bars_.begin(),
+                       std::find_if( bars_.cbegin(), bars_.cend(), []( const Slot& slot ) noexcept {
+                         return slot.render_ != nullptr && !slot.target_.expired();
+                       } ) );
         }
 
       public:
@@ -7578,8 +7555,11 @@ namespace pgbar {
                          .append( console::escodes::prevline,
                                   std::count_if( bars_.cbegin(),
                                                  bars_.cend(),
-                                                 []( const Slot& slot ) noexcept { return slot.active_; } ) )
-                         .append( console::escodes::linestart );
+                                                 []( const Slot& slot ) noexcept {
+                                                   return slot.active_ && !slot.target_.expired();
+                                                 } ) )
+                         .append( console::escodes::linestart )
+                         .append( console::escodes::linewipe );
                        do_render();
                      }
                      ostream << io::flush;
