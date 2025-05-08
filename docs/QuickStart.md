@@ -52,6 +52,7 @@
   - [Coloring effect](#coloring-effect)
   - [Output stream detection](#output-stream-detection)
   - [Working interval of renderer](#working-interval-of-renderer)
+  - [Hide the completed progress bar](#hide-the-completed-progress-bar)
   - [Assertion](#assertion)
 - [Auxiliary facilities](#auxiliary-facilities)
   - [`NumericSpan`](#numericspan)
@@ -2071,6 +2072,11 @@ pgbar::config::refresh_interval<pgbar::Channel::Stderr>(
 Since the execution time of a single rendering job cannot be zero, if the working interval is lowered to zero, it means that the renderer never stops; This results in higher visual fluency and processor load.
 
 If you only want to modify the visual fluency of an animation component, you can do so using the `pgbar::option::Shift` type and the `shift()` method in the configuration type.
+
+## Hide the completed progress bar
+`pgbar` allows the automatic hiding of the completed progress bar string. This feature can be enabled or disabled by `pgbar::config::hide_completed()`.
+
+It should be particularly noted that this function can be affected by the unexpectedly destructed progress bar, resulting in chaotic terminal rendering in some cases.
 
 ## Assertion
 `pgbar` uses assert in `<cassert>` to insert multiple assertion checks into the code that only take effect when the macro `PGBAR_DEBUG` is defined and the library assertion is turned on.

@@ -2384,7 +2384,17 @@ namespace pgbar {
   enum class Channel : __details::types::Byte { Stdout = 1, Stderr };
   enum class Policy : __details::types::Byte { Async, Sync };
 
+  namespace config {
+    void hide_completed( bool flag ) noexcept;
+    __PGBAR_NODISCARD bool hide_completed() noexcept;
+  }
+
   class Indicator {
+    static std::atomic<bool> _hide_completed;
+
+    friend void config::hide_completed( bool ) noexcept;
+    friend bool config::hide_completed() noexcept;
+
   public:
     Indicator()                                = default;
     Indicator( const Indicator& )              = delete;
@@ -2408,6 +2418,7 @@ namespace pgbar {
       return __details::concurrent::adaptive_wait_for( [this]() noexcept { return !active(); }, timeout );
     }
   };
+  __PGBAR_CXX17_INLINE std::atomic<bool> Indicator::_hide_completed { false };
 
   namespace __details {
     namespace traits {
@@ -5252,6 +5263,15 @@ namespace pgbar {
       return __details::console::intty( channel );
     }
 
+    inline void hide_completed( bool flag ) noexcept
+    {
+      Indicator::_hide_completed.store( flag, std::memory_order_release );
+    }
+    __PGBAR_NODISCARD inline bool hide_completed() noexcept
+    {
+      return Indicator::_hide_completed.load( std::memory_order_acquire );
+    }
+
     class Line : public __details::prefabs::BasicConfig<__details::assets::CharIndicator, Line> {
       using Base = __details::prefabs::BasicConfig<__details::assets::CharIndicator, Line>;
       friend Base;
@@ -5973,7 +5993,10 @@ namespace pgbar {
                    ostream << console::escodes::prevline << console::escodes::linestart
                            << console::escodes::linewipe;
                    render::RenderAction<Soul>::finish( *this );
-                   ostream << console::escodes::nextline;
+                   if ( config::hide_completed() )
+                     ostream << console::escodes::linestart << console::escodes::linewipe;
+                   else
+                     ostream << console::escodes::nextline;
                    ostream << io::flush << io::release;
                  } break;
                  default: return;
@@ -6395,6 +6418,23 @@ namespace pgbar {
             active_mask_.store( new_val, std::memory_order_release );
             ostream << console::escodes::linewipe;
             render::RenderAction<void>::automate( get<Pos>( *this ) );
+
+            if ( !get<Pos>( *this ).active() && config::hide_completed() ) {
+              auto new_val = active_mask_.load( std::memory_order_acquire );
+              new_val.reset( Pos );
+              active_mask_.store( new_val, std::memory_order_release );
+
+              const auto num_active = [&new_val]() noexcept {
+                types::Size ret = 0;
+                for ( types::Size i = Pos + 1; i < sizeof...( Bars ); ++i )
+                  ret += new_val.test( i );
+                return ret;
+              }();
+              ostream << console::escodes::linestart << console::escodes::linewipe;
+              for ( types::Size i = 0; i < num_active; ++i )
+                ostream << console::escodes::nextline << console::escodes::linewipe;
+              ostream.append( console::escodes::prevline, num_active ).append( console::escodes::linestart );
+            }
           }
           if ( active_mask_.load( std::memory_order_acquire )[Pos] )
             ostream << console::escodes::nextline;
@@ -7417,49 +7457,72 @@ namespace pgbar {
           typename std::add_pointer<void( Indicator* ) noexcept>::type halt_;
           typename std::add_pointer<void( Indicator* )>::type render_;
           std::weak_ptr<Indicator> target_;
+          bool active_;
 
           template<typename Config>
           Slot( const std::shared_ptr<prefabs::SharedBar<Config, Outlet, Mode>>& bar ) noexcept
             : halt_ { halt<prefabs::SharedBar<Config, Outlet, Mode>> }
             , render_ { render<prefabs::BasicBar<Config, Outlet, Mode>> }
             , target_ { bar }
+            , active_ { false }
           {}
         };
 
         enum class State : types::Byte { Stop, Awake, Refresh };
         std::atomic<State> state_;
 
-        types::Size alive_cnt_;
         std::vector<Slot> bars_;
         mutable concurrent::SharedMutex res_mtx_;
         mutable std::mutex sched_mtx_;
 
         void do_render() &
         {
+          auto& ostream = io::OStream<Outlet>::itself();
           for ( types::Size i = 0; i < bars_.size(); ++i ) {
-            auto bar_ptr  = bars_[i].target_.lock();
-            auto& ostream = io::OStream<Outlet>::itself();
+            auto bar_ptr = bars_[i].target_.lock();
             if ( bars_[i].render_ != nullptr && bar_ptr != nullptr && bar_ptr->active() ) {
+              bars_[i].active_ = true;
               ostream << console::escodes::linewipe;
               ( *bars_[i].render_ )( bar_ptr.get() );
+
+              if ( !bar_ptr->active() && config::hide_completed() ) {
+                bars_[i].active_ = false;
+                const auto num_active =
+                  std::count_if( bars_.cbegin() + i + 1, bars_.cend(), []( const Slot& slot ) noexcept {
+                    return slot.active_;
+                  } );
+                __PGBAR_PURE_ASSUME( num_active >= 0 );
+                ostream << console::escodes::linestart << console::escodes::linewipe;
+                for ( types::Size i = 0; i < static_cast<types::Size>( num_active ); ++i )
+                  ostream << console::escodes::nextline << console::escodes::linewipe;
+                ostream.append( console::escodes::prevline, num_active )
+                  .append( console::escodes::linestart );
+              }
             }
-            ostream << console::escodes::nextline;
+            if ( bars_[i].active_ )
+              ostream << console::escodes::nextline;
           }
-          alive_cnt_ = bars_.size();
         }
 
         void eliminate() noexcept
         {
-          // Search for the first k invalid or destructed progress bars and remove them.
-          bars_.erase( bars_.begin(),
-                       std::find_if( bars_.cbegin(), bars_.cend(), []( const Slot& slot ) noexcept {
-                         return !slot.target_.expired() && slot.render_ != nullptr;
-                       } ) );
-          alive_cnt_ = bars_.size();
+          if ( config::hide_completed() )
+            bars_.erase( std::remove_if( bars_.begin(),
+                                         bars_.end(),
+                                         []( const Slot& slot ) noexcept {
+                                           return slot.target_.expired() || slot.render_ == nullptr;
+                                         } ),
+                         bars_.end() );
+          else
+            // Search for the first k invalid or destructed progress bars and remove them.
+            bars_.erase( bars_.begin(),
+                         std::find_if( bars_.cbegin(), bars_.cend(), []( const Slot& slot ) noexcept {
+                           return !slot.target_.expired() && slot.render_ != nullptr;
+                         } ) );
         }
 
       public:
-        DynamicContext() noexcept : state_ { State::Stop }, alive_cnt_ { 0 } {}
+        DynamicContext() noexcept : state_ { State::Stop } {}
         DynamicContext( const DynamicContext& )              = delete;
         DynamicContext& operator=( const DynamicContext& ) & = delete;
         ~DynamicContext() noexcept { halt(); }
@@ -7480,7 +7543,6 @@ namespace pgbar {
             }
           }
           bars_.clear();
-          alive_cnt_ = 0;
         }
 
         template<typename C>
@@ -7512,7 +7574,11 @@ namespace pgbar {
                    case State::Refresh: {
                      {
                        concurrent::SharedLock<concurrent::SharedMutex> lock { res_mtx_ };
-                       ostream.append( console::escodes::prevline, alive_cnt_ )
+                       ostream
+                         .append( console::escodes::prevline,
+                                  std::count_if( bars_.cbegin(),
+                                                 bars_.cend(),
+                                                 []( const Slot& slot ) noexcept { return slot.active_; } ) )
                          .append( console::escodes::linestart );
                        do_render();
                      }
@@ -7575,8 +7641,10 @@ namespace pgbar {
             } );
             // Mark render_ as empty,
             // and then search for the first k invalid or destructed progress bars and remove them.
-            if ( itr != bars_.end() )
+            if ( itr != bars_.end() ) {
               itr->render_ = nullptr;
+              itr->active_ = false;
+            }
             eliminate();
             suspend_flag = bars_.empty();
           }
@@ -7586,7 +7654,6 @@ namespace pgbar {
             render::Renderer<Outlet, Mode>::itself().appoint();
             io::OStream<Outlet>::itself() << io::release;
             std::lock_guard<concurrent::SharedMutex> lock2 { res_mtx_ };
-            alive_cnt_ = 0;
           }
         }
 
