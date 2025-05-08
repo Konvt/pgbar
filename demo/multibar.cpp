@@ -9,7 +9,6 @@ int main()
 #if _WIN32
   system( "chcp 65001" );
 #endif
-
   auto mbar = pgbar::make_multi<pgbar::BlockBar<>, 3>();
 
   vector<thread> pool;
