@@ -2959,7 +2959,11 @@ namespace pgbar {
                        } );
                      } break;
                      case State::Active: {
-                       task_();
+                       {
+                         concurrent::SharedLock<concurrent::SharedMutex> lock1 { rw_mtx_ };
+                         std::lock_guard<std::mutex> lock2 { mtx_ };
+                         task_();
+                       }
                        auto expected = State::Active;
                        state_.compare_exchange_strong( expected,
                                                        State::Finish,
@@ -5237,6 +5241,12 @@ namespace pgbar {
     {
       __details::render::Renderer<Outlet, Policy::Async>::working_interval( std::move( new_rate ) );
     }
+    // Set every channels to the same output interval.
+    inline void refresh_interval( TimeUnit new_rate )
+    {
+      __details::render::Renderer<Channel::Stderr, Policy::Async>::working_interval( new_rate );
+      __details::render::Renderer<Channel::Stdout, Policy::Async>::working_interval( std::move( new_rate ) );
+    }
     __PGBAR_NODISCARD __PGBAR_INLINE_FN bool intty( Channel channel ) noexcept
     {
       return __details::console::intty( channel );
@@ -6380,9 +6390,9 @@ namespace pgbar {
           __PGBAR_ASSERT( online() );
           auto& ostream = io::OStream<Outlet>::itself();
           if ( get<Pos>( *this ).active() ) {
-            auto copy = active_mask_.load( std::memory_order_acquire );
-            copy.set( Pos );
-            active_mask_.store( copy, std::memory_order_release );
+            auto new_val = active_mask_.load( std::memory_order_acquire );
+            new_val.set( Pos );
+            active_mask_.store( new_val, std::memory_order_release );
             ostream << console::escodes::linewipe;
             render::RenderAction<void>::automate( get<Pos>( *this ) );
           }
@@ -6473,22 +6483,28 @@ namespace pgbar {
         template<types::Size... Is, typename... Cs, Channel O, Policy M>
         TupleBar( const TupleSlot<Is, prefabs::BasicBar<Cs, O, M>>&... ) = delete;
 
+        TupleBar() = default;
         // SFINAE is used here to prevent infinite recursive matching of errors.
-        template<typename... Cfgs,
+        template<typename Cfg,
+                 typename... Cfgs,
                  typename = typename std::enable_if<
-                   traits::AllOf<traits::is_config<typename std::decay<Cfgs>::type>...,
-                                 traits::StartsWith<traits::TypeList<typename std::decay<Cfgs>::type...>,
+                   traits::AllOf<traits::is_config<typename std::decay<Cfg>::type>,
+                                 traits::is_config<typename std::decay<Cfgs>::type>...,
+                                 traits::StartsWith<traits::TypeList<typename std::decay<Cfg>::type,
+                                                                     typename std::decay<Cfgs>::type...>,
                                                     Configs...>>::value>::type>
-        TupleBar( Cfgs&&... cfgs ) noexcept( sizeof...( Cfgs ) == sizeof...( Bars ) )
-          : TupleBar( std::forward_as_tuple( std::forward<Cfgs>( cfgs )... ),
+        TupleBar( Cfg&& cfg, Cfgs&&... cfgs ) noexcept( sizeof...( Cfgs ) + 1 == sizeof...( Bars ) )
+          : TupleBar( std::forward_as_tuple( std::forward<Cfg>( cfg ), std::forward<Cfgs>( cfgs )... ),
                       traits::MakeIndexSeq<sizeof...( Cfgs )>() )
         {}
-        template<typename... Cfgs,
+        template<typename Cfg,
+                 typename... Cfgs,
                  typename = typename std::enable_if<
-                   traits::StartsWith<traits::TypeList<Cfgs...>, Configs...>::value>::type>
-        TupleBar( prefabs::BasicBar<Cfgs, Outlet, Mode>&&... bars )
-          noexcept( sizeof...( Cfgs ) == sizeof...( Bars ) )
-          : TupleBar( std::forward_as_tuple( std::move( bars )... ),
+                   traits::StartsWith<traits::TypeList<Cfg, Cfgs...>, Configs...>::value>::type>
+        TupleBar( prefabs::BasicBar<Cfg, Outlet, Mode>&& bar,
+                  prefabs::BasicBar<Cfgs, Outlet, Mode>&&... bars )
+          noexcept( sizeof...( Cfgs ) + 1 == sizeof...( Bars ) )
+          : TupleBar( std::forward_as_tuple( std::move( bar ), std::move( bars )... ),
                       traits::MakeIndexSeq<sizeof...( Cfgs )>() )
         {}
         TupleBar( const TupleBar& )              = delete;
@@ -7432,6 +7448,16 @@ namespace pgbar {
           alive_cnt_ = bars_.size();
         }
 
+        void eliminate() noexcept
+        {
+          // Search for the first k invalid or destructed progress bars and remove them.
+          bars_.erase( bars_.begin(),
+                       std::find_if( bars_.cbegin(), bars_.cend(), []( const Slot& slot ) noexcept {
+                         return !slot.target_.expired() && slot.render_ != nullptr;
+                       } ) );
+          alive_cnt_ = bars_.size();
+        }
+
       public:
         DynamicContext() noexcept : state_ { State::Stop }, alive_cnt_ { 0 } {}
         DynamicContext( const DynamicContext& )              = delete;
@@ -7512,17 +7538,9 @@ namespace pgbar {
               throw;
             }
           } else {
-            { // Search for the first k invalid or destructed progress bars and remove them.
+            {
               std::lock_guard<concurrent::SharedMutex> lock2 { res_mtx_ };
-              const auto num_erased =
-                std::distance( bars_.cbegin(),
-                               std::find_if( bars_.cbegin(), bars_.cend(), []( const Slot& slot ) noexcept {
-                                 return !slot.target_.expired() && slot.render_ != nullptr;
-                               } ) );
-              bars_.erase( bars_.begin(), bars_.begin() + num_erased );
-              __PGBAR_ASSERT( num_erased >= 0 );
-              __PGBAR_ASSERT( alive_cnt_ >= static_cast<types::Size>( num_erased ) );
-              alive_cnt_ -= num_erased;
+              eliminate();
               bars_.emplace_back( std::move( bar ) );
             }
             executor.attempt();
@@ -7559,15 +7577,7 @@ namespace pgbar {
             // and then search for the first k invalid or destructed progress bars and remove them.
             if ( itr != bars_.end() )
               itr->render_ = nullptr;
-            const auto num_erased =
-              std::distance( bars_.cbegin(),
-                             std::find_if( bars_.cbegin(), bars_.cend(), []( const Slot& slot ) noexcept {
-                               return !slot.target_.expired() && slot.render_ != nullptr;
-                             } ) );
-            bars_.erase( bars_.begin(), bars_.begin() + num_erased );
-            __PGBAR_ASSERT( num_erased >= 0 );
-            __PGBAR_ASSERT( alive_cnt_ >= static_cast<types::Size>( num_erased ) );
-            alive_cnt_ -= num_erased;
+            eliminate();
             suspend_flag = bars_.empty();
           }
 
