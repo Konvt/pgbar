@@ -1228,33 +1228,32 @@ namespace pgbar {
       template<typename R, typename... Args>
       class UniqueFunction<R( Args... )> {
 #  if __PGBAR_CXX17
-        using Bytes = std::byte;
+        using Data = std::byte;
 #  else
-        using Bytes = unsigned char;
+        using Data = unsigned char;
 #  endif
         using Self = UniqueFunction;
         union AnyFn {
-          Bytes buf_[sizeof( void* ) * 2];
-          Bytes* dptr_;
+          Data buf_[sizeof( void* ) * 2];
+          Data* dptr_;
         };
+        template<typename T>
+        using Param_t = typename std::conditional<std::is_scalar<T>::value, T, T&&>::type;
         struct VTable final {
-          const typename std::add_pointer<R( AnyFn&, Args&&... )>::type invoke;
+          const typename std::add_pointer<R( AnyFn&, Param_t<Args>... )>::type invoke;
           const typename std::add_pointer<void( AnyFn& ) noexcept>::type destroy;
           const typename std::add_pointer<void( AnyFn& dst, AnyFn& src ) noexcept>::type move;
         };
 
-        template<typename T, typename = void>
-        struct is_inline_type : std::false_type {};
         template<typename T>
-        struct is_inline_type<T,
-                              typename std::enable_if<traits::AllOf<
-                                std::integral_constant<bool, ( sizeof( T ) <= sizeof( AnyFn::buf_ ) )>,
-                                std::is_nothrow_move_constructible<T>>::value>::type> : std::true_type {};
+        using Inlinable =
+          traits::AllOf<std::integral_constant<bool, ( sizeof( T ) <= sizeof( AnyFn::buf_ ) )>,
+                        std::is_nothrow_move_constructible<T>>;
 
         const VTable* vtable_;
         AnyFn callee_;
 
-        static __PGBAR_CXX14_CNSTXPR R invoke_null( AnyFn&, Args&&... )
+        static __PGBAR_CXX14_CNSTXPR R invoke_null( AnyFn&, Param_t<Args>... )
         {
           __PGBAR_UNREACHABLE;
           // The standard says this should trigger an undefined behavior.
@@ -1263,7 +1262,7 @@ namespace pgbar {
         static __PGBAR_CXX14_CNSTXPR void move_null( AnyFn&, AnyFn& ) noexcept {}
 
         template<typename T>
-        static __PGBAR_CXX14_CNSTXPR R invoke_inline( AnyFn& fn, Args&&... args )
+        static __PGBAR_CXX14_CNSTXPR R invoke_inline( AnyFn& fn, Param_t<Args>... args )
         {
           const auto ptr = utils::launder_as<T>( fn.buf_ );
           return ( *ptr )( std::forward<Args>( args )... );
@@ -1282,7 +1281,7 @@ namespace pgbar {
         }
 
         template<typename T>
-        static __PGBAR_CXX14_CNSTXPR R invoke_dynamic( AnyFn& fn, Args&&... args )
+        static __PGBAR_CXX14_CNSTXPR R invoke_dynamic( AnyFn& fn, Param_t<Args>... args )
         {
           const auto dptr = utils::launder_as<T>( fn.dptr_ );
           return ( *dptr )( std::forward<Args>( args )... );
@@ -1320,7 +1319,8 @@ namespace pgbar {
         }
 
         template<typename F>
-        __PGBAR_INLINE_FN void store_fn( F&& fn, const std::true_type& ) noexcept
+        __PGBAR_INLINE_FN typename std::enable_if<Inlinable<typename std::decay<F>::type>::value>::type
+          store_fn( F&& fn ) noexcept
         {
           using T             = typename std::decay<F>::type;
           const auto location = new ( &callee_ ) T( std::forward<F>( fn ) );
@@ -1328,10 +1328,13 @@ namespace pgbar {
           vtable_ = &table_inline<T>();
         }
         template<typename F>
-        __PGBAR_INLINE_FN void store_fn( F&& fn, const std::false_type& ) noexcept( false )
+        __PGBAR_INLINE_FN typename std::enable_if<!Inlinable<typename std::decay<F>::type>::value>::type
+          store_fn( F&& fn ) noexcept( false )
         {
           using T   = typename std::decay<F>::type;
-          auto dptr = std::unique_ptr<Bytes>( static_cast<Bytes*>( operator new( sizeof( T ) ) ) );
+          auto dptr = std::unique_ptr<Data, void ( * )( Data* )>(
+            static_cast<Data*>( operator new( sizeof( T ) ) ),
+            +[]( Data* ptr ) { operator delete( ptr ); } );
 
           const auto location = new ( dptr.get() ) T( std::forward<F>( fn ) );
           __PGBAR_ASSERT( static_cast<void*>( location ) == dptr.get() );
@@ -1351,10 +1354,9 @@ namespace pgbar {
                                                        std::declval<Args>()... ) ),
                                                      R>>::value>::type>
         __PGBAR_CXX23_CNSTXPR UniqueFunction( F&& fn )
-          noexcept( is_inline_type<typename std::decay<F>::type>::value )
+          noexcept( Inlinable<typename std::decay<F>::type>::value )
         {
-          using T = typename std::decay<F>::type;
-          store_fn( std::forward<F>( fn ), is_inline_type<T>() );
+          store_fn( std::forward<F>( fn ) );
         }
 
         UniqueFunction( const Self& )    = delete;
@@ -1389,7 +1391,7 @@ namespace pgbar {
                         std::is_convertible<decltype( std::declval<typename std::decay<F>::type&>()(
                                               std::declval<Args>()... ) ),
                                             R>>::value>::type
-          operator=( F&& fn ) & noexcept( is_inline_type<typename std::decay<F>::type>::value )
+          operator=( F&& fn ) & noexcept( Inlinable<typename std::decay<F>::type>::value )
         {
           return operator=( UniqueFunction<R( Args... )>( std::forward<F>( fn ) ) );
         }
