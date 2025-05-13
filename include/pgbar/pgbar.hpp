@@ -1216,31 +1216,20 @@ namespace pgbar {
       template<typename... Signature>
       using UniqueFunction = std::move_only_function<Signature...>;
 # else
-      // A simplified implementation of std::move_only_function
-      template<typename...>
-      class UniqueFunction;
-      /**
-       * Extracting non-type parameters of type bool from the noexcept specifier is a non-standard behavior.
-
-       * And the UniqueFunction with noexcept is not actually used in the code,
-       * so there's no extra support for noexcept here.
-       */
-      template<typename R, typename... Args>
-      class UniqueFunction<R( Args... )> {
+      template<typename Derived>
+      class FnStorageBlock {
+      protected:
 #  if __PGBAR_CXX17
         using Data = std::byte;
 #  else
         using Data = unsigned char;
 #  endif
-        using Self = UniqueFunction;
         union AnyFn {
           Data buf_[sizeof( void* ) * 2];
           Data* dptr_;
         };
-        template<typename T>
-        using Param_t = typename std::conditional<std::is_scalar<T>::value, T, T&&>::type;
         struct VTable final {
-          const typename std::add_pointer<R( AnyFn&, Param_t<Args>... )>::type invoke;
+          const typename std::add_pointer<typename Derived::Invoker>::type invoke;
           const typename std::add_pointer<void( AnyFn& ) noexcept>::type destroy;
           const typename std::add_pointer<void( AnyFn& dst, AnyFn& src ) noexcept>::type move;
         };
@@ -1253,20 +1242,9 @@ namespace pgbar {
         const VTable* vtable_;
         AnyFn callee_;
 
-        static __PGBAR_CXX14_CNSTXPR R invoke_null( AnyFn&, Param_t<Args>... )
-        {
-          __PGBAR_UNREACHABLE;
-          // The standard says this should trigger an undefined behavior.
-        }
         static __PGBAR_CXX14_CNSTXPR void destroy_null( AnyFn& ) noexcept {}
         static __PGBAR_CXX14_CNSTXPR void move_null( AnyFn&, AnyFn& ) noexcept {}
 
-        template<typename T>
-        static __PGBAR_CXX14_CNSTXPR R invoke_inline( AnyFn& fn, Param_t<Args>... args )
-        {
-          const auto ptr = utils::launder_as<T>( fn.buf_ );
-          return ( *ptr )( std::forward<Args>( args )... );
-        }
         template<typename T>
         static __PGBAR_CXX14_CNSTXPR void destroy_inline( AnyFn& fn ) noexcept
         {
@@ -1281,12 +1259,6 @@ namespace pgbar {
         }
 
         template<typename T>
-        static __PGBAR_CXX14_CNSTXPR R invoke_dynamic( AnyFn& fn, Param_t<Args>... args )
-        {
-          const auto dptr = utils::launder_as<T>( fn.dptr_ );
-          return ( *dptr )( std::forward<Args>( args )... );
-        }
-        template<typename T>
         static __PGBAR_CXX20_CNSTXPR void destroy_dynamic( AnyFn& fn ) noexcept
         {
           const auto dptr = utils::launder_as<T>( fn.dptr_ );
@@ -1300,31 +1272,13 @@ namespace pgbar {
           src.dptr_ = nullptr;
         }
 
-        template<typename T>
-        static __PGBAR_CXX23_CNSTXPR const VTable& table_inline() noexcept
-        {
-          static const VTable tbl { invoke_inline<T>, destroy_inline<T>, move_inline<T> };
-          return tbl;
-        }
-        template<typename T>
-        static __PGBAR_CXX23_CNSTXPR const VTable& table_dynamic() noexcept
-        {
-          static const VTable tbl { invoke_dynamic<T>, destroy_dynamic<T>, move_dynamic<T> };
-          return tbl;
-        }
-        static __PGBAR_CXX23_CNSTXPR const VTable& table_null() noexcept
-        {
-          static const VTable tbl { invoke_null, destroy_null, move_null };
-          return tbl;
-        }
-
         template<typename F>
         __PGBAR_INLINE_FN typename std::enable_if<Inlinable<typename std::decay<F>::type>::value>::type
           store_fn( F&& fn ) noexcept
         {
-          using T             = typename std::decay<F>::type;
-          const auto location = new ( &callee_ ) T( std::forward<F>( fn ) );
-          __PGBAR_PURE_ASSUME( static_cast<void*>( location ) == static_cast<void*>( &callee_ ) );
+          using T              = typename std::decay<F>::type;
+          const auto _location = new ( &callee_ ) T( std::forward<F>( fn ) );
+          __PGBAR_PURE_ASSUME( static_cast<void*>( _location ) == static_cast<void*>( &callee_ ) );
           vtable_ = &table_inline<T>();
         }
         template<typename F>
@@ -1343,31 +1297,38 @@ namespace pgbar {
           vtable_       = &table_dynamic<T>();
         }
 
-      public:
-        constexpr UniqueFunction() noexcept : vtable_ { &table_null() } {}
-        constexpr UniqueFunction( std::nullptr_t ) noexcept : UniqueFunction() {}
-
-        template<typename F,
-                 typename = typename std::enable_if<
-                   traits::AllOf<std::is_move_constructible<typename std::decay<F>::type>,
-                                 std::is_convertible<decltype( std::declval<typename std::decay<F>::type&>()(
-                                                       std::declval<Args>()... ) ),
-                                                     R>>::value>::type>
-        __PGBAR_CXX23_CNSTXPR UniqueFunction( F&& fn )
-          noexcept( Inlinable<typename std::decay<F>::type>::value )
+        template<typename T>
+        static __PGBAR_CXX23_CNSTXPR const VTable& table_inline() noexcept
         {
-          store_fn( std::forward<F>( fn ) );
+          static const VTable tbl { Derived::template invoke_inline<T>, destroy_inline<T>, move_inline<T> };
+          return tbl;
+        }
+        template<typename T>
+        static __PGBAR_CXX23_CNSTXPR const VTable& table_dynamic() noexcept
+        {
+          static const VTable tbl { Derived::template invoke_dynamic<T>,
+                                    destroy_dynamic<T>,
+                                    move_dynamic<T> };
+          return tbl;
+        }
+        static __PGBAR_CXX23_CNSTXPR const VTable& table_null() noexcept
+        {
+          static const VTable tbl { Derived::invoke_null, destroy_null, move_null };
+          return tbl;
         }
 
-        UniqueFunction( const Self& )    = delete;
-        Self& operator=( const Self& ) & = delete;
-        __PGBAR_CXX23_CNSTXPR UniqueFunction( Self&& rhs ) noexcept : vtable_ { rhs.vtable_ }
+        constexpr FnStorageBlock() noexcept : vtable_ { &table_null() } {}
+
+      public:
+        FnStorageBlock( const FnStorageBlock& )              = delete;
+        FnStorageBlock& operator=( const FnStorageBlock& ) & = delete;
+        __PGBAR_CXX23_CNSTXPR FnStorageBlock( FnStorageBlock&& rhs ) noexcept : vtable_ { rhs.vtable_ }
         {
           __PGBAR_PURE_ASSUME( rhs.vtable_ != nullptr );
           vtable_->move( callee_, rhs.callee_ );
           rhs.vtable_ = &table_null();
         }
-        __PGBAR_CXX23_CNSTXPR Self& operator=( Self&& rhs ) & noexcept
+        __PGBAR_CXX23_CNSTXPR FnStorageBlock& operator=( FnStorageBlock&& rhs ) & noexcept
         {
           __PGBAR_PURE_ASSUME( this != &rhs );
           __PGBAR_PURE_ASSUME( vtable_ != nullptr );
@@ -1378,36 +1339,16 @@ namespace pgbar {
           rhs.vtable_ = &table_null();
           return *this;
         }
-        __PGBAR_CXX23_CNSTXPR Self& operator=( std::nullptr_t ) noexcept
+        __PGBAR_CXX23_CNSTXPR Derived& operator=( std::nullptr_t ) noexcept
         {
           __PGBAR_PURE_ASSUME( vtable_ != nullptr );
           vtable_->destroy( callee_ );
           vtable_ = &table_null();
-          return *this;
+          return static_cast<Derived&>( *this );
         }
-        template<typename F>
-        __PGBAR_CXX23_CNSTXPR typename std::enable_if<
-          traits::AllOf<std::is_move_constructible<typename std::decay<F>::type>,
-                        std::is_convertible<decltype( std::declval<typename std::decay<F>::type&>()(
-                                              std::declval<Args>()... ) ),
-                                            R>>::value>::type
-          operator=( F&& fn ) & noexcept( Inlinable<typename std::decay<F>::type>::value )
-        {
-          return operator=( UniqueFunction<R( Args... )>( std::forward<F>( fn ) ) );
-        }
-        __PGBAR_CXX20_CNSTXPR ~UniqueFunction() noexcept
-        {
-          __PGBAR_PURE_ASSUME( vtable_ != nullptr );
-          vtable_->destroy( callee_ );
-        }
+        ~FnStorageBlock() noexcept { vtable_->destroy( callee_ ); }
 
-        __PGBAR_CXX23_CNSTXPR R operator()( Args... args )
-        {
-          __PGBAR_PURE_ASSUME( vtable_ != nullptr );
-          return vtable_->invoke( callee_, std::forward<Args>( args )... );
-        }
-
-        __PGBAR_CXX14_CNSTXPR void swap( Self& lhs ) noexcept
+        __PGBAR_CXX14_CNSTXPR void swap( FnStorageBlock& lhs ) noexcept
         {
           __PGBAR_PURE_ASSUME( vtable_ != nullptr );
           __PGBAR_PURE_ASSUME( lhs.vtable_ != nullptr );
@@ -1417,16 +1358,126 @@ namespace pgbar {
           vtable_->move( lhs.callee_, tmp );
           std::swap( vtable_, lhs.vtable_ );
         }
-        __PGBAR_CXX14_CNSTXPR friend void swap( Self& a, Self& b ) noexcept { return a.swap( b ); }
-        friend constexpr bool operator==( const Self& a, std::nullptr_t ) noexcept
+        __PGBAR_CXX14_CNSTXPR friend void swap( FnStorageBlock& a, FnStorageBlock& b ) noexcept
+        {
+          return a.swap( b );
+        }
+        friend constexpr bool operator==( const FnStorageBlock& a, std::nullptr_t ) noexcept
         {
           return !static_cast<bool>( a );
         }
-        friend constexpr bool operator!=( const Self& a, std::nullptr_t ) noexcept
+        friend constexpr bool operator!=( const FnStorageBlock& a, std::nullptr_t ) noexcept
         {
           return static_cast<bool>( a );
         }
         constexpr explicit operator bool() const noexcept { return vtable_ != &table_null(); }
+      };
+      // `SigInfo` is the function type of the functor without `const`, reference or `noexcept`.
+      // `CrefInfo` can be any types that contains the `cref` info of the functor.
+      // e.g. For the function type `void () const&`, the `CrefInfo` can be: `const int&`.
+      template<typename Derived, typename SigInfo, typename CrefInfo, bool Noexcept>
+      class FnInvokeBlock;
+      template<typename Derived, typename R, typename... Args, typename CrefInfo, bool Noexcept>
+      class FnInvokeBlock<Derived, R( Args... ), CrefInfo, Noexcept> : public FnStorageBlock<Derived> {
+        friend class FnStorageBlock<Derived>;
+
+        using typename FnStorageBlock<Derived>::AnyFn;
+        template<typename T>
+        using Param_t = typename std::conditional<std::is_scalar<T>::value, T, T&&>::type;
+        template<typename T>
+        using Fn_t = typename std::
+          conditional<std::is_const<typename std::remove_reference<CrefInfo>::type>::value, const T, T>::type;
+        template<typename T>
+        using Callee_t = typename std::conditional<std::is_rvalue_reference<CrefInfo>::value,
+                                                   typename std::add_rvalue_reference<T>::type,
+                                                   T>::type;
+        template<typename Cref, typename T>
+        __PGBAR_INLINE_FN static constexpr typename std::enable_if<
+          !std::is_rvalue_reference<Cref>::value,
+          typename std::conditional<traits::AnyOf<std::is_const<typename std::remove_reference<Cref>::type>,
+                                                  traits::Not<std::is_lvalue_reference<T>>>::value,
+                                    const typename std::remove_reference<T>::type&,
+                                    typename std::remove_reference<T>::type&>::type>::type
+
+          cref_bind( T&& param ) noexcept
+        {
+          return param;
+        }
+        template<typename Cref, typename T>
+        __PGBAR_INLINE_FN static constexpr typename std::enable_if<
+          std::is_rvalue_reference<Cref>::value,
+          typename std::conditional<std::is_const<typename std::remove_reference<Cref>::type>::value,
+                                    const typename std::remove_reference<T>::type&&,
+                                    typename std::remove_reference<T>::type>::type&&>::type
+          cref_bind( T&& param ) noexcept
+        {
+          return std::move( param );
+        }
+
+      protected:
+        using Invoker = R( Fn_t<AnyFn>&, Param_t<Args>... ) noexcept( Noexcept );
+
+        static __PGBAR_CXX14_CNSTXPR R invoke_null( Fn_t<AnyFn>&, Param_t<Args>... ) noexcept( Noexcept )
+        {
+          __PGBAR_UNREACHABLE;
+          // The standard says this should trigger an undefined behavior.
+        }
+        template<typename T>
+        static __PGBAR_CXX14_CNSTXPR R invoke_inline( Fn_t<AnyFn>& fn, Param_t<Args>... args )
+          noexcept( Noexcept )
+        {
+          const auto ptr = utils::launder_as<Fn_t<T>>( fn.buf_ );
+          return cref_bind<CrefInfo>( *ptr )( std::forward<Args>( args )... );
+        }
+        template<typename T>
+        static __PGBAR_CXX14_CNSTXPR R invoke_dynamic( Fn_t<AnyFn>& fn, Param_t<Args>... args )
+          noexcept( Noexcept )
+        {
+          const auto dptr = utils::launder_as<Fn_t<T>>( fn.dptr_ );
+          return cref_bind<CrefInfo>( *dptr )( std::forward<Args>( args )... );
+        }
+
+        constexpr FnInvokeBlock() = default;
+      };
+
+      // A simplified implementation of std::move_only_function
+      template<typename...>
+      class UniqueFunction;
+      template<typename R, typename... Args>
+      class UniqueFunction<R( Args... )>
+        : public FnInvokeBlock<UniqueFunction<R( Args... )>, R( Args... ), int, false> {
+        using Base = FnStorageBlock<UniqueFunction>;
+
+      public:
+        constexpr UniqueFunction() = default;
+        constexpr UniqueFunction( std::nullptr_t ) noexcept : UniqueFunction() {}
+        template<typename F,
+                 typename = typename std::enable_if<
+                   traits::AllOf<std::is_move_constructible<typename std::decay<F>::type>,
+                                 std::is_convertible<decltype( std::declval<typename std::decay<F>::type>()(
+                                                       std::declval<Args>()... ) ),
+                                                     R>>::value>::type>
+        __PGBAR_CXX23_CNSTXPR UniqueFunction( F&& fn )
+          noexcept( Base::template Inlinable<typename std::decay<F>::type>::value )
+        {
+          Base::store_fn( std::forward<F>( fn ) );
+        }
+        template<typename F>
+        __PGBAR_CXX23_CNSTXPR typename std::enable_if<
+          traits::AllOf<std::is_move_constructible<typename std::decay<F>::type>,
+                        std::is_convertible<
+                          decltype( std::declval<typename std::decay<F>::type>()( std::declval<Args>()... ) ),
+                          R>>::value>::type
+          operator=( F&& fn ) & noexcept( Base::template Inlinable<typename std::decay<F>::type>::value )
+        {
+          return operator=( UniqueFunction<R( Args... )>( std::forward<F>( fn ) ) );
+        }
+
+        __PGBAR_CXX23_CNSTXPR R operator()( Args... args )
+        {
+          __PGBAR_PURE_ASSUME( this->vtable_ != nullptr );
+          return ( *this->vtable_->invoke )( this->callee_, std::forward<Args>( args )... );
+        }
       };
 # endif
     } // namespace wrappers
@@ -6529,7 +6580,7 @@ namespace pgbar {
                                                     Configs...>>::value>::type>
         TupleBar( Cfg&& cfg, Cfgs&&... cfgs ) noexcept( sizeof...( Cfgs ) + 1 == sizeof...( Bars ) )
           : TupleBar( std::forward_as_tuple( std::forward<Cfg>( cfg ), std::forward<Cfgs>( cfgs )... ),
-                      traits::MakeIndexSeq<sizeof...( Cfgs )>() )
+                      traits::MakeIndexSeq<sizeof...( Cfgs ) + 1>() )
         {}
         template<typename Cfg,
                  typename... Cfgs,
@@ -6539,7 +6590,7 @@ namespace pgbar {
                   prefabs::BasicBar<Cfgs, Outlet, Mode>&&... bars )
           noexcept( sizeof...( Cfgs ) + 1 == sizeof...( Bars ) )
           : TupleBar( std::forward_as_tuple( std::move( bar ), std::move( bars )... ),
-                      traits::MakeIndexSeq<sizeof...( Cfgs )>() )
+                      traits::MakeIndexSeq<sizeof...( Cfgs ) + 1>() )
         {}
         TupleBar( const TupleBar& )              = delete;
         TupleBar& operator=( const TupleBar& ) & = delete;
