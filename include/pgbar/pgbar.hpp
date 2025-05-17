@@ -64,7 +64,6 @@
 # endif
 
 # if __PGBAR_CC_STD >= 202302L
-#  include <functional>
 #  define __PGBAR_CXX23          1
 #  define __PGBAR_CXX23_CNSTXPR  constexpr
 #  define __PGBAR_UNREACHABLE    std::unreachable()
@@ -94,7 +93,6 @@
 # endif
 # if __PGBAR_CC_STD >= 202002L
 #  include <ranges>
-#  include <source_location>
 #  define __PGBAR_CXX20         1
 #  define __PGBAR_UNLIKELY      [[unlikely]]
 #  define __PGBAR_CXX20_CNSTXPR constexpr
@@ -107,6 +105,7 @@
 # endif
 # if __PGBAR_CC_STD >= 201703L
 #  include <charconv>
+#  include <functional>
 #  include <string_view>
 #  define __PGBAR_CXX17         1
 #  define __PGBAR_CXX17_CNSTXPR constexpr
@@ -884,7 +883,7 @@ namespace pgbar {
       template<types::Size I, typename T, typename Tuple>
       constexpr
         typename std::enable_if<( I >= std::tuple_size<typename std::decay<Tuple>::type>::value ), T>::type
-        forward_or( Tuple&& tup ) noexcept( std::is_nothrow_default_constructible<T>::value )
+        forward_or( Tuple&& ) noexcept( std::is_nothrow_default_constructible<T>::value )
       {
         return T();
       }
@@ -905,24 +904,100 @@ namespace pgbar {
 # endif
       }
 
+# if __PGBAR_CXX17
+      template<typename Fn, typename... Args>
+      __PGBAR_INLINE_FN constexpr decltype( auto ) invoke( Fn&& fn, Args&&... args )
+        noexcept( std::is_nothrow_invocable_v<Fn, Args...> )
+      {
+        return std::invoke( std::forward<Fn>( fn ), std::forward<Args>( args )... );
+      }
+# else
+      template<typename C, typename MemFn, typename Object, typename... Args>
+      __PGBAR_INLINE_FN constexpr auto invoke( MemFn C::*method, Object&& object, Args&&... args )
+        noexcept( noexcept( ( std::forward<Object>( object ).*method )( std::forward<Args>( args )... ) ) ) ->
+        typename std::enable_if<
+          traits::AllOf<std::is_member_function_pointer<MemFn C::*>,
+                        traits::AnyOf<std::is_base_of<C, typename std::decay<Object>::type>,
+                                      std::is_same<C, typename std::decay<Object>::type>>>::value,
+          decltype( ( std::forward<Object>( object ).*method )( std::forward<Args>( args )... ) )>::type
+      {
+        return ( std::forward<Object>( object ).*method )( std::forward<Args>( args )... );
+      }
+      template<typename C, typename MemFn, typename Object, typename... Args>
+      __PGBAR_INLINE_FN constexpr auto invoke( MemFn C::*method, Object&& object, Args&&... args )
+        noexcept( noexcept( ( object.get().*method )( std::forward<Args>( args )... ) ) ) ->
+        typename std::enable_if<
+          traits::AllOf<std::is_member_function_pointer<MemFn C::*>,
+                        traits::InstanceOf<typename std::decay<Object>::type, std::reference_wrapper>>::value,
+          decltype( ( object.get().*method )( std::forward<Args>( args )... ) )>::type
+      {
+        return ( object.get().*method )( std::forward<Args>( args )... );
+      }
+      template<typename C, typename MemFn, typename Object, typename... Args>
+      __PGBAR_INLINE_FN constexpr auto invoke( MemFn C::*method, Object&& object, Args&&... args )
+        noexcept( noexcept( ( ( *std::forward<Object>( object ) )
+                              .*method )( std::forward<Args>( args )... ) ) ) ->
+        typename std::enable_if<
+          traits::AllOf<std::is_member_function_pointer<MemFn C::*>,
+                        traits::Not<traits::AnyOf<std::is_base_of<C, typename std::decay<Object>::type>,
+                                                  std::is_same<C, typename std::decay<Object>::type>,
+                                                  traits::InstanceOf<typename std::decay<Object>::type,
+                                                                     std::reference_wrapper>>>>::value,
+          decltype( ( ( *std::forward<Object>( object ) ).*method )( std::forward<Args>( args )... ) )>::type
+      {
+        return ( ( *std::forward<Object>( object ) ).*method )( std::forward<Args>( args )... );
+      }
+      template<typename C, typename MemObj, typename Object>
+      __PGBAR_INLINE_FN constexpr auto invoke( MemObj C::*member, Object&& object ) noexcept ->
+        typename std::enable_if<
+          traits::AllOf<std::is_member_object_pointer<MemObj C::*>,
+                        traits::AnyOf<std::is_base_of<C, typename std::decay<Object>::type>,
+                                      std::is_same<C, typename std::decay<Object>::type>>>::value,
+          decltype( std::forward<Object>( object ).*member )>::type
+      {
+        return std::forward<Object>( object ).*member;
+      }
+      template<typename C, typename MemObj, typename Object>
+      __PGBAR_INLINE_FN constexpr auto invoke( MemObj C::*member, Object&& object ) noexcept ->
+        typename std::enable_if<
+          traits::AllOf<std::is_member_object_pointer<MemObj C::*>,
+                        traits::InstanceOf<typename std::decay<Object>::type, std::reference_wrapper>>::value,
+          decltype( object.get().*member )>::type
+      {
+        return object.get().*member;
+      }
+      template<typename C, typename MemObj, typename Object>
+      __PGBAR_INLINE_FN constexpr auto invoke( MemObj C::*member, Object&& object )
+        noexcept( noexcept( ( *std::forward<Object>( object ) ).*member ) ) ->
+        typename std::enable_if<
+          traits::AllOf<std::is_member_object_pointer<MemObj C::*>,
+                        traits::Not<traits::AnyOf<std::is_base_of<C, typename std::decay<Object>::type>,
+                                                  std::is_same<C, typename std::decay<Object>::type>,
+                                                  traits::InstanceOf<typename std::decay<Object>::type,
+                                                                     std::reference_wrapper>>>>::value,
+          decltype( ( *std::forward<Object>( object ) ).*member )>::type
+      {
+        return ( *std::forward<Object>( object ) ).*member;
+      }
+      template<typename Fn, typename... Args>
+      __PGBAR_INLINE_FN constexpr auto invoke( Fn&& fn, Args&&... args )
+        noexcept( noexcept( std::forward<Fn>( fn )( std::forward<Args>( args )... ) ) ) ->
+        typename std::enable_if<
+          traits::Not<
+            traits::AnyOf<std::is_member_function_pointer<typename std::remove_reference<Fn>::type>,
+                          std::is_member_object_pointer<typename std::remove_reference<Fn>::type>>>::value,
+          decltype( std::forward<Fn>( fn )( std::forward<Args>( args )... ) )>::type
+      {
+        return std::forward<Fn>( fn )( std::forward<Args>( args )... );
+      }
+# endif
+
       template<typename Numeric>
-      __PGBAR_NODISCARD __PGBAR_CXX23_CNSTXPR __PGBAR_INLINE_FN typename std::enable_if<
-        traits::AllOf<std::is_arithmetic<Numeric>, traits::Not<std::is_unsigned<Numeric>>>::value,
-        types::Size>::type
+      __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR __PGBAR_INLINE_FN
+        typename std::enable_if<std::is_arithmetic<Numeric>::value, types::Size>::type
         count_digits( Numeric val ) noexcept
       {
-        auto abs_val       = static_cast<std::uint64_t>( std::abs( val ) );
-        types::Size digits = abs_val == 0;
-        for ( ; abs_val > 0; abs_val /= 10 )
-          ++digits;
-        return digits;
-      }
-      template<typename Unsigned>
-      __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR __PGBAR_INLINE_FN
-        typename std::enable_if<std::is_unsigned<Unsigned>::value, types::Size>::type
-        count_digits( Unsigned val ) noexcept
-      {
-        auto abs_val       = static_cast<std::uint64_t>( val );
+        auto abs_val       = static_cast<std::uint64_t>( val < 0 ? -val : val );
         types::Size digits = abs_val == 0;
         for ( ; abs_val > 0; abs_val /= 10 )
           ++digits;
@@ -1229,7 +1304,7 @@ namespace pgbar {
           Data* dptr_;
         };
         struct VTable final {
-          const typename std::add_pointer<typename Derived::Invoker>::type invoke;
+          const typename Derived::Invoker invoke;
           const typename std::add_pointer<void( AnyFn& ) noexcept>::type destroy;
           const typename std::add_pointer<void( AnyFn& dst, AnyFn& src ) noexcept>::type move;
         };
@@ -1399,7 +1474,7 @@ namespace pgbar {
                                     const typename std::remove_reference<T>::type&,
                                     typename std::remove_reference<T>::type&>::type>::type
 
-          cref_bind( T&& param ) noexcept
+          cref_fwd( T&& param ) noexcept
         {
           return param;
         }
@@ -1409,13 +1484,14 @@ namespace pgbar {
           typename std::conditional<std::is_const<typename std::remove_reference<Cref>::type>::value,
                                     const typename std::remove_reference<T>::type&&,
                                     typename std::remove_reference<T>::type>::type&&>::type
-          cref_bind( T&& param ) noexcept
+          cref_fwd( T&& param ) noexcept
         {
           return std::move( param );
         }
 
       protected:
-        using Invoker = R( Fn_t<AnyFn>&, Param_t<Args>... ) noexcept( Noexcept );
+        using Invoker =
+          typename std::add_pointer<R( Fn_t<AnyFn>&, Param_t<Args>... ) noexcept( Noexcept )>::type;
 
         static __PGBAR_CXX14_CNSTXPR R invoke_null( Fn_t<AnyFn>&, Param_t<Args>... ) noexcept( Noexcept )
         {
@@ -1427,14 +1503,14 @@ namespace pgbar {
           noexcept( Noexcept )
         {
           const auto ptr = utils::launder_as<Fn_t<T>>( fn.buf_ );
-          return cref_bind<CrefInfo>( *ptr )( std::forward<Args>( args )... );
+          return utils::invoke( cref_fwd<CrefInfo>( *ptr ), std::forward<Args>( args )... );
         }
         template<typename T>
         static __PGBAR_CXX14_CNSTXPR R invoke_dynamic( Fn_t<AnyFn>& fn, Param_t<Args>... args )
           noexcept( Noexcept )
         {
           const auto dptr = utils::launder_as<Fn_t<T>>( fn.dptr_ );
-          return cref_bind<CrefInfo>( *dptr )( std::forward<Args>( args )... );
+          return utils::invoke( cref_fwd<CrefInfo>( *dptr ), std::forward<Args>( args )... );
         }
 
         constexpr FnInvokeBlock() = default;
@@ -2541,6 +2617,30 @@ namespace pgbar {
       } // namespace escodes
 
       /**
+       * Enable virtual terminal processing on the specified output channel (Windows only).
+       * Guaranteed to be thread-safe and performed only once.
+       */
+      template<Channel Outlet>
+      __PGBAR_INLINE_FN void enable_vt() noexcept
+      {
+# if __PGBAR_WIN
+        static std::once_flag flag;
+        std::call_once( flag, []() noexcept {
+          HANDLE stream_handle =
+            GetStdHandle( Outlet == Channel::Stderr ? STD_ERROR_HANDLE : STD_OUTPUT_HANDLE );
+          if ( stream_handle == INVALID_HANDLE_VALUE )
+            __PGBAR_UNLIKELY return;
+
+          DWORD mode {};
+          if ( !GetConsoleMode( stream_handle, &mode ) )
+            __PGBAR_UNLIKELY return;
+          mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+          SetConsoleMode( stream_handle, mode );
+        } );
+# endif
+      }
+
+      /**
        * Determine if the output stream is binded to the tty based on the platform api.
        *
        * Always returns true if defined `PGBAR_INTTY`,
@@ -2551,20 +2651,13 @@ namespace pgbar {
 # if defined( PGBAR_INTTY ) || __PGBAR_UNKNOWN
         return true;
 # elif __PGBAR_WIN
-        HANDLE stream_handle;
-        if ( outlet == Channel::Stdout )
-          stream_handle = GetStdHandle( STD_OUTPUT_HANDLE );
-        else
-          stream_handle = GetStdHandle( STD_ERROR_HANDLE );
+        HANDLE stream_handle =
+          GetStdHandle( outlet == Channel::Stdout ? STD_OUTPUT_HANDLE : STD_ERROR_HANDLE );
         if ( stream_handle == INVALID_HANDLE_VALUE )
           __PGBAR_UNLIKELY return false;
         return GetFileType( stream_handle ) == FILE_TYPE_CHAR;
-
 # else
-        if ( outlet == Channel::Stdout )
-          return isatty( STDOUT_FILENO );
-        else
-          return isatty( STDERR_FILENO );
+        return isatty( outlet == Channel::Stdout ? STDOUT_FILENO : STDERR_FILENO );
 # endif
       }
     } // namespace console
@@ -2798,6 +2891,8 @@ namespace pgbar {
 
         void launch() & noexcept( false )
         {
+          console::enable_vt<Tag>();
+
           __PGBAR_ASSERT( td_.get_id() == std::thread::id() );
           state_.store( State::Dormant, std::memory_order_release );
           try {
