@@ -1,0 +1,5 @@
+CompileFlags:
+  Add: [-Wall, -Wpedantic, -Wextra, -std=c++20]
+
+Diagnostics:
+  UnusedIncludes: Strict
