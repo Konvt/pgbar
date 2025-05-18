@@ -2,7 +2,7 @@ CC:= g++
 OFLAG = -Og
 STANDARD = c++11
 CFLAGS:= -std=$(STANDARD) -Wpedantic -Wall
-IFLAG:= -I ../include
+IFLAG:= -I../include
 
 %: %.cpp
 	$(CC) $(OFLAG) $(CFLAGS) $(IFLAG) $< -o $@

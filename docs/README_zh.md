@@ -67,6 +67,60 @@ int main()
 更多用例详见 [QuickStart_zh.md](QuickStart_zh.md) 及 [demo/](../demo/)。
 
 ## FAQ
+### 如何构建？
+#### 仅头文件
+你可以将 `pgbar/pgbar.hpp` 复制到项目的包含路径中，随后在源文件内直接包含对应头文件。
+#### 子模块（submodule）
+使用 `git` 将 `pgbar` 作为子模块引入你的项目目录中：
+
+```bash
+git submodule add https://github.com/Konvt/pgbar external/pgbar
+git submodule update --init --recursive
+```
+
+并将以下代码添加到项目中 `CMakeLists.txt` 的对应位置即可。
+
+```cmake
+add_subdirectory(${CMAKE_SOURCE_DIR}/external/pgbar)
+# ...
+add_executable(TargetName ${SOURCES})
+target_link_libraries(TargetName PRIVATE pgbar)
+```
+
+可以使用以下命令编译 `demo/` 下的示例文件。
+
+```bash
+cmake -S . -DPGBAR_BUILD_DEMO=ON -B build
+cmake --build build --target demo
+# 或者使用 demo_{filename} 编译 demo/ 下的指定文件
+```
+
+或者在 `demo/` 文件夹中直接使用 `make` 指令编译。
+
+```bash
+make all
+# 或者使用 {filename} 编译 demo/ 下的指定文件
+```
+#### 安装
+执行以下命令将 `pgbar` 安装到系统默认目录。
+
+```bash
+cmake -S . -DPGBAR_INSTALL=ON -B build
+# 或者安装到指定目录：
+# cmake -S . -DPGBAR_INSTALL=ON -DCMAKE_INSTALL_PREFIX=/usr -B build
+cmake --install build
+# 等价指令可以是：
+# cmake --build build --target install
+```
+
+卸载时需要依赖安装时生成的缓存文件；如果缓存文件已经被移除了，那么可以再执行一次安装命令生成。
+
+执行以下命令将 `pgbar` 从系统中移除。
+
+```bash
+cmake --build build --target uninstall
+```
+
 ### 进度条的更新工作会拖慢程序本身吗？
 不，正如[特点](#特点)中指出的，进度条的更新是*基本上*零开销。
 
