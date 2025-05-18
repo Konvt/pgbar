@@ -89,20 +89,39 @@ add_executable(TargetName ${SOURCES})
 target_link_libraries(TargetName PRIVATE pgbar)
 ```
 
-The sample file under `demo/` can be compiled using the following command.
+The sample files under `demo/` can be compiled using the following commands.
 
 ```bash
 cmake -S . -DPGBAR_BUILD_DEMO=ON -B build
-cmake --build build --target demo # or demo_{filename}
+cmake --build build --target demo
+# Or use demo_{filename} to compile the specified file under demo/
 ```
 
 Or compile directly using the `make` command in the `demo/` folder.
 
 ```bash
-make all # or {filename}
+make all
+# Or use {filename} to compile the specified file under demo/
 ```
 #### Installation
-TODO
+Execute the following commands to install `pgbar` to the default directory of the system.
+
+```bash
+cmake -S . -DPGBAR_INSTALL=ON -B build
+# Or install it to the specified directory:
+# cmake -S . -DPGBAR_INSTALL=ON -DCMAKE_INSTALL_PREFIX=/usr -B build
+cmake --install build
+# Equivalent instructions can be:
+# cmake --build build --target install
+```
+
+When uninstalling, it needs to rely on the cache files generated during installation. If the cache files has been removed, the installation command generation can be executed again.
+
+Execute the following commands to remove `pgbar` from the system.
+
+```bash
+cmake --build build --target uninstall
+```
 
 ### Does updating the progress bar slow down the program?
 No, as mentioned in the [Features](#features) section, updating the progress bar has *essentially* zero overhead.

@@ -1,0 +1,36 @@
+if(NOT EXISTS "@CMAKE_BINARY_DIR@/install_manifest.txt")
+  message(FATAL_ERROR "The installation list does not exist: @CMAKE_BINARY_DIR@/install_manifest.txt")
+endif()
+
+file(READ "@CMAKE_BINARY_DIR@/install_manifest.txt" installed_files)
+string(REPLACE "\n" ";" installed_files "${installed_files}")
+
+foreach(file IN LISTS installed_files)
+  if(EXISTS "${file}" OR IS_SYMLINK "${file}")
+    message(STATUS "Removing: ${file}")
+    file(REMOVE "${file}")
+  else()
+    message(STATUS "File does not exist: ${file}")
+  endif()
+endforeach()
+
+set(project_name "@PROJECT_NAME@")
+set(possible_dirs)
+foreach(file IN LISTS installed_files)
+  get_filename_component(dir "${file}" DIRECTORY)
+  list(APPEND possible_dirs "${dir}")
+endforeach()
+
+list(REMOVE_DUPLICATES possible_dirs)
+
+foreach(dir IN LISTS possible_dirs)
+  if(dir MATCHES ".*/${project_name}(/.*)?$")
+    file(GLOB dir_contents "${dir}/*")
+    if(NOT dir_contents)
+      message(STATUS "Removing empty directory: ${dir}")
+      file(REMOVE_RECURSE "${dir}")
+    endif()
+  endif()
+endforeach()
+
+message(STATUS "Uninstallation completed (including empty pgbar directories)")

@@ -91,16 +91,35 @@ target_link_libraries(TargetName PRIVATE pgbar)
 
 ```bash
 cmake -S . -DPGBAR_BUILD_DEMO=ON -B build
-cmake --build build --target demo # or demo_{filename}
+cmake --build build --target demo
+# 或者使用 demo_{filename} 编译 demo/ 下的指定文件
 ```
 
 或者在 `demo/` 文件夹中直接使用 `make` 指令编译。
 
 ```bash
-make all # or {filename}
+make all
+# 或者使用 {filename} 编译 demo/ 下的指定文件
 ```
 #### 安装
-TODO
+执行以下命令将 `pgbar` 安装到系统默认目录。
+
+```bash
+cmake -S . -DPGBAR_INSTALL=ON -B build
+# 或者安装到指定目录：
+# cmake -S . -DPGBAR_INSTALL=ON -DCMAKE_INSTALL_PREFIX=/usr -B build
+cmake --install build
+# 等价指令可以是：
+# cmake --build build --target install
+```
+
+卸载时需要依赖安装时生成的缓存文件；如果缓存文件已经被移除了，那么可以再执行一次安装命令生成。
+
+执行以下命令将 `pgbar` 从系统中移除。
+
+```bash
+cmake --build build --target uninstall
+```
 
 ### 进度条的更新工作会拖慢程序本身吗？
 不，正如[特点](#特点)中指出的，进度条的更新是*基本上*零开销。

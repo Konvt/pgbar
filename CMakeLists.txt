@@ -1,4 +1,10 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.8)
+
+if(NOT DEFINED PROJECT_NAME)
+  set(PGBAR_IN_TOP_LEVEL ON)
+else()
+  set(PGBAR_IN_TOP_LEVEL OFF)
+endif()
 
 if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.12")
   project(pgbar VERSION 0.1.0 LANGUAGES CXX
@@ -11,10 +17,8 @@ else()
   project(pgbar VERSION 0.1.0 LANGUAGES CXX)
 endif()
 
-set(CMAKE_CXX_EXTENSIONS OFF)
-
-option(PGBAR_INSTALL "Enable install target" ON)
-option(PGBAR_PACKAGE "Enable packaging support" ON)
+option(PGBAR_INSTALL "Enable install target" ${PGBAR_IN_TOP_LEVEL})
+option(PGBAR_PACKAGE "Enable packaging support" ${PGBAR_IN_TOP_LEVEL})
 option(PGBAR_BUILD_DEMO "Build demo programs from demo/ directory using Makefile" OFF)
 
 include(GNUInstallDirs)
@@ -24,6 +28,7 @@ add_library(pgbar INTERFACE)
 add_library(pgbar::pgbar ALIAS pgbar)
 
 target_compile_features(pgbar INTERFACE cxx_std_11)
+set_target_properties(pgbar PROPERTIES CXX_EXTENSIONS OFF)
 target_include_directories(pgbar INTERFACE
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
@@ -82,8 +87,6 @@ if(PGBAR_PACKAGE)
   endif()
 
   list(APPEND CPACK_SOURCE_IGNORE_FILES
-    .clangd
-    .clang-format
     .git
     .gitignore
     .gitattributes
@@ -113,22 +116,14 @@ if(PGBAR_BUILD_DEMO)
     COMMENT "Building all demo programs")
 endif()
 
-add_custom_target(uninstall
-  COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake
-  COMMENT "Uninstalling...")
+if(NOT TARGET uninstall)
+  configure_file(
+    ${CMAKE_SOURCE_DIR}/cmake/cmake_uninstall.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake
+    @ONLY
+  )
 
-file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake
-"if(NOT EXISTS \"\${CMAKE_CURRENT_BINARY_DIR}/install_manifest.txt\")
-  message(FATAL_ERROR \"Cannot find install_manifest.txt\")
+  add_custom_target(uninstall
+    COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake
+    COMMENT "Uninstalling files from install_manifest.txt")
 endif()
-
-file(READ \"\${CMAKE_CURRENT_BINARY_DIR}/install_manifest.txt\" files)
-string(REPLACE \"\\n\" \";\" files \"\${files}\")
-foreach(file \${files})
-  if(EXISTS \"\${file}\" OR IS_SYMLINK \"\${file}\")
-    file(REMOVE \"\${file}\")
-    message(STATUS \"Removed: \${file}\")
-  else()
-    message(STATUS \"Already removed: \${file}\")
-  endif()
-endforeach()")
