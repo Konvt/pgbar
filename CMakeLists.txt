@@ -116,7 +116,7 @@ if(PGBAR_BUILD_DEMO)
     COMMENT "Building all demo programs")
 endif()
 
-if(NOT TARGET uninstall)
+if(NOT TARGET uninstall AND EXISTS "${CMAKE_BINARY_DIR}/install_manifest.txt")
   configure_file(
     ${CMAKE_SOURCE_DIR}/cmake/cmake_uninstall.cmake.in
     ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake
