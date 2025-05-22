@@ -2577,10 +2577,12 @@ namespace pgbar {
         constexpr types::LitStr fontreset = "\x1B[0m";
         constexpr types::LitStr fontbold  = "\x1B[1m";
 # endif
-        constexpr types::LitStr linewipe = "\x1B[K";
-        constexpr types::LitStr prevline = "\x1b[A";
-        constexpr types::Char nextline   = '\n';
-        constexpr types::Char linestart  = '\r';
+        constexpr types::LitStr savecursor  = "\x1B[s";
+        constexpr types::LitStr resetcursor = "\x1B[u";
+        constexpr types::LitStr linewipe    = "\x1B[K";
+        constexpr types::LitStr prevline    = "\x1b[A";
+        constexpr types::Char nextline      = '\n';
+        constexpr types::Char linestart     = '\r';
 
         /**
          * Convert a hexidecimal RGB color value to an ANSI escape code.
@@ -6124,22 +6126,29 @@ namespace pgbar {
                  auto& ostream = io::OStream<Outlet>::itself();
                  switch ( state_.load( std::memory_order_acquire ) ) {
                  case Self::State::Awake: {
-                   ostream << console::escodes::linewipe;
+                   if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Async )
+                     ostream << console::escodes::savecursor;
                    render::RenderAction<Soul>::boot( *this );
                    ostream << console::escodes::nextline;
                    ostream << io::flush;
                  } break;
                  case Self::State::StrictRefresh:  __PGBAR_FALLTHROUGH;
                  case Self::State::LenientRefresh: {
-                   ostream << console::escodes::prevline << console::escodes::linestart
-                           << console::escodes::linewipe;
+                   if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Async )
+                     ostream << console::escodes::resetcursor;
+                   else
+                     ostream << console::escodes::prevline << console::escodes::linestart
+                             << console::escodes::linewipe;
                    render::RenderAction<Soul>::process( *this );
                    ostream << console::escodes::nextline;
                    ostream << io::flush;
                  } break;
                  case Self::State::Finish: {
-                   ostream << console::escodes::prevline << console::escodes::linestart
-                           << console::escodes::linewipe;
+                   if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Async )
+                     ostream << console::escodes::resetcursor;
+                   else
+                     ostream << console::escodes::prevline << console::escodes::linestart
+                             << console::escodes::linewipe;
                    render::RenderAction<Soul>::finish( *this );
                    if ( config::hide_completed() )
                      ostream << console::escodes::linestart << console::escodes::linewipe;
@@ -6608,6 +6617,8 @@ namespace pgbar {
                    switch ( cb_state_.load( std::memory_order_acquire ) ) {
                    case CBState::Awake: {
                      active_mask_.store( decltype( active_mask_ ) {}, std::memory_order_release );
+                     if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Async )
+                       ostream << console::escodes::savecursor;
                      do_render();
                      ostream << io::flush;
 
@@ -6618,10 +6629,13 @@ namespace pgbar {
                                                         std::memory_order_relaxed );
                    } break;
                    case CBState::Refresh: {
-                     ostream
-                       .append( console::escodes::prevline,
-                                active_mask_.load( std::memory_order_acquire ).count() )
-                       .append( console::escodes::linestart );
+                     if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Async )
+                       ostream << console::escodes::resetcursor;
+                     else
+                       ostream
+                         .append( console::escodes::prevline,
+                                  active_mask_.load( std::memory_order_acquire ).count() )
+                         .append( console::escodes::linestart );
                      do_render();
                      ostream << io::flush;
                    } break;
@@ -7688,6 +7702,8 @@ namespace pgbar {
                    case State::Awake: {
                      {
                        concurrent::SharedLock<concurrent::SharedMutex> lock { res_mtx_ };
+                       if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Async )
+                         ostream << console::escodes::savecursor;
                        do_render();
                      }
                      ostream << io::flush;
@@ -7700,16 +7716,19 @@ namespace pgbar {
                    case State::Refresh: {
                      {
                        concurrent::SharedLock<concurrent::SharedMutex> lock { res_mtx_ };
-                       ostream
-                         .append( console::escodes::prevline,
-                                  std::count_if( bars_.cbegin(),
-                                                 bars_.cend(),
-                                                 []( const Slot& slot ) noexcept {
-                                                   return slot.active_
-                                                       && ( !config::hide_completed()
-                                                            || !slot.target_.expired() );
-                                                 } ) )
-                         .append( console::escodes::linestart );
+                       if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Async )
+                         ostream << console::escodes::resetcursor;
+                       else
+                         ostream
+                           .append( console::escodes::prevline,
+                                    std::count_if( bars_.cbegin(),
+                                                   bars_.cend(),
+                                                   []( const Slot& slot ) noexcept {
+                                                     return slot.active_
+                                                         && ( !config::hide_completed()
+                                                              || !slot.target_.expired() );
+                                                   } ) )
+                           .append( console::escodes::linestart );
                        do_render();
                      }
                      ostream << io::flush;
