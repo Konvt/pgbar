@@ -2040,7 +2040,7 @@ Given that `stdout` and `stderr` are redirected to other files, `pgbar` also che
 
 When `pgbar` finds that an output stream does not point to the terminal, all progress bars pointing to the output stream will not output any information, but the internal exception check work is normal.
 
-You can also call the `intty()` method in namespace `pgbar::config` to check if an output stream is pointing to a terminal.
+You can also call the `intty()` method in namespace `pgbar` to check if an output stream is pointing to a terminal.
 
 ```cpp
 #include "pgbar/pgbar.hpp"
@@ -2048,7 +2048,7 @@ You can also call the `intty()` method in namespace `pgbar::config` to check if 
 
 int main()
 {
-  if ( pgbar::config::intty( pgbar::Channel::Stdout ) )
+  if ( pgbar::intty( pgbar::Channel::Stdout ) )
     std::cout << "Standard output is bound to a terminal." << std::endl;
   else
     std::cout << "Standard output is not bound to a terminal." << std::endl;

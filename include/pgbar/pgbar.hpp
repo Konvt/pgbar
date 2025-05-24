@@ -3,6 +3,7 @@
 // Copyright (c) 2023-2025 Konvt
 #pragma once
 
+#include <cstdio>
 #ifndef __KONVT_PGBAR
 # define __KONVT_PGBAR
 
@@ -52,6 +53,7 @@
 #  define __PGBAR_UNIX    0
 #  define __PGBAR_UNKNOWN 0
 # elif defined( __unix__ )
+#  include <sys/ioctl.h>
 #  include <unistd.h>
 #  define __PGBAR_WIN     0
 #  define __PGBAR_UNIX    1
@@ -1912,7 +1914,7 @@ namespace pgbar {
         using Self = SharedMutex;
 
       protected:
-        std::atomic<types::Size> num_readers_;
+        std::atomic<std::uint64_t> num_readers_;
         std::mutex writer_mtx_;
         /**
          * Although the `lock()` and `unlock()` functions of `std::mutex`
@@ -2510,8 +2512,53 @@ namespace pgbar {
   } // namespace color
 
   // A enum that specifies the type of the output stream.
-  enum class Channel : __details::types::Byte { Stdout = 1, Stderr };
+  enum class Channel : __details::types::Byte { Stdout = STDOUT_FILENO, Stderr = STDERR_FILENO };
   enum class Policy : __details::types::Byte { Async, Sync };
+
+  /**
+   * Determine if the output stream is binded to the tty based on the platform api.
+   *
+   * Always returns true if defined `PGBAR_INTTY`,
+   * or the local platform is neither `Windows` nor `unix-like`.
+   */
+  __PGBAR_NODISCARD inline bool intty( Channel channel ) noexcept
+  {
+# if defined( PGBAR_INTTY ) || __PGBAR_UNKNOWN
+    return true;
+# elif __PGBAR_WIN
+    HANDLE stream_handle = GetStdHandle( channel == Channel::Stdout ? STD_OUTPUT_HANDLE : STD_ERROR_HANDLE );
+    if ( stream_handle == INVALID_HANDLE_VALUE )
+      __PGBAR_UNLIKELY return false;
+    return GetFileType( stream_handle ) == FILE_TYPE_CHAR;
+# else
+    return isatty( static_cast<int>( channel ) );
+# endif
+  }
+
+  __PGBAR_NODISCARD inline __details::types::Size terminal_width( Channel channel ) noexcept
+  {
+    if ( !intty( channel ) )
+      return 0;
+# if __PGBAR_WIN
+    HANDLE hConsole;
+    if ( channel == Channel::Stdout )
+      hConsole = GetStdHandle( STD_OUTPUT_HANDLE );
+    else
+      hConsole = GetStdHandle( STD_ERROR_HANDLE );
+    if ( hConsole != INVALID_HANDLE_VALUE ) {
+      CONSOLE_SCREEN_BUFFER_INFO csbi;
+      if ( GetConsoleScreenBufferInfo( hConsole, &csbi ) )
+        return csbi.srWindow.Right - csbi.srWindow.Left + 1;
+    }
+# elif __PGBAR_UNIX
+    struct winsize ws;
+    auto fd = static_cast<int>( channel );
+    if ( ioctl( fd, TIOCGWINSZ, &ws ) == -1 )
+      return 100;
+    return ws.ws_col;
+# endif
+    return 100;
+  }
 
   namespace config {
     void hide_completed( bool flag ) noexcept;
@@ -2639,27 +2686,6 @@ namespace pgbar {
           mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
           SetConsoleMode( stream_handle, mode );
         } );
-# endif
-      }
-
-      /**
-       * Determine if the output stream is binded to the tty based on the platform api.
-       *
-       * Always returns true if defined `PGBAR_INTTY`,
-       * or the local platform is neither `Windows` nor `unix-like`.
-       */
-      __PGBAR_NODISCARD inline bool intty( Channel outlet ) noexcept
-      {
-# if defined( PGBAR_INTTY ) || __PGBAR_UNKNOWN
-        return true;
-# elif __PGBAR_WIN
-        HANDLE stream_handle =
-          GetStdHandle( outlet == Channel::Stdout ? STD_OUTPUT_HANDLE : STD_ERROR_HANDLE );
-        if ( stream_handle == INVALID_HANDLE_VALUE )
-          __PGBAR_UNLIKELY return false;
-        return GetFileType( stream_handle ) == FILE_TYPE_CHAR;
-# else
-        return isatty( outlet == Channel::Stdout ? STDOUT_FILENO : STDERR_FILENO );
 # endif
       }
     } // namespace console
@@ -3142,7 +3168,7 @@ namespace pgbar {
             return false;
           state_.store( State::Dormant, std::memory_order_release );
           task_.swap( task );
-          intty_.store( console::intty( Tag ), std::memory_order_release );
+          intty_.store( intty( Tag ), std::memory_order_release );
           return true;
         }
 
@@ -3249,7 +3275,7 @@ namespace pgbar {
         void activate() & noexcept( false )
         {
           auto expected = State::Quit;
-          if ( console::intty( Tag )
+          if ( intty( Tag )
                && state_.compare_exchange_strong( expected,
                                                   State::Awake,
                                                   std::memory_order_release,
@@ -3385,8 +3411,8 @@ namespace pgbar {
     };
 
     // A wrapper that stores the number of tasks.
-    struct Tasks final : __PGBAR_BASE( __details::types::Size ) {
-      __PGBAR_OPTIONS( Tasks, __details::types::Size, _num_tasks )
+    struct Tasks final : __PGBAR_BASE( std::uint64_t ) {
+      __PGBAR_OPTIONS( Tasks, std::uint64_t, _num_tasks )
     };
 
     // A wrapper that stores the length of the bar indicator, in the character unit.
@@ -3698,7 +3724,7 @@ namespace pgbar {
 
       protected:
         mutable concurrent::SharedMutex rw_mtx_;
-        enum class Mask : types::Size { Colored = 0, Bolded };
+        enum class Mask : types::Byte { Colored = 0, Bolded };
         std::bitset<2> fonts_;
 
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::ROStr build_color( types::ROStr ansi_color ) const
@@ -3763,21 +3789,21 @@ namespace pgbar {
         }
 
       protected:
-        scope::NumericSpan<types::Size> task_range_;
+        scope::NumericSpan<std::uint64_t> task_range_;
 
       public:
         constexpr TaskQuantity() = default;
         __PGBAR_NONEMPTY_CLASS( TaskQuantity, __PGBAR_CXX14_CNSTXPR )
 
         // Set the number of tasks, passing in zero is no exception.
-        Derived& tasks( types::Size param ) &
+        Derived& tasks( std::uint64_t param ) &
         {
           std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };
           unpacker( *this, option::Tasks( param ) );
           return static_cast<Derived&>( *this );
         }
         // Get the current number of tasks.
-        __PGBAR_NODISCARD types::Size tasks() const
+        __PGBAR_NODISCARD std::uint64_t tasks() const
         {
           concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
           return task_range_.end_value();
@@ -4618,8 +4644,8 @@ namespace pgbar {
         std::uint16_t magnitude_;
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN types::String build_speed( const types::TimeUnit& time_passed,
-                                                                       types::Size num_task_done,
-                                                                       types::Size num_all_tasks ) const
+                                                                       std::uint64_t num_task_done,
+                                                                       std::uint64_t num_all_tasks ) const
         {
           __PGBAR_PURE_ASSUME( num_task_done <= num_all_tasks );
           if ( num_all_tasks == 0 )
@@ -4714,8 +4740,8 @@ namespace pgbar {
       template<typename Base, typename Derived>
       class CounterMeter : public Base {
       protected:
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN types::String build_counter( types::Size num_task_done,
-                                                                         types::Size num_all_tasks ) const
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN types::String build_counter( std::uint64_t num_task_done,
+                                                                         std::uint64_t num_all_tasks ) const
         {
           __PGBAR_PURE_ASSUME( num_task_done <= num_all_tasks );
           if ( num_all_tasks == 0 )
@@ -4772,8 +4798,8 @@ namespace pgbar {
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::String build_countdown(
           const types::TimeUnit& time_passed,
-          types::Size num_task_done,
-          types::Size num_all_tasks ) const
+          std::uint64_t num_task_done,
+          std::uint64_t num_all_tasks ) const
         {
           __PGBAR_PURE_ASSUME( num_task_done <= num_all_tasks );
           if ( num_task_done == 0 || num_all_tasks == 0 )
@@ -4798,8 +4824,8 @@ namespace pgbar {
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& build_hybird(
           io::Stringbuf& buffer,
           const types::TimeUnit& time_passed,
-          types::Size num_task_done,
-          types::Size num_all_tasks ) const
+          std::uint64_t num_task_done,
+          std::uint64_t num_all_tasks ) const
         {
           return buffer << build_elapsed( time_passed ) << __PGBAR_TIMER_SEGMENT
                         << build_countdown( time_passed, num_task_done, num_all_tasks );
@@ -4816,7 +4842,7 @@ namespace pgbar {
       template<typename Base, typename Derived>
       class TaskCounter : public Base {
       protected:
-        std::atomic<__details::types::Size> task_cnt_, task_end_;
+        std::atomic<std::uint64_t> task_cnt_, task_end_;
 
       public:
         constexpr TaskCounter() noexcept( std::is_nothrow_default_constructible<Base>::value )
@@ -4845,7 +4871,7 @@ namespace pgbar {
         __PGBAR_CXX20_CNSTXPR virtual ~TaskCounter() = 0;
 
         // Get the progress of the task.
-        __PGBAR_NODISCARD types::Size progress() const noexcept
+        __PGBAR_NODISCARD std::uint64_t progress() const noexcept
         {
           return task_cnt_.load( std::memory_order_acquire );
         }
@@ -5223,16 +5249,16 @@ namespace pgbar {
             return static_cast<Modifier&&>( *this );
           }
 
-          Modifier<!Enable> negation() && noexcept
+          Modifier<!Enable> negate() && noexcept
           {
-            auto negation = Modifier<!Enable>( this->myself_, std::adopt_lock );
+            auto negate = Modifier<!Enable>( this->myself_, std::adopt_lock );
             owner_.store( false, std::memory_order_release );
-            return negation;
+            return negate;
           }
         };
 
       protected:
-        enum class Mask : types::Size { Per = 0, Ani, Cnt, Sped, Elpsd, Cntdwn };
+        enum class Mask : types::Byte { Per = 0, Ani, Cnt, Sped, Elpsd, Cntdwn };
         std::bitset<6> visual_masks_;
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN types::Size common_render_size() const noexcept
@@ -5407,10 +5433,6 @@ namespace pgbar {
     {
       __details::render::Renderer<Channel::Stderr, Policy::Async>::working_interval( new_rate );
       __details::render::Renderer<Channel::Stdout, Policy::Async>::working_interval( std::move( new_rate ) );
-    }
-    __PGBAR_NODISCARD __PGBAR_INLINE_FN bool intty( Channel channel ) noexcept
-    {
-      return __details::console::intty( channel );
     }
 
     inline void hide_completed( bool flag ) noexcept
@@ -5677,8 +5699,8 @@ namespace pgbar {
          */
         __PGBAR_INLINE_FN io::Stringbuf& common_build(
           io::Stringbuf& buffer,
-          types::Size num_task_done,
-          types::Size num_all_tasks,
+          std::uint64_t num_task_done,
+          std::uint64_t num_all_tasks,
           const std::chrono::steady_clock::time_point& zero_point ) const
         {
           __PGBAR_PURE_ASSUME( num_task_done <= num_all_tasks );
@@ -5724,8 +5746,8 @@ namespace pgbar {
         template<typename... Args>
         __PGBAR_INLINE_FN io::Stringbuf& indirect_build(
           io::Stringbuf& buffer,
-          types::Size num_task_done,
-          types::Size num_all_tasks,
+          std::uint64_t num_task_done,
+          std::uint64_t num_all_tasks,
           types::Float num_percent,
           const std::chrono::steady_clock::time_point& zero_point,
           Args&&... args ) const
@@ -5763,8 +5785,8 @@ namespace pgbar {
         template<typename... Args>
         __PGBAR_INLINE_FN io::Stringbuf& indirect_build(
           io::Stringbuf& buffer,
-          types::Size num_task_done,
-          types::Size num_all_tasks,
+          std::uint64_t num_task_done,
+          std::uint64_t num_all_tasks,
           types::Float num_percent,
           bool final_mesg,
           const std::chrono::steady_clock::time_point& zero_point,
@@ -5835,8 +5857,8 @@ namespace pgbar {
         __PGBAR_INLINE_FN io::Stringbuf& build(
           io::Stringbuf& buffer,
           types::Size num_frame_cnt,
-          types::Size num_task_done,
-          types::Size num_all_tasks,
+          std::uint64_t num_task_done,
+          std::uint64_t num_all_tasks,
           const std::chrono::steady_clock::time_point& zero_point ) const
         {
           __PGBAR_PURE_ASSUME( num_task_done <= num_all_tasks );
@@ -5854,8 +5876,8 @@ namespace pgbar {
         __PGBAR_INLINE_FN io::Stringbuf& build(
           io::Stringbuf& buffer,
           types::Size num_frame_cnt,
-          types::Size num_task_done,
-          types::Size num_all_tasks,
+          std::uint64_t num_task_done,
+          std::uint64_t num_all_tasks,
           bool final_mesg,
           const std::chrono::steady_clock::time_point& zero_point ) const
         {
@@ -5891,8 +5913,8 @@ namespace pgbar {
         using Base::BuilderAdopter;
         __PGBAR_INLINE_FN io::Stringbuf& build(
           io::Stringbuf& buffer,
-          types::Size num_task_done,
-          types::Size num_all_tasks,
+          std::uint64_t num_task_done,
+          std::uint64_t num_all_tasks,
           const std::chrono::steady_clock::time_point& zero_point ) const
         {
           __PGBAR_PURE_ASSUME( num_task_done <= num_all_tasks );
@@ -5904,8 +5926,8 @@ namespace pgbar {
         }
         __PGBAR_INLINE_FN io::Stringbuf& build(
           io::Stringbuf& buffer,
-          types::Size num_task_done,
-          types::Size num_all_tasks,
+          std::uint64_t num_task_done,
+          std::uint64_t num_all_tasks,
           bool final_mesg,
           const std::chrono::steady_clock::time_point& zero_point ) const
         {
@@ -5941,8 +5963,8 @@ namespace pgbar {
         __PGBAR_INLINE_FN io::Stringbuf& build(
           io::Stringbuf& buffer,
           types::Size num_frame_cnt,
-          types::Size num_task_done,
-          types::Size num_all_tasks,
+          std::uint64_t num_task_done,
+          std::uint64_t num_all_tasks,
           const std::chrono::steady_clock::time_point& zero_point ) const
         {
           __PGBAR_PURE_ASSUME( num_task_done <= num_all_tasks );
@@ -5955,8 +5977,8 @@ namespace pgbar {
         __PGBAR_INLINE_FN io::Stringbuf& build(
           io::Stringbuf& buffer,
           types::Size num_frame_cnt,
-          types::Size num_task_done,
-          types::Size num_all_tasks,
+          std::uint64_t num_task_done,
+          std::uint64_t num_all_tasks,
           bool final_mesg,
           const std::chrono::steady_clock::time_point& zero_point ) const
         {
@@ -5984,8 +6006,8 @@ namespace pgbar {
         __PGBAR_INLINE_FN io::Stringbuf& build(
           io::Stringbuf& buffer,
           types::Size num_frame_cnt,
-          types::Size num_task_done,
-          types::Size num_all_tasks,
+          std::uint64_t num_task_done,
+          std::uint64_t num_all_tasks,
           const std::chrono::steady_clock::time_point& zero_point ) const
         {
           __PGBAR_PURE_ASSUME( num_task_done <= num_all_tasks );
@@ -6025,8 +6047,8 @@ namespace pgbar {
         __PGBAR_INLINE_FN io::Stringbuf& build(
           io::Stringbuf& buffer,
           types::Size num_frame_cnt,
-          types::Size num_task_done,
-          types::Size num_all_tasks,
+          std::uint64_t num_task_done,
+          std::uint64_t num_all_tasks,
           bool final_mesg,
           const std::chrono::steady_clock::time_point& zero_point ) const
         {
@@ -6281,7 +6303,7 @@ namespace pgbar {
         {
           do_tick( [this]() noexcept { this->task_cnt_.fetch_add( 1, std::memory_order_release ); } );
         }
-        void tick( types::Size next_step ) &
+        void tick( std::uint64_t next_step ) &
         {
           do_tick( [&]() noexcept {
             const auto task_cnt = this->task_cnt_.load( std::memory_order_acquire );
@@ -6299,7 +6321,7 @@ namespace pgbar {
         void tick_to( std::uint8_t percentage ) &
         {
           do_tick( [&]() noexcept {
-            auto updater = [this]( __details::types::Size target ) noexcept {
+            auto updater = [this]( std::uint64_t target ) noexcept {
               auto current = this->task_cnt_.load( std::memory_order_acquire );
               while ( !this->task_cnt_.compare_exchange_weak( current,
                                                               target,
@@ -6308,8 +6330,8 @@ namespace pgbar {
                       && target <= current ) {}
             };
             if ( percentage <= 100 ) {
-              const auto target = static_cast<types::Size>( this->task_end_.load( std::memory_order_acquire )
-                                                            * percentage * 0.01 );
+              const auto target = static_cast<std::uint64_t>(
+                this->task_end_.load( std::memory_order_acquire ) * percentage * 0.01 );
               __PGBAR_ASSERT( target <= this->task_end_ );
               updater( target );
             } else
@@ -6616,7 +6638,7 @@ namespace pgbar {
                    auto& ostream = io::OStream<Outlet>::itself();
                    switch ( cb_state_.load( std::memory_order_acquire ) ) {
                    case CBState::Awake: {
-                     active_mask_.store( decltype( active_mask_ ) {}, std::memory_order_release );
+                     active_mask_.store( {}, std::memory_order_release );
                      if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Async )
                        ostream << console::escodes::savecursor;
                      do_render();
@@ -6884,7 +6906,7 @@ namespace pgbar {
       get<Pos>( tuple_ ).tick();
     }
     template<__details::types::Size Pos>
-    __PGBAR_INLINE_FN void tick( __details::types::Size next_step ) &
+    __PGBAR_INLINE_FN void tick( std::uint64_t next_step ) &
     {
       using std::get;
       get<Pos>( tuple_ ).tick( next_step );
@@ -7624,8 +7646,9 @@ namespace pgbar {
 
         enum class State : types::Byte { Stop, Awake, Refresh };
         std::atomic<State> state_;
-
         std::vector<Slot> bars_;
+
+        std::atomic<types::Size> num_discarded_line_;
         mutable concurrent::SharedMutex res_mtx_;
         mutable std::mutex sched_mtx_;
 
@@ -7716,9 +7739,17 @@ namespace pgbar {
                    case State::Refresh: {
                      {
                        concurrent::SharedLock<concurrent::SharedMutex> lock { res_mtx_ };
-                       if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Async )
+                       if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Async ) {
                          ostream << console::escodes::resetcursor;
-                       else
+                         if ( config::hide_completed() ) {
+                           const auto num_discarded = num_discarded_line_.load( std::memory_order_acquire );
+                           if ( num_discarded != 0 ) {
+                             ostream.append( console::escodes::nextline, num_discarded )
+                               .append( console::escodes::savecursor );
+                             num_discarded_line_.fetch_sub( num_discarded, std::memory_order_release );
+                           }
+                         }
+                       } else
                          ostream
                            .append( console::escodes::prevline,
                                     std::count_if( bars_.cbegin(),
@@ -7739,6 +7770,7 @@ namespace pgbar {
               __PGBAR_UNLIKELY throw exception::InvalidState(
                 "pgbar: another progress bar instance is already running" );
             io::OStream<Outlet>::itself() << io::release;
+            num_discarded_line_.store( 0, std::memory_order_relaxed );
             state_.store( State::Awake, std::memory_order_release );
             try {
               {

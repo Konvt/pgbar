@@ -2033,7 +2033,7 @@ int main()
 
 当 `pgbar` 发现某个输出流并不指向终端时，所有指向该输出流的进度条都不会对外输出任何信息，但是内部的异常检查工作是正常进行的。
 
-你也可以调用在名称空间 `pgbar::config` 中的 `intty()` 方法检查某个输出流是否指向终端。
+你也可以调用在名称空间 `pgbar` 中的 `intty()` 方法检查某个输出流是否指向终端。
 
 ```cpp
 #include "pgbar/pgbar.hpp"
@@ -2041,7 +2041,7 @@ int main()
 
 int main()
 {
-  if ( pgbar::config::intty( pgbar::Channel::Stdout ) )
+  if ( pgbar::intty( pgbar::Channel::Stdout ) )
     std::cout << "Standard output is bound to a terminal." << std::endl;
   else
     std::cout << "Standard output is not bound to a terminal." << std::endl;
