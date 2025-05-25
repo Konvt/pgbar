@@ -3,7 +3,6 @@
 // Copyright (c) 2023-2025 Konvt
 #pragma once
 
-#include <cstdio>
 #ifndef __KONVT_PGBAR
 # define __KONVT_PGBAR
 
