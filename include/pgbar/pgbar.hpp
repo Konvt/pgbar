@@ -1362,9 +1362,9 @@ namespace pgbar {
           store_fn( F&& fn ) noexcept( false )
         {
           using T   = typename std::decay<F>::type;
-          auto dptr = std::unique_ptr<Data, void ( * )( Data* )>(
-            static_cast<Data*>( operator new( sizeof( T ) ) ),
-            +[]( Data* ptr ) { operator delete( ptr ); } );
+          auto dptr = std::unique_ptr<void, void ( * )( void* )>(
+            operator new( sizeof( T ) ),
+            +[]( void* ptr ) { operator delete( ptr ); } );
 
           const auto location = new ( dptr.get() ) T( std::forward<F>( fn ) );
           __PGBAR_ASSERT( static_cast<void*>( location ) == dptr.get() );
