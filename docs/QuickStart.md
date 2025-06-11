@@ -44,6 +44,7 @@
     - [How to use](#how-to-use-4)
     - [Helper functions](#helper-functions)
     - [Rendering strategy](#rendering-strategy-4)
+    - [Tuple protocol](#tuple-protocol)
   - [`DynamicBar`](#dynamicbar)
     - [How to use](#how-to-use-5)
     - [Helper functions](#helper-functions-1)
@@ -262,7 +263,7 @@ The above elements all have methods with the same name in `Line`, and calling th
 ##### Variable progress bar length
 In between the `Starting` and `Ending` elements is a progress indicator called the `Animation` (excluding `Starting` and `Ending`), which is variable in length.
 
-`pgbar` itself rarely probes platform-specific information, such as the width of the terminal. Therefore, if you want the progress bar to fill a row, or if the progress bar is too long and needs to be narrowed, you need to change the length of the progress indicator using the `bar_length()` method or the `pgbar::option::BarLength` wrapper.
+Each progress bar has a default initial length of 30 characters. If you want the progress bar to fill a row, or if the progress bar is too long and needs to be narrowed, you need to change the length of the progress indicator using the `bar_length()` method or the `pgbar::option::BarLength` wrapper.
 
 For the latter, directly use the corresponding interface to adjust the parameters;   The former requires a helper method to obtain the length of parts other than the progress indicator in order to correctly calculate the length just enough to fill a row with the progress bar.
 
@@ -270,8 +271,18 @@ The method is `config().fixed_length()`。
 
 ```cpp
 pgbar::ProgressBar<> bar;
-assert( bar.config().bar_length() == 30 ); // default value
-assert( bar.config().fixed_length() != 0 );  // The exact value depends on the content of the data member
+assert( bar.config().bar_length() == 30 );  // default value
+assert( bar.config().fixed_length() != 0 ); // The exact value depends on the content of the data member
+```
+
+The specific terminal line width (in characters) can be obtained using `pgbar::terminal_width()`. If the passed output stream does not point to an actual terminal device, the return value will be 0.
+
+> If the running platform is neither `Windows` nor `Unix-like`, then this function will only return a fixed value of 100.
+
+```cpp
+assert( pgbar::terminal_width( pgbar::Channel::Stdout ) > bar.config().fixed_length() );
+bar.bar_length( pgbar::terminal_width( pgbar::Channel::Stdout ) - bar.config().fixed_length() );
+// At this point, the progress bar can exactly fill one line.
 ```
 #### Data configuration
 `Line` has two methods of data configuration: variable parameter construction based on wrapper type, and stream interface style based on chain call.
@@ -672,7 +683,7 @@ The above elements all have methods with the same name in `Block`, and calling t
 ##### Variable progress bar length
 The element BlockBar of `BlockBar` is also called as Animation. It is a progress indicator implemented using Unicode block characters, and the length of this progress indicator is variable.
 
-`pgbar` itself rarely probes platform-specific information, such as the width of the terminal. Therefore, if you want the progress bar to fill a row, or if the progress bar is too long and needs to be narrowed, you need to change the length of the progress indicator using the `bar_length()` method or the `pgbar::option::BarLength` wrapper.
+Each progress bar has a default initial length of 30 characters. If you want the progress bar to fill a row, or if the progress bar is too long and needs to be narrowed, you need to change the length of the progress indicator using the `bar_length()` method or the `pgbar::option::BarLength` wrapper.
 
 For the latter, directly use the corresponding interface to adjust the parameters;   The former requires a helper method to obtain the length of parts other than the progress indicator in order to correctly calculate the length just enough to fill a row with the progress bar.
 
@@ -680,8 +691,18 @@ The method is `config().fixed_length()`。
 
 ```cpp
 pgbar::BlockBar<> bar;
-assert( bar.config().bar_length() == 30 ); // default value
-assert( bar.config().fixed_length() != 0 );  // The exact value depends on the content of the data member
+assert( bar.config().bar_length() == 30 );  // default value
+assert( bar.config().fixed_length() != 0 ); // The exact value depends on the content of the data member
+```
+
+The specific terminal line width (in characters) can be obtained using `pgbar::terminal_width()`. If the passed output stream does not point to an actual terminal device, the return value will be 0.
+
+> If the running platform is neither `Windows` nor `Unix-like`, then this function will only return a fixed value of 100.
+
+```cpp
+assert( pgbar::terminal_width( pgbar::Channel::Stdout ) > bar.config().fixed_length() );
+bar.bar_length( pgbar::terminal_width( pgbar::Channel::Stdout ) - bar.config().fixed_length() );
+// At this point, the progress bar can exactly fill one line.
 ```
 #### Data configuration
 `Block` has two methods of data configuration: variable parameter construction based on wrapper type, and stream interface style based on chain call.
@@ -1085,7 +1106,7 @@ The above elements all have methods with the same name in `ScanBar`, and calling
 ##### Variable progress bar length
 In between the Starting and Ending elements is a scanning progress bar called Animation (excluding Starting and Ending), which is variable in length.
 
-`pgbar` itself rarely probes platform-specific information, such as the width of the terminal. Therefore, if you want the progress bar to fill a row, or if the progress bar is too long and needs to be narrowed, you need to change the length of the progress indicator using the `bar_length()` method or the `pgbar::option::BarLength` wrapper.
+Each progress bar has a default initial length of 30 characters. If you want the progress bar to fill a row, or if the progress bar is too long and needs to be narrowed, you need to change the length of the progress indicator using the `bar_length()` method or the `pgbar::option::BarLength` wrapper.
 
 For the latter, directly use the corresponding interface to adjust the parameters;   The former requires a helper method to obtain the length of parts other than the progress indicator in order to correctly calculate the length just enough to fill a row with the progress bar.
 
@@ -1093,8 +1114,18 @@ The method is `config().fixed_length()`。
 
 ```cpp
 pgbar::SweepBar<> bar;
-assert( bar.config().bar_length() == 30 ); // default value
-assert( bar.config().fixed_length() != 0 );  // The exact value depends on the content of the data member
+assert( bar.config().bar_length() == 30 );  // default value
+assert( bar.config().fixed_length() != 0 ); // The exact value depends on the content of the data member
+```
+
+The specific terminal line width (in characters) can be obtained using `pgbar::terminal_width()`. If the passed output stream does not point to an actual terminal device, the return value will be 0.
+
+> If the running platform is neither `Windows` nor `Unix-like`, then this function will only return a fixed value of 100.
+
+```cpp
+assert( pgbar::terminal_width( pgbar::Channel::Stdout ) > bar.config().fixed_length() );
+bar.bar_length( pgbar::terminal_width( pgbar::Channel::Stdout ) - bar.config().fixed_length() );
+// At this point, the progress bar can exactly fill one line.
 ```
 #### Data configuration
 `ScanBar` has two methods of data configuration: variable parameter construction based on wrapper type, and stream interface style based on chain call.
@@ -1730,6 +1761,14 @@ int main()
   mbar.config<1>().tasks( 200 );
   mbar.config<2>().tasks( 300 );
 
+  // The corresponding progress bar object can be accessed directly
+  mbar.at<0>().tick();
+  // It can also be accessed indirectly
+  mbar.tick<1>();
+  // Unqualified get() calls can also be used for access
+  using std::get;
+  get<2>( mbar );
+
   // Methods without template parameters represent access to the MultiBar object itself
   assert( mbar.active() );
 
@@ -1845,6 +1884,31 @@ int main()
     bar.tick<1>();
   while ( bar.is_running<2>() )
     bar.tick<2>();
+}
+```
+### Tuple protocol
+`pgbar::MultiBar` provides specialized implementations for the standard library's `std::tuple_element` and `std::tuple_size`, and also offers an overloaded version of `get`.
+
+Therefore, `pgbar::MultiBar` can be regarded as a special version of `std::tuple`.
+
+When using C++17 or a later standard, structured binding can be applied to `pgbar::MultiBar`:
+
+```cpp
+#include "pgbar/pgbar.hpp"
+#include <thread>
+
+int main()
+{
+  static_assert( __cplusplus >= 201703L );
+
+  auto mbar = pgbar::make_multi( pgbar::ProgressBar<>( pgbar::option::Tasks( 2 ) ),
+                                 pgbar::BlockBar<>( pgbar::option::Tasks( 3 ) ) );
+
+  auto& [bar1, bar2] = mbar;
+  bar1.tick();
+  bar2.tick();
+
+  std::this_thread::sleep_for( std::chrono::seconds( 4 ) );
 }
 ```
 

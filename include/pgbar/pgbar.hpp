@@ -2396,13 +2396,13 @@ namespace pgbar {
         __PGBAR_CXX20_CNSTXPR ~iterator()                              = default;
 
         __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator& operator++() & noexcept(
-          noexcept( ++std::declval<I>() ) )
+          noexcept( ++std::declval<I&>() ) )
         {
           ++current_;
           return *this;
         }
         __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator operator++( int ) & noexcept(
-          std::is_nothrow_copy_constructible<iterator>::value && noexcept( ++std::declval<I>() ) )
+          std::is_nothrow_copy_constructible<iterator>::value && noexcept( ++std::declval<I&>() ) )
         {
           auto before = *this;
           operator++();
@@ -6648,17 +6648,16 @@ namespace pgbar {
         template<types::Size Pos = 0>
         inline typename std::enable_if<( Pos < sizeof...( Bars ) )>::type do_render() &
         {
-          using std::get;
           __PGBAR_ASSERT( online() );
           auto& ostream = io::OStream<Outlet>::itself();
-          if ( get<Pos>( *this ).active() ) {
+          if ( at<Pos>().active() ) {
             auto new_val = active_mask_.load( std::memory_order_acquire );
             new_val.set( Pos );
             active_mask_.store( new_val, std::memory_order_release );
             ostream << console::escodes::linewipe;
-            render::RenderAction<void>::automate( get<Pos>( *this ) );
+            render::RenderAction<void>::automate( at<Pos>() );
 
-            if ( !get<Pos>( *this ).active() && config::hide_completed() ) {
+            if ( !at<Pos>().active() && config::hide_completed() ) {
               // The renderer ensures that each call to do render is atomic.
               new_val.reset( Pos );
               active_mask_.store( new_val, std::memory_order_release );
@@ -6741,6 +6740,9 @@ namespace pgbar {
           alive_cnt_.fetch_add( 1, std::memory_order_release );
         }
 
+        template<types::Size Pos>
+        using ElementAt_t = traits::TypeAt_t<Pos, TupleSlot<Tags, Bars<Configs, Outlet, Mode>>...>;
+
         template<typename Tuple, types::Size... Is>
         TupleBar( Tuple&& tup, const traits::IndexSeq<Is...>& )
           noexcept( std::tuple_size<typename std::decay<Tuple>::type>::value == sizeof...( Bars ) )
@@ -6753,9 +6755,6 @@ namespace pgbar {
         }
 
       public:
-        template<types::Size Pos>
-        using ElementAt_t = traits::TypeAt_t<Pos, TupleSlot<Tags, Bars<Configs, Outlet, Mode>>...>;
-
         template<types::Size... Is, typename... Cs, Channel O, Policy M>
         TupleBar( const TupleSlot<Is, prefabs::BasicBar<Cs, O, M>>&... ) = delete;
 
@@ -6822,19 +6821,19 @@ namespace pgbar {
         }
 
         template<types::Size Pos>
-        friend __PGBAR_INLINE_FN constexpr ElementAt_t<Pos>& get( TupleBar& tup ) noexcept
+        __PGBAR_INLINE_FN ElementAt_t<Pos>& at() & noexcept
         {
-          return static_cast<ElementAt_t<Pos>&>( tup );
+          return static_cast<ElementAt_t<Pos>&>( *this );
         }
         template<types::Size Pos>
-        friend __PGBAR_INLINE_FN constexpr const ElementAt_t<Pos>& get( const TupleBar& tup ) noexcept
+        __PGBAR_INLINE_FN const ElementAt_t<Pos>& at() const& noexcept
         {
-          return static_cast<const ElementAt_t<Pos>&>( tup );
+          return static_cast<const ElementAt_t<Pos>&>( *this );
         }
         template<types::Size Pos>
-        friend __PGBAR_INLINE_FN constexpr ElementAt_t<Pos>&& get( TupleBar&& tup ) noexcept
+        __PGBAR_INLINE_FN ElementAt_t<Pos>&& at() && noexcept
         {
-          return static_cast<ElementAt_t<Pos>&&>( tup );
+          return static_cast<ElementAt_t<Pos>&&>( std::move( *this ) );
         }
       };
     } // namespace assets
@@ -6864,7 +6863,8 @@ namespace pgbar {
     template<__details::types::Size Pos>
     using ConfigAt_t = __details::traits::TypeAt_t<Pos, Config, Configs...>;
     template<__details::types::Size Pos>
-    using BarAt_t = typename Package::template ElementAt_t<Pos>;
+    using BarAt_t =
+      __details::traits::TypeAt_t<Pos, Bar<Config, Outlet, Mode>, Bars<Configs, Outlet, Mode>...>;
 
     Package tuple_;
 
@@ -6960,65 +6960,71 @@ namespace pgbar {
     }
 
     template<__details::types::Size Pos>
+    __PGBAR_INLINE_FN BarAt_t<Pos>& at() & noexcept
+    {
+      return tuple_.template at<Pos>();
+    }
+    template<__details::types::Size Pos>
+    __PGBAR_INLINE_FN const BarAt_t<Pos>& at() const& noexcept
+    {
+      return static_cast<const Package&>( tuple_ ).template at<Pos>();
+    }
+    template<__details::types::Size Pos>
+    __PGBAR_INLINE_FN BarAt_t<Pos>&& at() && noexcept
+    {
+      return std::move( tuple_ ).template at<Pos>();
+    }
+
+    template<__details::types::Size Pos>
     __PGBAR_INLINE_FN void tick() &
     {
-      using std::get;
-      get<Pos>( tuple_ ).tick();
+      at<Pos>().tick();
     }
     template<__details::types::Size Pos>
     __PGBAR_INLINE_FN void tick( std::uint64_t next_step ) &
     {
-      using std::get;
-      get<Pos>( tuple_ ).tick( next_step );
+      at<Pos>().tick( next_step );
     }
     template<__details::types::Size Pos>
     __PGBAR_INLINE_FN void tick_to( std::uint8_t percentage ) &
     {
-      using std::get;
-      get<Pos>( tuple_ ).tick_to( percentage );
+      at<Pos>().tick_to( percentage );
     }
     template<__details::types::Size Pos>
     __PGBAR_INLINE_FN void reset( bool final_mesg = true )
     {
-      using std::get;
-      get<Pos>( tuple_ ).reset( final_mesg );
+      at<Pos>().reset( final_mesg );
     }
     template<__details::types::Size Pos>
     __PGBAR_INLINE_FN void wait() const noexcept
     {
-      using std::get;
-      get<Pos>( tuple_ ).wait();
+      at<Pos>().wait();
     }
     template<__details::types::Size Pos, class Rep, class Period>
     __PGBAR_NODISCARD __PGBAR_INLINE_FN bool wait_for(
       const std::chrono::duration<Rep, Period>& timeout ) const noexcept
     {
-      using std::get;
-      return get<Pos>( tuple_ ).wait_for( timeout );
+      return at<Pos>().wait_for( timeout );
     }
     template<__details::types::Size Pos>
     __PGBAR_NODISCARD __PGBAR_INLINE_FN bool active() const noexcept
     {
-      using std::get;
-      return get<Pos>( tuple_ ).active();
+      return at<Pos>().active();
     }
     template<__details::types::Size Pos>
     __PGBAR_INLINE_FN ConfigAt_t<Pos>& config() &
     {
-      using std::get;
-      return get<Pos>( tuple_ ).config();
+      return at<Pos>().config();
     }
     template<__details::types::Size Pos>
     __PGBAR_INLINE_FN const ConfigAt_t<Pos>& config() const&
     {
-      using std::get;
-      return get<Pos>( tuple_ ).config();
+      return at<Pos>().config();
     }
     template<__details::types::Size Pos>
     __PGBAR_INLINE_FN ConfigAt_t<Pos>&& config() &&
     {
-      using std::get;
-      return get<Pos>( tuple_ ).config();
+      return at<Pos>().config();
     }
 
     template<__details::types::Size Pos, typename... Args
@@ -7030,15 +7036,23 @@ namespace pgbar {
       typename = typename std::enable_if<__details::traits::is_iterable_bar<BarAt_t<Pos>>::value>::type>
 # endif
     __PGBAR_INLINE_FN auto iterate( Args&&... args ) & noexcept(
-      noexcept( std::declval<BarAt_t<Pos>&>().iterate( std::forward<Args>( args )... ) ) )
-      -> decltype( std::declval<BarAt_t<Pos>&>().iterate( std::forward<Args>( args )... ) )
+      noexcept( std::declval<Self&>().template at<Pos>().iterate( std::forward<Args>( args )... ) ) )
+      -> decltype( std::declval<Self&>().template at<Pos>().iterate( std::forward<Args>( args )... ) )
     {
-      using std::get;
-      return get<Pos>( tuple_ ).iterate( std::forward<Args>( args )... );
+      return at<Pos>().iterate( std::forward<Args>( args )... );
     }
 
     void swap( Self& rhs ) noexcept { tuple_.swap( rhs.tuple_ ); }
     friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
+
+    template<__details::types::Size Pos, typename M>
+    friend __PGBAR_INLINE_FN constexpr
+      typename std::enable_if<std::is_same<typename std::decay<M>::type, Self>::value,
+                              decltype( std::declval<M>().template at<Pos>() )>::type
+      get( M&& self ) noexcept
+    {
+      return std::forward<M>( self ).template at<Pos>();
+    }
   };
 
 # if __PGBAR_CXX17
@@ -8299,6 +8313,12 @@ namespace pgbar {
     return products;
   }
 } // namespace pgbar
+
+template<typename... Bs>
+struct std::tuple_size<pgbar::MultiBar<Bs...>> : std::integral_constant<std::size_t, sizeof...( Bs )> {};
+
+template<std::size_t I, typename... Bs>
+struct std::tuple_element<I, pgbar::MultiBar<Bs...>> : pgbar::__details::traits::TypeAt<I, Bs...> {};
 
 # undef __PGBAR_COMPONENT_REGISTER
 # undef __PGBAR_TRAIT_REGISTER
