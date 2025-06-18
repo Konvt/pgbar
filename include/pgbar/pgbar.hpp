@@ -229,8 +229,7 @@ namespace pgbar {
     } // namespace types
 
     namespace constants {
-      __PGBAR_CXX17_INLINE constexpr types::Char blank                   = ' ';
-      __PGBAR_CXX17_INLINE __PGBAR_CXX20_CNSTXPR types::ConstStr nil_str = "";
+      __PGBAR_CXX17_INLINE constexpr types::Char blank = ' ';
     }
 
     namespace traits {
@@ -2572,7 +2571,7 @@ namespace pgbar {
   } // namespace color
 
   // A enum that specifies the type of the output stream.
-  enum class Channel : __details::types::Byte { Stdout = STDOUT_FILENO, Stderr = STDERR_FILENO };
+  enum class Channel : int { Stdout = STDOUT_FILENO, Stderr = STDERR_FILENO };
   enum class Policy : __details::types::Byte { Async, Sync };
 
   /**
@@ -3787,16 +3786,24 @@ namespace pgbar {
         enum class Mask : types::Byte { Colored = 0, Bolded };
         std::bitset<2> fonts_;
 
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::ROStr build_color( types::ROStr ansi_color ) const
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& try_dye( io::Stringbuf& buffer,
+                                                                        types::ROStr ansi_color ) const
         {
-          return fonts_[utils::as_val( Mask::Colored )] ? ansi_color : constants::nil_str;
+          if ( fonts_[utils::as_val( Mask::Colored )] )
+            buffer << ansi_color;
+          return buffer;
         }
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& build_font( io::Stringbuf& buffer,
-                                                                           types::ROStr ansi_color ) const
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& try_style( io::Stringbuf& buffer,
+                                                                          types::ROStr ansi_color ) const
         {
-          return buffer << console::escodes::fontreset << build_color( ansi_color )
-                        << ( fonts_[utils::as_val( Mask::Bolded )] ? console::escodes::fontbold
-                                                                   : constants::nil_str );
+          return try_dye( buffer, ansi_color )
+              << ( fonts_[utils::as_val( Mask::Bolded )] ? console::escodes::fontbold : "" );
+        }
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& try_reset( io::Stringbuf& buffer ) const
+        {
+          if ( fonts_.any() )
+            buffer << console::escodes::fontreset;
+          return buffer;
         }
 
       public:
@@ -4103,8 +4110,10 @@ namespace pgbar {
           __PGBAR_PURE_ASSUME( num_percent >= 0.0 );
           __PGBAR_PURE_ASSUME( num_percent <= 1.0 );
 
-          buffer << console::escodes::fontreset << this->build_color( this->start_col_ ) << this->starting_
-                 << console::escodes::fontreset << this->build_color( this->filler_col_ );
+          this->try_reset( buffer );
+          this->try_dye( buffer, this->start_col_ ) << this->starting_;
+          this->try_reset( buffer );
+          this->try_dye( buffer, this->filler_col_ );
 
           const auto len_finished = static_cast<types::Size>( std::round( this->bar_length_ * num_percent ) );
           types::Size len_unfinished = this->bar_length_ - len_finished;
@@ -4119,26 +4128,27 @@ namespace pgbar {
           } else
             len_unfinished += len_finished;
           // build lead_
-          buffer << console::escodes::fontreset;
+          this->try_reset( buffer );
           if ( !this->lead_.empty() ) {
             num_frame_cnt = static_cast<types::Size>( num_frame_cnt * this->shift_factor_ );
             num_frame_cnt %= this->lead_.size();
             const auto& current_lead = this->lead_[num_frame_cnt];
             if ( current_lead.size() <= len_unfinished ) {
               len_unfinished -= current_lead.size();
-              buffer << this->build_color( this->lead_col_ ) << current_lead << console::escodes::fontreset;
+              this->try_dye( buffer, this->lead_col_ ) << current_lead;
+              this->try_reset( buffer );
             }
           }
           // build remains_
-          buffer << this->build_color( remains_col_ );
+          this->try_dye( buffer, remains_col_ );
           if ( !this->remains_.empty() && this->remains_.size() <= len_unfinished )
             buffer.append( remains_, len_unfinished / remains_.size() )
               .append( constants::blank, len_unfinished % remains_.size() );
           else
             buffer.append( constants::blank, len_unfinished );
 
-          return buffer << console::escodes::fontreset << this->build_color( this->end_col_ )
-                        << this->ending_;
+          this->try_reset( buffer );
+          return this->try_dye( buffer, this->end_col_ ) << this->ending_;
         }
 
       public:
@@ -4204,8 +4214,10 @@ namespace pgbar {
           __PGBAR_PURE_ASSUME( num_percent >= 0.0 );
           __PGBAR_PURE_ASSUME( num_percent <= 1.0 );
 
-          buffer << console::escodes::fontreset << this->build_color( this->start_col_ ) << this->starting_
-                 << console::escodes::fontreset << this->build_color( this->filler_col_ );
+          this->try_reset( buffer );
+          this->try_dye( buffer, this->start_col_ ) << this->starting_;
+          this->try_reset( buffer );
+          this->try_dye( buffer, this->filler_col_ );
 
           const auto len_finished = static_cast<types::Size>( std::trunc( this->bar_length_ * num_percent ) );
           const types::Float float_part = ( this->bar_length_ * num_percent ) - len_finished;
@@ -4216,13 +4228,11 @@ namespace pgbar {
           __PGBAR_PURE_ASSUME( len_finished + len_unfinished + ( incomplete_block != 0 )
                                == this->bar_length_ );
 
-          return buffer.append( filler_.back(), len_finished )
-            .append( filler_[incomplete_block], incomplete_block != 0 )
-            .append( console::escodes::fontreset )
-            .append( constants::blank, len_unfinished )
-            .append( console::escodes::fontreset )
-            .append( this->build_color( this->end_col_ ) )
-            .append( this->ending_ );
+          buffer.append( filler_.back(), len_finished )
+            .append( filler_[incomplete_block], incomplete_block != 0 );
+          this->try_reset( buffer ).append( constants::blank, len_unfinished );
+          this->try_reset( buffer );
+          return this->try_dye( buffer, this->end_col_ ) << this->ending_;
         }
 
       public:
@@ -4263,8 +4273,8 @@ namespace pgbar {
           num_frame_cnt %= this->lead_.size();
           __PGBAR_ASSERT( this->size_longest_lead_ >= this->lead_[num_frame_cnt].size() );
 
-          buffer << console::escodes::fontreset;
-          return this->build_font( buffer, this->lead_col_ )
+          this->try_reset( buffer );
+          return this->try_style( buffer, this->lead_col_ )
               << utils::format<utils::TxtLayout::Left>( this->size_longest_lead_,
                                                         this->lead_[num_frame_cnt] );
         }
@@ -4289,8 +4299,10 @@ namespace pgbar {
           types::Size num_frame_cnt ) const
         {
           num_frame_cnt = static_cast<types::Size>( num_frame_cnt * this->shift_factor_ );
-          buffer << console::escodes::fontreset << this->build_color( this->start_col_ ) << this->starting_
-                 << console::escodes::fontreset << this->build_color( this->filler_col_ );
+          this->try_reset( buffer );
+          this->try_dye( buffer, this->start_col_ ) << this->starting_;
+          this->try_reset( buffer );
+          this->try_dye( buffer, this->filler_col_ );
 
           if ( !this->lead_.empty() ) {
             const auto& current_lead = this->lead_[num_frame_cnt % this->lead_.size()];
@@ -4305,11 +4317,9 @@ namespace pgbar {
               __PGBAR_ASSERT( left_fill_len + right_fill_len + current_lead.size() == this->bar_length_ );
 
               buffer.append( filler_, left_fill_len / filler_.size() )
-                .append( constants::blank, left_fill_len % filler_.size() )
-                .append( console::escodes::fontreset )
-                .append( this->lead_col_ )
-                .append( current_lead )
-                .append( console::escodes::fontreset )
+                .append( constants::blank, left_fill_len % filler_.size() );
+              this->try_reset( buffer ).append( this->lead_col_ ).append( current_lead );
+              this->try_reset( buffer )
                 .append( this->filler_col_ )
                 .append( constants::blank, right_fill_len % filler_.size() )
                 .append( filler_, right_fill_len / filler_.size() );
@@ -4321,8 +4331,8 @@ namespace pgbar {
             buffer.append( filler_, this->bar_length_ / filler_.size() )
               .append( constants::blank, this->bar_length_ % filler_.size() );
 
-          return buffer << console::escodes::fontreset << this->build_color( this->end_col_ )
-                        << this->ending_;
+          this->try_reset( buffer );
+          return this->try_dye( buffer, this->end_col_ ) << this->ending_;
         }
 
       public:
@@ -4376,16 +4386,16 @@ namespace pgbar {
         {
           if ( prefix_.empty() )
             return buffer;
-          buffer << console::escodes::fontreset;
-          return this->build_font( buffer, prfx_col_ ) << prefix_;
+          this->try_reset( buffer );
+          return this->try_style( buffer, prfx_col_ ) << prefix_;
         }
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& build_prefix( io::Stringbuf& buffer,
                                                                              bool final_mesg ) const
         {
           if ( ( final_mesg ? true_mesg_ : false_mesg_ ).empty() )
             return build_prefix( buffer );
-          buffer << console::escodes::fontreset;
-          return this->build_font( buffer, final_mesg ? true_col_ : false_col_ )
+          this->try_reset( buffer );
+          return this->try_style( buffer, final_mesg ? true_col_ : false_col_ )
               << ( final_mesg ? true_mesg_ : false_mesg_ );
         }
 
@@ -4489,8 +4499,8 @@ namespace pgbar {
         {
           if ( postfix_.empty() )
             return buffer;
-          buffer << console::escodes::fontreset;
-          return this->build_font( buffer, pstfx_col_ ) << postfix_;
+          this->try_reset( buffer );
+          return this->try_style( buffer, pstfx_col_ ) << postfix_;
         }
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::Size fixed_len_postfix()
@@ -4560,27 +4570,6 @@ namespace pgbar {
         types::String info_col_;
         charcodes::U8String divider_;
         charcodes::U8String l_border_, r_border_;
-
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& build_lborder( io::Stringbuf& buffer ) const
-        {
-          if ( l_border_.empty() )
-            return buffer;
-          buffer << console::escodes::fontreset;
-          return this->build_font( buffer, info_col_ ) << l_border_;
-        }
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& build_rborder( io::Stringbuf& buffer ) const
-        {
-          if ( r_border_.empty() )
-            return buffer;
-          return buffer << r_border_;
-        }
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& build_divider( io::Stringbuf& buffer ) const
-        {
-          if ( divider_.empty() )
-            return buffer;
-          buffer << console::escodes::fontreset;
-          return this->build_font( buffer, info_col_ ) << divider_;
-        }
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::Size fixed_len_segment(
           types::Size num_column ) const noexcept
@@ -5769,20 +5758,19 @@ namespace pgbar {
                || this->visual_masks_[utils::as_val( Self::Mask::Sped )]
                || this->visual_masks_[utils::as_val( Self::Mask::Elpsd )]
                || this->visual_masks_[utils::as_val( Self::Mask::Cntdwn )] ) {
-            this->build_font( buffer, this->info_col_ );
             if ( this->visual_masks_[utils::as_val( Self::Mask::Cnt )] ) {
               buffer << this->build_counter( num_task_done, num_all_tasks );
               if ( this->visual_masks_[utils::as_val( Self::Mask::Sped )]
                    || this->visual_masks_[utils::as_val( Self::Mask::Elpsd )]
                    || this->visual_masks_[utils::as_val( Self::Mask::Cntdwn )] )
-                this->build_divider( buffer );
+                buffer << this->divider_;
             }
             const auto time_passed = std::chrono::steady_clock::now() - zero_point;
             if ( this->visual_masks_[utils::as_val( Self::Mask::Sped )] ) {
               buffer << this->build_speed( time_passed, num_task_done, num_all_tasks );
               if ( this->visual_masks_[utils::as_val( Self::Mask::Elpsd )]
                    || this->visual_masks_[utils::as_val( Self::Mask::Cntdwn )] )
-                this->build_divider( buffer );
+                buffer << this->divider_;
             }
             if ( this->visual_masks_[utils::as_val( Self::Mask::Elpsd )]
                  && this->visual_masks_[utils::as_val( Self::Mask::Cntdwn )] )
@@ -5812,35 +5800,45 @@ namespace pgbar {
           const std::chrono::steady_clock::time_point& zero_point,
           Args&&... args ) const
         {
-          if ( !this->prefix_.empty() || !this->postfix_.empty() || this->visual_masks_.any() )
-            this->build_lborder( buffer );
+          if ( !this->prefix_.empty() || !this->postfix_.empty() || this->visual_masks_.any() ) {
+            this->try_style( buffer, this->info_col_ );
+            buffer << this->l_border_;
+          }
 
           this->build_prefix( buffer );
-          if ( ( !this->prefix_.empty() && this->visual_masks_.any() ) || !this->postfix_.empty() )
-            this->build_divider( buffer );
+          this->try_reset( buffer );
+          if ( ( !this->prefix_.empty() && this->visual_masks_.any() ) || !this->postfix_.empty() ) {
+            this->try_style( buffer, this->info_col_ );
+            buffer << this->divider_;
+          }
           if ( this->visual_masks_[utils::as_val( Self::Mask::Per )] ) {
-            this->build_font( buffer, this->info_col_ );
             buffer << this->build_percent( num_percent );
             auto masks = this->visual_masks_;
             if ( masks.reset( utils::as_val( Self::Mask::Per ) ).any() )
-              this->build_divider( buffer );
+              buffer << this->divider_;
           }
           if ( this->visual_masks_[utils::as_val( Self::Mask::Ani )] ) {
             static_cast<const Impl*>( this )->build_animation( buffer, std::forward<Args>( args )... );
+            this->try_reset( buffer );
             auto masks = this->visual_masks_;
             if ( masks.reset( utils::as_val( Self::Mask::Ani ) )
                    .reset( utils::as_val( Self::Mask::Per ) )
-                   .any() )
-              this->build_divider( buffer );
+                   .any() ) {
+              this->try_style( buffer, this->info_col_ );
+              buffer << this->divider_;
+            }
           }
           this->common_build( buffer, num_task_done, num_all_tasks, zero_point );
 
           if ( !this->postfix_.empty() && ( !this->prefix_.empty() || this->visual_masks_.any() ) )
-            this->build_divider( buffer );
+            buffer << this->divider_;
           this->build_postfix( buffer );
-          if ( !this->prefix_.empty() || !this->postfix_.empty() || this->visual_masks_.any() )
-            this->build_rborder( buffer );
-          return buffer << console::escodes::fontreset;
+          this->try_reset( buffer );
+          if ( !this->prefix_.empty() || !this->postfix_.empty() || this->visual_masks_.any() ) {
+            this->try_style( buffer, this->info_col_ );
+            buffer << this->r_border_;
+          }
+          return this->try_reset( buffer );
         }
         template<typename... Args>
         __PGBAR_INLINE_FN io::Stringbuf& indirect_build(
@@ -5854,40 +5852,50 @@ namespace pgbar {
         {
           if ( ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty()
                  || !this->postfix_.empty() )
-               || this->visual_masks_.any() )
-            this->build_lborder( buffer );
+               || this->visual_masks_.any() ) {
+            this->try_style( buffer, this->info_col_ );
+            buffer << this->l_border_;
+          }
 
           this->build_prefix( buffer, final_mesg );
+          this->try_reset( buffer );
           if ( ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty() )
-               && this->visual_masks_.any() )
-            this->build_divider( buffer );
+               && this->visual_masks_.any() ) {
+            this->try_style( buffer, this->info_col_ );
+            buffer << this->divider_;
+          }
           if ( this->visual_masks_[utils::as_val( Self::Mask::Per )] ) {
-            this->build_font( buffer, this->info_col_ );
             buffer << this->build_percent( num_percent );
             auto masks = this->visual_masks_;
             if ( masks.reset( utils::as_val( Self::Mask::Per ) ).any() )
-              this->build_divider( buffer );
+              buffer << this->divider_;
           }
           if ( this->visual_masks_[utils::as_val( Self::Mask::Ani )] ) {
             static_cast<const Impl*>( this )->build_animation( buffer, std::forward<Args>( args )... );
+            this->try_reset( buffer );
             auto masks = this->visual_masks_;
             if ( masks.reset( utils::as_val( Self::Mask::Ani ) )
                    .reset( utils::as_val( Self::Mask::Per ) )
-                   .any() )
-              this->build_divider( buffer );
+                   .any() ) {
+              this->try_style( buffer, this->info_col_ );
+              buffer << this->divider_;
+            }
           }
           this->common_build( buffer, num_task_done, num_all_tasks, zero_point );
 
           if ( !this->postfix_.empty()
                && ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty()
                     || this->visual_masks_.any() ) )
-            this->build_divider( buffer );
+            buffer << this->divider_;
           this->build_postfix( buffer );
+          this->try_reset( buffer );
           if ( ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty()
                  || !this->postfix_.empty() )
-               || this->visual_masks_.any() )
-            this->build_rborder( buffer );
-          return buffer << console::escodes::fontreset;
+               || this->visual_masks_.any() ) {
+            this->try_style( buffer, this->info_col_ );
+            buffer << this->r_border_;
+          }
+          return this->try_reset( buffer );
         }
 
       public:
@@ -6074,35 +6082,43 @@ namespace pgbar {
           const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
 
           concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          if ( !this->prefix_.empty() || !this->postfix_.empty() || this->visual_masks_.any() )
-            this->build_lborder( buffer );
+          if ( !this->prefix_.empty() || !this->postfix_.empty() || this->visual_masks_.any() ) {
+            this->try_style( buffer, this->info_col_ );
+            buffer << this->l_border_;
+          }
 
           this->build_prefix( buffer );
+          this->try_reset( buffer );
           if ( this->visual_masks_[utils::as_val( Self::Mask::Ani )] ) {
             if ( !this->prefix_.empty() )
               buffer << constants::blank;
             this->build_spinner( buffer, num_frame_cnt );
+            this->try_reset( buffer );
             auto masks = this->visual_masks_;
-            if ( masks.reset( utils::as_val( Self::Mask::Ani ) ).any() )
-              this->build_divider( buffer );
+            if ( masks.reset( utils::as_val( Self::Mask::Ani ) ).any() ) {
+              this->try_style( buffer, this->info_col_ );
+              buffer << this->divider_;
+            }
           }
           if ( this->visual_masks_[utils::as_val( Self::Mask::Per )] ) {
-            this->build_font( buffer, this->info_col_ );
             buffer << this->build_percent( num_percent );
             auto masks = this->visual_masks_;
             if ( masks.reset( utils::as_val( Self::Mask::Ani ) )
                    .reset( utils::as_val( Self::Mask::Per ) )
                    .any() )
-              this->build_divider( buffer );
+              buffer << this->divider_;
           }
           this->common_build( buffer, num_task_done, num_all_tasks, zero_point );
 
           if ( !this->postfix_.empty() && ( !this->prefix_.empty() || this->visual_masks_.any() ) )
-            this->build_divider( buffer );
+            buffer << this->divider_;
           this->build_postfix( buffer );
-          if ( !this->prefix_.empty() || !this->postfix_.empty() || this->visual_masks_.any() )
-            this->build_rborder( buffer );
-          return buffer << console::escodes::fontreset;
+          this->try_reset( buffer );
+          if ( !this->prefix_.empty() || !this->postfix_.empty() || this->visual_masks_.any() ) {
+            this->try_style( buffer, this->info_col_ );
+            buffer << this->r_border_;
+          }
+          return this->try_reset( buffer );
         }
         __PGBAR_INLINE_FN io::Stringbuf& build(
           io::Stringbuf& buffer,
@@ -6118,41 +6134,49 @@ namespace pgbar {
           concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
           if ( ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty()
                  || !this->postfix_.empty() )
-               || this->visual_masks_.any() )
-            this->build_lborder( buffer );
+               || this->visual_masks_.any() ) {
+            this->try_style( buffer, this->info_col_ );
+            buffer << this->l_border_;
+          }
 
           this->build_prefix( buffer, final_mesg );
+          this->try_reset( buffer );
           if ( this->visual_masks_[utils::as_val( Self::Mask::Ani )] ) {
             if ( ( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() ) {
               if ( !this->prefix_.empty() )
                 buffer << constants::blank;
               this->build_spinner( buffer, num_frame_cnt );
+              this->try_reset( buffer );
             }
             auto masks = this->visual_masks_;
-            if ( masks.reset( utils::as_val( Self::Mask::Ani ) ).any() )
-              this->build_divider( buffer );
+            if ( masks.reset( utils::as_val( Self::Mask::Ani ) ).any() ) {
+              this->try_style( buffer, this->info_col_ );
+              buffer << this->divider_;
+            }
           }
           if ( this->visual_masks_[utils::as_val( Self::Mask::Per )] ) {
-            this->build_font( buffer, this->info_col_ );
             buffer << this->build_percent( num_percent );
             auto masks = this->visual_masks_;
             if ( masks.reset( utils::as_val( Self::Mask::Ani ) )
                    .reset( utils::as_val( Self::Mask::Per ) )
                    .any() )
-              this->build_divider( buffer );
+              buffer << this->divider_;
           }
           this->common_build( buffer, num_task_done, num_all_tasks, zero_point );
 
           if ( !this->postfix_.empty()
                && ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty()
                     || this->visual_masks_.any() ) )
-            this->build_divider( buffer );
+            buffer << this->divider_;
           this->build_postfix( buffer );
+          this->try_reset( buffer );
           if ( ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty()
                  || !this->postfix_.empty() )
-               || this->visual_masks_.any() )
-            this->build_rborder( buffer );
-          return buffer << console::escodes::fontreset;
+               || this->visual_masks_.any() ) {
+            this->try_style( buffer, this->info_col_ );
+            buffer << this->r_border_;
+          }
+          return this->try_reset( buffer );
         }
       };
 
