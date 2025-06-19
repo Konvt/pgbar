@@ -275,13 +275,13 @@ assert( bar.config().bar_length() == 30 );  // default value
 assert( bar.config().fixed_length() != 0 ); // The exact value depends on the content of the data member
 ```
 
-The specific terminal line width (in characters) can be obtained using `pgbar::terminal_width()`. If the passed output stream does not point to an actual terminal device, the return value will be 0.
+The specific terminal line width (in characters) can be obtained using `pgbar::config::terminal_width()`. If the passed output stream does not point to an actual terminal device, the return value will be 0.
 
 > If the running platform is neither `Windows` nor `Unix-like`, then this function will only return a fixed value of 100.
 
 ```cpp
-assert( pgbar::terminal_width( pgbar::Channel::Stdout ) > bar.config().fixed_length() );
-bar.bar_length( pgbar::terminal_width( pgbar::Channel::Stdout ) - bar.config().fixed_length() );
+assert( pgbar::config::terminal_width( pgbar::Channel::Stdout ) > bar.config().fixed_length() );
+bar.bar_length( pgbar::config::terminal_width( pgbar::Channel::Stdout ) - bar.config().fixed_length() );
 // At this point, the progress bar can exactly fill one line.
 ```
 #### Data configuration
@@ -356,8 +356,6 @@ int main()
 ```
 
 Especially it is important to note that the binding to the same output stream objects are not allowed to run at the same time, otherwise it will throw an exception `pgbar::exception::InvalidState`; For a detailed explanation of this, see [FAQ - Design of renderer](#design-of-renderer).
-
-If the output stream is not bound to the terminal, the progress bar will not be rendered. You can see this in [Global configuration - Output stream detection](#output-stream-detection).
 #### Rendering strategy
 There are two ways for `ProgressBar` to render the progress bar to the terminal: synchronously (`pgbar::Policy::Sync`) or asynchronously (`pgbar::Policy::Async`); different rendering strategies will hand over the rendering behavior to different threads for execution.
 
@@ -695,13 +693,13 @@ assert( bar.config().bar_length() == 30 );  // default value
 assert( bar.config().fixed_length() != 0 ); // The exact value depends on the content of the data member
 ```
 
-The specific terminal line width (in characters) can be obtained using `pgbar::terminal_width()`. If the passed output stream does not point to an actual terminal device, the return value will be 0.
+The specific terminal line width (in characters) can be obtained using `pgbar::config::terminal_width()`. If the passed output stream does not point to an actual terminal device, the return value will be 0.
 
 > If the running platform is neither `Windows` nor `Unix-like`, then this function will only return a fixed value of 100.
 
 ```cpp
-assert( pgbar::terminal_width( pgbar::Channel::Stdout ) > bar.config().fixed_length() );
-bar.bar_length( pgbar::terminal_width( pgbar::Channel::Stdout ) - bar.config().fixed_length() );
+assert( pgbar::config::terminal_width( pgbar::Channel::Stdout ) > bar.config().fixed_length() );
+bar.bar_length( pgbar::config::terminal_width( pgbar::Channel::Stdout ) - bar.config().fixed_length() );
 // At this point, the progress bar can exactly fill one line.
 ```
 #### Data configuration
@@ -774,8 +772,6 @@ int main()
 ```
 
 Especially it is important to note that the binding to the same output stream objects are not allowed to run at the same time, otherwise it will throw an exception `pgbar::exception::InvalidState`; For a detailed explanation of this, see [FAQ - Design of renderer](#design-of-renderer).
-
-If the output stream is not bound to the terminal, the progress bar will not be rendered. You can see this in [Global configuration - Output stream detection](#output-stream-detection).
 #### Rendering strategy
 There are two ways for `BlockBar` to render the progress bar to the terminal: synchronously (`pgbar::Policy::Sync`) or asynchronously (`pgbar::Policy::Async`); different rendering strategies will hand over the rendering behavior to different threads for execution.
 
@@ -1118,13 +1114,13 @@ assert( bar.config().bar_length() == 30 );  // default value
 assert( bar.config().fixed_length() != 0 ); // The exact value depends on the content of the data member
 ```
 
-The specific terminal line width (in characters) can be obtained using `pgbar::terminal_width()`. If the passed output stream does not point to an actual terminal device, the return value will be 0.
+The specific terminal line width (in characters) can be obtained using `pgbar::config::terminal_width()`. If the passed output stream does not point to an actual terminal device, the return value will be 0.
 
 > If the running platform is neither `Windows` nor `Unix-like`, then this function will only return a fixed value of 100.
 
 ```cpp
-assert( pgbar::terminal_width( pgbar::Channel::Stdout ) > bar.config().fixed_length() );
-bar.bar_length( pgbar::terminal_width( pgbar::Channel::Stdout ) - bar.config().fixed_length() );
+assert( pgbar::config::terminal_width( pgbar::Channel::Stdout ) > bar.config().fixed_length() );
+bar.bar_length( pgbar::config::terminal_width( pgbar::Channel::Stdout ) - bar.config().fixed_length() );
 // At this point, the progress bar can exactly fill one line.
 ```
 #### Data configuration
@@ -1197,8 +1193,6 @@ int main()
 ```
 
 Especially it is important to note that the binding to the same output stream objects are not allowed to run at the same time, otherwise it will throw an exception `pgbar::exception::InvalidState`; For a detailed explanation of this, see [FAQ - Design of renderer](#design-of-renderer).
-
-If the output stream is not bound to the terminal, the progress bar will not be rendered. You can see this in [Global configuration - Output stream detection](#output-stream-detection).
 #### Rendering strategy
 There are two ways for `SweepBar` to render the progress bar to the terminal: synchronously (`pgbar::Policy::Sync`) or asynchronously (`pgbar::Policy::Async`); different rendering strategies will hand over the rendering behavior to different threads for execution.
 
@@ -1588,8 +1582,6 @@ int main()
 ```
 
 Especially it is important to note that the binding to the same output stream objects are not allowed to run at the same time, otherwise it will throw an exception `pgbar::exception::InvalidState`; For a detailed explanation of this, see [FAQ - Design of renderer](#design-of-renderer).
-
-If the output stream is not bound to the terminal, the progress bar will not be rendered. You can see this in [Global configuration - Output stream detection](#output-stream-detection).
 #### Rendering strategy
 There are two ways for `SpinBar` to render the progress bar to the terminal: synchronously (`pgbar::Policy::Sync`) or asynchronously (`pgbar::Policy::Async`); different rendering strategies will hand over the rendering behavior to different threads for execution.
 
@@ -1944,7 +1936,7 @@ int main()
     pgbar::DynamicBar<> dbar;
 
     auto bar1 = dbar.insert<pgbar::ProgressBar<>>();
-    // bar1, bar2, bar3 are all objects of type std::shared_ptr</* ProgressBar */>.
+    // bar1, bar2 are all objects of type std::shared_ptr</* ProgressBar */>.
     auto bar2 = dbar.insert(
       pgbar::config::Line( pgbar::option::Prefix( "No.2" ), pgbar::option::Tasks( 8000 ) ) );
 
@@ -2102,9 +2094,13 @@ Given that `stdout` and `stderr` are redirected to other files, `pgbar` also che
 
 `pgbar` supports checking output stream bindings for Windows and unix-like (actually POSIX-compliant) platforms; For non-Windows and unix-like platforms, `pgbar` will not recognize whether the output stream is bound to the terminal.
 
-When `pgbar` finds that an output stream does not point to the terminal, all progress bars pointing to the output stream will not output any information, but the internal exception check work is normal.
+When `pgbar` detects that an output stream is not directed to a terminal, the coloring effect of all progress bars pointing to that output stream will be automatically disabled, and no additional virtual terminal sequence strings for manipulating the terminal cursor will be inserted.
 
-You can also call the `intty()` method in namespace `pgbar` to check if an output stream is pointing to a terminal.
+Whether the coloring effect is automatically turned off or not can be enabled or disabled by the `pgbar::config::disable_styling()` function.
+
+When it is enabled (that is, by default), if the progress bar detects that the output stream it is in does not point to a terminal device, it will call the `colored()` and `bolded()` methods of the configuration object to turn off color and font effects.
+
+You can also call the `intty()` method in namespace `pgbar::config` to check if an output stream is pointing to a terminal.
 
 ```cpp
 #include "pgbar/pgbar.hpp"
@@ -2112,7 +2108,7 @@ You can also call the `intty()` method in namespace `pgbar` to check if an outpu
 
 int main()
 {
-  if ( pgbar::intty( pgbar::Channel::Stdout ) )
+  if ( pgbar::config::intty( pgbar::Channel::Stdout ) )
     std::cout << "Standard output is bound to a terminal." << std::endl;
   else
     std::cout << "Standard output is not bound to a terminal." << std::endl;

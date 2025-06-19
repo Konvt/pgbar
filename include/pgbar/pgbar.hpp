@@ -2574,61 +2574,21 @@ namespace pgbar {
   enum class Channel : int { Stdout = STDOUT_FILENO, Stderr = STDERR_FILENO };
   enum class Policy : __details::types::Byte { Async, Sync };
 
-  /**
-   * Determine if the output stream is binded to the tty based on the platform api.
-   *
-   * Always returns true if defined `PGBAR_INTTY`,
-   * or the local platform is neither `Windows` nor `unix-like`.
-   */
-  __PGBAR_NODISCARD inline bool intty( Channel channel ) noexcept
-  {
-# if defined( PGBAR_INTTY ) || __PGBAR_UNKNOWN
-    return true;
-# elif __PGBAR_WIN
-    HANDLE stream_handle = GetStdHandle( channel == Channel::Stdout ? STD_OUTPUT_HANDLE : STD_ERROR_HANDLE );
-    if ( stream_handle == INVALID_HANDLE_VALUE )
-      __PGBAR_UNLIKELY return false;
-    return GetFileType( stream_handle ) == FILE_TYPE_CHAR;
-# else
-    return isatty( static_cast<int>( channel ) );
-# endif
-  }
-
-  __PGBAR_NODISCARD inline __details::types::Size terminal_width( Channel channel ) noexcept
-  {
-    if ( !intty( channel ) )
-      return 0;
-# if __PGBAR_WIN
-    HANDLE hConsole;
-    if ( channel == Channel::Stdout )
-      hConsole = GetStdHandle( STD_OUTPUT_HANDLE );
-    else
-      hConsole = GetStdHandle( STD_ERROR_HANDLE );
-    if ( hConsole != INVALID_HANDLE_VALUE ) {
-      CONSOLE_SCREEN_BUFFER_INFO csbi;
-      if ( GetConsoleScreenBufferInfo( hConsole, &csbi ) )
-        return csbi.srWindow.Right - csbi.srWindow.Left + 1;
-    }
-# elif __PGBAR_UNIX
-    struct winsize ws;
-    auto fd = static_cast<int>( channel );
-    if ( ioctl( fd, TIOCGWINSZ, &ws ) == -1 )
-      return 100;
-    return ws.ws_col;
-# endif
-    return 100;
-  }
-
   namespace config {
     void hide_completed( bool flag ) noexcept;
     __PGBAR_NODISCARD bool hide_completed() noexcept;
+    void disable_styling( bool flag ) noexcept;
+    __PGBAR_NODISCARD bool disable_styling() noexcept;
   }
 
   class Indicator {
     static std::atomic<bool> _hide_completed;
+    static std::atomic<bool> _disable_styling;
 
     friend void config::hide_completed( bool ) noexcept;
     friend bool config::hide_completed() noexcept;
+    friend void config::disable_styling( bool ) noexcept;
+    friend bool config::disable_styling() noexcept;
 
   public:
     Indicator()                                = default;
@@ -2654,6 +2614,7 @@ namespace pgbar {
     }
   };
   __PGBAR_CXX17_INLINE std::atomic<bool> Indicator::_hide_completed { false };
+  __PGBAR_CXX17_INLINE std::atomic<bool> Indicator::_disable_styling { true };
 
   namespace __details {
     namespace traits {
@@ -2724,29 +2685,98 @@ namespace pgbar {
 # endif
       } // namespace escodes
 
-      /**
-       * Enable virtual terminal processing on the specified output channel (Windows only).
-       * Guaranteed to be thread-safe and performed only once.
-       */
       template<Channel Outlet>
-      __PGBAR_INLINE_FN void enable_vt() noexcept
-      {
-# if __PGBAR_WIN
-        static std::once_flag flag;
-        std::call_once( flag, []() noexcept {
-          HANDLE stream_handle =
-            GetStdHandle( Outlet == Channel::Stderr ? STD_ERROR_HANDLE : STD_OUTPUT_HANDLE );
-          if ( stream_handle == INVALID_HANDLE_VALUE )
-            __PGBAR_UNLIKELY return;
+      class TerminalContext {
+        std::atomic<bool> cache_;
 
-          DWORD mode {};
-          if ( !GetConsoleMode( stream_handle, &mode ) )
-            __PGBAR_UNLIKELY return;
-          mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
-          SetConsoleMode( stream_handle, mode );
-        } );
+        TerminalContext() noexcept { detect(); }
+
+      public:
+        TerminalContext( const TerminalContext& )              = delete;
+        TerminalContext& operator=( const TerminalContext& ) & = delete;
+        ~TerminalContext()                                     = default;
+
+        static TerminalContext& itself() noexcept
+        {
+          static TerminalContext self;
+          return self;
+        }
+
+        // Detect whether the specified output stream is bound to a terminal.
+        bool detect() noexcept
+        {
+          const bool value = []() {
+# if defined( PGBAR_INTTY ) || __PGBAR_UNKNOWN
+            return true;
+# elif __PGBAR_WIN
+            HANDLE hConsole;
+            if __PGBAR_CXX17_CNSTXPR ( Outlet == Channel::Stdout )
+              hConsole = GetStdHandle( STD_OUTPUT_HANDLE );
+            else
+              hConsole = GetStdHandle( STD_ERROR_HANDLE );
+            if ( hConsole == INVALID_HANDLE_VALUE )
+              __PGBAR_UNLIKELY return false;
+            return GetFileType( hConsole ) == FILE_TYPE_CHAR;
+# else
+            return isatty( static_cast<int>( Outlet ) );
 # endif
-      }
+          }();
+          cache_.store( value, std::memory_order_release );
+          return value;
+        }
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool connected() const noexcept
+        {
+          return cache_.load( std::memory_order_acquire );
+        }
+
+        /**
+         * Enable virtual terminal processing on the specified output channel (Windows only).
+         * Guaranteed to be thread-safe and performed only once.
+         */
+        void enable_vt() const noexcept
+        {
+# if __PGBAR_WIN
+          static std::once_flag flag;
+          std::call_once( flag, []() noexcept {
+            HANDLE stream_handle =
+              GetStdHandle( Outlet == Channel::Stderr ? STD_ERROR_HANDLE : STD_OUTPUT_HANDLE );
+            if ( stream_handle == INVALID_HANDLE_VALUE )
+              __PGBAR_UNLIKELY return;
+
+            DWORD mode {};
+            if ( !GetConsoleMode( stream_handle, &mode ) )
+              __PGBAR_UNLIKELY return;
+            mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+            SetConsoleMode( stream_handle, mode );
+          } );
+# endif
+        }
+
+        __PGBAR_NODISCARD types::Size width() noexcept
+        {
+          if ( !detect() )
+            return 0;
+# if __PGBAR_WIN
+          HANDLE hConsole;
+          if __PGBAR_CXX17_CNSTXPR ( Outlet == Channel::Stdout )
+            hConsole = GetStdHandle( STD_OUTPUT_HANDLE );
+          else
+            hConsole = GetStdHandle( STD_ERROR_HANDLE );
+          if ( hConsole != INVALID_HANDLE_VALUE ) {
+            CONSOLE_SCREEN_BUFFER_INFO csbi;
+            if ( GetConsoleScreenBufferInfo( hConsole, &csbi ) )
+              return csbi.srWindow.Right - csbi.srWindow.Left + 1;
+          }
+# elif __PGBAR_UNIX
+          struct winsize ws;
+          auto fd = static_cast<int>( channel );
+          if ( ioctl( fd, TIOCGWINSZ, &ws ) == -1 )
+            return 100;
+          return ws.ws_col;
+# endif
+          return 100;
+        }
+      };
     } // namespace console
 
     namespace io {
@@ -2809,7 +2839,7 @@ namespace pgbar {
                                                               types::Size __num = 1 ) &
         {
           for ( types::Size _ = 0; _ < __num; ++_ )
-            buffer_.insert( buffer_.end(), info, info + N );
+            buffer_.insert( buffer_.end(), info, info + N - 1 );
           return *this;
         }
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& append( types::ROStr info, types::Size __num = 1 ) &
@@ -2978,7 +3008,7 @@ namespace pgbar {
 
         void launch() & noexcept( false )
         {
-          console::enable_vt<Tag>();
+          console::TerminalContext<Tag>::itself().enable_vt();
 
           __PGBAR_ASSERT( td_.get_id() == std::thread::id() );
           state_.store( State::Dormant, std::memory_order_release );
@@ -3131,7 +3161,6 @@ namespace pgbar {
 
         enum class State : types::Byte { Dormant, Finish, Active, Quit };
         std::atomic<State> state_;
-        std::atomic<bool> intty_;
 
         mutable concurrent::SharedMutex rw_mtx_;
         mutable std::mutex mtx_;
@@ -3160,14 +3189,12 @@ namespace pgbar {
            * As asynchronous renderers do not provide an interface that guarantees at-least-once execution,
            * `activate` must explicitly invoke the rendering function during scheduling.
            */
-          if ( intty_.load( std::memory_order_acquire ) ) {
-            std::lock_guard<concurrent::SharedMutex> lock1 { rw_mtx_ };
-            // Internal component does not make validity judgments.
-            __PGBAR_ASSERT( task_ != nullptr );
-            __PGBAR_ASSERT( state_ == State::Dormant );
-            ThreadRenderer<Tag>::itself().activate();
-            task_();
-          }
+          std::lock_guard<concurrent::SharedMutex> lock1 { rw_mtx_ };
+          // Internal component does not make validity judgments.
+          __PGBAR_ASSERT( task_ != nullptr );
+          __PGBAR_ASSERT( state_ == State::Dormant );
+          ThreadRenderer<Tag>::itself().activate();
+          task_();
           // If the rendering task throws some exception, this rendering should be abandoned.
         }
 
@@ -3227,7 +3254,6 @@ namespace pgbar {
             return false;
           state_.store( State::Dormant, std::memory_order_release );
           task_.swap( task );
-          intty_.store( intty( Tag ), std::memory_order_release );
           return true;
         }
 
@@ -3244,12 +3270,10 @@ namespace pgbar {
            * and it does not prevent concurrent threads from simultaneously
            * trying to concatenate the string in the same OStream.
            */
-          if ( intty_.load( std::memory_order_acquire ) ) {
-            concurrent::SharedLock<concurrent::SharedMutex> lock1 { rw_mtx_ };
-            std::lock_guard<std::mutex> lock2 { mtx_ }; // Fixed locking order.
-            __PGBAR_ASSERT( task_ != nullptr );
-            task_();
-          }
+          concurrent::SharedLock<concurrent::SharedMutex> lock1 { rw_mtx_ };
+          std::lock_guard<std::mutex> lock2 { mtx_ }; // Fixed locking order.
+          __PGBAR_ASSERT( task_ != nullptr );
+          task_();
           /**
            * In short: The mtx_ here is to prevent multiple progress bars in MultiBar
            * from concurrently attempting to render strings in synchronous rendering mode;
@@ -3334,11 +3358,10 @@ namespace pgbar {
         void activate() & noexcept( false )
         {
           auto expected = State::Quit;
-          if ( intty( Tag )
-               && state_.compare_exchange_strong( expected,
-                                                  State::Awake,
-                                                  std::memory_order_release,
-                                                  std::memory_order_relaxed ) ) {
+          if ( state_.compare_exchange_strong( expected,
+                                               State::Awake,
+                                               std::memory_order_release,
+                                               std::memory_order_relaxed ) ) {
             __PGBAR_ASSERT( task_ != nullptr );
             auto& renderer = ThreadRenderer<Tag>::itself();
             try {
@@ -5464,6 +5487,26 @@ namespace pgbar {
   } // namespace __details
 
   namespace config {
+    /**
+     * Determine if the output stream is binded to the tty based on the platform api.
+     *
+     * Always returns true if defined `PGBAR_INTTY`,
+     * or the local platform is neither `Windows` nor `unix-like`.
+     */
+    __PGBAR_NODISCARD inline bool intty( Channel channel ) noexcept
+    {
+      if ( channel == Channel::Stdout )
+        return __details::console::TerminalContext<Channel::Stdout>::itself().detect();
+      return __details::console::TerminalContext<Channel::Stderr>::itself().detect();
+    }
+
+    __PGBAR_NODISCARD inline __details::types::Size terminal_width( Channel channel ) noexcept
+    {
+      if ( channel == Channel::Stdout )
+        return __details::console::TerminalContext<Channel::Stdout>::itself().width();
+      return __details::console::TerminalContext<Channel::Stderr>::itself().width();
+    }
+
     using TimeUnit = __details::types::TimeUnit;
     // Get the current output interval.
     template<Channel Outlet>
@@ -5491,6 +5534,18 @@ namespace pgbar {
     __PGBAR_NODISCARD inline bool hide_completed() noexcept
     {
       return Indicator::_hide_completed.load( std::memory_order_acquire );
+    }
+    /**
+     * Whether to automatically disable the style effect of the configuration object
+     * when the output stream is not directed to a terminal.
+     */
+    inline void disable_styling( bool flag ) noexcept
+    {
+      Indicator::_disable_styling.store( flag, std::memory_order_release );
+    }
+    __PGBAR_NODISCARD inline bool disable_styling() noexcept
+    {
+      return Indicator::_disable_styling.load( std::memory_order_acquire );
     }
 
     class Line : public __details::prefabs::BasicConfig<__details::assets::CharIndicator, Line> {
@@ -6229,34 +6284,40 @@ namespace pgbar {
           auto& executor = render::Renderer<Outlet, Mode>::itself();
           if ( !executor.try_appoint( [this]() {
                  // No exceptions are caught here, this should be done by the thread manager.
-                 auto& ostream = io::OStream<Outlet>::itself();
+                 auto& ostream    = io::OStream<Outlet>::itself();
+                 const auto istty = console::TerminalContext<Outlet>::itself().connected();
                  switch ( state_.load( std::memory_order_acquire ) ) {
                  case Self::State::Awake: {
                    if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Async )
-                     ostream << console::escodes::savecursor;
+                     if ( istty )
+                       ostream << console::escodes::savecursor;
                    render::RenderAction<Soul>::boot( *this );
                    ostream << console::escodes::nextline;
                    ostream << io::flush;
                  } break;
                  case Self::State::StrictRefresh:  __PGBAR_FALLTHROUGH;
                  case Self::State::LenientRefresh: {
-                   if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Async )
-                     ostream << console::escodes::resetcursor;
-                   else
-                     ostream << console::escodes::prevline << console::escodes::linestart
-                             << console::escodes::linewipe;
+                   if ( istty ) {
+                     if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Async )
+                       ostream << console::escodes::resetcursor;
+                     else
+                       ostream << console::escodes::prevline << console::escodes::linestart
+                               << console::escodes::linewipe;
+                   }
                    render::RenderAction<Soul>::process( *this );
                    ostream << console::escodes::nextline;
                    ostream << io::flush;
                  } break;
                  case Self::State::Finish: {
-                   if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Async )
-                     ostream << console::escodes::resetcursor;
-                   else
-                     ostream << console::escodes::prevline << console::escodes::linestart
-                             << console::escodes::linewipe;
+                   if ( istty ) {
+                     if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Async )
+                       ostream << console::escodes::resetcursor;
+                     else
+                       ostream << console::escodes::prevline << console::escodes::linestart
+                               << console::escodes::linewipe;
+                   }
                    render::RenderAction<Soul>::finish( *this );
-                   if ( config::hide_completed() )
+                   if ( istty && config::hide_completed() )
                      ostream << console::escodes::linestart << console::escodes::linewipe;
                    else
                      ostream << console::escodes::nextline;
@@ -6318,6 +6379,8 @@ namespace pgbar {
                 if ( this->task_end_.load( std::memory_order_acquire ) == 0 )
                   __PGBAR_UNLIKELY throw exception::InvalidState( "pgbar: the number of tasks is zero" );
 
+              if ( config::disable_styling() && !config::intty( Outlet ) )
+                config_.colored( false ).bolded( false );
               this->task_cnt_.store( 0, std::memory_order_release );
               zero_point_ = std::chrono::steady_clock::now();
               state_.store( State::Awake, std::memory_order_release );
@@ -6673,15 +6736,18 @@ namespace pgbar {
         inline typename std::enable_if<( Pos < sizeof...( Bars ) )>::type do_render() &
         {
           __PGBAR_ASSERT( online() );
-          auto& ostream = io::OStream<Outlet>::itself();
+          auto& ostream        = io::OStream<Outlet>::itself();
+          const auto istty     = console::TerminalContext<Outlet>::itself().connected();
+          const auto hide_done = config::hide_completed();
           if ( at<Pos>().active() ) {
             auto new_val = active_mask_.load( std::memory_order_acquire );
             new_val.set( Pos );
             active_mask_.store( new_val, std::memory_order_release );
-            ostream << console::escodes::linewipe;
+            if ( istty )
+              ostream << console::escodes::linewipe;
             render::RenderAction<void>::automate( at<Pos>() );
 
-            if ( !at<Pos>().active() && config::hide_completed() ) {
+            if ( !at<Pos>().active() && istty && hide_done ) {
               // The renderer ensures that each call to do render is atomic.
               new_val.reset( Pos );
               active_mask_.store( new_val, std::memory_order_release );
@@ -6690,8 +6756,14 @@ namespace pgbar {
           }
           if ( active_mask_.load( std::memory_order_acquire )[Pos] )
             ostream << console::escodes::nextline;
-          if ( config::hide_completed() )
-            ostream << console::escodes::linewipe;
+          if ( istty ) {
+            if ( hide_done )
+              ostream << console::escodes::linewipe;
+          } else if ( !at<Pos>().active() ) {
+            auto new_val = active_mask_.load( std::memory_order_acquire );
+            new_val.reset( Pos );
+            active_mask_.store( new_val, std::memory_order_release );
+          }
           return do_render<Pos + 1>(); // tail recursive
         }
 
@@ -6718,12 +6790,14 @@ namespace pgbar {
           auto& executor = render::Renderer<Outlet, Mode>::itself();
           if ( cb_state_.load( std::memory_order_acquire ) == CBState::Stop ) {
             if ( !executor.try_appoint( [this]() {
-                   auto& ostream = io::OStream<Outlet>::itself();
+                   auto& ostream    = io::OStream<Outlet>::itself();
+                   const auto istty = console::TerminalContext<Outlet>::itself().connected();
                    switch ( cb_state_.load( std::memory_order_acquire ) ) {
                    case CBState::Awake: {
                      active_mask_.store( {}, std::memory_order_release );
                      if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Async )
-                       ostream << console::escodes::savecursor;
+                       if ( istty )
+                         ostream << console::escodes::savecursor;
                      do_render();
                      ostream << io::flush;
 
@@ -6734,13 +6808,15 @@ namespace pgbar {
                                                         std::memory_order_relaxed );
                    } break;
                    case CBState::Refresh: {
-                     if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Async )
-                       ostream << console::escodes::resetcursor;
-                     else
-                       ostream
-                         .append( console::escodes::prevline,
-                                  active_mask_.load( std::memory_order_acquire ).count() )
-                         .append( console::escodes::linestart );
+                     if ( istty ) {
+                       if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Async )
+                         ostream << console::escodes::resetcursor;
+                       else
+                         ostream
+                           .append( console::escodes::prevline,
+                                    active_mask_.load( std::memory_order_acquire ).count() )
+                           .append( console::escodes::linestart );
+                     }
                      do_render();
                      ostream << io::flush;
                    } break;
@@ -7752,24 +7828,30 @@ namespace pgbar {
 
         void do_render() &
         {
-          auto& ostream = io::OStream<Outlet>::itself();
+          auto& ostream        = io::OStream<Outlet>::itself();
+          const auto istty     = console::TerminalContext<Outlet>::itself().connected();
+          const auto hide_done = config::hide_completed();
           for ( types::Size i = 0; i < bars_.size(); ++i ) {
             auto bar_ptr = bars_[i].target_.lock();
 
             if ( bar_ptr != nullptr && bars_[i].render_ != nullptr && bar_ptr->active() ) {
               bars_[i].active_ = true;
-              ostream << console::escodes::linewipe;
+              if ( istty )
+                ostream << console::escodes::linewipe;
               ( *bars_[i].render_ )( bar_ptr.get() );
 
-              if ( !bar_ptr->active() && config::hide_completed() ) {
+              if ( !bar_ptr->active() && istty && hide_done ) {
                 bars_[i].active_ = false;
                 ostream << console::escodes::linestart;
               }
             }
-            if ( bars_[i].active_ && ( !config::hide_completed() || bar_ptr != nullptr ) )
+            if ( bars_[i].active_ && ( !( istty && hide_done ) || bar_ptr != nullptr ) )
               ostream << console::escodes::nextline;
-            if ( config::hide_completed() )
-              ostream << console::escodes::linewipe;
+            if ( istty ) {
+              if ( hide_done )
+                ostream << console::escodes::linewipe;
+            } else if ( bars_[i].render_ == nullptr || bar_ptr == nullptr || !bar_ptr->active() )
+              bars_[i].active_ = false;
           }
         }
 
@@ -7818,13 +7900,17 @@ namespace pgbar {
           }
           if ( activate_flag ) {
             if ( !executor.try_appoint( [this]() {
-                   auto& ostream = io::OStream<Outlet>::itself();
+                   auto& ostream        = io::OStream<Outlet>::itself();
+                   const auto istty     = console::TerminalContext<Outlet>::itself().connected();
+                   const auto hide_done = config::hide_completed();
                    switch ( state_.load( std::memory_order_acquire ) ) {
                    case State::Awake: {
                      {
                        concurrent::SharedLock<concurrent::SharedMutex> lock { res_mtx_ };
-                       if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Async )
-                         ostream << console::escodes::savecursor;
+                       if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Async ) {
+                         if ( istty )
+                           ostream << console::escodes::savecursor;
+                       }
                        do_render();
                      }
                      ostream << io::flush;
@@ -7837,27 +7923,28 @@ namespace pgbar {
                    case State::Refresh: {
                      {
                        concurrent::SharedLock<concurrent::SharedMutex> lock { res_mtx_ };
-                       if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Async ) {
-                         ostream << console::escodes::resetcursor;
-                         if ( config::hide_completed() ) {
-                           const auto num_discarded = num_discarded_line_.load( std::memory_order_acquire );
-                           if ( num_discarded != 0 ) {
-                             ostream.append( console::escodes::nextline, num_discarded )
-                               .append( console::escodes::savecursor );
-                             num_discarded_line_.fetch_sub( num_discarded, std::memory_order_release );
+                       if ( istty ) {
+                         if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Async ) {
+                           ostream << console::escodes::resetcursor;
+                           if ( hide_done ) {
+                             const auto num_discarded = num_discarded_line_.load( std::memory_order_acquire );
+                             if ( num_discarded != 0 ) {
+                               ostream.append( console::escodes::nextline, num_discarded )
+                                 .append( console::escodes::savecursor );
+                               num_discarded_line_.fetch_sub( num_discarded, std::memory_order_release );
+                             }
                            }
-                         }
-                       } else
-                         ostream
-                           .append( console::escodes::prevline,
-                                    std::count_if( bars_.cbegin(),
-                                                   bars_.cend(),
-                                                   []( const Slot& slot ) noexcept {
-                                                     return slot.active_
-                                                         && ( !config::hide_completed()
-                                                              || !slot.target_.expired() );
-                                                   } ) )
-                           .append( console::escodes::linestart );
+                         } else
+                           ostream
+                             .append( console::escodes::prevline,
+                                      std::count_if( bars_.cbegin(),
+                                                     bars_.cend(),
+                                                     [hide_done]( const Slot& slot ) noexcept {
+                                                       return slot.active_
+                                                           && ( !hide_done || !slot.target_.expired() );
+                                                     } ) )
+                             .append( console::escodes::linestart );
+                       }
                        do_render();
                      }
                      ostream << io::flush;
