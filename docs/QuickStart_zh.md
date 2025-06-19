@@ -275,13 +275,13 @@ assert( bar.config().bar_length() == 30 );  // 默认值
 assert( bar.config().fixed_length() != 0 ); // 具体值取决于数据成员的内容
 ```
 
-具体的终端行宽度（以字符为单位）可以使用 `pgbar::terminal_width()` 获取；如果传递的输出流不指向实际终端设备，那么返回值为 0。
+具体的终端行宽度（以字符为单位）可以使用 `pgbar::config::terminal_width()` 获取；如果传递的输出流不指向实际终端设备，那么返回值为 0。
 
 > 如果运行平台既不是 `Windows` 也不是 `unix-like`，那么该函数只会返回一个固定值 100。
 
 ```cpp
-assert( pgbar::terminal_width( pgbar::Channel::Stdout ) > bar.config().fixed_length() );
-bar.bar_length( pgbar::terminal_width( pgbar::Channel::Stdout ) - bar.config().fixed_length() );
+assert( pgbar::config::terminal_width( pgbar::Channel::Stdout ) > bar.config().fixed_length() );
+bar.bar_length( pgbar::config::terminal_width( pgbar::Channel::Stdout ) - bar.config().fixed_length() );
 // 此时进度条恰能填满一行
 ```
 #### 数据配置
@@ -356,8 +356,6 @@ int main()
 ```
 
 特别需要注意的是，绑定到相同输出流上的对象不允许同时运行，否则会抛出异常 `pgbar::exception::InvalidState`；关于这一点的详细说明见 [FAQ-渲染器设计](#渲染器设计)。
-
-如果指向的输出流并没有被绑定到终端上，那么这个进度条并不会被渲染；这一点可以详见 [全局设置-输出流检测](#输出流检测)。
 #### 渲染策略
 `ProgressBar` 将进度条渲染到终端的方式有两种：同步（`pgbar::Policy::Sync`）或异步（`pgbar::Policy::Async`）；不同的渲染策略会将渲染行为交给不同的线程执行。
 
@@ -695,13 +693,13 @@ assert( bar.config().bar_length() == 30 );  // 默认值
 assert( bar.config().fixed_length() != 0 ); // 具体值取决于数据成员的内容
 ```
 
-具体的终端行宽度（以字符为单位）可以使用 `pgbar::terminal_width()` 获取；如果传递的输出流不指向实际终端设备，那么返回值为 0。
+具体的终端行宽度（以字符为单位）可以使用 `pgbar::config::terminal_width()` 获取；如果传递的输出流不指向实际终端设备，那么返回值为 0。
 
 > 如果运行平台既不是 Windows 也不是 unix-like，那么该函数只会返回一个固定值 100。
 
 ```cpp
-assert( pgbar::terminal_width( pgbar::Channel::Stdout ) > bar.config().fixed_length() );
-bar.bar_length( pgbar::terminal_width( pgbar::Channel::Stdout ) - bar.config().fixed_length() );
+assert( pgbar::config::terminal_width( pgbar::Channel::Stdout ) > bar.config().fixed_length() );
+bar.bar_length( pgbar::config::terminal_width( pgbar::Channel::Stdout ) - bar.config().fixed_length() );
 // 此时进度条恰能填满一行
 ```
 #### 数据配置
@@ -774,8 +772,6 @@ int main()
 ```
 
 特别需要注意的是，绑定到相同输出流上的对象不允许同时运行，否则会抛出异常 `pgbar::exception::InvalidState`；关于这一点的详细说明见 [FAQ-渲染器设计](#渲染器设计)。
-
-如果指向的输出流并没有被绑定到终端上，那么这个进度条并不会被渲染；这一点可以详见 [全局设置-输出流检测](#输出流检测)。
 #### 渲染策略
 `BlockBar` 将进度条渲染到终端的方式有两种：同步（`pgbar::Policy::Sync`）或异步（`pgbar::Policy::Async`）；不同的渲染策略会将渲染行为交给不同的线程执行。
 
@@ -1118,13 +1114,13 @@ assert( bar.config().bar_length() == 30 );  // 默认值
 assert( bar.config().fixed_length() != 0 ); // 具体值取决于数据成员的内容
 ```
 
-具体的终端行宽度（以字符为单位）可以使用 `pgbar::terminal_width()` 获取；如果传递的输出流不指向实际终端设备，那么返回值为 0。
+具体的终端行宽度（以字符为单位）可以使用 `pgbar::config::terminal_width()` 获取；如果传递的输出流不指向实际终端设备，那么返回值为 0。
 
 > 如果运行平台既不是 Windows 也不是 unix-like，那么该函数只会返回一个固定值 100。
 
 ```cpp
-assert( pgbar::terminal_width( pgbar::Channel::Stdout ) > bar.config().fixed_length() );
-bar.bar_length( pgbar::terminal_width( pgbar::Channel::Stdout ) - bar.config().fixed_length() );
+assert( pgbar::config::terminal_width( pgbar::Channel::Stdout ) > bar.config().fixed_length() );
+bar.bar_length( pgbar::config::terminal_width( pgbar::Channel::Stdout ) - bar.config().fixed_length() );
 // 此时进度条恰能填满一行
 ```
 #### 数据配置
@@ -1197,8 +1193,6 @@ int main()
 ```
 
 特别需要注意的是，绑定到相同输出流上的对象不允许同时运行，否则会抛出异常 `pgbar::exception::InvalidState`；关于这一点的详细说明见 [FAQ-渲染器设计](#渲染器设计)。
-
-如果指向的输出流并没有被绑定到终端上，那么这个进度条并不会被渲染；这一点可以详见 [全局设置-输出流检测](#输出流检测)。
 #### 渲染策略
 `SweepBar` 将进度条渲染到终端的方式有两种：同步（`pgbar::Policy::Sync`）或异步（`pgbar::Policy::Async`）；不同的渲染策略会将渲染行为交给不同的线程执行。
 
@@ -1589,8 +1583,6 @@ int main()
 ```
 
 特别需要注意的是，绑定到相同输出流上的对象不允许同时运行，否则会抛出异常 `pgbar::exception::InvalidState`；关于这一点的详细说明见 [FAQ-渲染器设计](#渲染器设计)。
-
-如果指向的输出流并没有被绑定到终端上，那么这个进度条并不会被渲染；这一点可以详见 [全局设置-输出流检测](#输出流检测)。
 #### 渲染策略
 `SpinBar` 将进度条渲染到终端的方式有两种：同步（`pgbar::Policy::Sync`）或异步（`pgbar::Policy::Async`）；不同的渲染策略会将渲染行为交给不同的线程执行。
 
@@ -1900,8 +1892,8 @@ int main()
 
   auto mbar = pgbar::make_multi( pgbar::ProgressBar<>( pgbar::option::Tasks( 2 ) ),
                                  pgbar::BlockBar<>( pgbar::option::Tasks( 3 ) ) );
-
   auto& [bar1, bar2] = mbar;
+
   bar1.tick();
   bar2.tick();
 
@@ -1941,7 +1933,7 @@ int main()
     pgbar::DynamicBar<> dbar;
 
     auto bar1 = dbar.insert<pgbar::ProgressBar<>>();
-    // bar1, bar2, bar3 都是 std::shared_ptr</* ProgressBar */> 类型的对象
+    // bar1, bar2 都是 std::shared_ptr</* ProgressBar */> 类型的对象
     auto bar2 = dbar.insert(
       pgbar::config::Line( pgbar::option::Prefix( "No.2" ), pgbar::option::Tasks( 8000 ) ) );
 
@@ -2095,9 +2087,13 @@ int main()
 
 `pgbar` 支持检查 Windows 和 unix-like（实际上是支持 POSIX 标准的）平台的输出流绑定；对于非 Windows 和 unix-like 平台，`pgbar` 将无法识别输出流是否绑定在终端上。
 
-当 `pgbar` 发现某个输出流并不指向终端时，所有指向该输出流的进度条都不会对外输出任何信息，但是内部的异常检查工作是正常进行的。
+当 `pgbar` 发现某个输出流并不指向终端时，所有指向该输出流的进度条的着色效果都会被自动关闭，并且也不会再额外插入用于操纵终端光标的虚拟终端序列字符串。
 
-你也可以调用在名称空间 `pgbar` 中的 `intty()` 方法检查某个输出流是否指向终端。
+着色效果的自动关闭与否可以由 `pgbar::config::disable_styling()` 函数开启或关闭。
+
+在开启时（也就是默认情况），若进度条发现它所处的输出流并没有指向一个终端设备，就会调用配置对象的 `colored()` 和 `bolded()` 方法以关闭着色和字体效果。
+
+你也可以调用在名称空间 `pgbar::config` 中的 `intty()` 方法检查某个输出流是否指向终端。
 
 ```cpp
 #include "pgbar/pgbar.hpp"
@@ -2105,7 +2101,7 @@ int main()
 
 int main()
 {
-  if ( pgbar::intty( pgbar::Channel::Stdout ) )
+  if ( pgbar::config::intty( pgbar::Channel::Stdout ) )
     std::cout << "Standard output is bound to a terminal." << std::endl;
   else
     std::cout << "Standard output is not bound to a terminal." << std::endl;
