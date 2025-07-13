@@ -1519,7 +1519,7 @@ namespace pgbar {
           typename std::conditional<std::is_const<typename std::remove_reference<Cref>::type>::value,
                                     const T&&,
                                     T&&>::type>::type
-          cref_fwd( T&& param ) noexcept
+          fwd_as( T&& param ) noexcept
         {
           return std::forward<T>( param );
         }
@@ -1530,7 +1530,7 @@ namespace pgbar {
                                                   std::is_rvalue_reference<T>>::value,
                                     const typename std::remove_reference<T>::type&,
                                     typename std::remove_reference<T>::type&>::type>::type
-          cref_fwd( T&& param ) noexcept
+          fwd_as( T&& param ) noexcept
         {
           return param;
         }
@@ -1540,7 +1540,7 @@ namespace pgbar {
           typename std::conditional<std::is_const<typename std::remove_reference<Cref>::type>::value,
                                     const typename std::remove_reference<T>::type&&,
                                     typename std::remove_reference<T>::type>::type&&>::type
-          cref_fwd( T&& param ) noexcept
+          fwd_as( T&& param ) noexcept
         {
           return std::move( param );
         }
@@ -1559,14 +1559,14 @@ namespace pgbar {
           noexcept( Noexcept )
         {
           const auto ptr = utils::launder_as<Fn_t<T>>( fn.template aligned_location<T>() );
-          return utils::invoke( cref_fwd<CrefInfo>( *ptr ), std::forward<Args>( args )... );
+          return utils::invoke( fwd_as<CrefInfo>( *ptr ), std::forward<Args>( args )... );
         }
         template<typename T>
         static __PGBAR_CXX14_CNSTXPR R invoke_dynamic( Fn_t<AnyFn>& fn, Param_t<Args>... args )
           noexcept( Noexcept )
         {
           const auto dptr = utils::launder_as<Fn_t<T>>( fn.dptr_ );
-          return utils::invoke( cref_fwd<CrefInfo>( *dptr ), std::forward<Args>( args )... );
+          return utils::invoke( fwd_as<CrefInfo>( *dptr ), std::forward<Args>( args )... );
         }
 
         constexpr FnInvokeBlock() = default;
