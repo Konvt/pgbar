@@ -2770,9 +2770,8 @@ namespace pgbar {
 # elif __PGBAR_UNIX
           struct winsize ws;
           auto fd = static_cast<int>( channel );
-          if ( ioctl( fd, TIOCGWINSZ, &ws ) == -1 )
-            return 100;
-          return ws.ws_col;
+          if ( ioctl( fd, TIOCGWINSZ, &ws ) != -1 )
+            return ws.ws_col;
 # endif
           return 100;
         }
