@@ -357,7 +357,7 @@ int main()
 
 Especially it is important to note that the binding to the same output stream objects are not allowed to run at the same time, otherwise it will throw an exception `pgbar::exception::InvalidState`; For a detailed explanation of this, see [FAQ - Design of renderer](#design-of-renderer).
 #### Rendering strategy
-There are two ways for `ProgressBar` to render the progress bar to the terminal: synchronously (`pgbar::Policy::Sync`) or asynchronously (`pgbar::Policy::Async`); different rendering strategies will hand over the rendering behavior to different threads for execution.
+There are two rendering scheduling strategies for `ProgressBar`: synchronously (`pgbar::Policy::Sync`) or asynchronously (`pgbar::Policy::Async`); different rendering strategies will hand over the rendering behavior to different threads for execution.
 
 When asynchronous rendering (default) is enabled, the progress bar rendering is automatically completed by a background thread at fixed time intervals.
 
@@ -379,15 +379,19 @@ int main()
 }
 ```
 
-In asynchronous rendering mode, the timing and frequency of the progress bar rendering are uncontrollable. At this point, no other information should be written to the same output stream; otherwise, it will cause confusion in the terminal interface rendering.
+No matter which rendering scheduling strategy is chosen, the specific rendering method on the terminal is determined by the third template parameter `pgbar::Region`.
 
-Synchronous rendering, on the other hand, only executes the rendering function each time `tick()` is called, thus allowing information to be output to the same output stream while the progress bar is running.
+This parameter has two optional values: the default fixed-region rendering `pgbar::Region::Fixed`, and the relative location-based rendering `pgbar::Region::Flexible`.
 
-It is obvious that the asynchronous rendering strategy can greatly enhance the performance of the foreground thread. Therefore, by default, `pgbar` always adopts the asynchronous rendering strategy.
+`pgbar::Region::Fixed` will save the current cursor position during the first rendering and always refresh the progress bar in this fixed area; at this point, all other contents on the same output stream will be refreshed and overwritten by the progress bar.
 
-> Because the rendering structure of the progress bar is two lines: one line for the progress bar string and one blank line.
+`pgbar::Region::Flexible` will roll back and overwrite the content of the old progress bar based on the number of lines output from the last rendering; at this point, after writing information to the same output stream, if an appropriate number of line breaks are added, the additional written information can be retained.
+
+However, if the progress bar string is too long, using `pgbar::Region::Flexible` will cause terminal rendering exceptions.
+
+> For any sole progress bar, its rendering structure occupies two lines: one line is the progress bar itself, and the other is an empty line.
 >
-> Therefore, when using the synchronous strategy, if additional information needs to be output, two extra line breaks must be inserted after the output.
+> Therefore, when using the layout `pgbar::Region::Flexible`, if additional information needs to be output, two extra line breaks must be inserted after the output.
 >
 > Otherwise, due to the progress bar occupying a two-line structure, subsequent rendering will incorrectly overwrite the existing output.
 >
@@ -399,7 +403,7 @@ It is obvious that the asynchronous rendering strategy can greatly enhance the p
 
 int main()
 {
-  pgbar::ProgressBar<pgbar::Channel::Stderr, pgbar::Policy::Sync> bar;
+  pgbar::ProgressBar</* any channel */, /* any policy */, pgbar::Region::Flexible> bar;
   bar.config().tasks( 100 );
 
   for ( size_t i = 0; i < 95; ++i )
@@ -773,7 +777,7 @@ int main()
 
 Especially it is important to note that the binding to the same output stream objects are not allowed to run at the same time, otherwise it will throw an exception `pgbar::exception::InvalidState`; For a detailed explanation of this, see [FAQ - Design of renderer](#design-of-renderer).
 #### Rendering strategy
-There are two ways for `BlockBar` to render the progress bar to the terminal: synchronously (`pgbar::Policy::Sync`) or asynchronously (`pgbar::Policy::Async`); different rendering strategies will hand over the rendering behavior to different threads for execution.
+There are two rendering scheduling strategies for `BlockBar`: synchronously (`pgbar::Policy::Sync`) or asynchronously (`pgbar::Policy::Async`); different rendering strategies will hand over the rendering behavior to different threads for execution.
 
 When asynchronous rendering (default) is enabled, the progress bar rendering is automatically completed by a background thread at fixed time intervals.
 
@@ -795,15 +799,19 @@ int main()
 }
 ```
 
-In asynchronous rendering mode, the timing and frequency of the progress bar rendering are uncontrollable. At this point, no other information should be written to the same output stream; otherwise, it will cause confusion in the terminal interface rendering.
+No matter which rendering scheduling strategy is chosen, the specific rendering method on the terminal is determined by the third template parameter `pgbar::Region`.
 
-Synchronous rendering, on the other hand, only executes the rendering function each time `tick()` is called, thus allowing information to be output to the same output stream while the progress bar is running.
+This parameter has two optional values: the default fixed-region rendering `pgbar::Region::Fixed`, and the relative location-based rendering `pgbar::Region::Flexible`.
 
-It is obvious that the asynchronous rendering strategy can greatly enhance the performance of the foreground thread. Therefore, by default, `pgbar` always adopts the asynchronous rendering strategy.
+`pgbar::Region::Fixed` will save the current cursor position during the first rendering and always refresh the progress bar in this fixed area; at this point, all other contents on the same output stream will be refreshed and overwritten by the progress bar.
 
-> Because the rendering structure of the progress bar is two lines: one line for the progress bar string and one blank line.
+`pgbar::Region::Flexible` will roll back and overwrite the content of the old progress bar based on the number of lines output from the last rendering; at this point, after writing information to the same output stream, if an appropriate number of line breaks are added, the additional written information can be retained.
+
+However, if the progress bar string is too long, using `pgbar::Region::Flexible` will cause terminal rendering exceptions.
+
+> For any sole progress bar, its rendering structure occupies two lines: one line is the progress bar itself, and the other is an empty line.
 >
-> Therefore, when using the synchronous strategy, if additional information needs to be output, two extra line breaks must be inserted after the output.
+> Therefore, when using the layout `pgbar::Region::Flexible`, if additional information needs to be output, two extra line breaks must be inserted after the output.
 >
 > Otherwise, due to the progress bar occupying a two-line structure, subsequent rendering will incorrectly overwrite the existing output.
 >
@@ -815,7 +823,7 @@ It is obvious that the asynchronous rendering strategy can greatly enhance the p
 
 int main()
 {
-  pgbar::BlockBar<pgbar::Channel::Stderr, pgbar::Policy::Sync> bar;
+  pgbar::BlockBar</* any channel */, /* any policy */, pgbar::Region::Flexible> bar;
   bar.config().tasks( 100 );
 
   for ( size_t i = 0; i < 95; ++i )
@@ -1194,7 +1202,7 @@ int main()
 
 Especially it is important to note that the binding to the same output stream objects are not allowed to run at the same time, otherwise it will throw an exception `pgbar::exception::InvalidState`; For a detailed explanation of this, see [FAQ - Design of renderer](#design-of-renderer).
 #### Rendering strategy
-There are two ways for `SweepBar` to render the progress bar to the terminal: synchronously (`pgbar::Policy::Sync`) or asynchronously (`pgbar::Policy::Async`); different rendering strategies will hand over the rendering behavior to different threads for execution.
+There are two rendering scheduling strategies for `SweepBar`: synchronously (`pgbar::Policy::Sync`) or asynchronously (`pgbar::Policy::Async`); different rendering strategies will hand over the rendering behavior to different threads for execution.
 
 When asynchronous rendering (default) is enabled, the progress bar rendering is automatically completed by a background thread at fixed time intervals.
 
@@ -1216,15 +1224,19 @@ int main()
 }
 ```
 
-In asynchronous rendering mode, the timing and frequency of the progress bar rendering are uncontrollable. At this point, no other information should be written to the same output stream; otherwise, it will cause confusion in the terminal interface rendering.
+No matter which rendering scheduling strategy is chosen, the specific rendering method on the terminal is determined by the third template parameter `pgbar::Region`.
 
-Synchronous rendering, on the other hand, only executes the rendering function each time `tick()` is called, thus allowing information to be output to the same output stream while the progress bar is running.
+This parameter has two optional values: the default fixed-region rendering `pgbar::Region::Fixed`, and the relative location-based rendering `pgbar::Region::Flexible`.
 
-It is obvious that the asynchronous rendering strategy can greatly enhance the performance of the foreground thread. Therefore, by default, `pgbar` always adopts the asynchronous rendering strategy.
+`pgbar::Region::Fixed` will save the current cursor position during the first rendering and always refresh the progress bar in this fixed area; at this point, all other contents on the same output stream will be refreshed and overwritten by the progress bar.
 
-> Because the rendering structure of the progress bar is two lines: one line for the progress bar string and one blank line.
+`pgbar::Region::Flexible` will roll back and overwrite the content of the old progress bar based on the number of lines output from the last rendering; at this point, after writing information to the same output stream, if an appropriate number of line breaks are added, the additional written information can be retained.
+
+However, if the progress bar string is too long, using `pgbar::Region::Flexible` will cause terminal rendering exceptions.
+
+> For any sole progress bar, its rendering structure occupies two lines: one line is the progress bar itself, and the other is an empty line.
 >
-> Therefore, when using the synchronous strategy, if additional information needs to be output, two extra line breaks must be inserted after the output.
+> Therefore, when using the layout `pgbar::Region::Flexible`, if additional information needs to be output, two extra line breaks must be inserted after the output.
 >
 > Otherwise, due to the progress bar occupying a two-line structure, subsequent rendering will incorrectly overwrite the existing output.
 >
@@ -1236,7 +1248,7 @@ It is obvious that the asynchronous rendering strategy can greatly enhance the p
 
 int main()
 {
-  pgbar::SweepBar<pgbar::Channel::Stderr, pgbar::Policy::Sync> bar;
+  pgbar::SweepBar</* any channel */, /* any policy */, pgbar::Region::Flexible> bar;
   bar.config().tasks( 100 );
 
   for ( size_t i = 0; i < 95; ++i )
@@ -1583,7 +1595,7 @@ int main()
 
 Especially it is important to note that the binding to the same output stream objects are not allowed to run at the same time, otherwise it will throw an exception `pgbar::exception::InvalidState`; For a detailed explanation of this, see [FAQ - Design of renderer](#design-of-renderer).
 #### Rendering strategy
-There are two ways for `SpinBar` to render the progress bar to the terminal: synchronously (`pgbar::Policy::Sync`) or asynchronously (`pgbar::Policy::Async`); different rendering strategies will hand over the rendering behavior to different threads for execution.
+There are two rendering scheduling strategies for `SpinBar`: synchronously (`pgbar::Policy::Sync`) or asynchronously (`pgbar::Policy::Async`); different rendering strategies will hand over the rendering behavior to different threads for execution.
 
 When asynchronous rendering (default) is enabled, the progress bar rendering is automatically completed by a background thread at fixed time intervals.
 
@@ -1605,15 +1617,19 @@ int main()
 }
 ```
 
-In asynchronous rendering mode, the timing and frequency of the progress bar rendering are uncontrollable. At this point, no other information should be written to the same output stream; otherwise, it will cause confusion in the terminal interface rendering.
+No matter which rendering scheduling strategy is chosen, the specific rendering method on the terminal is determined by the third template parameter `pgbar::Region`.
 
-Synchronous rendering, on the other hand, only executes the rendering function each time `tick()` is called, thus allowing information to be output to the same output stream while the progress bar is running.
+This parameter has two optional values: the default fixed-region rendering `pgbar::Region::Fixed`, and the relative location-based rendering `pgbar::Region::Flexible`.
 
-It is obvious that the asynchronous rendering strategy can greatly enhance the performance of the foreground thread. Therefore, by default, `pgbar` always adopts the asynchronous rendering strategy.
+`pgbar::Region::Fixed` will save the current cursor position during the first rendering and always refresh the progress bar in this fixed area; at this point, all other contents on the same output stream will be refreshed and overwritten by the progress bar.
 
-> Because the rendering structure of the progress bar is two lines: one line for the progress bar string and one blank line.
+`pgbar::Region::Flexible` will roll back and overwrite the content of the old progress bar based on the number of lines output from the last rendering; at this point, after writing information to the same output stream, if an appropriate number of line breaks are added, the additional written information can be retained.
+
+However, if the progress bar string is too long, using `pgbar::Region::Flexible` will cause terminal rendering exceptions.
+
+> For any sole progress bar, its rendering structure occupies two lines: one line is the progress bar itself, and the other is an empty line.
 >
-> Therefore, when using the synchronous strategy, if additional information needs to be output, two extra line breaks must be inserted after the output.
+> Therefore, when using the layout `pgbar::Region::Flexible`, if additional information needs to be output, two extra line breaks must be inserted after the output.
 >
 > Otherwise, due to the progress bar occupying a two-line structure, subsequent rendering will incorrectly overwrite the existing output.
 >
@@ -1625,7 +1641,7 @@ It is obvious that the asynchronous rendering strategy can greatly enhance the p
 
 int main()
 {
-  pgbar::SpinBar<pgbar::Channel::Stderr, pgbar::Policy::Sync> bar;
+  pgbar::SpinBar</* any channel */, /* any policy */, pgbar::Region::Flexible> bar;
   bar.config().tasks( 100 );
 
   for ( size_t i = 0; i < 95; ++i )
@@ -1841,7 +1857,7 @@ int main()
 ### Rendering strategy
 The rendering strategy of `MutliBar` is the same as that of the sole progress bar, but the rendering behavior is slightly different.
 
-Because `MutliBar` renders multiple progress bars simultaneously on multiple lines, when using the synchronous rendering strategy, the number of lines occupied by the rendering structure of the progress bar will be determined by the number of progress bar types accommodated by `MutliBar`.
+Because `MutliBar` renders multiple progress bars simultaneously on multiple lines, when using `pgbar::Region::Flexible`, the number of lines occupied by the rendering structure of the progress bar will be determined by the number of progress bar types accommodated by `MutliBar`.
 
 The number of progress bars accommodated by `MutliBar` can be obtained by the `active_size()` method, and the number of rows occupied by the rendering structure will be the number returned by this method +1.
 
@@ -1853,7 +1869,9 @@ For example:
 
 int main()
 {
-  auto bar = pgbar::make_multi<pgbar::Channel::Stderr, pgbar::Policy::Sync>(
+  // Since the newline character is output successively here,
+  // the scheduling strategy has chosen synchronization to avoid inconsistent output behavior
+  auto bar = pgbar::make_multi</* any channel */, pgbar::Policy::Sync, pgbar::Region::Flexible>(
     pgbar::config::Line( pgbar::option::Tasks( 100 ) ),
     pgbar::config::Line( pgbar::option::Tasks( 150 ) ),
     pgbar::config::Line( pgbar::option::Tasks( 200 ) ) );
@@ -2036,7 +2054,7 @@ int main()
 ### Rendering strategy
 The rendering strategy of `DynamicBar` is the same as that of the sole progress bar, but the rendering behavior is slightly different.
 
-Because `DynamicBar` renders multiple progress bars simultaneously on multiple lines, when using the synchronous rendering strategy, the number of lines occupied by the rendering structure of the progress bar will be determined by the number of running progress bars in `DynamicBar`.
+Because `DynamicBar` renders multiple progress bars simultaneously on multiple lines, when using `pgbar::Region::Flexible`, the number of lines occupied by the rendering structure of the progress bar will be determined by the number of running progress bars in `DynamicBar`.
 
 The number of running progress bars by `DynamicBar` can be obtained by the `active_size()` method, and the number of rows occupied by the rendering structure will be the number returned by this method +1.
 
@@ -2048,7 +2066,9 @@ For example:
 
 int main()
 {
-  pgbar::DynamicBar<pgbar::Channel::Stderr, pgbar::Policy::Sync> dbar;
+  // Since the newline character is output successively here,
+  // the scheduling strategy has chosen synchronization to avoid inconsistent output behavior
+  pgbar::DynamicBar</* any channel */, pgbar::Policy::Sync, pgbar::Region::Flexible> dbar;
 
   auto bar1 = dbar.insert( pgbar::config::Line( pgbar::option::Tasks( 100 ) ) );
   auto bar2 = dbar.insert( pgbar::config::Line( pgbar::option::Tasks( 150 ) ) );
@@ -2388,7 +2408,7 @@ int main()
 >
 > In addition, when the code block ends, the progress bar object that previously occupied the global renderer is destroyed, and the newly created `ProgressBar` object that has been created globally is able to dispatch tasks normally again; That is, the global renderer returns to a usable state at the end of the previous progress bar lifetime.
 
-If multiple progress bar output is required, use ['pgbar::MultiBar'](#multibar).
+If multiple progress bar output is required, use [`pgbar::MultiBar`](#multibar) or [`pgbar::DynamicBar`](#dynamicbar).
 
 ## Propagation mechanism of exception
 `pgbar` involves much of dynamic memory allocation requests, so standard library exceptions can be thrown during most copy/construction and default initialization processes.
@@ -2396,14 +2416,6 @@ If multiple progress bar output is required, use ['pgbar::MultiBar'](#multibar).
 `pgbar` handles the IO process internally, so there are some different exception checking mechanisms under different platforms.
 
 If the Windows platform, `pgbar` unable to get to the current process flow standard output Handle, then throws a local system error exception ` pgbar::exception::SystemError`.
-
-If the background rendering thread receives a thrown exception, it stores the exception in the internal exception type container and terminates the current rendering. Waiting for the next time the foreground thread tries to start the rendering thread, the caught exception will be thrown again at the point of call.
-
-If the rendering thread already has an unhandled exception in its exception container, and another exception is thrown inside the thread, the rendering thread will enter a `dead` state. In this state, new exceptions are not caught, but are allowed to propagate until the rendering thread terminates.
-
-In the `dead` state, a new attempt to start the background rendering thread will attempt to create a new rendering thread object; During this process, the last unhandled exception will be thrown before a new rendering thread is created and can start working.
-
-In contexts that do not interact with the rendering thread, exceptions are thrown and passed following the C++ standard mechanism.
 
 ## Compilation time issue
 The extensive use of template metaprogramming in `pgbar` introduces significant compile-time overhead, especially when using "more static" types like `pgbar::MultiBar`. This results in a substantial amount of template computation, which severely impacts compilation speed.

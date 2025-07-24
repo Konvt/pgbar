@@ -357,7 +357,7 @@ int main()
 
 特别需要注意的是，绑定到相同输出流上的对象不允许同时运行，否则会抛出异常 `pgbar::exception::InvalidState`；关于这一点的详细说明见 [FAQ-渲染器设计](#渲染器设计)。
 #### 渲染策略
-`ProgressBar` 将进度条渲染到终端的方式有两种：同步（`pgbar::Policy::Sync`）或异步（`pgbar::Policy::Async`）；不同的渲染策略会将渲染行为交给不同的线程执行。
+`ProgressBar` 的渲染调度策略有两种：同步（`pgbar::Policy::Sync`）或异步（`pgbar::Policy::Async`）；不同的调度策略会将渲染行为交给不同的线程执行。
 
 启用异步渲染（默认）时，进度条的渲染由一个后台线程以固定时间间隔自动完成。
 
@@ -379,17 +379,21 @@ int main()
 }
 ```
 
-在异步渲染模式下，进度条渲染的时机和次数不可控，此时不应再向同一输出流写入其他信息；否则这会导致终端界面的渲染混乱。
+无论选择哪种渲染调度策略，终端上的具体渲染方式都由第三个模板参数 `pgbar::Region` 决定。
 
-同步渲染则因为每调用一次 `tick()` 才会执行渲染函数，所以这种策略允许在进度条运行时向同一个输出流输出信息。
+该参数有两个可选值：默认的固定区域渲染 `pgbar::Region::Fixed`，以及基于相对位置的渲染 `pgbar::Region::Flexible`。
 
-显而易见的是，异步渲染策略能够极大提升前台线程的性能，因此默认情况下 `pgbar` 一律采用异步渲染策略。
+`pgbar::Region::Fixed` 会在首次渲染时保存当前光标位置，并始终在该固定区域刷新进度条；此时同一输出流上的其他内容都会被进度条刷新覆盖。
 
-> 因为进度条的渲染结构为两行：一行进度条字符串，一行空行；
+`pgbar::Region::Flexible` 会根据上一次渲染输出的行数、回退并覆盖旧进度条内容；此时向同一输出流写入信息后，若额外添加适当数量的换行符，那么写入的额外信息能够得到保留。
+
+但如果进度条字符串长度过长，使用 `pgbar::Region::Flexible` 会导致终端渲染异常。
+
+> 对于任意一个独立的进度条而言，它的渲染结构共占两行：一行是进度条本身，一行则是空行；
 >
-> 因此使用同步策略时，如果需要额外再输出信息，就需要在输出后再额外插入两个换行符；
+> 因此使用 `pgbar::Region::Flexible` 布局时，如果需要额外再输出信息，就需要在输出后再额外插入两个换行符；
 >
-> 否则由于进度条占据两行结构，后续渲染将错误覆盖已有输出。
+> 否则由于进度条占据两行结构，后续渲染会错误覆盖已有输出。
 >
 > 示例：
 
@@ -399,7 +403,7 @@ int main()
 
 int main()
 {
-  pgbar::ProgressBar<pgbar::Channel::Stderr, pgbar::Policy::Sync> bar;
+  pgbar::ProgressBar</* any channel */, /* any policy */, pgbar::Region::Flexible> bar;
   bar.config().tasks( 100 );
 
   for ( size_t i = 0; i < 95; ++i )
@@ -773,7 +777,7 @@ int main()
 
 特别需要注意的是，绑定到相同输出流上的对象不允许同时运行，否则会抛出异常 `pgbar::exception::InvalidState`；关于这一点的详细说明见 [FAQ-渲染器设计](#渲染器设计)。
 #### 渲染策略
-`BlockBar` 将进度条渲染到终端的方式有两种：同步（`pgbar::Policy::Sync`）或异步（`pgbar::Policy::Async`）；不同的渲染策略会将渲染行为交给不同的线程执行。
+`BlockBar` 的渲染调度策略有两种：同步（`pgbar::Policy::Sync`）或异步（`pgbar::Policy::Async`）；不同的调度策略会将渲染行为交给不同的线程执行。
 
 启用异步渲染（默认）时，进度条的渲染由一个后台线程以固定时间间隔自动完成。
 
@@ -795,17 +799,21 @@ int main()
 }
 ```
 
-在异步渲染模式下，进度条渲染的时机和次数不可控，此时不应再向同一输出流写入其他信息；否则这会导致终端界面的渲染混乱。
+无论选择哪种渲染调度策略，终端上的具体渲染方式都由第三个模板参数 `pgbar::Region` 决定。
 
-同步渲染则因为每调用一次 `tick()` 才会执行渲染函数，所以这种策略允许在进度条运行时向同一个输出流输出信息。
+该参数有两个可选值：默认的固定区域渲染 `pgbar::Region::Fixed`，以及基于相对位置的渲染 `pgbar::Region::Flexible`。
 
-显而易见的是，异步渲染策略能够极大提升前台线程的性能，因此默认情况下 `pgbar` 一律采用异步渲染策略。
+`pgbar::Region::Fixed` 会在首次渲染时保存当前光标位置，并始终在该固定区域刷新进度条；此时同一输出流上的其他内容都会被进度条刷新覆盖。
 
-> 因为进度条的渲染结构为两行：一行进度条字符串，一行空行；
+`pgbar::Region::Flexible` 会根据上一次渲染输出的行数、回退并覆盖旧进度条内容；此时向同一输出流写入信息后，若额外添加适当数量的换行符，那么写入的额外信息能够得到保留。
+
+但如果进度条字符串长度过长，使用 `pgbar::Region::Flexible` 会导致终端渲染异常。
+
+> 对于任意一个独立的进度条而言，它的渲染结构共占两行：一行是进度条本身，一行则是空行；
 >
-> 因此使用同步策略时，如果需要额外再输出信息，就需要在输出后再额外插入两个换行符；
+> 因此使用 `pgbar::Region::Flexible` 布局时，如果需要额外再输出信息，就需要在输出后再额外插入两个换行符；
 >
-> 否则由于进度条占据两行结构，后续渲染将错误覆盖已有输出。
+> 否则由于进度条占据两行结构，后续渲染会错误覆盖已有输出。
 >
 > 示例：
 
@@ -815,7 +823,7 @@ int main()
 
 int main()
 {
-  pgbar::BlockBar<pgbar::Channel::Stderr, pgbar::Policy::Sync> bar;
+  pgbar::BlockBar</* any channel */, /* any policy */, pgbar::Region::Flexible> bar;
   bar.config().tasks( 100 );
 
   for ( size_t i = 0; i < 95; ++i )
@@ -1194,7 +1202,7 @@ int main()
 
 特别需要注意的是，绑定到相同输出流上的对象不允许同时运行，否则会抛出异常 `pgbar::exception::InvalidState`；关于这一点的详细说明见 [FAQ-渲染器设计](#渲染器设计)。
 #### 渲染策略
-`SweepBar` 将进度条渲染到终端的方式有两种：同步（`pgbar::Policy::Sync`）或异步（`pgbar::Policy::Async`）；不同的渲染策略会将渲染行为交给不同的线程执行。
+`SweepBar` 的渲染调度策略有两种：同步（`pgbar::Policy::Sync`）或异步（`pgbar::Policy::Async`）；不同的调度策略会将渲染行为交给不同的线程执行。
 
 启用异步渲染（默认）时，进度条的渲染由一个后台线程以固定时间间隔自动完成。
 
@@ -1216,15 +1224,19 @@ int main()
 }
 ```
 
-在异步渲染模式下，进度条渲染的时机和次数不可控，此时不应再向同一输出流写入其他信息；否则这会导致终端界面的渲染混乱。
+无论选择哪种渲染调度策略，进度条在终端的渲染方式都由第三个模板参数 `pgbar::Region` 决定。
 
-同步渲染则因为每调用一次 `tick()` 才会执行渲染函数，所以这种策略允许在进度条运行时向同一个输出流输出信息。
+该参数有两个可选值：在固定终端区域渲染的 `pgbar::Region::Fixed`（默认值），以及相较于上一次渲染输出位置渲染的 `pgbar::Region::Flexible`。
 
-显而易见的是，异步渲染策略能够极大提升前台线程的性能，因此默认情况下 `pgbar` 一律采用异步渲染策略。
+`pgbar::Region::Fixed` 会在渲染开始时选中当前光标所在的终端区域，并在渲染过程中反复擦写这块区域以渲染进度条字符串；在这种情况下，任何向同一输出流写入的信息都会被进度条的下一帧刷新覆盖。
 
-> 因为进度条的渲染结构为两行：一行进度条字符串，一行空行；
+`pgbar::Region::Flexible` 则仅根据上一次输出的进度条行数、在下一帧输出前回退适量的行数，并重新输出字符串以覆盖旧内容‘这种情况下，向同一输出流写入信息后，若额外添加适当数量的换行符，那么写入的额外信息能够得到保留。
+
+但如果进度条字符串长度过长，`pgbar::Region::Flexible` 会导致错误的终端渲染结果。
+
+> 对于任意一个独立的进度条而言，它的渲染结构共占两行：一行是进度条本身，一行则是空行；
 >
-> 因此使用同步策略时，如果需要额外再输出信息，就需要在输出后再额外插入两个换行符；
+> 因此使用 `pgbar::Region::Flexible` 布局时，如果需要额外再输出信息，就需要在输出后再额外插入两个换行符；
 >
 > 否则由于进度条占据两行结构，后续渲染将错误覆盖已有输出。
 >
@@ -1236,7 +1248,7 @@ int main()
 
 int main()
 {
-  pgbar::SweepBar<pgbar::Channel::Stderr, pgbar::Policy::Sync> bar;
+  pgbar::SweepBar</* any channel */, /* any policy */, pgbar::Region::Flexible> bar;
   bar.config().tasks( 100 );
 
   for ( size_t i = 0; i < 95; ++i )
@@ -1584,7 +1596,7 @@ int main()
 
 特别需要注意的是，绑定到相同输出流上的对象不允许同时运行，否则会抛出异常 `pgbar::exception::InvalidState`；关于这一点的详细说明见 [FAQ-渲染器设计](#渲染器设计)。
 #### 渲染策略
-`SpinBar` 将进度条渲染到终端的方式有两种：同步（`pgbar::Policy::Sync`）或异步（`pgbar::Policy::Async`）；不同的渲染策略会将渲染行为交给不同的线程执行。
+`SpinBar` 的渲染调度策略有两种：同步（`pgbar::Policy::Sync`）或异步（`pgbar::Policy::Async`）；不同的调度策略会将渲染行为交给不同的线程执行。
 
 启用异步渲染（默认）时，进度条的渲染由一个后台线程以固定时间间隔自动完成。
 
@@ -1606,15 +1618,19 @@ int main()
 }
 ```
 
-在异步渲染模式下，进度条渲染的时机和次数不可控，此时不应再向同一输出流写入其他信息；否则这会导致终端界面的渲染混乱。
+无论选择哪种渲染调度策略，进度条在终端的渲染方式都由第三个模板参数 `pgbar::Region` 决定。
 
-同步渲染则因为每调用一次 `tick()` 才会执行渲染函数，所以这种策略允许在进度条运行时向同一个输出流输出信息。
+该参数有两个可选值：在固定终端区域渲染的 `pgbar::Region::Fixed`（默认值），以及相较于上一次渲染输出位置渲染的 `pgbar::Region::Flexible`。
 
-显而易见的是，异步渲染策略能够极大提升前台线程的性能，因此默认情况下 `pgbar` 一律采用异步渲染策略。
+`pgbar::Region::Fixed` 会在渲染开始时选中当前光标所在的终端区域，并在渲染过程中反复擦写这块区域以渲染进度条字符串；在这种情况下，任何向同一输出流写入的信息都会被进度条的下一帧刷新覆盖。
 
-> 因为进度条的渲染结构为两行：一行进度条字符串，一行空行；
+`pgbar::Region::Flexible` 则仅根据上一次输出的进度条行数、在下一帧输出前回退适量的行数，并重新输出字符串以覆盖旧内容‘这种情况下，向同一输出流写入信息后，若额外添加适当数量的换行符，那么写入的额外信息能够得到保留。
+
+但如果进度条字符串长度过长，`pgbar::Region::Flexible` 会导致错误的终端渲染结果。
+
+> 对于任意一个独立的进度条而言，它的渲染结构共占两行：一行是进度条本身，一行则是空行；
 >
-> 因此使用同步策略时，如果需要额外再输出信息，就需要在输出后再额外插入两个换行符；
+> 因此使用 `pgbar::Region::Flexible` 布局时，如果需要额外再输出信息，就需要在输出后再额外插入两个换行符；
 >
 > 否则由于进度条占据两行结构，后续渲染将错误覆盖已有输出。
 >
@@ -1626,7 +1642,7 @@ int main()
 
 int main()
 {
-  pgbar::SpinBar<pgbar::Channel::Stderr, pgbar::Policy::Sync> bar;
+  pgbar::SpinBar</* any channel */, /* any policy */, pgbar::Region::Flexible> bar;
   bar.config().tasks( 100 );
 
   for ( size_t i = 0; i < 95; ++i )
@@ -1838,7 +1854,7 @@ int main()
 ### 渲染策略
 `MutliBar` 的渲染策略与独立进度条相同，但渲染行为略有差异。
 
-因为 `MutliBar` 会在多行同时渲染多个进度条，因此使用同步渲染策略时，进度条的渲染结构所占的行数将会由 `MutliBar` 容纳的进度条类型数量决定。
+因为 `MutliBar` 会在多行同时渲染多个进度条，因此使用 `pgbar::Region::Flexible` 时，进度条的渲染结构所占的行数将会由 `MutliBar` 容纳的进度条类型数量决定。
 
 `MutliBar` 容纳的进度条数量可由 `active_size()` 方法得到，而渲染结构所占行数将会是该方法返回的数量 +1。
 
@@ -1850,7 +1866,9 @@ int main()
 
 int main()
 {
-  auto bar = pgbar::make_multi<pgbar::Channel::Stderr, pgbar::Policy::Sync>(
+  // Since the newline character is output successively here,
+  // the scheduling strategy has chosen synchronization to avoid inconsistent output behavior
+  auto bar = pgbar::make_multi</* any channel */, pgbar::Policy::Sync, pgbar::Region::Flexible>(
     pgbar::config::Line( pgbar::option::Tasks( 100 ) ),
     pgbar::config::Line( pgbar::option::Tasks( 150 ) ),
     pgbar::config::Line( pgbar::option::Tasks( 200 ) ) );
@@ -2029,7 +2047,7 @@ int main()
 ### 渲染策略
 `DynamicBar` 的渲染策略与独立进度条相同，但渲染行为略有差异。
 
-因为 `DynamicBar` 会在多行同时渲染多个进度条，因此使用同步渲染策略时，进度条的渲染结构所占的行数将会由 `DynamicBar` 中正在运行的进度条数量决定。
+因为 `DynamicBar` 会在多行同时渲染多个进度条，因此使用 `pgbar::Region::Flexible` 时，进度条的渲染结构所占的行数将会由 `DynamicBar` 中正在运行的进度条数量决定。
 
 `DynamicBar` 容纳的进度条数量可由 `active_size()` 方法得到，而渲染结构所占行数将会是该方法返回的数量 +1。
 
@@ -2041,7 +2059,9 @@ int main()
 
 int main()
 {
-  pgbar::DynamicBar<pgbar::Channel::Stderr, pgbar::Policy::Sync> dbar;
+  // Since the newline character is output successively here,
+  // the scheduling strategy has chosen synchronization to avoid inconsistent output behavior
+  pgbar::DynamicBar</* any channel */, pgbar::Policy::Sync, pgbar::Region::Flexible> dbar;
 
   auto bar1 = dbar.insert( pgbar::config::Line( pgbar::option::Tasks( 100 ) ) );
   auto bar2 = dbar.insert( pgbar::config::Line( pgbar::option::Tasks( 150 ) ) );
@@ -2324,7 +2344,7 @@ int main()
 
 `pgbar` 仅处理有关字符类型的 Unicode 编码，并不会在运行时主动更改终端编码环境；用户（也就是你）必须自行确保当前终端的字符集编码使用的是 UTF-8。
 
-如果使用的 C++ 标准在 C++20 以上，那么 `pgbar` 也能接受标准库的 `std::u8string` 和 `std::u8string_view` 等类型；但是不会在 C++20 之外的标准接受字面量 UTF-8 字符串，也就是这种类型：`u8"This is a UTF-8 literal string"`.
+如果使用的 C++ 标准在 C++20 以上，那么 `pgbar` 也能接受标准库的 `std::u8string` 和 `std::u8string_view` 等类型；但不会在 C++20 之外的标准接受字面量 UTF-8 字符串，也就是这种类型：`u8"This is a UTF-8 literal string"`.
 
 ## 渲染器设计
 `pgbar` 采用了多线程协作模式设计，因此渲染器实际上是一个在后台工作的子线程；并且 `pgbar` 的渲染器采用了单例模式设计。
@@ -2339,7 +2359,7 @@ int main()
 
 在全局范围内，`pgbar` 要求同一时刻，指向同一个输出流的情况下，只能有一个进度条实例向全局渲染器派发任务。
 
-如果在同一作用域内创建了多个进度条对象并先后发起任务，则最先派发任务的进度条会成功工作，而后续尝试派发任务的进度条会因全局渲染器已被占用而在其任务调用处抛出 `pgbar::exception::InvalidState` 异常。
+如果在同一作用域内创建了多个进度条对象并先后发起任务，则最先派发任务的进度条会成功工作，后续尝试派发任务的进度条会因全局渲染器已被占用而在其任务调用处抛出 `pgbar::exception::InvalidState` 异常。
 
 在多线程环境下，哪个线程是“最先派发任务”的线程要取决于具体的线程调度策略。
 
@@ -2383,7 +2403,7 @@ int main()
 >
 > 此外，当代码块结束后，之前占用全局渲染器的进度条对象被销毁，随后在全局范围内新建的 `ProgressBar` 对象再次能够正常派发任务；也就是说，全局渲染器在前一个进度条生命周期结束后恢复为可用状态。
 
-如果有多进度条输出需求，请使用 [`pgbar::MultiBar`](#multibar)。
+如果有多进度条输出需求，请使用 [`pgbar::MultiBar`](#multibar) 或 [`pgbar::DynamicBar`](#dynamicbar)。
 
 ## 异常传播机制
 `pgbar` 内涉及了非常多的动态内存分配申请，因此在大部分复制拷贝/构造和默认初始化过程中，标准库的异常都有可能被抛出。
@@ -2391,14 +2411,6 @@ int main()
 `pgbar` 会在内部自行处理 IO 过程，所以在不同平台下也会有一些不同的异常检查机制。
 
 如果在 Windows 平台下，`pgbar` 无法获取到当前进程的标准输出流 Handle，那么会抛出一个本地系统错误异常 `pgbar::exception::SystemError`。
-
-若后台渲染线程接收到了一个抛出的异常，它会将这个异常存储在内部的异常类型容器中，并终止当前渲染工作；等待下一次前台线程尝试启动时，这个被捕获异常会在调用点重新被抛出。
-
-如果渲染线程的异常容器已经存在了一个未处理的异常，此时线程内部又再次抛出了一个异常，那么渲染线程将会进入凋亡（`dead`）状态；在这个状态下，新的异常不会被捕获，而是任其传播直至渲染线程终止。
-
-在凋亡状态下，重新尝试启动后台渲染线程将会尝试创建一个新的渲染线程对象；这个过程中，上一次未被处理的异常将会在新的渲染线程创建完毕、且开始工作之前抛出。
-
-在不与渲染线程发生交互的上下文中，异常遵循 C++ 标准机制抛出并传递。
 
 ## 编译时长问题
 因为 `pgbar` 内部使用了大量模板元编程技巧实现更复杂的抽象能力，所以在使用一些“更静态”的类型（如 `pgbar::MultiBar`）时会产生相当多的模板计算工作，进而严重降低编译速度。
