@@ -2573,6 +2573,7 @@ namespace pgbar {
   // A enum that specifies the type of the output stream.
   enum class Channel : int { Stdout = STDOUT_FILENO, Stderr = STDERR_FILENO };
   enum class Policy : __details::types::Byte { Async, Sync };
+  enum class Region : __details::types::Byte { Fixed, Flexible };
 
   namespace config {
     void hide_completed( bool flag ) noexcept;
@@ -2991,8 +2992,8 @@ namespace pgbar {
 
     namespace render {
       template<Channel Tag>
-      class ThreadRenderer final {
-        using Self = ThreadRenderer;
+      class Runner final {
+        using Self = Runner;
 
         enum class State : types::Byte { Dormant, Suspend, Active, Dead };
         std::atomic<State> state_;
@@ -3047,6 +3048,8 @@ namespace pgbar {
           }
         }
 
+        // Since the control flow of the child thread has been completely handed over to task_,
+        // this function does not guarantee that the child thread can be closed immediately after being called.
         void shutdown() noexcept
         {
           state_.store( State::Dead, std::memory_order_release );
@@ -3059,7 +3062,7 @@ namespace pgbar {
           td_ = std::thread();
         }
 
-        ThreadRenderer() noexcept : state_ { State::Dead } {}
+        Runner() noexcept : state_ { State::Dead } {}
 
       public:
         static Self& itself() noexcept
@@ -3068,9 +3071,9 @@ namespace pgbar {
           return instance;
         }
 
-        ThreadRenderer( const Self& )    = delete;
+        Runner( const Self& )    = delete;
         Self& operator=( const Self& ) & = delete;
-        ~ThreadRenderer() noexcept { shutdown(); }
+        ~Runner() noexcept { shutdown(); }
 
         void suspend() noexcept
         {
@@ -3192,7 +3195,7 @@ namespace pgbar {
           // Internal component does not make validity judgments.
           __PGBAR_ASSERT( task_ != nullptr );
           __PGBAR_ASSERT( state_ == State::Dormant );
-          ThreadRenderer<Tag>::itself().activate();
+          Runner<Tag>::itself().activate();
           task_();
           // If the rendering task throws some exception, this rendering should be abandoned.
         }
@@ -3207,14 +3210,14 @@ namespace pgbar {
               std::unique_lock<std::mutex> lock { mtx_ };
               cond_var_.notify_one();
             }
-            ThreadRenderer<Tag>::itself().appoint();
+            Runner<Tag>::itself().appoint();
             task_ = nullptr;
           }
         }
         __PGBAR_NODISCARD bool try_appoint( wrappers::UniqueFunction<void()>&& task ) & noexcept( false )
         {
           std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
-          if ( task_ != nullptr || !ThreadRenderer<Tag>::itself().try_appoint( [this]() {
+          if ( task_ != nullptr || !Runner<Tag>::itself().try_appoint( [this]() {
                  try {
                    while ( state_.load( std::memory_order_acquire ) != State::Quit ) {
                      switch ( state_.load( std::memory_order_acquire ) ) {
@@ -3362,14 +3365,14 @@ namespace pgbar {
                                                std::memory_order_release,
                                                std::memory_order_relaxed ) ) {
             __PGBAR_ASSERT( task_ != nullptr );
-            auto& renderer = ThreadRenderer<Tag>::itself();
+            auto& renderer = Runner<Tag>::itself();
             try {
               renderer.activate();
             } catch ( ... ) {
               /**
-               * In ThreadRenderer::activate, there are only two sources of exceptions,
-               * ThreadRenderer::launch or the background thread;
-               * in either case, the ThreadRenderer retains the assigned task,
+               * In Runner::activate, there are only two sources of exceptions,
+               * Runner::launch or the background thread;
+               * in either case, the Runner retains the assigned task,
                * so the task status is still valid and should be switched back to Quit.
                */
               state_.store( State::Quit, std::memory_order_release );
@@ -3388,14 +3391,14 @@ namespace pgbar {
           std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
           if ( task_ != nullptr ) {
             state_.store( State::Quit, std::memory_order_release );
-            ThreadRenderer<Tag>::itself().appoint();
+            Runner<Tag>::itself().appoint();
             task_ = nullptr;
           }
         }
         __PGBAR_NODISCARD bool try_appoint( wrappers::UniqueFunction<void()>&& task ) & noexcept( false )
         {
           std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
-          if ( task_ != nullptr || !ThreadRenderer<Tag>::itself().try_appoint( [this]() {
+          if ( task_ != nullptr || !Runner<Tag>::itself().try_appoint( [this]() {
                  try {
                    while ( state_.load( std::memory_order_acquire ) != State::Quit ) {
                      switch ( state_.load( std::memory_order_acquire ) ) {
@@ -5861,10 +5864,10 @@ namespace pgbar {
 
           this->build_prefix( buffer );
           this->try_reset( buffer );
-          if ( ( !this->prefix_.empty() && this->visual_masks_.any() ) || !this->postfix_.empty() ) {
+          if ( this->visual_masks_.any() )
             this->try_style( buffer, this->info_col_ );
+          if ( !this->prefix_.empty() && !this->postfix_.empty() )
             buffer << this->divider_;
-          }
           if ( this->visual_masks_[utils::as_val( Self::Mask::Per )] ) {
             buffer << this->build_percent( num_percent );
             auto masks = this->visual_masks_;
@@ -5913,11 +5916,10 @@ namespace pgbar {
 
           this->build_prefix( buffer, final_mesg );
           this->try_reset( buffer );
-          if ( ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty() )
-               && this->visual_masks_.any() ) {
+          if ( this->visual_masks_.any() )
             this->try_style( buffer, this->info_col_ );
+          if ( ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty() ) )
             buffer << this->divider_;
-          }
           if ( this->visual_masks_[utils::as_val( Self::Mask::Per )] ) {
             buffer << this->build_percent( num_percent );
             auto masks = this->visual_masks_;
@@ -6239,10 +6241,10 @@ namespace pgbar {
     } // namespace render
 
     namespace prefabs {
-      template<typename Soul, Channel Outlet, Policy Mode>
+      template<typename Soul, Channel Outlet, Policy Mode, Region Area>
       class BasicBar
         : public traits::LI<traits::ConfigTraits_t<Soul>>::template type<Indicator,
-                                                                         BasicBar<Soul, Outlet, Mode>> {
+                                                                         BasicBar<Soul, Outlet, Mode, Area>> {
         static_assert(
           traits::AllOf<traits::is_config<Soul>,
                         traits::Include<traits::ConfigTraits_t<Soul>, assets::TaskCounter>>::value,
@@ -6287,7 +6289,7 @@ namespace pgbar {
                  const auto istty = console::TerminalContext<Outlet>::itself().connected();
                  switch ( state_.load( std::memory_order_acquire ) ) {
                  case Self::State::Awake: {
-                   if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Async )
+                   if __PGBAR_CXX17_CNSTXPR ( Area == Region::Fixed )
                      if ( istty )
                        ostream << console::escodes::savecursor;
                    render::RenderAction<Soul>::boot( *this );
@@ -6297,7 +6299,7 @@ namespace pgbar {
                  case Self::State::StrictRefresh:  __PGBAR_FALLTHROUGH;
                  case Self::State::LenientRefresh: {
                    if ( istty ) {
-                     if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Async )
+                     if __PGBAR_CXX17_CNSTXPR ( Area == Region::Fixed )
                        ostream << console::escodes::resetcursor;
                      else
                        ostream << console::escodes::prevline << console::escodes::linestart
@@ -6309,7 +6311,7 @@ namespace pgbar {
                  } break;
                  case Self::State::Finish: {
                    if ( istty ) {
-                     if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Async )
+                     if __PGBAR_CXX17_CNSTXPR ( Area == Region::Fixed )
                        ostream << console::escodes::resetcursor;
                      else
                        ostream << console::escodes::prevline << console::escodes::linestart
@@ -6421,6 +6423,7 @@ namespace pgbar {
         using Config                     = Soul;
         static constexpr Channel Sink    = Outlet;
         static constexpr Policy Strategy = Mode;
+        static constexpr Region Layout   = Area;
 
         BasicBar( Soul config = Soul() ) noexcept : state_ { State::Stop }, config_ { std::move( config ) } {}
 # if __PGBAR_CXX20
@@ -6516,8 +6519,8 @@ namespace pgbar {
       template<typename B>
       struct is_bar {
       private:
-        template<typename C, Channel O, Policy S>
-        static constexpr std::true_type check( const prefabs::BasicBar<C, O, S>& );
+        template<typename C, Channel O, Policy M, Region A>
+        static constexpr std::true_type check( const prefabs::BasicBar<C, O, M, A>& );
         static constexpr std::false_type check( ... );
 
       public:
@@ -6534,32 +6537,32 @@ namespace pgbar {
    * It's structure is shown below:
    * {LeftBorder}{Prefix}{Percent}{Starting}{Filler}{Lead}{Remains}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{Postfix}{RightBorder}
    */
-  template<Channel Outlet = Channel::Stderr, Policy Mode = Policy::Async>
-  using ProgressBar = __details::prefabs::BasicBar<config::Line, Outlet, Mode>;
+  template<Channel Outlet = Channel::Stderr, Policy Mode = Policy::Async, Region Area = Region::Fixed>
+  using ProgressBar = __details::prefabs::BasicBar<config::Line, Outlet, Mode, Area>;
   /**
    * A progress bar with a smoother bar, requires an Unicode-supported terminal.
    *
    * It's structure is shown below:
    * {LeftBorder}{Prefix}{Percent}{Starting}{BlockBar}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{Postfix}{RightBorder}
    */
-  template<Channel Outlet = Channel::Stderr, Policy Mode = Policy::Async>
-  using BlockBar = __details::prefabs::BasicBar<config::Block, Outlet, Mode>;
+  template<Channel Outlet = Channel::Stderr, Policy Mode = Policy::Async, Region Area = Region::Fixed>
+  using BlockBar = __details::prefabs::BasicBar<config::Block, Outlet, Mode, Area>;
   /**
    * A progress bar without bar indicator, replaced by a fixed animation component.
    *
    * It's structure is shown below:
    * {LeftBorder}{Lead}{Prefix}{Percent}{Counter}{Speed}{Elapsed}{Countdown}{Postfix}{RightBorder}
    */
-  template<Channel Outlet = Channel::Stderr, Policy Mode = Policy::Async>
-  using SpinBar = __details::prefabs::BasicBar<config::Spin, Outlet, Mode>;
+  template<Channel Outlet = Channel::Stderr, Policy Mode = Policy::Async, Region Area = Region::Fixed>
+  using SpinBar = __details::prefabs::BasicBar<config::Spin, Outlet, Mode, Area>;
   /**
    * The indeterminate progress bar.
    *
    * It's structure is shown below:
    * {LeftBorder}{Prefix}{Percent}{Starting}{Filler}{Lead}{Filler}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{Postfix}{RightBorder}
    */
-  template<Channel Outlet = Channel::Stderr, Policy Mode = Policy::Async>
-  using SweepBar = __details::prefabs::BasicBar<config::Sweep, Outlet, Mode>;
+  template<Channel Outlet = Channel::Stderr, Policy Mode = Policy::Async, Region Area = Region::Fixed>
+  using SweepBar = __details::prefabs::BasicBar<config::Sweep, Outlet, Mode, Area>;
 
   namespace __details {
     namespace render {
@@ -6569,10 +6572,10 @@ namespace pgbar {
         typename std::enable_if<traits::AnyOf<std::is_same<Config, config::Line>,
                                               std::is_same<Config, config::Spin>,
                                               std::is_same<Config, config::Sweep>>::value>::type> {
-        template<Channel Outlet, Policy Mode>
-        static __PGBAR_INLINE_FN void boot( prefabs::BasicBar<Config, Outlet, Mode>& bar )
+        template<Channel Outlet, Policy M, Region A>
+        static __PGBAR_INLINE_FN void boot( prefabs::BasicBar<Config, Outlet, M, A>& bar )
         {
-          using Self = prefabs::BasicBar<Config, Outlet, Mode>;
+          using Self = prefabs::BasicBar<Config, Outlet, M, A>;
           __PGBAR_ASSERT( bar.task_cnt_ <= bar.task_end_ );
           bar.idx_frame_ = 0;
           bar.config_.build( io::OStream<Outlet>::itself(),
@@ -6594,8 +6597,8 @@ namespace pgbar {
                                                 std::memory_order_release,
                                                 std::memory_order_relaxed );
         }
-        template<Channel Outlet, Policy Mode>
-        static __PGBAR_INLINE_FN void process( prefabs::BasicBar<Config, Outlet, Mode>& bar )
+        template<Channel Outlet, Policy M, Region A>
+        static __PGBAR_INLINE_FN void process( prefabs::BasicBar<Config, Outlet, M, A>& bar )
         {
           __PGBAR_ASSERT( bar.task_cnt_ <= bar.task_end_ );
           auto& buffer = io::OStream<Outlet>::itself();
@@ -6606,10 +6609,10 @@ namespace pgbar {
                              bar.zero_point_ );
           ++bar.idx_frame_;
         }
-        template<Channel Outlet, Policy Mode>
-        static __PGBAR_INLINE_FN void finish( prefabs::BasicBar<Config, Outlet, Mode>& bar )
+        template<Channel Outlet, Policy M, Region A>
+        static __PGBAR_INLINE_FN void finish( prefabs::BasicBar<Config, Outlet, M, A>& bar )
         {
-          using Self = prefabs::BasicBar<Config, Outlet, Mode>;
+          using Self = prefabs::BasicBar<Config, Outlet, M, A>;
           __PGBAR_ASSERT( bar.task_cnt_ <= bar.task_end_ );
           bar.config_.build( io::OStream<Outlet>::itself(),
                              bar.idx_frame_,
@@ -6623,10 +6626,10 @@ namespace pgbar {
 
       template<>
       struct RenderAction<config::Block, void> {
-        template<Channel Outlet, Policy Mode>
-        static __PGBAR_INLINE_FN void boot( prefabs::BasicBar<config::Block, Outlet, Mode>& bar )
+        template<Channel Outlet, Policy M, Region A>
+        static __PGBAR_INLINE_FN void boot( prefabs::BasicBar<config::Block, Outlet, M, A>& bar )
         {
-          using Self = prefabs::BasicBar<config::Block, Outlet, Mode>;
+          using Self = prefabs::BasicBar<config::Block, Outlet, M, A>;
           bar.config_.build( io::OStream<Outlet>::itself(),
                              bar.task_cnt_.load( std::memory_order_acquire ),
                              bar.task_end_.load( std::memory_order_acquire ),
@@ -6637,8 +6640,8 @@ namespace pgbar {
                                               std::memory_order_release,
                                               std::memory_order_relaxed );
         }
-        template<Channel Outlet, Policy Mode>
-        static __PGBAR_INLINE_FN void process( prefabs::BasicBar<config::Block, Outlet, Mode>& bar )
+        template<Channel Outlet, Policy M, Region A>
+        static __PGBAR_INLINE_FN void process( prefabs::BasicBar<config::Block, Outlet, M, A>& bar )
         {
           __PGBAR_ASSERT( bar.task_cnt_ <= bar.task_end_ );
           bar.config_.build( io::OStream<Outlet>::itself(),
@@ -6646,10 +6649,10 @@ namespace pgbar {
                              bar.task_end_.load( std::memory_order_acquire ),
                              bar.zero_point_ );
         }
-        template<Channel Outlet, Policy Mode>
-        static __PGBAR_INLINE_FN void finish( prefabs::BasicBar<config::Block, Outlet, Mode>& bar )
+        template<Channel Outlet, Policy M, Region A>
+        static __PGBAR_INLINE_FN void finish( prefabs::BasicBar<config::Block, Outlet, M, A>& bar )
         {
-          using Self = prefabs::BasicBar<config::Block, Outlet, Mode>;
+          using Self = prefabs::BasicBar<config::Block, Outlet, M, A>;
           __PGBAR_ASSERT( bar.task_cnt_ <= bar.task_end_ );
           bar.config_.build( io::OStream<Outlet>::itself(),
                              bar.task_cnt_.load( std::memory_order_acquire ),
@@ -6662,10 +6665,10 @@ namespace pgbar {
 
       template<>
       struct RenderAction<void, void> {
-        template<typename Config, Channel Outlet, Policy Mode>
-        static __PGBAR_INLINE_FN void automate( prefabs::BasicBar<Config, Outlet, Mode>& bar )
+        template<typename Config, Channel Outlet, Policy M, Region A>
+        static __PGBAR_INLINE_FN void automate( prefabs::BasicBar<Config, Outlet, M, A>& bar )
         {
-          using Self = prefabs::BasicBar<Config, Outlet, Mode>;
+          using Self = prefabs::BasicBar<Config, Outlet, M, A>;
           switch ( bar.state_.load( std::memory_order_acquire ) ) {
           case Self::State::Awake: {
             RenderAction<Config>::boot( bar );
@@ -6705,17 +6708,12 @@ namespace pgbar {
 
       template<typename Seq, typename... Bars>
       class TupleBar;
-      template<types::Size... Tags,
-               Channel Outlet,
-               Policy Mode,
-               typename... Configs,
-               template<typename, Channel, Policy>
-               class... Bars>
-      class TupleBar<traits::IndexSeq<Tags...>, Bars<Configs, Outlet, Mode>...> final
-        : public TupleSlot<Tags, prefabs::BasicBar<Configs, Outlet, Mode>>... {
-        static_assert( sizeof...( Tags ) == sizeof...( Bars ),
+      template<types::Size... Tags, Channel Outlet, Policy Mode, Region Area, typename... Configs>
+      class TupleBar<traits::IndexSeq<Tags...>, prefabs::BasicBar<Configs, Outlet, Mode, Area>...> final
+        : public TupleSlot<Tags, prefabs::BasicBar<Configs, Outlet, Mode, Area>>... {
+        static_assert( sizeof...( Tags ) == sizeof...( Configs ),
                        "pgbar::__details::assets::TupleBar: Unexpected type mismatch" );
-        static_assert( sizeof...( Bars ) > 0,
+        static_assert( sizeof...( Configs ) > 0,
                        "pgbar::__details::assets::TupleBar: The number of progress bars cannot be zero" );
 
         std::atomic<types::Size> alive_cnt_;
@@ -6725,14 +6723,14 @@ namespace pgbar {
         mutable std::mutex sched_mtx_;
 
         // Bitmask indicating which bars produced output in the current render pass.
-        std::atomic<std::bitset<sizeof...( Bars )>> active_mask_;
+        std::atomic<std::bitset<sizeof...( Configs )>> active_mask_;
 
         template<types::Size Pos>
-        __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR typename std::enable_if<( Pos >= sizeof...( Bars ) )>::type
+        __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR typename std::enable_if<( Pos >= sizeof...( Configs ) )>::type
           do_render() &
         {}
         template<types::Size Pos = 0>
-        inline typename std::enable_if<( Pos < sizeof...( Bars ) )>::type do_render() &
+        inline typename std::enable_if<( Pos < sizeof...( Configs ) )>::type do_render() &
         {
           __PGBAR_ASSERT( online() );
           auto& ostream        = io::OStream<Outlet>::itself();
@@ -6794,7 +6792,7 @@ namespace pgbar {
                    switch ( cb_state_.load( std::memory_order_acquire ) ) {
                    case CBState::Awake: {
                      active_mask_.store( {}, std::memory_order_release );
-                     if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Async )
+                     if __PGBAR_CXX17_CNSTXPR ( Area == Region::Fixed )
                        if ( istty )
                          ostream << console::escodes::savecursor;
                      do_render();
@@ -6808,7 +6806,7 @@ namespace pgbar {
                    } break;
                    case CBState::Refresh: {
                      if ( istty ) {
-                       if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Async )
+                       if __PGBAR_CXX17_CNSTXPR ( Area == Region::Fixed )
                          ostream << console::escodes::resetcursor;
                        else
                          ostream
@@ -6840,11 +6838,12 @@ namespace pgbar {
         }
 
         template<types::Size Pos>
-        using ElementAt_t = traits::TypeAt_t<Pos, TupleSlot<Tags, Bars<Configs, Outlet, Mode>>...>;
+        using ElementAt_t =
+          traits::TypeAt_t<Pos, TupleSlot<Tags, prefabs::BasicBar<Configs, Outlet, Mode, Area>>...>;
 
         template<typename Tuple, types::Size... Is>
         TupleBar( Tuple&& tup, const traits::IndexSeq<Is...>& )
-          noexcept( std::tuple_size<typename std::decay<Tuple>::type>::value == sizeof...( Bars ) )
+          noexcept( std::tuple_size<typename std::decay<Tuple>::type>::value == sizeof...( Configs ) )
           : ElementAt_t<Is>( utils::forward_or<Is, ElementAt_t<Is>>( std::forward<Tuple>( tup ) ) )...
           , alive_cnt_ { 0 }
           , cb_state_ { CBState::Stop }
@@ -6854,10 +6853,9 @@ namespace pgbar {
         }
 
       public:
-        template<types::Size... Is, typename... Cs, Channel O, Policy M>
-        TupleBar( const TupleSlot<Is, prefabs::BasicBar<Cs, O, M>>&... ) = delete;
+        template<types::Size... Is, typename... Cs, Channel O, Policy M, Region A>
+        TupleBar( const TupleSlot<Is, prefabs::BasicBar<Cs, O, M, A>>&... ) = delete;
 
-        TupleBar() = default;
         // SFINAE is used here to prevent infinite recursive matching of errors.
         template<typename Cfg,
                  typename... Cfgs,
@@ -6867,24 +6865,22 @@ namespace pgbar {
                                  traits::StartsWith<traits::TypeList<typename std::decay<Cfg>::type,
                                                                      typename std::decay<Cfgs>::type...>,
                                                     Configs...>>::value>::type>
-        TupleBar( Cfg&& cfg, Cfgs&&... cfgs ) noexcept( sizeof...( Cfgs ) + 1 == sizeof...( Bars ) )
+        TupleBar( Cfg&& cfg, Cfgs&&... cfgs ) noexcept( sizeof...( Cfgs ) + 1 == sizeof...( Configs ) )
           : TupleBar( std::forward_as_tuple( std::forward<Cfg>( cfg ), std::forward<Cfgs>( cfgs )... ),
                       traits::MakeIndexSeq<sizeof...( Cfgs ) + 1>() )
         {}
-        template<typename Cfg,
-                 typename... Cfgs,
+        template<typename... Cfgs,
                  typename = typename std::enable_if<
-                   traits::StartsWith<traits::TypeList<Cfg, Cfgs...>, Configs...>::value>::type>
-        TupleBar( prefabs::BasicBar<Cfg, Outlet, Mode>&& bar,
-                  prefabs::BasicBar<Cfgs, Outlet, Mode>&&... bars )
-          noexcept( sizeof...( Cfgs ) + 1 == sizeof...( Bars ) )
-          : TupleBar( std::forward_as_tuple( std::move( bar ), std::move( bars )... ),
-                      traits::MakeIndexSeq<sizeof...( Cfgs ) + 1>() )
+                   traits::StartsWith<traits::TypeList<Cfgs...>, Configs...>::value>::type>
+        TupleBar( prefabs::BasicBar<Cfgs, Outlet, Mode, Area>&&... bars )
+          noexcept( sizeof...( Cfgs ) == sizeof...( Configs ) )
+          : TupleBar( std::forward_as_tuple( std::move( bars )... ),
+                      traits::MakeIndexSeq<sizeof...( Cfgs )>() )
         {}
         TupleBar( const TupleBar& )              = delete;
         TupleBar& operator=( const TupleBar& ) & = delete;
         TupleBar( TupleBar&& rhs ) noexcept
-          : TupleSlot<Tags, Bars<Configs, Outlet, Mode>>( std::move( rhs ) )...
+          : TupleSlot<Tags, prefabs::BasicBar<Configs, Outlet, Mode, Area>>( std::move( rhs ) )...
           , alive_cnt_ { 0 }
           , cb_state_ { CBState::Stop }
         {}
@@ -6940,30 +6936,23 @@ namespace pgbar {
 
   template<typename Bar, typename... Bars>
   class MultiBar;
-  template<Channel Outlet,
-           Policy Mode,
-           typename Config,
-           typename... Configs,
-           template<typename, Channel, Policy>
-           class Bar,
-           template<typename, Channel, Policy>
-           class... Bars>
-  class MultiBar<Bar<Config, Outlet, Mode>, Bars<Configs, Outlet, Mode>...> {
-    static_assert( __details::traits::AllOf<__details::traits::is_bar<Bar<Config, Outlet, Mode>>,
-                                            __details::traits::is_bar<Bars<Configs, Outlet, Mode>>...,
-                                            __details::traits::is_config<Config>,
+  template<Channel O, Policy M, Region A, typename Config, typename... Configs>
+  class MultiBar<__details::prefabs::BasicBar<Config, O, M, A>,
+                 __details::prefabs::BasicBar<Configs, O, M, A>...> {
+    static_assert( __details::traits::AllOf<__details::traits::is_config<Config>,
                                             __details::traits::is_config<Configs>...>::value,
                    "pgbar::MultiBar: Invalid type" );
     using Self    = MultiBar;
-    using Package = __details::assets::TupleBar<__details::traits::MakeIndexSeq<sizeof...( Bars ) + 1>,
-                                                Bar<Config, Outlet, Mode>,
-                                                Bars<Configs, Outlet, Mode>...>;
+    using Package = __details::assets::TupleBar<__details::traits::MakeIndexSeq<sizeof...( Configs ) + 1>,
+                                                __details::prefabs::BasicBar<Config, O, M, A>,
+                                                __details::prefabs::BasicBar<Configs, O, M, A>...>;
 
     template<__details::types::Size Pos>
     using ConfigAt_t = __details::traits::TypeAt_t<Pos, Config, Configs...>;
     template<__details::types::Size Pos>
-    using BarAt_t =
-      __details::traits::TypeAt_t<Pos, Bar<Config, Outlet, Mode>, Bars<Configs, Outlet, Mode>...>;
+    using BarAt_t = __details::traits::TypeAt_t<Pos,
+                                                __details::prefabs::BasicBar<Config, O, M, A>,
+                                                __details::prefabs::BasicBar<Configs, O, M, A>...>;
 
     Package tuple_;
 
@@ -6987,21 +6976,21 @@ namespace pgbar {
                                              Config,
                                              Configs...>>::value>::type>
 # endif
-    MultiBar( Cfg&& cfg, Cfgs&&... cfgs ) noexcept( sizeof...( Cfgs ) == sizeof...( Bars ) )
+    MultiBar( Cfg&& cfg, Cfgs&&... cfgs ) noexcept( sizeof...( Cfgs ) == sizeof...( Configs ) )
       : tuple_ { std::forward<Cfg>( cfg ), std::forward<Cfgs>( cfgs )... }
     {}
 
     template<typename Cfg, typename... Cfgs
 # if __PGBAR_CXX20
              >
-      requires( sizeof...( Cfgs ) <= sizeof...( Bars ) && __details::traits::is_config<Cfg>::value
+      requires( sizeof...( Cfgs ) <= sizeof...( Configs ) && __details::traits::is_config<Cfg>::value
                 && ( __details::traits::is_config<Cfgs>::value && ... )
                 && __details::traits::
                   StartsWith<__details::traits::TypeList<Cfg, Cfgs...>, Config, Configs...>::value )
 # else
              ,
              typename = typename std::enable_if<__details::traits::AllOf<
-               std::integral_constant<bool, ( sizeof...( Cfgs ) <= sizeof...( Bars ) )>,
+               std::integral_constant<bool, ( sizeof...( Cfgs ) <= sizeof...( Configs ) )>,
                __details::traits::is_config<Cfg>,
                __details::traits::is_config<Cfgs>...,
                __details::traits::StartsWith<
@@ -7010,9 +6999,9 @@ namespace pgbar {
                  Config,
                  Configs...>>::value>::type>
 # endif
-    MultiBar( __details::prefabs::BasicBar<Cfg, Outlet, Mode>&& bar,
-              __details::prefabs::BasicBar<Cfgs, Outlet, Mode>&&... bars )
-      noexcept( sizeof...( Cfgs ) == sizeof...( Bars ) )
+    MultiBar( __details::prefabs::BasicBar<Cfg, O, M, A>&& bar,
+              __details::prefabs::BasicBar<Cfgs, O, M, A>&&... bars )
+      noexcept( sizeof...( Cfgs ) == sizeof...( Configs ) )
       : tuple_ { std::move( bar ), std::move( bars )... }
     {}
 
@@ -7039,7 +7028,7 @@ namespace pgbar {
     // Returns the number of progress bars.
     __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CNSTEVAL __details::types::Size size() const noexcept
     {
-      return sizeof...( Bars ) + 1;
+      return sizeof...( Configs ) + 1;
     }
     // Returns the number of progress bars which is running.
     __PGBAR_NODISCARD __PGBAR_INLINE_FN __details::types::Size active_size() const noexcept
@@ -7144,13 +7133,13 @@ namespace pgbar {
     void swap( Self& rhs ) noexcept { tuple_.swap( rhs.tuple_ ); }
     friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
 
-    template<__details::types::Size Pos, typename M>
+    template<__details::types::Size Pos, typename Mb>
     friend __PGBAR_INLINE_FN constexpr
-      typename std::enable_if<std::is_same<typename std::decay<M>::type, Self>::value,
-                              decltype( std::declval<M>().template at<Pos>() )>::type
-      get( M&& self ) noexcept
+      typename std::enable_if<std::is_same<typename std::decay<Mb>::type, Self>::value,
+                              decltype( std::declval<Mb>().template at<Pos>() )>::type
+      get( Mb&& self ) noexcept
     {
-      return std::forward<M>( self ).template at<Pos>();
+      return std::forward<Mb>( self ).template at<Pos>();
     }
   };
 
@@ -7168,45 +7157,46 @@ namespace pgbar {
                                                          __details::traits::is_config<std::decay_t<Configs>>...>::value>>
 #  endif
   MultiBar( Config&&, Configs&&... )
-    -> MultiBar<__details::prefabs::BasicBar<Config, Channel::Stderr, Policy::Async>,
-                __details::prefabs::BasicBar<Configs, Channel::Stderr, Policy::Async>...>;
+    -> MultiBar<__details::prefabs::BasicBar<Config, Channel::Stderr, Policy::Async, Region::Fixed>,
+                __details::prefabs::BasicBar<Configs, Channel::Stderr, Policy::Async, Region::Fixed>...>;
 # endif
 
   // Creates a MultiBar using existing bar instances.
-  template<typename Config, typename... Configs, Channel Outlet, Policy Mode>
+  template<typename Config, typename... Configs, Channel Outlet, Policy Mode, Region Area>
 # if __PGBAR_CXX20
     requires( __details::traits::is_config<Config>::value
               && ( __details::traits::is_config<Configs>::value && ... ) )
-  __PGBAR_NODISCARD __PGBAR_INLINE_FN MultiBar<__details::prefabs::BasicBar<Config, Outlet, Mode>,
-                                               __details::prefabs::BasicBar<Configs, Outlet, Mode>...>
+  __PGBAR_NODISCARD __PGBAR_INLINE_FN MultiBar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>,
+                                               __details::prefabs::BasicBar<Configs, Outlet, Mode, Area>...>
 # else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN
     typename std::enable_if<__details::traits::AllOf<__details::traits::is_config<Config>,
                                                      __details::traits::is_config<Configs>...>::value,
-                            MultiBar<__details::prefabs::BasicBar<Config, Outlet, Mode>,
-                                     __details::prefabs::BasicBar<Configs, Outlet, Mode>...>>::type
+                            MultiBar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>,
+                                     __details::prefabs::BasicBar<Configs, Outlet, Mode, Area>...>>::type
 # endif
-    make_multi( __details::prefabs::BasicBar<Config, Outlet, Mode>&& bar,
-                __details::prefabs::BasicBar<Configs, Outlet, Mode>&&... bars ) noexcept
+    make_multi( __details::prefabs::BasicBar<Config, Outlet, Mode, Area>&& bar,
+                __details::prefabs::BasicBar<Configs, Outlet, Mode, Area>&&... bars ) noexcept
   {
     return { std::move( bar ), std::move( bars )... };
   }
   // Creates a MultiBar using configuration objects.
   template<Channel Outlet = Channel::Stderr,
            Policy Mode    = Policy::Async,
+           Region Area    = Region::Fixed,
            typename Config,
            typename... Configs>
 # if __PGBAR_CXX20
     requires( __details::traits::is_config<std::decay_t<Config>>::value
               && ( __details::traits::is_config<std::decay_t<Configs>>::value && ... ) )
-  MultiBar<__details::prefabs::BasicBar<std::decay_t<Config>, Outlet, Mode>,
-           __details::prefabs::BasicBar<std::decay_t<Configs>, Outlet, Mode>...>
+  MultiBar<__details::prefabs::BasicBar<std::decay_t<Config>, Outlet, Mode, Area>,
+           __details::prefabs::BasicBar<std::decay_t<Configs>, Outlet, Mode, Area>...>
 # else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
     __details::traits::AllOf<__details::traits::is_config<typename std::decay<Config>::type>,
                              __details::traits::is_config<typename std::decay<Configs>::type>...>::value,
-    MultiBar<__details::prefabs::BasicBar<typename std::decay<Config>::type, Outlet, Mode>,
-             __details::prefabs::BasicBar<typename std::decay<Configs>::type, Outlet, Mode>...>>::type
+    MultiBar<__details::prefabs::BasicBar<typename std::decay<Config>::type, Outlet, Mode, Area>,
+             __details::prefabs::BasicBar<typename std::decay<Configs>::type, Outlet, Mode, Area>...>>::type
 # endif
     make_multi( Config&& cfg, Configs&&... cfgs ) noexcept(
       __details::traits::Not<__details::traits::AnyOf<std::is_lvalue_reference<Config>,
@@ -7217,9 +7207,9 @@ namespace pgbar {
 
   namespace __details {
     namespace assets {
-      template<types::Size Cnt, Channel O, Policy S, typename C, types::Size... Is>
+      template<types::Size Cnt, Channel O, Policy M, Region A, typename C, types::Size... Is>
       __PGBAR_NODISCARD __PGBAR_INLINE_FN
-        traits::Repeat_t<prefabs::BasicBar<typename std::decay<C>::type, O, S>, MultiBar, Cnt>
+        traits::Repeat_t<prefabs::BasicBar<typename std::decay<C>::type, O, M, A>, MultiBar, Cnt>
         make_multi_helper( C&& cfg, const traits::IndexSeq<Is...>& )
           noexcept( __details::traits::AllOf<std::integral_constant<bool, ( Cnt == 1 )>,
                                              __details::traits::Not<std::is_lvalue_reference<C>>>::value )
@@ -7234,18 +7224,19 @@ namespace pgbar {
    * Creates a MultiBar with a fixed number of BasicBar instances using a single bar object.
    * **All BasicBar instances are initialized using the same configuration.**
    */
-  template<__details::types::Size Cnt, typename Config, Channel Outlet, Policy Mode>
+  template<__details::types::Size Cnt, typename Config, Channel Outlet, Policy Mode, Region Area>
 # if __PGBAR_CXX20
     requires( Cnt > 0 && __details::traits::is_config<Config>::value )
   __PGBAR_NODISCARD __PGBAR_INLINE_FN
-    __details::traits::Repeat_t<__details::prefabs::BasicBar<Config, Outlet, Mode>, MultiBar, Cnt>
+    __details::traits::Repeat_t<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>, MultiBar, Cnt>
 # else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
     __details::traits::AllOf<std::integral_constant<bool, ( Cnt > 0 )>,
                              __details::traits::is_config<Config>>::value,
-    __details::traits::Repeat_t<__details::prefabs::BasicBar<Config, Outlet, Mode>, MultiBar, Cnt>>::type
+    __details::traits::Repeat_t<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>, MultiBar, Cnt>>::
+    type
 # endif
-    make_multi( __details::prefabs::BasicBar<Config, Outlet, Mode>&& bar ) noexcept( Cnt == 1 )
+    make_multi( __details::prefabs::BasicBar<Config, Outlet, Mode, Area>&& bar ) noexcept( Cnt == 1 )
   {
     return __details::assets::make_multi_helper<Cnt, Outlet, Mode>(
       std::move( bar ).config(),
@@ -7258,18 +7249,20 @@ namespace pgbar {
   template<__details::types::Size Cnt,
            Channel Outlet = Channel::Stderr,
            Policy Mode    = Policy::Async,
+           Region Area    = Region::Fixed,
            typename Config>
 # if __PGBAR_CXX20
     requires( Cnt > 0 && __details::traits::is_config<std::decay_t<Config>>::value )
   __PGBAR_NODISCARD __PGBAR_INLINE_FN __details::traits::
-    Repeat_t<__details::prefabs::BasicBar<std::decay_t<Config>, Outlet, Mode>, MultiBar, Cnt>
+    Repeat_t<__details::prefabs::BasicBar<std::decay_t<Config>, Outlet, Mode, Area>, MultiBar, Cnt>
 # else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
     __details::traits::AllOf<std::integral_constant<bool, ( Cnt > 0 )>,
                              __details::traits::is_config<typename std::decay<Config>::type>>::value,
-    __details::traits::Repeat_t<__details::prefabs::BasicBar<typename std::decay<Config>::type, Outlet, Mode>,
-                                MultiBar,
-                                Cnt>>::type
+    __details::traits::Repeat_t<
+      __details::prefabs::BasicBar<typename std::decay<Config>::type, Outlet, Mode, Area>,
+      MultiBar,
+      Cnt>>::type
 # endif
     make_multi( Config&& cfg )
       noexcept( __details::traits::AllOf<std::integral_constant<bool, ( Cnt == 1 )>,
@@ -7319,19 +7312,21 @@ namespace pgbar {
            __details::types::Size Cnt,
            Channel Outlet = Channel::Stderr,
            Policy Mode    = Policy::Async,
+           Region Area    = Region::Fixed,
            typename... Configs>
 # if __PGBAR_CXX20
     requires( Cnt > 0 && sizeof...( Configs ) <= Cnt && __details::traits::is_config<Config>::value
               && ( std::is_same_v<Config, std::decay_t<Configs>> && ... ) )
   __PGBAR_NODISCARD __PGBAR_INLINE_FN
-    __details::traits::Repeat_t<__details::prefabs::BasicBar<Config, Outlet, Mode>, MultiBar, Cnt>
+    __details::traits::Repeat_t<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>, MultiBar, Cnt>
 # else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
     __details::traits::AllOf<std::integral_constant<bool, ( Cnt > 0 )>,
                              std::integral_constant<bool, ( sizeof...( Configs ) <= Cnt )>,
                              __details::traits::is_config<Config>,
                              std::is_same<Config, typename std::decay<Configs>::type>...>::value,
-    __details::traits::Repeat_t<__details::prefabs::BasicBar<Config, Outlet, Mode>, MultiBar, Cnt>>::type
+    __details::traits::Repeat_t<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>, MultiBar, Cnt>>::
+    type
 # endif
     make_multi( Configs&&... configs ) noexcept( sizeof...( Configs ) == Cnt )
   {
@@ -7346,21 +7341,23 @@ namespace pgbar {
            __details::types::Size Cnt,
            Channel Outlet = Channel::Stderr,
            Policy Mode    = Policy::Async,
+           Region Area    = Region::Fixed,
            typename... Configs>
 # if __PGBAR_CXX20
     requires( Cnt > 0 && sizeof...( Configs ) <= Cnt && __details::traits::is_config<Config>::value
               && ( std::is_same_v<Config, std::decay_t<Configs>> && ... ) )
   __PGBAR_NODISCARD __PGBAR_INLINE_FN
-    __details::traits::Repeat_t<__details::prefabs::BasicBar<Config, Outlet, Mode>, MultiBar, Cnt>
+    __details::traits::Repeat_t<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>, MultiBar, Cnt>
 # else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
     __details::traits::AllOf<std::integral_constant<bool, ( Cnt > 0 )>,
                              std::integral_constant<bool, ( sizeof...( Configs ) <= Cnt )>,
                              __details::traits::is_config<Config>,
                              std::is_same<Config, typename std::decay<Configs>::type>&&...>::value,
-    __details::traits::Repeat_t<__details::prefabs::BasicBar<Config, Outlet, Mode>, MultiBar, Cnt>>::type
+    __details::traits::Repeat_t<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>, MultiBar, Cnt>>::
+    type
 # endif
-    make_multi( __details::prefabs::BasicBar<Configs, Outlet, Mode>&&... bars )
+    make_multi( __details::prefabs::BasicBar<Configs, Outlet, Mode, Area>&&... bars )
       noexcept( sizeof...( Configs ) == Cnt )
   {
     return { std::move( bars )... };
@@ -7384,24 +7381,26 @@ namespace pgbar {
   template<typename Config,
            Channel Outlet = Channel::Stderr,
            Policy Mode    = Policy::Async,
+           Region Area    = Region::Fixed,
            typename N,
            typename F,
            typename... Options>
 # if __PGBAR_CXX20
-    requires( __details::traits::is_config<Config>::value
-              && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode>>::value
-              && std::is_constructible_v<Config, Options...> && std::is_arithmetic_v<N> )
+    requires(
+      __details::traits::is_config<Config>::value
+      && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
+      && std::is_constructible_v<Config, Options...> && std::is_arithmetic_v<N> )
   __PGBAR_INLINE_FN void
 # else
   __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
     __details::traits::is_config<Config>,
-    __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode>>,
+    __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
     std::is_constructible<Config, Options...>,
     std::is_arithmetic<N>>::value>::type
 # endif
     iterate( N startpoint, N endpoint, N step, F&& unary_fn, Options&&... options )
   {
-    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode>>(
+    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>(
       startpoint,
       endpoint,
       step,
@@ -7427,24 +7426,26 @@ namespace pgbar {
   template<typename Config,
            Channel Outlet = Channel::Stderr,
            Policy Mode    = Policy::Async,
+           Region Area    = Region::Fixed,
            typename N,
            typename F,
            typename... Options>
 # if __PGBAR_CXX20
-    requires( __details::traits::is_config<Config>::value
-              && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode>>::value
-              && std::is_constructible_v<Config, Options...> && std::is_floating_point_v<N> )
+    requires(
+      __details::traits::is_config<Config>::value
+      && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
+      && std::is_constructible_v<Config, Options...> && std::is_floating_point_v<N> )
   __PGBAR_INLINE_FN void
 # else
   __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
     __details::traits::is_config<Config>,
-    __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode>>,
+    __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
     std::is_constructible<Config, Options...>,
     std::is_floating_point<N>>::value>::type
 # endif
     iterate( N endpoint, N step, F&& unary_fn, Options&&... options )
   {
-    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode>>(
+    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>(
       endpoint,
       step,
       std::forward<F>( unary_fn ),
@@ -7469,24 +7470,26 @@ namespace pgbar {
   template<typename Config,
            Channel Outlet = Channel::Stderr,
            Policy Mode    = Policy::Async,
+           Region Area    = Region::Fixed,
            typename N,
            typename F,
            typename... Options>
 # if __PGBAR_CXX20
-    requires( __details::traits::is_config<Config>::value
-              && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode>>::value
-              && std::is_constructible_v<Config, Options...> && std::is_integral_v<N> )
+    requires(
+      __details::traits::is_config<Config>::value
+      && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
+      && std::is_constructible_v<Config, Options...> && std::is_integral_v<N> )
   __PGBAR_INLINE_FN void
 # else
   __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
     __details::traits::is_config<Config>,
-    __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode>>,
+    __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
     std::is_constructible<Config, Options...>,
     std::is_integral<N>>::value>::type
 # endif
     iterate( N startpoint, N endpoint, F&& unary_fn, Options&&... options )
   {
-    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode>>(
+    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>(
       startpoint,
       endpoint,
       std::forward<F>( unary_fn ),
@@ -7511,24 +7514,26 @@ namespace pgbar {
   template<typename Config,
            Channel Outlet = Channel::Stderr,
            Policy Mode    = Policy::Async,
+           Region Area    = Region::Fixed,
            typename N,
            typename F,
            typename... Options>
 # if __PGBAR_CXX20
-    requires( __details::traits::is_config<Config>::value
-              && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode>>::value
-              && std::is_constructible_v<Config, Options...> && std::is_integral_v<N> )
+    requires(
+      __details::traits::is_config<Config>::value
+      && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
+      && std::is_constructible_v<Config, Options...> && std::is_integral_v<N> )
   __PGBAR_INLINE_FN void
 # else
   __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
     __details::traits::is_config<Config>,
-    __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode>>,
+    __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
     std::is_constructible<Config, Options...>,
     std::is_integral<N>>::value>::type
 # endif
     iterate( N endpoint, F&& unary_fn, Options&&... options )
   {
-    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode>>(
+    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>(
       endpoint,
       std::forward<F>( unary_fn ),
       Config( std::forward<Options>( options )... ) );
@@ -7553,24 +7558,26 @@ namespace pgbar {
   template<typename Config,
            Channel Outlet = Channel::Stderr,
            Policy Mode    = Policy::Async,
+           Region Area    = Region::Fixed,
            typename I,
            typename F,
            typename... Options>
 # if __PGBAR_CXX20
-    requires( __details::traits::TraversableIterator<I> && __details::traits::is_config<Config>::value
-              && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode>>::value
-              && std::is_constructible_v<Config, Options...> )
+    requires(
+      __details::traits::TraversableIterator<I> && __details::traits::is_config<Config>::value
+      && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
+      && std::is_constructible_v<Config, Options...> )
   __PGBAR_INLINE_FN void
 # else
   __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
     __details::traits::is_config<Config>,
-    __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode>>,
+    __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
     std::is_constructible<Config, Options...>,
     __details::traits::Not<std::is_arithmetic<I>>>::value>::type
 # endif
     iterate( I startpoint, I endpoint, F&& unary_fn, Options&&... options )
   {
-    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode>>(
+    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>(
       std::move( startpoint ),
       std::move( endpoint ),
       std::forward<F>( unary_fn ),
@@ -7597,25 +7604,27 @@ namespace pgbar {
   template<typename Config,
            Channel Outlet = Channel::Stderr,
            Policy Mode    = Policy::Async,
+           Region Area    = Region::Fixed,
            class R,
            typename F,
            typename... Options>
 # if __PGBAR_CXX20
-    requires( std::ranges::range<R> && __details::traits::is_config<Config>::value
-              && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode>>::value
-              && std::is_constructible_v<Config, Options...> )
+    requires(
+      std::ranges::range<R> && __details::traits::is_config<Config>::value
+      && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
+      && std::is_constructible_v<Config, Options...> )
   __PGBAR_INLINE_FN void
 # else
   __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
     __details::traits::is_config<Config>,
-    __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode>>,
+    __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
     std::is_constructible<Config, Options...>,
     __details::traits::AnyOf<std::is_class<typename std::decay<R>::type>,
                              std::is_array<typename std::remove_reference<R>::type>>>::value>::type
 # endif
     iterate( R&& container, F&& unary_fn, Options&&... options )
   {
-    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode>>(
+    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>(
       std::forward<R>( container ),
       std::forward<F>( unary_fn ),
       Config( std::forward<Options>( options )... ) );
@@ -7772,12 +7781,12 @@ namespace pgbar {
 
   namespace __details {
     namespace prefabs {
-      template<typename Config, Channel Outlet, Policy Mode>
+      template<typename, Channel, Policy, Region>
       class SharedBar;
     }
 
     namespace assets {
-      template<Channel Outlet, Policy Mode>
+      template<Channel Outlet, Policy Mode, Region Area>
       class DynamicContext final {
         struct Slot final {
         private:
@@ -7809,9 +7818,9 @@ namespace pgbar {
           bool active_;
 
           template<typename Config>
-          Slot( const std::shared_ptr<prefabs::SharedBar<Config, Outlet, Mode>>& bar ) noexcept
-            : halt_ { halt<prefabs::SharedBar<Config, Outlet, Mode>> }
-            , render_ { render<prefabs::BasicBar<Config, Outlet, Mode>> }
+          Slot( const std::shared_ptr<prefabs::SharedBar<Config, Outlet, Mode, Area>>& bar ) noexcept
+            : halt_ { halt<prefabs::SharedBar<Config, Outlet, Mode, Area>> }
+            , render_ { render<prefabs::BasicBar<Config, Outlet, Mode, Area>> }
             , target_ { bar }
             , active_ { false }
           {}
@@ -7888,7 +7897,7 @@ namespace pgbar {
         }
 
         template<typename C>
-        void append( std::shared_ptr<prefabs::SharedBar<C, Outlet, Mode>> bar ) & noexcept( false )
+        void append( std::shared_ptr<prefabs::SharedBar<C, Outlet, Mode, Area>> bar ) & noexcept( false )
         {
           std::lock_guard<std::mutex> lock1 { sched_mtx_ };
           auto& executor     = render::Renderer<Outlet, Mode>::itself();
@@ -7906,7 +7915,7 @@ namespace pgbar {
                    case State::Awake: {
                      {
                        concurrent::SharedLock<concurrent::SharedMutex> lock { res_mtx_ };
-                       if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Async ) {
+                       if __PGBAR_CXX17_CNSTXPR ( Area == Region::Fixed ) {
                          if ( istty )
                            ostream << console::escodes::savecursor;
                        }
@@ -7923,7 +7932,7 @@ namespace pgbar {
                      {
                        concurrent::SharedLock<concurrent::SharedMutex> lock { res_mtx_ };
                        if ( istty ) {
-                         if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Async ) {
+                         if __PGBAR_CXX17_CNSTXPR ( Area == Region::Fixed ) {
                            ostream << console::escodes::resetcursor;
                            if ( hide_done ) {
                              const auto num_discarded = num_discarded_line_.load( std::memory_order_acquire );
@@ -8029,14 +8038,14 @@ namespace pgbar {
     } // namespace assets
 
     namespace prefabs {
-      template<typename Config, Channel Outlet, Policy Mode>
+      template<typename C, Channel O, Policy M, Region A>
       class SharedBar
-        : public BasicBar<Config, Outlet, Mode>
-        , public std::enable_shared_from_this<SharedBar<Config, Outlet, Mode>> {
-        using Base = BasicBar<Config, Outlet, Mode>;
+        : public BasicBar<C, O, M, A>
+        , public std::enable_shared_from_this<SharedBar<C, O, M, A>> {
+        using Base = BasicBar<C, O, M, A>;
         static_assert( !__details::traits::InstanceOf<Base, std::enable_shared_from_this>::value,
                        "pgbar::__details::prefabs::SharedBar: Unexpected multiple inheritance" );
-        using Server = std::shared_ptr<assets::DynamicContext<Outlet, Mode>>;
+        using Server = std::shared_ptr<assets::DynamicContext<O, M, A>>;
 
         Server server_;
 
@@ -8044,16 +8053,25 @@ namespace pgbar {
         void do_boot() & override final { server_->append( this->shared_from_this() ); }
 
       public:
-        SharedBar( Server server, Config config ) noexcept
+        SharedBar( Server server, C&& config ) noexcept
           : Base( std::move( config ) ), server_ { std::move( server ) }
+        {}
+        SharedBar( Server server, BasicBar<C, O, M, A>&& bar ) noexcept
+          : Base( std::move( bar ) ), server_ { std::move( server ) }
         {}
         template<typename... Args>
         SharedBar( Server server, Args&&... args )
           : Base( std::forward<Args>( args )... ), server_ { std::move( server ) }
         {}
 
+        /**
+         * This thing is always wrapped by `std::shared_ptr` under normal circumstances,
+         * so there is no need to add move semantics support for it;
+         * otherwise, additional null checks would be required in the methods.
+         */
         SharedBar( const SharedBar& )              = delete;
         SharedBar& operator=( const SharedBar& ) & = delete;
+
         /**
          * The object model of C++ requires that derived classes be destructed first.
          * When the derived class is destructed and the base class destructor attempts to call `do_reset`,
@@ -8073,14 +8091,14 @@ namespace pgbar {
     } // namespace prefabs
   } // namespace __details
 
-  template<Channel Outlet = Channel::Stderr, Policy Mode = Policy::Async>
+  template<Channel Outlet = Channel::Stderr, Policy Mode = Policy::Async, Region Area = Region::Fixed>
   class DynamicBar {
     using Self = DynamicBar;
-    std::shared_ptr<__details::assets::DynamicContext<Outlet, Mode>> core_;
+    std::shared_ptr<__details::assets::DynamicContext<Outlet, Mode, Area>> core_;
 
   public:
     DynamicBar() noexcept( false )
-      : core_ { std::make_shared<__details::assets::DynamicContext<Outlet, Mode>>() }
+      : core_ { std::make_shared<__details::assets::DynamicContext<Outlet, Mode, Area>>() }
     {}
     DynamicBar( const Self& )        = delete;
     Self& operator=( const Self& ) & = delete;
@@ -8126,30 +8144,33 @@ namespace pgbar {
     template<typename Config>
 # if __PGBAR_CXX20
       requires __details::traits::is_config<Config>::value
-    __PGBAR_NODISCARD std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode>>
+    __PGBAR_NODISCARD std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>
 # else
     __PGBAR_NODISCARD
       typename std::enable_if<__details::traits::is_config<Config>::value,
-                              std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode>>>::type
+                              std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>>::type
 # endif
-      insert( __details::prefabs::BasicBar<Config, Outlet, Mode>&& bar ) const
+      insert( __details::prefabs::BasicBar<Config, Outlet, Mode, Area>&& bar ) const
     {
       __PGBAR_ASSERT( core_ != nullptr );
-      return std::make_shared<__details::prefabs::SharedBar<Config, Outlet, Mode>>( core_, std::move( bar ) );
+      return std::make_shared<__details::prefabs::SharedBar<Config, Outlet, Mode, Area>>( core_,
+                                                                                          std::move( bar ) );
     }
     template<typename Config>
 # if __PGBAR_CXX20
       requires __details::traits::is_config<std::decay_t<Config>>::value
-    __PGBAR_NODISCARD std::shared_ptr<__details::prefabs::BasicBar<std::decay_t<Config>, Outlet, Mode>>
+    __PGBAR_NODISCARD std::shared_ptr<__details::prefabs::BasicBar<std::decay_t<Config>, Outlet, Mode, Area>>
 # else
     __PGBAR_NODISCARD typename std::enable_if<
       __details::traits::is_config<typename std::decay<Config>::type>::value,
-      std::shared_ptr<__details::prefabs::BasicBar<typename std::decay<Config>::type, Outlet, Mode>>>::type
+      std::shared_ptr<__details::prefabs::BasicBar<typename std::decay<Config>::type, Outlet, Mode, Area>>>::
+      type
 # endif
       insert( Config&& cfg ) const
     {
       __PGBAR_ASSERT( core_ != nullptr );
-      return std::make_shared<__details::prefabs::SharedBar<typename std::decay<Config>::type, Outlet, Mode>>(
+      return std::make_shared<
+        __details::prefabs::SharedBar<typename std::decay<Config>::type, Outlet, Mode, Area>>(
         core_,
         std::forward<Config>( cfg ) );
     }
@@ -8157,37 +8178,38 @@ namespace pgbar {
     template<typename Bar, typename... Options>
 # if __PGBAR_CXX20
       requires( __details::traits::is_bar<Bar>::value && Bar::Sink == Outlet && Bar::Strategy == Mode
-                && std::is_constructible_v<Bar, Options...> )
+                && Bar::Layout == Area && std::is_constructible_v<Bar, Options...> )
     __PGBAR_NODISCARD std::shared_ptr<Bar>
 # else
     __PGBAR_NODISCARD typename std::enable_if<
       __details::traits::AllOf<__details::traits::is_bar<Bar>,
                                std::is_constructible<Bar, Options...>,
                                std::integral_constant<bool, ( Bar::Sink == Outlet )>,
-                               std::integral_constant<bool, ( Bar::Strategy == Mode )>>::value,
+                               std::integral_constant<bool, ( Bar::Strategy == Mode )>,
+                               std::integral_constant<bool, ( Bar::Layout == Area )>>::value,
       std::shared_ptr<Bar>>::type
 # endif
       insert( Options&&... options ) const
     {
       __PGBAR_ASSERT( core_ != nullptr );
-      return std::make_shared<__details::prefabs::SharedBar<typename Bar::Config, Outlet, Mode>>(
+      return std::make_shared<__details::prefabs::SharedBar<typename Bar::Config, Outlet, Mode, Area>>(
         core_,
         std::forward<Options>( options )... );
     }
     template<typename Config, typename... Options>
 # if __PGBAR_CXX20
       requires( __details::traits::is_config<Config>::value && std::is_constructible_v<Config, Options...> )
-    __PGBAR_NODISCARD std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode>>
+    __PGBAR_NODISCARD std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>
 # else
     __PGBAR_NODISCARD
       typename std::enable_if<__details::traits::AllOf<__details::traits::is_config<Config>,
                                                        std::is_constructible<Config, Options...>>::value,
-                              std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode>>>::type
+                              std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>>::type
 # endif
       insert( Options&&... options ) const
     {
       __PGBAR_ASSERT( core_ != nullptr );
-      return std::make_shared<__details::prefabs::SharedBar<Config, Outlet, Mode>>(
+      return std::make_shared<__details::prefabs::SharedBar<Config, Outlet, Mode, Area>>(
         core_,
         std::forward<Options>( options )... );
     }
@@ -8201,48 +8223,50 @@ namespace pgbar {
   };
 
   // Creates a tuple of shared_ptr pointing to bars using existing bar instances.
-  template<typename Config, typename... Configs, Channel Outlet, Policy Mode>
+  template<typename Config, typename... Configs, Channel Outlet, Policy Mode, Region Area>
 # if __PGBAR_CXX20
     requires( __details::traits::is_config<Config>::value
               && ( __details::traits::is_config<Configs>::value && ... ) )
   __PGBAR_NODISCARD __PGBAR_INLINE_FN
-    std::tuple<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode>>,
-               std::shared_ptr<__details::prefabs::BasicBar<Configs, Outlet, Mode>>...>
+    std::tuple<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
+               std::shared_ptr<__details::prefabs::BasicBar<Configs, Outlet, Mode, Area>>...>
 # else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
     __details::traits::AllOf<__details::traits::is_config<Config>,
                              __details::traits::is_config<Configs>...>::value,
-    std::tuple<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode>>,
-               std::shared_ptr<__details::prefabs::BasicBar<Configs, Outlet, Mode>>...>>::type
+    std::tuple<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
+               std::shared_ptr<__details::prefabs::BasicBar<Configs, Outlet, Mode, Area>>...>>::type
 # endif
-    make_dynamic( __details::prefabs::BasicBar<Config, Outlet, Mode>&& bar,
-                  __details::prefabs::BasicBar<Configs, Outlet, Mode>&&... bars )
+    make_dynamic( __details::prefabs::BasicBar<Config, Outlet, Mode, Area>&& bar,
+                  __details::prefabs::BasicBar<Configs, Outlet, Mode, Area>&&... bars )
   {
-    DynamicBar<Outlet, Mode> factory;
+    DynamicBar<Outlet, Mode, Area> factory;
     return { factory.insert( std::move( bar ) ), factory.insert( std::move( bars ) )... };
   }
   // Creates a tuple of shared_ptr pointing to bars using configuration objects.
   template<Channel Outlet = Channel::Stderr,
            Policy Mode    = Policy::Async,
+           Region Area    = Region::Fixed,
            typename Config,
            typename... Configs>
 # if __PGBAR_CXX20
     requires( __details::traits::is_config<std::decay_t<Config>>::value
               && ( __details::traits::is_config<std::decay_t<Configs>>::value && ... ) )
   __PGBAR_NODISCARD __PGBAR_INLINE_FN
-    std::tuple<std::shared_ptr<__details::prefabs::BasicBar<std::decay_t<Config>, Outlet, Mode>>,
-               std::shared_ptr<__details::prefabs::BasicBar<std::decay_t<Configs>, Outlet, Mode>>...>
+    std::tuple<std::shared_ptr<__details::prefabs::BasicBar<std::decay_t<Config>, Outlet, Mode, Area>>,
+               std::shared_ptr<__details::prefabs::BasicBar<std::decay_t<Configs>, Outlet, Mode, Area>>...>
 # else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
     __details::traits::AllOf<__details::traits::is_config<typename std::decay<Config>::type>,
                              __details::traits::is_config<typename std::decay<Configs>::type>...>::value,
-    std::tuple<std::shared_ptr<__details::prefabs::BasicBar<typename std::decay<Config>::type, Outlet, Mode>>,
-               std::shared_ptr<
-                 __details::prefabs::BasicBar<typename std::decay<Configs>::type, Outlet, Mode>>...>>::type
+    std::tuple<
+      std::shared_ptr<__details::prefabs::BasicBar<typename std::decay<Config>::type, Outlet, Mode, Area>>,
+      std::shared_ptr<
+        __details::prefabs::BasicBar<typename std::decay<Configs>::type, Outlet, Mode, Area>>...>>::type
 # endif
     make_dynamic( Config&& cfg, Configs&&... cfgs )
   {
-    DynamicBar<Outlet, Mode> factory;
+    DynamicBar<Outlet, Mode, Area> factory;
     return { factory.insert( std::forward<Config>( cfg ) ),
              factory.insert( std::forward<Configs>( cfgs ) )... };
   }
@@ -8251,22 +8275,23 @@ namespace pgbar {
    * Creates a vector of shared_ptr pointing to bars with a fixed number of BasicBar instances.
    * **All BasicBar instances are initialized using the same configuration.**
    */
-  template<typename Config, Channel Outlet, Policy Mode>
+  template<typename Config, Channel Outlet, Policy Mode, Region Area>
 # if __PGBAR_CXX20
     requires __details::traits::is_config<Config>::value
   __PGBAR_NODISCARD __PGBAR_INLINE_FN
-    std::vector<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode>>>
+    std::vector<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>>
 # else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
     __details::traits::is_config<Config>::value,
-    std::vector<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode>>>>::type
+    std::vector<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>>>::type
 # endif
-    make_dynamic( __details::prefabs::BasicBar<Config, Outlet, Mode>&& bar, __details::types::Size count )
+    make_dynamic( __details::prefabs::BasicBar<Config, Outlet, Mode, Area>&& bar,
+                  __details::types::Size count )
   {
     if ( count == 0 )
       __PGBAR_UNLIKELY return {};
-    DynamicBar<Outlet, Mode> factory;
-    std::vector<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode>>> products;
+    DynamicBar<Outlet, Mode, Area> factory;
+    std::vector<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>> products;
     std::generate_n( std::back_inserter( products ), count - 1, [&factory, &bar]() {
       return factory.insert( bar.config() );
     } );
@@ -8277,24 +8302,27 @@ namespace pgbar {
    * Creates a vector of shared_ptr pointing to bars with a fixed number of BasicBar instances.
    * **All BasicBar instances are initialized using the same configuration.**
    */
-  template<Channel Outlet = Channel::Stderr, Policy Mode = Policy::Async, typename Config>
+  template<Channel Outlet = Channel::Stderr,
+           Policy Mode    = Policy::Async,
+           Region Area    = Region::Fixed,
+           typename Config>
 # if __PGBAR_CXX20
     requires __details::traits::is_config<std::decay_t<Config>>::value
   __PGBAR_NODISCARD __PGBAR_INLINE_FN
-    std::vector<std::shared_ptr<__details::prefabs::BasicBar<std::decay_t<Config>, Outlet, Mode>>>
+    std::vector<std::shared_ptr<__details::prefabs::BasicBar<std::decay_t<Config>, Outlet, Mode, Area>>>
 # else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
     __details::traits::is_config<typename std::decay<Config>::type>::value,
-    std::vector<
-      std::shared_ptr<__details::prefabs::BasicBar<typename std::decay<Config>::type, Outlet, Mode>>>>::type
+    std::vector<std::shared_ptr<
+      __details::prefabs::BasicBar<typename std::decay<Config>::type, Outlet, Mode, Area>>>>::type
 # endif
     make_dynamic( Config&& cfg, __details::types::Size count )
   {
     if ( count == 0 )
       __PGBAR_UNLIKELY return {};
-    DynamicBar<Outlet, Mode> factory;
+    DynamicBar<Outlet, Mode, Area> factory;
     std::vector<
-      std::shared_ptr<__details::prefabs::BasicBar<typename std::decay<Config>::type, Outlet, Mode>>>
+      std::shared_ptr<__details::prefabs::BasicBar<typename std::decay<Config>::type, Outlet, Mode, Area>>>
       products;
     std::generate_n( std::back_inserter( products ), count - 1, [&factory, &cfg]() {
       return factory.insert( cfg );
@@ -8335,7 +8363,7 @@ namespace pgbar {
       __PGBAR_UNLIKELY throw exception::InvalidArgument(
         "pgbar: the number of arguments mismatch with the provided count" );
 
-    DynamicBar<Bar::Sink, Bar::Strategy> factory;
+    DynamicBar<Bar::Sink, Bar::Strategy, Bar::Layout> factory;
     std::vector<std::shared_ptr<Bar>> products;
     (void)std::initializer_list<char> {
       ( products.emplace_back( factory.insert( std::forward<Objs>( objs ) ) ), '\0' )...
@@ -8353,18 +8381,19 @@ namespace pgbar {
   template<typename Config,
            Channel Outlet = Channel::Stderr,
            Policy Mode    = Policy::Async,
+           Region Area    = Region::Fixed,
            typename... Configs>
 # if __PGBAR_CXX20
     requires( __details::traits::is_config<Config>::value
               && ( std::is_same_v<std::remove_cv_t<Config>, std::decay_t<Configs>> && ... ) )
   __PGBAR_NODISCARD __PGBAR_INLINE_FN
-    std::vector<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode>>>
+    std::vector<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>>
 # else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
     __details::traits::AllOf<
       __details::traits::is_config<Config>,
       std::is_same<typename std::remove_cv<Config>::type, typename std::decay<Configs>::type>...>::value,
-    std::vector<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode>>>>::type
+    std::vector<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>>>::type
 # endif
     make_dynamic( __details::types::Size count, Configs&&... cfgs ) noexcept( false )
   {
@@ -8374,8 +8403,8 @@ namespace pgbar {
       __PGBAR_UNLIKELY throw exception::InvalidArgument(
         "pgbar: the number of arguments mismatch with the provided count" );
 
-    DynamicBar<Outlet, Mode> factory;
-    std::vector<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode>>> products;
+    DynamicBar<Outlet, Mode, Area> factory;
+    std::vector<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>> products;
     (void)std::initializer_list<char> {
       ( products.emplace_back( factory.insert( std::forward<Configs>( cfgs ) ) ), '\0' )...
     };
@@ -8392,20 +8421,21 @@ namespace pgbar {
   template<typename Config,
            Channel Outlet = Channel::Stderr,
            Policy Mode    = Policy::Async,
+           Region Area    = Region::Fixed,
            typename... Configs>
 # if __PGBAR_CXX20
     requires( __details::traits::is_config<Config>::value
               && ( std::is_same_v<Config, std::decay_t<Configs>> && ... ) )
   __PGBAR_NODISCARD __PGBAR_INLINE_FN
-    std::vector<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode>>>
+    std::vector<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>>
 # else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
     __details::traits::AllOf<__details::traits::is_config<Config>,
                              std::is_same<Config, typename std::decay<Configs>::type>...>::value,
-    std::vector<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode>>>>::type
+    std::vector<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>>>::type
 # endif
     make_dynamic( __details::types::Size count,
-                  __details::prefabs::BasicBar<Configs, Outlet, Mode>&&... bars ) noexcept( false )
+                  __details::prefabs::BasicBar<Configs, Outlet, Mode, Area>&&... bars ) noexcept( false )
   {
     if ( count == 0 )
       __PGBAR_UNLIKELY return {};
@@ -8413,8 +8443,8 @@ namespace pgbar {
       __PGBAR_UNLIKELY throw exception::InvalidArgument(
         "pgbar: the number of arguments mismatch with the provided count" );
 
-    DynamicBar<Outlet, Mode> factory;
-    std::vector<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode>>> products;
+    DynamicBar<Outlet, Mode, Area> factory;
+    std::vector<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>> products;
     (void)std::initializer_list<char> { ( products.emplace_back( factory.insert( std::move( bars ) ) ),
                                           '\0' )... };
     std::generate_n( std::back_inserter( products ), count - sizeof...( Configs ) - 1, [&factory]() {
