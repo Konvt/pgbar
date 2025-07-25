@@ -867,17 +867,18 @@ namespace pgbar {
 
 # if __PGBAR_CXX20
       template<typename T>
-      struct is_sized_range : std::bool_constant<std::ranges::sized_range<T>> {};
+      struct is_bounded_range : std::bool_constant<std::ranges::sized_range<T>> {};
 # else
       template<typename T>
-      struct is_sized_range {
+      struct is_bounded_range {
       private:
         template<typename>
         static constexpr std::false_type check( ... );
         template<typename U>
         static constexpr typename std::enable_if<
-          Not<AnyOf<std::is_void<decltype( std::declval<U>().begin() != std::declval<U>().end() )>,
-                    std::is_void<decltype( std::declval<U>().size() )>>>::value,
+          AllOf<std::is_same<decltype( std::declval<U>().begin() ), decltype( std::declval<U>().end() )>,
+                std::is_convertible<decltype( std::declval<U>().begin() != std::declval<U>().end() ), bool>,
+                Not<std::is_void<decltype( std::declval<U>().size() )>>>::value,
           std::true_type>::type
           check( int );
 
@@ -885,7 +886,7 @@ namespace pgbar {
         static constexpr bool value = AllOf<Not<std::is_reference<T>>, decltype( check<T>( 0 ) )>::value;
       };
       template<typename T, types::Size N>
-      struct is_sized_range<T[N]> : std::true_type {};
+      struct is_bounded_range<T[N]> : std::true_type {};
 # endif
 
 # if __PGBAR_CXX17
@@ -1253,86 +1254,6 @@ namespace pgbar {
     }
 
     namespace wrappers {
-      template<typename I>
-# if __PGBAR_CXX20
-        requires( traits::is_sized_iterator<I>::value
-                  && std::convertible_to<std::iter_difference_t<I>, types::Size> )
-# endif
-      class IterSpanBase {
-# if __PGBAR_CXX20
-        using Reference_t = std::iter_reference_t<I>;
-# else
-        static_assert( traits::is_sized_iterator<I>::value,
-                       "pgbar::__details::wrappers::IterSpanBase: Only available for sized iterator types" );
-        static_assert(
-          std::is_convertible<typename std::iterator_traits<I>::difference_type, types::Size>::value,
-          "pgbar::__details::wrappers::IterSpanBase: The 'difference_type' is non-convertible" );
-
-        using Reference_t = typename std::iterator_traits<I>::reference;
-# endif
-
-        // Measure the length of the iteration range.
-        __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR types::Size measure() const noexcept
-        {
-# if __PGBAR_CXX20
-          const auto length = std::ranges::distance( start_, end_ );
-# else
-          const auto length = std::distance( start_, end_ );
-# endif
-          if __PGBAR_CXX17_CNSTXPR ( std::is_pointer<I>::value )
-            return static_cast<types::Size>( length >= 0 ? length : -length );
-          else
-            return static_cast<types::Size>( length );
-        }
-
-      protected:
-        I start_, end_;
-        types::Size size_;
-
-      public:
-        __PGBAR_CXX17_CNSTXPR IterSpanBase( I startpoint, I endpoint )
-          noexcept( std::is_nothrow_move_constructible<I>::value )
-          : start_ { std::move( startpoint ) }, end_ { std::move( endpoint ) }, size_ { 0 }
-        {
-          size_ = measure();
-        }
-        __PGBAR_CXX17_CNSTXPR IterSpanBase( const IterSpanBase& )              = default;
-        __PGBAR_CXX17_CNSTXPR IterSpanBase( IterSpanBase&& )                   = default;
-        __PGBAR_CXX17_CNSTXPR IterSpanBase& operator=( const IterSpanBase& ) & = default;
-        __PGBAR_CXX17_CNSTXPR IterSpanBase& operator=( IterSpanBase&& ) &      = default;
-        // Intentional non-virtual destructors.
-        __PGBAR_CXX20_CNSTXPR ~IterSpanBase()                                  = default;
-
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR Reference_t front() const noexcept
-        {
-          return *start_;
-        }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR Reference_t back() const noexcept
-        {
-          return *std::next( start_, size_ - 1 );
-        }
-
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CNSTEVAL types::Size step() const noexcept { return 1; }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr types::Size size() const noexcept { return size_; }
-
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr bool empty() const noexcept { return size_ == 0; }
-
-        __PGBAR_CXX20_CNSTXPR void swap( IterSpanBase<I>& lhs ) noexcept
-        {
-          __PGBAR_PURE_ASSUME( this != &lhs );
-          using std::swap;
-          swap( start_, lhs.start_ );
-          swap( end_, lhs.end_ );
-          swap( size_, lhs.size_ );
-        }
-        friend __PGBAR_CXX20_CNSTXPR void swap( IterSpanBase<I>& a, IterSpanBase<I>& b ) noexcept
-        {
-          a.swap( b );
-        }
-
-        __PGBAR_CXX17_CNSTXPR explicit operator bool() const noexcept { return !size(); }
-      };
-
       template<typename T>
       struct OptionWrapper {
       protected:
@@ -2373,22 +2294,37 @@ namespace pgbar {
     /**
      * An undirectional range delimited by a pair of iterators, including pointer types.
      *
-     * When the type of iterator is pointer, it can figure out whether the iterator is reversed,
-     * and iterate it normally.
-     *
      * Accepted iterator types must satisfy subtractable.
      */
     template<typename I>
-    class IterSpan : public __details::wrappers::IterSpanBase<I> {
-      static_assert( !std::is_pointer<I>::value,
-                     "pgbar::slice::IterSpan<I>: Only available for iterator types" );
+    class IterSpan {
+      static_assert( __details::traits::is_sized_iterator<I>::value,
+                     "pgbar::slice::IterSpan: Only available for sized iterator types" );
+      static_assert(
+        std::is_convertible<typename std::iterator_traits<I>::difference_type, __details::types::Size>::value,
+        "pgbar::slice::IterSpan: The 'difference_type' must be convertible to Size" );
+
+      I start_, end_;
+      __details::types::Size size_;
+
+# if __PGBAR_CXX20
+      using Reference_t = std::iter_reference_t<I>;
+# else
+      using Reference_t = typename std::iterator_traits<I>::reference;
+# endif
 
     public:
       class iterator {
         I current_;
 
       public:
-        using iterator_category = std::forward_iterator_tag;
+        using iterator_category = typename std::conditional<
+          __details::traits::AnyOf<
+            std::is_same<typename std::iterator_traits<I>::iterator_category, std::input_iterator_tag>,
+            std::is_same<typename std::iterator_traits<I>::iterator_category,
+                         std::output_iterator_tag>>::value,
+          typename std::iterator_traits<I>::iterator_category,
+          std::forward_iterator_tag>::type;
 # if __PGBAR_CXX20
         using value_type      = std::iter_value_t<I>;
         using difference_type = std::iter_difference_t<I>;
@@ -2422,14 +2358,9 @@ namespace pgbar {
           return before;
         }
 
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR reference operator*() { return *current_; }
         __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR reference operator*() const
         {
           return *current_;
-        }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR pointer operator->() noexcept
-        {
-          return current_;
         }
         __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR pointer operator->() const noexcept
         {
@@ -2463,138 +2394,169 @@ namespace pgbar {
         constexpr explicit operator bool() const { return current_ != I(); }
       };
 
-      using __details::wrappers::IterSpanBase<I>::IterSpanBase;
+      __PGBAR_CXX17_CNSTXPR IterSpan( I startpoint, I endpoint )
+        : start_ { std::move( startpoint ) }, end_ { std::move( endpoint ) }
+      {
+# if __PGBAR_CXX20
+        const auto length = std::ranges::distance( start_, end_ );
+# else
+        const auto length = std::distance( start_, end_ );
+# endif
+        if ( length < 0 )
+          throw exception::InvalidArgument( "pgbar: negative iterator range" );
+        size_ = static_cast<__details::types::Size>( length );
+      }
       __PGBAR_CXX17_CNSTXPR IterSpan( const IterSpan& )              = default;
       __PGBAR_CXX17_CNSTXPR IterSpan( IterSpan&& )                   = default;
       __PGBAR_CXX17_CNSTXPR IterSpan& operator=( const IterSpan& ) & = default;
       __PGBAR_CXX17_CNSTXPR IterSpan& operator=( IterSpan&& ) &      = default;
+      // Intentional non-virtual destructors.
       __PGBAR_CXX20_CNSTXPR ~IterSpan()                              = default;
+
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR Reference_t front() const noexcept
+      {
+        return *start_;
+      }
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR Reference_t back() const noexcept
+      {
+        return *std::next( start_, size_ - 1 );
+      }
+
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CNSTEVAL __details::types::Size step() const noexcept
+      {
+        return 1;
+      }
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr __details::types::Size size() const noexcept
+      {
+        return size_;
+      }
+
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr bool empty() const noexcept { return size_ == 0; }
 
       __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr iterator begin() const
         noexcept( __details::traits::AllOf<std::is_nothrow_move_constructible<I>,
                                            std::is_nothrow_copy_constructible<I>>::value )
       {
-        return iterator( this->start_ );
+        return { this->start_ };
       }
       __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr iterator end() const
         noexcept( __details::traits::AllOf<std::is_nothrow_move_constructible<I>,
                                            std::is_nothrow_copy_constructible<I>>::value )
       {
-        return iterator( this->end_ );
+        return { this->end_ };
       }
+
+      __PGBAR_CXX20_CNSTXPR void swap( IterSpan<I>& lhs ) noexcept
+      {
+        __PGBAR_PURE_ASSUME( this != &lhs );
+        using std::swap;
+        swap( start_, lhs.start_ );
+        swap( end_, lhs.end_ );
+        swap( size_, lhs.size_ );
+      }
+      friend __PGBAR_CXX20_CNSTXPR void swap( IterSpan<I>& a, IterSpan<I>& b ) noexcept { a.swap( b ); }
+
+      __PGBAR_CXX17_CNSTXPR explicit operator bool() const noexcept { return !empty(); }
     };
-    template<typename P>
-    class IterSpan<P*> : public __details::wrappers::IterSpanBase<P*> {
-      static_assert( std::is_pointer<P*>::value,
-                     "pgbar::slice::IterSpan<P*>: Only available for pointer types" );
+
+    template<typename R>
+    class BoundedSpan {
+# if __PGBAR_CXX20
+      static_assert( __details::traits::is_bounded_range<R>::value && !std::ranges::view<R>,
+                     "pgbar::slice::BoundedSpan: Only available for bounded ranges, excluding view types" );
+# else
+      static_assert( __details::traits::is_bounded_range<R>::value,
+                     "pgbar::slice::BoundedSpan: Only available for bounded ranges" );
+# endif
+
+      R* rnge_;
 
     public:
-      class iterator {
-      public:
-        P* current_;
-        bool reversed_;
+      using iterator = __details::traits::IteratorOf_t<R>;
 
-      public:
-        using iterator_category = std::forward_iterator_tag;
-        using value_type        = P;
-        using difference_type   = std::ptrdiff_t;
-        using pointer           = P*;
-        using reference         = value_type&;
+    private:
+# if __PGBAR_CXX20
+      using Reference_t = std::iter_reference_t<iterator>;
 
-        constexpr iterator() = default;
-        __PGBAR_CXX14_CNSTXPR iterator( P* startpoint, P* endpoint ) noexcept
-          : current_ { startpoint }, reversed_ { false }
-        {
-          __PGBAR_PURE_ASSUME( startpoint != nullptr );
-          __PGBAR_PURE_ASSUME( endpoint != nullptr );
-          reversed_ = endpoint < startpoint;
-        }
-        __PGBAR_CXX14_CNSTXPR iterator( const iterator& )              = default;
-        __PGBAR_CXX14_CNSTXPR iterator& operator=( const iterator& ) & = default;
-        __PGBAR_CXX20_CNSTXPR ~iterator()                              = default;
-
-        __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator& operator++() & noexcept
-        {
-          if ( reversed_ )
-            --current_;
-          else
-            ++current_;
-          return *this;
-        }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator operator++( int ) noexcept
-        {
-          auto before = *this;
-          operator++();
-          return before;
-        }
-
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR reference operator*() noexcept
-        {
-          return *current_;
-        }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR reference operator*() const noexcept
-        {
-          return *current_;
-        }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR pointer operator->() noexcept
-        {
-          return current_;
-        }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR pointer operator->() const noexcept
-        {
-          return current_;
-        }
-
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr bool operator==( const P* lhs ) const noexcept
-        {
-          return current_ == lhs;
-        }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr bool operator!=( const P* lhs ) const noexcept
-        {
-          return !operator==( lhs );
-        }
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr bool operator==( const iterator& a,
-                                                                              const iterator& b ) noexcept
-        {
-          return a.current_ == b.current_;
-        }
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr bool operator!=( const iterator& a,
-                                                                              const iterator& b ) noexcept
-        {
-          return !( a == b );
-        }
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr difference_type operator-(
-          const iterator& a,
-          const iterator& b ) noexcept
-        {
-          return a.current_ - b.current_;
-        }
-
-        constexpr explicit operator bool() const noexcept { return current_ != nullptr; }
-      };
-
-      /**
-       * @throw exception::InvalidArgument
-       * If the `startpoint` or the `endpoint` is null pointer.
-       */
-      __PGBAR_CXX20_CNSTXPR IterSpan( P* startpoint, P* endpoint ) noexcept( false )
-        : __details::wrappers::IterSpanBase<P*>( startpoint, endpoint )
+      template<typename Rn>
+      static __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR __details::types::Size size( Rn& rn )
       {
-        if ( startpoint == nullptr || endpoint == nullptr )
-          __PGBAR_UNLIKELY throw exception::InvalidArgument( "pgbar: null pointer cannot generate a range" );
+        return std::ranges::size( rn );
       }
-      __PGBAR_CXX20_CNSTXPR IterSpan( const IterSpan& )              = default;
-      __PGBAR_CXX20_CNSTXPR IterSpan& operator=( const IterSpan& ) & = default;
-      __PGBAR_CXX20_CNSTXPR ~IterSpan()                              = default;
+# else
+      using Reference_t = typename std::iterator_traits<iterator>::reference;
 
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr iterator begin() const noexcept
+#  if __PGBAR_CXX17
+      template<typename Rn>
+      static __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR __details::types::Size size( Rn& rn )
       {
-        return iterator( this->start_, this->end_ );
+        return std::size( rn );
       }
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr iterator end() const noexcept
+#  else
+      template<typename Rn>
+      static __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR __details::types::Size size( Rn& rn )
       {
-        return iterator( this->end_, this->end_ );
+        return rn.size();
       }
+      template<typename Rn, __details::types::Size N>
+      static __PGBAR_INLINE_FN __PGBAR_CNSTEVAL __details::types::Size size( Rn ( & )[N] ) noexcept
+      {
+        return N;
+      }
+#  endif
+# endif
+    public:
+      __PGBAR_CXX17_CNSTXPR BoundedSpan( R& rnge ) noexcept : rnge_ { std::addressof( rnge ) } {}
+
+      __PGBAR_CXX17_CNSTXPR BoundedSpan( const BoundedSpan& )              = default;
+      __PGBAR_CXX17_CNSTXPR BoundedSpan& operator=( const BoundedSpan& ) & = default;
+      __PGBAR_CXX20_CNSTXPR ~BoundedSpan()                                 = default;
+
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR iterator begin() const
+      {
+# if __PGBAR_CXX20
+        return std::ranges::begin( *rnge_ );
+# else
+        return std::begin( *rnge_ );
+# endif
+      }
+# if __PGBAR_CXX17
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR auto end() const
+# else
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR iterator end() const
+# endif
+      {
+# if __PGBAR_CXX20
+        return std::ranges::end( *rnge_ );
+# else
+        return std::end( *rnge_ );
+# endif
+      }
+
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR Reference_t front() const { return *begin(); }
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR Reference_t back() const
+      {
+        return *std::next( begin(), size() - 1 );
+      }
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CNSTEVAL __details::types::Size step() const noexcept
+      {
+        return 1;
+      }
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR __details::types::Size size() const
+      {
+        return size( *rnge_ );
+      }
+
+      __PGBAR_NODISCARD __PGBAR_CXX17_CNSTXPR bool empty() const noexcept { return rnge_ == nullptr; }
+
+      __PGBAR_CXX17_CNSTXPR void swap( BoundedSpan<R>& lhs ) noexcept
+      {
+        __PGBAR_PURE_ASSUME( this != &lhs );
+        std::swap( rnge_, lhs.rnge_ );
+      }
+      friend __PGBAR_CXX17_CNSTXPR void swap( BoundedSpan<R>& a, BoundedSpan<R>& b ) noexcept { a.swap( b ); }
+
+      __PGBAR_CXX17_CNSTXPR explicit operator bool() const noexcept { return !empty(); }
     };
 
     template<typename R, typename B>
@@ -5134,37 +5096,38 @@ namespace pgbar {
         // slice.
         template<class R>
 # if __PGBAR_CXX20
-          requires traits::is_sized_range<std::remove_reference_t<R>>::value
+          requires( traits::is_bounded_range<std::remove_reference_t<R>>::value
+                    && !std::ranges::view<std::remove_reference_t<R>> )
         __PGBAR_NODISCARD __PGBAR_CXX17_CNSTXPR
-          slice::ProxySpan<slice::IterSpan<traits::IteratorOf_t<std::remove_reference_t<R>>>, Derived>
+          slice::ProxySpan<slice::BoundedSpan<std::remove_reference_t<R>>, Derived>
 # else
         __PGBAR_NODISCARD __PGBAR_CXX17_CNSTXPR typename std::enable_if<
-          traits::is_sized_range<typename std::remove_reference<R>::type>::value,
-          slice::ProxySpan<slice::IterSpan<traits::IteratorOf_t<typename std::remove_reference<R>::type>>,
-                           Derived>>::type
+          traits::is_bounded_range<typename std::remove_reference<R>::type>::value,
+          slice::ProxySpan<slice::BoundedSpan<typename std::remove_reference<R>::type>, Derived>>::type
 # endif
           iterate( R& container ) &
-        { // forward it to the iterator overload
-          return {
-# if __PGBAR_CXX20
-            { std::ranges::begin( container ), std::ranges::end( container ) },
-# else
-            { std::begin( container ), std::end( container ) },
-# endif
-            static_cast<Derived&>( *this )
-          };
+        {
+          return { { container }, static_cast<Derived&>( *this ) };
         }
+# if __PGBAR_CXX20
+        template<class R>
+          requires( traits::is_bounded_range<R>::value && std::ranges::view<R> )
+        __PGBAR_NODISCARD __PGBAR_CXX17_CNSTXPR slice::ProxySpan<R, Derived> iterate( R view ) &
+        {
+          return { std::move( view ), static_cast<Derived&>( *this ) };
+        }
+# endif
         template<class R, typename F>
 # if __PGBAR_CXX20
-          requires traits::is_sized_range<std::remove_reference_t<R>>::value
+          requires traits::is_bounded_range<std::remove_reference_t<R>>::value
         __PGBAR_CXX17_CNSTXPR void
 # else
         __PGBAR_CXX17_CNSTXPR typename std::enable_if<
-          traits::is_sized_range<typename std::remove_reference<R>::type>::value>::type
+          traits::is_bounded_range<typename std::remove_reference<R>::type>::value>::type
 # endif
-          iterate( R&& container, F&& unary_fn )
+          iterate( R&& range, F&& unary_fn )
         {
-          for ( auto&& e : iterate( container ) )
+          for ( auto&& e : iterate( std::forward<R>( range ) ) )
             unary_fn( std::forward<decltype( e )>( e ) );
         }
       };
@@ -7624,19 +7587,19 @@ namespace pgbar {
 
   template<typename Bar, class R, typename F, typename... Options>
 # if __PGBAR_CXX20
-    requires( __details::traits::is_sized_range<R>::value && __details::traits::is_iterable_bar<Bar>::value
+    requires( __details::traits::is_bounded_range<R>::value && __details::traits::is_iterable_bar<Bar>::value
               && std::is_constructible_v<Bar, Options...> )
   __PGBAR_INLINE_FN void
 # else
   __PGBAR_INLINE_FN
-    typename std::enable_if<__details::traits::AllOf<__details::traits::is_sized_range<R>,
+    typename std::enable_if<__details::traits::AllOf<__details::traits::is_bounded_range<R>,
                                                      __details::traits::is_iterable_bar<Bar>,
                                                      std::is_constructible<Bar, Options...>>::value>::type
 # endif
-    iterate( R&& container, F&& unary_fn, Options&&... options )
+    iterate( R&& range, F&& unary_fn, Options&&... options )
   {
     auto bar = Bar( std::forward<Options>( options )... );
-    bar.iterate( std::forward<R>( container ), std::forward<F>( unary_fn ) );
+    bar.iterate( std::forward<R>( range ), std::forward<F>( unary_fn ) );
   }
   template<typename Config,
            Channel Outlet = Channel::Stderr,
@@ -7647,21 +7610,21 @@ namespace pgbar {
            typename... Options>
 # if __PGBAR_CXX20
     requires(
-      __details::traits::is_sized_range<R>::value && __details::traits::is_config<Config>::value
+      __details::traits::is_bounded_range<R>::value && __details::traits::is_config<Config>::value
       && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
       && std::is_constructible_v<Config, Options...> )
   __PGBAR_INLINE_FN void
 # else
   __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
-    __details::traits::is_sized_range<R>,
+    __details::traits::is_bounded_range<R>,
     __details::traits::is_config<Config>,
     __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
     std::is_constructible<Config, Options...>>::value>::type
 # endif
-    iterate( R&& container, F&& unary_fn, Options&&... options )
+    iterate( R&& range, F&& unary_fn, Options&&... options )
   {
     iterate<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>(
-      std::forward<R>( container ),
+      std::forward<R>( range ),
       std::forward<F>( unary_fn ),
       Config( std::forward<Options>( options )... ) );
   }
@@ -7673,8 +7636,8 @@ namespace pgbar {
      */
     template<typename R, typename B>
     class ProxySpan {
-      static_assert( __details::traits::is_sized_range<R>::value,
-                     "pgbar::slice::ProxySpan: Only available for sized range" );
+      static_assert( __details::traits::is_bounded_range<R>::value,
+                     "pgbar::slice::ProxySpan: Only available for bounded ranges" );
       static_assert( __details::traits::is_iterable_bar<B>::value,
                      "pgbar::slice::ProxySpan: Must have a method to configure the iteration "
                      "count for the object's configuration type" );
@@ -7682,7 +7645,29 @@ namespace pgbar {
       B* itr_bar_;
       R itr_range_;
 
+# if __PGBAR_CXX20
+      using Stnl = std::ranges::sentinel_t<R>;
+# elif __PGBAR_CXX17
+      using Stnl = __details::traits::IteratorOf_t<R>;
+# endif
+
     public:
+      class iterator;
+# if __PGBAR_CXX17
+      class sentinel {
+        Stnl end_;
+        friend class iterator;
+
+      public:
+        constexpr sentinel() = default;
+        constexpr sentinel( Stnl&& end ) noexcept( std::is_nothrow_move_constructible<Stnl>::value )
+          : end_ { std::move( end ) }
+        {}
+      };
+# else
+      using sentinel = iterator;
+# endif
+
       class iterator {
         using Iter = __details::traits::IteratorOf_t<R>;
         Iter itr_;
@@ -7746,34 +7731,52 @@ namespace pgbar {
           return before;
         }
 
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR reference operator*() noexcept
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR reference operator*() const
         {
           return *itr_;
         }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR reference operator*() const noexcept
-        {
-          return *itr_;
-        }
-        __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR pointer operator->() noexcept { return itr_; }
-        __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR pointer operator->() const noexcept { return itr_; }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr bool operator==( const Iter& lhs ) const noexcept
+        __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR pointer operator->() const { return itr_; }
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr bool operator==( const Iter& lhs ) const
         {
           return itr_ == lhs;
         }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr bool operator!=( const Iter& lhs ) const noexcept
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr bool operator!=( const Iter& lhs ) const
         {
           return itr_ != lhs;
         }
         __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr bool operator==( const iterator& a,
-                                                                              const iterator& b ) noexcept
+                                                                              const iterator& b )
         {
           return a.itr_ == b.itr_;
         }
         __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr bool operator!=( const iterator& a,
-                                                                              const iterator& b ) noexcept
+                                                                              const iterator& b )
         {
           return !( a == b );
         }
+
+# if __PGBAR_CXX17
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr bool operator==( const iterator& a,
+                                                                              const sentinel& b )
+        {
+          return a.itr_ == b.end_;
+        }
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr bool operator!=( const iterator& a,
+                                                                              const sentinel& b )
+        {
+          return !( a == b );
+        }
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr bool operator==( const sentinel& a,
+                                                                              const iterator& b )
+        {
+          return a.itr_ == b.end_;
+        }
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr bool operator!=( const sentinel& a,
+                                                                              const iterator& b )
+        {
+          return !( a == b );
+        }
+# endif
 
         constexpr explicit operator bool() const noexcept { return itr_bar_ != nullptr; }
       };
@@ -7804,11 +7807,11 @@ namespace pgbar {
       __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR iterator begin() &
       {
         itr_bar_->config().tasks( itr_range_.size() );
-        return iterator( itr_range_.begin(), *itr_bar_ );
+        return { itr_range_.begin(), *itr_bar_ };
       }
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR iterator end() const
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR sentinel end() const
       {
-        return iterator( itr_range_.end(), *itr_bar_ );
+        return { itr_range_.end() };
       }
       __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR bool empty() const noexcept
       {
