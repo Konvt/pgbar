@@ -445,7 +445,7 @@ int main()
 }
 ```
 
-在前两个 Enhanced-for 中，`iterate()` 方法返回的实际上是 `pgbar::scope::ProxySpan`；关于这一类型的介绍可以见[辅助类型-`ProxySpan`](#proxyspan)。
+在前两个 Enhanced-for 中，`iterate()` 方法返回的实际上是 `pgbar::slice::ProxySpan`；关于这一类型的介绍可以见[辅助类型-`ProxySpan`](#proxyspan)。
 
 有关数值类型范围的使用，可以见[辅助类型-`NumericSpan`](#numericspan)。
 
@@ -479,7 +479,7 @@ int main()
 
 有关可迭代类型的范围划定，可以见[辅助类型-`IterSpan`](#iterspan)。
 
-特别的，如果一个类型提供了返回迭代器的 `begin()` 和 `end()` 方法，那么这个类型还可以以更简单的方式进行遍历；这包括了原始数组。
+特别的，如果一个类型满足概念 `std::ranges::sized_range`，那么这个类型还可以以更简单的方式进行遍历；这包括了原始数组。
 
 ```cpp
 #include "pgbar/pgbar.hpp"
@@ -504,6 +504,8 @@ int main()
   bar.iterate( arr2, []( int& ) { this_thread::sleep_for( 300ms ); } );
 }
 ```
+
+对于满足 `std::ranges::sized_range` 的类型，可以参考标准库的 `std::ranges::ref_view` 实现。
 
 - - -
 
@@ -865,7 +867,7 @@ int main()
 }
 ```
 
-在前两个 Enhanced-for 中，`iterate()` 方法返回的实际上是 `pgbar::scope::ProxySpan`；关于这一类型的介绍可以见[辅助类型-`ProxySpan`](#proxyspan)。
+在前两个 Enhanced-for 中，`iterate()` 方法返回的实际上是 `pgbar::slice::ProxySpan`；关于这一类型的介绍可以见[辅助类型-`ProxySpan`](#proxyspan)。
 
 有关数值类型范围的使用，可以见[辅助类型-`NumericSpan`](#numericspan)。
 
@@ -899,7 +901,7 @@ int main()
 
 有关可迭代类型的范围划定，可以见[辅助类型-`IterSpan`](#iterspan)。
 
-特别的，如果一个类型提供了返回迭代器的 `begin()` 和 `end()` 方法，那么这个类型还可以以更简单的方式进行遍历；这包括了原始数组。
+特别的，如果一个类型满足概念 `std::ranges::sized_range`，那么这个类型还可以以更简单的方式进行遍历；这包括了原始数组。
 
 ```cpp
 #include "pgbar/pgbar.hpp"
@@ -924,6 +926,8 @@ int main()
   bar.iterate( arr2, []( int& ) { this_thread::sleep_for( 300ms ); } );
 }
 ```
+
+对于满足 `std::ranges::sized_range` 的类型，可以参考标准库的 `std::ranges::ref_view` 实现。
 
 - - -
 
@@ -1290,7 +1294,7 @@ int main()
 }
 ```
 
-在前两个 Enhanced-for 中，`iterate()` 方法返回的实际上是 `pgbar::scope::ProxySpan`；关于这一类型的介绍可以见[辅助类型-`ProxySpan`](#proxyspan)。
+在前两个 Enhanced-for 中，`iterate()` 方法返回的实际上是 `pgbar::slice::ProxySpan`；关于这一类型的介绍可以见[辅助类型-`ProxySpan`](#proxyspan)。
 
 有关数值类型范围的使用，可以见[辅助类型-`NumericSpan`](#numericspan)。
 
@@ -1324,7 +1328,7 @@ int main()
 
 有关可迭代类型的范围划定，可以见[辅助类型-`IterSpan`](#iterspan)。
 
-特别的，如果一个类型提供了返回迭代器的 `begin()` 和 `end()` 方法，那么这个类型还可以以更简单的方式进行遍历；这包括了原始数组。
+特别的，如果一个类型满足概念 `std::ranges::sized_range`，那么这个类型还可以以更简单的方式进行遍历；这包括了原始数组。
 
 ```cpp
 #include "pgbar/pgbar.hpp"
@@ -1349,6 +1353,8 @@ int main()
   bar.iterate( arr2, []( int& ) { this_thread::sleep_for( 300ms ); } );
 }
 ```
+
+对于满足 `std::ranges::sized_range` 的类型，可以参考标准库的 `std::ranges::ref_view` 实现。
 
 - - -
 
@@ -1684,7 +1690,7 @@ int main()
 }
 ```
 
-在前两个 Enhanced-for 中，`iterate()` 方法返回的实际上是 `pgbar::scope::ProxySpan`；关于这一类型的介绍可以见[辅助类型-`ProxySpan`](#proxyspan)。
+在前两个 Enhanced-for 中，`iterate()` 方法返回的实际上是 `pgbar::slice::ProxySpan`；关于这一类型的介绍可以见[辅助类型-`ProxySpan`](#proxyspan)。
 
 有关数值类型范围的使用，可以见[辅助类型-`NumericSpan`](#numericspan)。
 
@@ -1718,7 +1724,7 @@ int main()
 
 有关可迭代类型的范围划定，可以见[辅助类型-`IterSpan`](#iterspan)。
 
-特别的，如果一个类型提供了返回迭代器的 `begin()` 和 `end()` 方法，那么这个类型还可以以更简单的方式进行遍历；这包括了原始数组。
+特别的，如果一个类型满足概念 `std::ranges::sized_range`，那么这个类型还可以以更简单的方式进行遍历；这包括了原始数组。
 
 ```cpp
 #include "pgbar/pgbar.hpp"
@@ -1743,6 +1749,8 @@ int main()
   bar.iterate( arr2, []( int& ) { this_thread::sleep_for( 300ms ); } );
 }
 ```
+
+对于满足 `std::ranges::sized_range` 的类型，可以参考标准库的 `std::ranges::ref_view` 实现。
 
 - - -
 
@@ -2164,7 +2172,7 @@ pgbar::config::refresh_interval<pgbar::Channel::Stderr>(
 
 # 辅助设施
 ## `NumericSpan`
-`pgbar::scope::NumericSpan` 是一个模板类型，它被用于表达一个数值范围的起始点、终止点和步长；该数值范围在数学上被表示为：`[start, end)`。
+`pgbar::slice::NumericSpan` 是一个模板类型，它被用于表达一个数值范围的起始点、终止点和步长；该数值范围在数学上被表示为：`[start, end)`。
 
 在构造过程、或者更改成员数值过程中，以下情况会导致异常 `pgbar::exception::InvalidArgument` 抛出：
 1. 起点大于终点，而步长是正数；
@@ -2175,14 +2183,11 @@ pgbar::config::refresh_interval<pgbar::Channel::Stderr>(
 `NumericSpan` 有以下几个方法：
 
 ```cpp
-iterator begin() const noexcept;          // 返回一个指向数值范围起点的迭代器
-iterator end() const noexcept;            // 返回一个指向数值范围终点的迭代器
-NumericSpan& step( N step );              // 更改当前步长，会对传入参数进行检查
-NumericSpan& start_value( N startpoint ); // 更改起始点数值，会对传入参数进行检查
-NumericSpan& end_value( N endpoint );     // 更改终止点数值，会对传入参数进行检查 
+iterator begin() const noexcept; // 返回一个指向数值范围起点的迭代器
+iterator end() const noexcept;   // 返回一个指向数值范围终点的迭代器
 
-N start_value() const noexcept;     // 返回当前起始点数值
-N end_value() const noexcept;       // 返回当前终止点数值
+N front() const noexcept;           // 返回当前起始点数值
+N back() const noexcept;            // 返回当前终止点数值
 N step() const noexcept;            // 返回当前步长
 /* size_t */ size() const noexcept; // 返回当前数值范围的步数
 
@@ -2194,7 +2199,7 @@ void swap( NumericSpan& ) noexcept; // 交换两个数值范围
 迭代器的有效迭代次数与 `NumericSpan` 的方法 `size()` 返回的值相同；特别的，如果步长大于数值范围，那么迭代器在前进一步后的值将会超出数值范围的终止点。
 
 ## `IterSpan`
-`pgbar::scope::IterSpan` 是一个模板类型，它被用于表达两个迭代器所划定的抽象范围；可以被视作是 `std::views::ref_view` 的极度简化版本。
+`pgbar::slice::IterSpan` 是一个模板类型，它被用于表达两个迭代器所划定的抽象范围；可以被视作是 `std::views::ref_view` 的极度简化版本。
 
 `IterSpan` 要求传入的迭代器类型必须可以复制构造或移动构造，并且必须能够计算两个迭代器对象之间的距离，否则会导致编译失败。
 
@@ -2209,9 +2214,9 @@ int main()
   int arr1[50] = {};
   std::vector<int> arr2;
 
-  auto reverse_span1 = pgbar::scope::IterSpan<int*>( arr1 + 49, arr1 - 1 );
+  auto reverse_span1 = pgbar::slice::IterSpan<int*>( arr1 + 49, arr1 - 1 );
   auto reverse_span2 =
-    pgbar::scope::IterSpan<std::reverse_iterator<std::vector<int>::iterator>>( arr2.rbegin(), arr2.rend() );
+    pgbar::slice::IterSpan<std::reverse_iterator<std::vector<int>::iterator>>( arr2.rbegin(), arr2.rend() );
 }
 ```
 
@@ -2220,15 +2225,13 @@ int main()
 `IterSpan` 有以下几个方法：
 
 ```cpp
-iterator begin() const noexcept;       // 返回一个指向抽象范围起点的迭代器
-iterator end() const noexcept;         // 返回一个指向抽象范围终点的迭代器
-IterSpan& start_value( I startpoint ); // 更改起点迭代器
-IterSpan& end_value( I endpoint );     // 更改终点迭代器
+iterator begin() const noexcept; // 返回一个指向抽象范围起点的迭代器
+iterator end() const noexcept;   // 返回一个指向抽象范围终点的迭代器
 
-/* I&, const I&, I&& */ start_iter() /* &, const&, && */ noexcept; // 根据当前对象的值语义返回内部的起点迭代器
-/* I&, const I&, I&& */ end_iter() /* &, const&, && */ noexcept;   // 根据当前对象的值语义返回内部的终点迭代器
-/* size_t */ step() const noexcept;                                // 返回当前步长，通常是编译期常数 1
-/* size_t */ size() const noexcept;                                // 返回当前抽象范围的大小
+/* reference */ front() const noexcept; // 返回抽象范围起点迭代器指向的元素的引用
+/* reference */ back() const noexcept;  // 返回抽象范围终点迭代器指向的前一个元素的引用
+/* size_t */ step() const noexcept;     // 返回当前步长，通常是编译期常数 1
+/* size_t */ size() const noexcept;     // 返回当前抽象范围的大小
 
 void swap( IterSpan& ) noexcept; // 交换两个抽象范围
 ```
@@ -2238,9 +2241,9 @@ void swap( IterSpan& ) noexcept; // 交换两个抽象范围
 由于是前向迭代器且没有提供自减运算符，因此所有逆序操作都依赖于迭代器类型实现；对于特化版本，则依赖于构造过程中传递的指针顺序。
 
 ## `ProxySpan`
-`pgbar::scope::ProxySpan` 是一个可空的模板类型，它用于表达某个独立进度条的迭代范围。
+`pgbar::slice::ProxySpan` 是一个可空的模板类型，它用于表达某个独立进度条的迭代范围。
 
-`ProxySpan` 只能接受 `NumericSpan` 或 `IterSpan` 类型，和一个独立进度条对象；它的作用是为了简化进度条实例与 Enhanced-for 等需要使用迭代器的场景的交互。
+`ProxySpan` 只能接受一个满足概念 `std::ranges::sized_range` 的视图类型对象，和一个独立进度条对象；它的作用是为了简化进度条实例与 Enhanced-for 等需要使用迭代器的场景的交互。
 
 这是一个 move-only 的特殊类型，它只应该被工厂函数，如进度条的 `iterate()` 方法，构造并返回，而不应该手动构造。
 

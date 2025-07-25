@@ -768,7 +768,22 @@ namespace pgbar {
        * Otherwise, return the type `T` itself.
        */
       template<typename T>
-      struct IteratorTrait {
+      struct IteratorOf
+# if __PGBAR_CXX20
+      {
+      private:
+        // Provide a default fallback to avoid the problem of the type not existing
+        // in the immediate context derivation.
+        template<typename U>
+        static constexpr U check( ... );
+        template<typename U>
+        static constexpr std::ranges::iterator_t<U> check( int );
+
+      public:
+        using type = decltype( check<T>( 0 ) );
+      };
+# else
+      {
       private:
         template<typename U, typename = void>
         struct has_iterator : std::false_type {};
@@ -792,37 +807,85 @@ namespace pgbar {
                  bool is_const      = std::is_const<T>::value,
                  bool has_itr       = has_iterator<T>::value,
                  bool has_const_itr = has_const_iterator<T>::value>
-        struct Deduction {
+        struct Selector {
           using type = U;
         };
         template<typename U, bool P1, bool P2, bool P3>
-        struct Deduction<U, true, P1, P2, P3> {
+        struct Selector<U, true, P1, P2, P3> {
           using type = typename std::add_pointer<typename std::remove_extent<U>::type>::type;
         };
         template<typename U, bool P2>
-        struct Deduction<U, false, true, P2, true> {
+        struct Selector<U, false, true, P2, true> {
           using type = typename U::const_iterator;
         };
         template<typename U, bool P3>
-        struct Deduction<U, false, false, true, P3> {
+        struct Selector<U, false, false, true, P3> {
           using type = typename U::iterator;
         };
         template<typename U>
-        struct Deduction<U, false, true, true, false> {
+        struct Selector<U, false, true, true, false> {
           using type = typename U::iterator;
         };
 
       public:
-        using type = typename Deduction<T>::type;
+        using type = typename Selector<T>::type;
       };
-      // Get the result type of `IteratorTrait`.
+# endif
+      // Get the result type of `IteratorOf`.
       template<typename T>
-      using IteratorTrait_t = typename IteratorTrait<T>::type;
+      using IteratorOf_t = typename IteratorOf<T>::type;
 
 # if __PGBAR_CXX20
       template<typename T>
-      concept TraversableIterator = std::movable<T> && std::weakly_incrementable<T>
-                                 && std::indirectly_readable<T> && std::sized_sentinel_for<T, T>;
+      struct is_sized_iterator
+        : std::bool_constant<std::movable<T> && std::weakly_incrementable<T> && std::indirectly_readable<T>
+                             && std::sized_sentinel_for<T, T>> {};
+# else
+      template<typename T>
+      struct is_sized_iterator {
+      private:
+        template<typename>
+        static constexpr std::false_type check( ... );
+        template<typename U>
+        static constexpr typename std::enable_if<
+          AllOf<std::is_signed<typename std::iterator_traits<U>::difference_type>,
+                std::is_same<decltype( ++std::declval<U>() ), U&>,
+                std::is_void<decltype( std::declval<U>()++, void() )>,
+                std::is_same<decltype( *std::declval<U>() ), typename std::iterator_traits<U>::reference>,
+                std::is_void<decltype( std::distance( std::declval<U>(), std::declval<U>() ), void() )>,
+                std::is_convertible<decltype( std::declval<U>() != std::declval<U>() ), bool>>::value,
+          std::true_type>::type
+          check( int );
+
+      public:
+        static constexpr bool value =
+          AllOf<Not<std::is_reference<T>>, std::is_move_constructible<T>, decltype( check<T>( 0 ) )>::value;
+      };
+      template<typename P>
+      struct is_sized_iterator<P*> : std::true_type {};
+# endif
+
+# if __PGBAR_CXX20
+      template<typename T>
+      struct is_sized_range : std::bool_constant<std::ranges::sized_range<T>> {};
+# else
+      template<typename T>
+      struct is_sized_range {
+      private:
+        template<typename>
+        static constexpr std::false_type check( ... );
+        template<typename U>
+        static constexpr typename std::enable_if<
+          Not<AnyOf<std::is_void<decltype( std::declval<U>().begin() != std::declval<U>().end() )>,
+                    std::is_void<decltype( std::declval<U>().size() )>>>::value,
+          std::true_type>::type
+          check( int );
+
+      public:
+        static constexpr bool value = AllOf<Not<std::is_reference<T>>, decltype( check<T>( 0 ) )>::value;
+      };
+      template<typename T, types::Size N>
+      struct is_sized_range<T[N]> : std::true_type {};
 # endif
 
 # if __PGBAR_CXX17
@@ -1192,19 +1255,20 @@ namespace pgbar {
     namespace wrappers {
       template<typename I>
 # if __PGBAR_CXX20
-        requires( traits::TraversableIterator<I>
+        requires( traits::is_sized_iterator<I>::value
                   && std::convertible_to<std::iter_difference_t<I>, types::Size> )
 # endif
       class IterSpanBase {
-# if !__PGBAR_CXX20
-        static_assert( traits::AnyOf<std::is_class<I>, std::is_pointer<I>>::value,
-                       "pgbar::__details::wrappers::IterSpanBase: Only available for iterator types" );
+# if __PGBAR_CXX20
+        using Reference_t = std::iter_reference_t<I>;
+# else
+        static_assert( traits::is_sized_iterator<I>::value,
+                       "pgbar::__details::wrappers::IterSpanBase: Only available for sized iterator types" );
         static_assert(
           std::is_convertible<typename std::iterator_traits<I>::difference_type, types::Size>::value,
           "pgbar::__details::wrappers::IterSpanBase: The 'difference_type' is non-convertible" );
-        static_assert(
-          traits::AnyOf<std::is_copy_constructible<I>, std::is_move_constructible<I>>::value,
-          "pgbar::__details::wrappers::IterSpanBase: The given iterators must be copyable or movable " );
+
+        using Reference_t = typename std::iterator_traits<I>::reference;
 # endif
 
         // Measure the length of the iteration range.
@@ -1239,31 +1303,19 @@ namespace pgbar {
         // Intentional non-virtual destructors.
         __PGBAR_CXX20_CNSTXPR ~IterSpanBase()                                  = default;
 
-        __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR I& start_iter() & noexcept { return start_; }
-        __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR const I& start_iter() const& noexcept { return start_; }
-        __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR I&& start_iter() && noexcept { return std::move( start_ ); }
-
-        __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR I& end_iter() & noexcept { return end_; }
-        __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR const I& end_iter() const& noexcept { return end_; }
-        __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR I&& end_iter() && noexcept { return std::move( end_ ); }
-
-        __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR IterSpanBase& start_iter( I startpoint )
-          noexcept( std::is_nothrow_move_assignable<I>::value )
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR Reference_t front() const noexcept
         {
-          start_ = std::move( startpoint );
-          size_  = measure();
-          return *this;
+          return *start_;
         }
-        __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR IterSpanBase& end_iter( I endpoint )
-          noexcept( std::is_nothrow_move_constructible<I>::value )
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR Reference_t back() const noexcept
         {
-          end_  = std::move( endpoint );
-          size_ = measure();
-          return *this;
+          return *std::next( start_, size_ - 1 );
         }
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CNSTEVAL types::Size step() const noexcept { return 1; }
         __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr types::Size size() const noexcept { return size_; }
+
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr bool empty() const noexcept { return size_ == 0; }
 
         __PGBAR_CXX20_CNSTXPR void swap( IterSpanBase<I>& lhs ) noexcept
         {
@@ -1277,6 +1329,8 @@ namespace pgbar {
         {
           a.swap( b );
         }
+
+        __PGBAR_CXX17_CNSTXPR explicit operator bool() const noexcept { return !size(); }
       };
 
       template<typename T>
@@ -1513,34 +1567,34 @@ namespace pgbar {
         template<typename T>
         using Fn_t = typename std::
           conditional<std::is_const<typename std::remove_reference<CrefInfo>::type>::value, const T, T>::type;
-        template<typename Cref, typename T>
+        template<typename As, typename T>
         static __PGBAR_INLINE_FN constexpr typename std::enable_if<
-          !std::is_reference<Cref>::value,
-          typename std::conditional<std::is_const<typename std::remove_reference<Cref>::type>::value,
+          !std::is_reference<As>::value,
+          typename std::conditional<std::is_const<typename std::remove_reference<As>::type>::value,
                                     const T&&,
                                     T&&>::type>::type
-          fwd_as( T&& param ) noexcept
+          forward_as( T&& param ) noexcept
         {
           return std::forward<T>( param );
         }
-        template<typename Cref, typename T>
+        template<typename As, typename T>
         static __PGBAR_INLINE_FN constexpr typename std::enable_if<
-          std::is_lvalue_reference<Cref>::value,
-          typename std::conditional<traits::AnyOf<std::is_const<typename std::remove_reference<Cref>::type>,
+          std::is_lvalue_reference<As>::value,
+          typename std::conditional<traits::AnyOf<std::is_const<typename std::remove_reference<As>::type>,
                                                   std::is_rvalue_reference<T>>::value,
                                     const typename std::remove_reference<T>::type&,
                                     typename std::remove_reference<T>::type&>::type>::type
-          fwd_as( T&& param ) noexcept
+          forward_as( T&& param ) noexcept
         {
           return param;
         }
-        template<typename Cref, typename T>
+        template<typename As, typename T>
         static __PGBAR_INLINE_FN constexpr typename std::enable_if<
-          std::is_rvalue_reference<Cref>::value,
-          typename std::conditional<std::is_const<typename std::remove_reference<Cref>::type>::value,
+          std::is_rvalue_reference<As>::value,
+          typename std::conditional<std::is_const<typename std::remove_reference<As>::type>::value,
                                     const typename std::remove_reference<T>::type&&,
                                     typename std::remove_reference<T>::type>::type&&>::type
-          fwd_as( T&& param ) noexcept
+          forward_as( T&& param ) noexcept
         {
           return std::move( param );
         }
@@ -1559,14 +1613,14 @@ namespace pgbar {
           noexcept( Noexcept )
         {
           const auto ptr = utils::launder_as<Fn_t<T>>( fn.template aligned_location<T>() );
-          return utils::invoke( fwd_as<CrefInfo>( *ptr ), std::forward<Args>( args )... );
+          return utils::invoke( forward_as<CrefInfo>( *ptr ), std::forward<Args>( args )... );
         }
         template<typename T>
         static __PGBAR_CXX14_CNSTXPR R invoke_dynamic( Fn_t<AnyFn>& fn, Param_t<Args>... args )
           noexcept( Noexcept )
         {
           const auto dptr = utils::launder_as<Fn_t<T>>( fn.dptr_ );
-          return utils::invoke( fwd_as<CrefInfo>( *dptr ), std::forward<Args>( args )... );
+          return utils::invoke( forward_as<CrefInfo>( *dptr ), std::forward<Args>( args )... );
         }
 
         constexpr FnInvokeBlock() = default;
@@ -2151,7 +2205,7 @@ namespace pgbar {
     } // namespace concurrent
   } // namespace __details
 
-  namespace scope {
+  namespace slice {
     /**
      * An undirectional range delimited by an numeric interval [start, end).
      *
@@ -2161,7 +2215,7 @@ namespace pgbar {
     template<typename N>
     class NumericSpan {
       static_assert( std::is_arithmetic<N>::value,
-                     "pgbar::scope::NumericSpan: Only available for arithmetic types" );
+                     "pgbar::slice::NumericSpan: Only available for arithmetic types" );
 
       N start_, end_, step_;
 
@@ -2173,14 +2227,14 @@ namespace pgbar {
       public:
         using iterator_category = std::forward_iterator_tag;
         using value_type        = N;
-        using difference_type   = value_type;
-        using pointer           = void;
+        using difference_type   = std::ptrdiff_t;
+        using pointer           = value_type*;
         using reference         = value_type;
 
         constexpr iterator( N startpoint, N step, __details::types::Size iterated = 0 ) noexcept
           : itr_start_ { startpoint }, itr_step_ { step }, itr_cnt_ { iterated }
         {}
-        constexpr iterator() noexcept : iterator( {}, {}, {} ) {}
+        constexpr iterator() noexcept : iterator( {}, 1, {} ) {}
         constexpr iterator( const iterator& )                          = default;
         __PGBAR_CXX14_CNSTXPR iterator& operator=( const iterator& ) & = default;
         __PGBAR_CXX20_CNSTXPR ~iterator()                              = default;
@@ -2226,6 +2280,14 @@ namespace pgbar {
         {
           return !( a == b );
         }
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr difference_type operator-(
+          const iterator& a,
+          const iterator& b ) noexcept
+        {
+          return static_cast<difference_type>( *a - *b );
+        }
+
+        constexpr explicit operator bool() const noexcept { return itr_cnt_ != 0; }
       };
 
       constexpr NumericSpan() noexcept : start_ {}, end_ {}, step_ { 1 } {}
@@ -2276,65 +2338,8 @@ namespace pgbar {
         return iterator( start_, step_, size() );
       }
 
-      /**
-       * @throw exception::InvalidArgument
-       *
-       * If the `start_value` is greater than `end_value` while `step` is positive,
-       * or the `start_value` is less than `end_value` while `step` is negative,
-       * or the `step` is zero.
-       */
-      __PGBAR_CXX20_CNSTXPR NumericSpan& step( N step ) noexcept( false )
-      {
-        if ( step < 0 && start_ < end_ )
-          __PGBAR_UNLIKELY throw exception::InvalidArgument(
-            "pgbar: 'end' is greater than 'start' while 'step' is negative" );
-        else if ( step > 0 && start_ > end_ )
-          __PGBAR_UNLIKELY throw exception::InvalidArgument(
-            "pgbar: 'end' is less than 'start' while 'step' is positive" );
-        else if ( step == 0 )
-          __PGBAR_UNLIKELY throw exception::InvalidArgument( "pgbar: 'step' is zero" );
-
-        step_ = step;
-        return *this;
-      }
-      /**
-       * @throw exception::InvalidArgument
-       *
-       * If the `startpoint` is greater than `end_value` while `step` is positive,
-       * or the `startpoint` is less than `end_value` while `step` is negative.
-       */
-      __PGBAR_CXX20_CNSTXPR NumericSpan& start_value( N startpoint ) noexcept( false )
-      {
-        if ( step_ < 0 && startpoint < end_ )
-          __PGBAR_UNLIKELY throw exception::InvalidArgument(
-            "pgbar: 'end' is greater than 'start' while 'step' is negative" );
-        else if ( step_ > 0 && startpoint > end_ )
-          __PGBAR_UNLIKELY throw exception::InvalidArgument(
-            "pgbar: 'end' is less than 'start' while 'step' is positive" );
-
-        start_ = startpoint;
-        return *this;
-      }
-      /**
-       * @throw exception::InvalidArgument
-       *
-       * If the `start_value` is greater than `endpoint` while `step` is positive,
-       * or the `start_value` is less than `endpoint` while `step` is negative.
-       */
-      __PGBAR_CXX20_CNSTXPR NumericSpan& end_value( N endpoint ) noexcept( false )
-      {
-        if ( step_ < 0 && start_ < endpoint )
-          __PGBAR_UNLIKELY throw exception::InvalidArgument(
-            "pgbar: 'end' is greater than 'start' while 'step' is negative" );
-        else if ( step_ > 0 && start_ > endpoint )
-          __PGBAR_UNLIKELY throw exception::InvalidArgument(
-            "pgbar: 'end' is less than 'start' while 'step' is positive" );
-
-        end_ = endpoint;
-        return *this;
-      }
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr N start_value() const noexcept { return start_; }
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr N end_value() const noexcept { return end_; }
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr N front() const noexcept { return start_; }
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr N back() const noexcept { return end_; }
       __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr N step() const noexcept { return step_; }
       __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX23_CNSTXPR __details::types::Size size() const noexcept
       {
@@ -2350,6 +2355,8 @@ namespace pgbar {
           return static_cast<__details::types::Size>( std::ceil( ( end_ - start_ ) / step_ ) );
       }
 
+      __PGBAR_NODISCARD constexpr bool empty() const noexcept { return start_ == end_; }
+
       __PGBAR_CXX14_CNSTXPR void swap( NumericSpan<N>& lhs ) noexcept
       {
         __PGBAR_PURE_ASSUME( this != &lhs );
@@ -2359,6 +2366,8 @@ namespace pgbar {
         swap( step_, lhs.step_ );
       }
       friend __PGBAR_CXX14_CNSTXPR void swap( NumericSpan<N>& a, NumericSpan<N>& b ) noexcept { a.swap( b ); }
+
+      constexpr explicit operator bool() const noexcept { return !empty(); }
     };
 
     /**
@@ -2372,7 +2381,7 @@ namespace pgbar {
     template<typename I>
     class IterSpan : public __details::wrappers::IterSpanBase<I> {
       static_assert( !std::is_pointer<I>::value,
-                     "pgbar::scope::IterSpan<I>: Only available for iterator types" );
+                     "pgbar::slice::IterSpan<I>: Only available for iterator types" );
 
     public:
       class iterator {
@@ -2380,11 +2389,18 @@ namespace pgbar {
 
       public:
         using iterator_category = std::forward_iterator_tag;
-        using value_type        = typename std::iterator_traits<I>::value_type;
-        using difference_type   = void;
-        using pointer           = typename std::iterator_traits<I>::pointer;
-        using reference         = typename std::iterator_traits<I>::reference;
+# if __PGBAR_CXX20
+        using value_type      = std::iter_value_t<I>;
+        using difference_type = std::iter_difference_t<I>;
+        using reference       = std::iter_reference_t<I>;
+# else
+        using value_type      = typename std::iterator_traits<I>::value_type;
+        using difference_type = typename std::iterator_traits<I>::difference_type;
+        using reference       = typename std::iterator_traits<I>::reference;
+# endif
+        using pointer = I;
 
+        constexpr iterator() = default;
         constexpr explicit iterator( I startpoint ) noexcept( std::is_nothrow_move_constructible<I>::value )
           : current_ { std::move( startpoint ) }
         {}
@@ -2394,47 +2410,57 @@ namespace pgbar {
         __PGBAR_CXX14_CNSTXPR iterator& operator=( iterator&& ) &      = default;
         __PGBAR_CXX20_CNSTXPR ~iterator()                              = default;
 
-        __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator& operator++() & noexcept(
-          noexcept( ++std::declval<I&>() ) )
+        __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator& operator++() &
         {
           ++current_;
           return *this;
         }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator operator++( int ) & noexcept(
-          std::is_nothrow_copy_constructible<iterator>::value && noexcept( ++std::declval<I&>() ) )
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator operator++( int ) &
         {
           auto before = *this;
           operator++();
           return before;
         }
 
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR reference operator*() noexcept
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR reference operator*() { return *current_; }
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR reference operator*() const
         {
           return *current_;
         }
         __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR pointer operator->() noexcept
         {
-          return std::addressof( current_ );
+          return current_;
+        }
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR pointer operator->() const noexcept
+        {
+          return current_;
         }
 
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr bool operator==( const I& lhs ) const noexcept
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr bool operator==( const I& lhs ) const
         {
           return current_ == lhs;
         }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr bool operator!=( const I& lhs ) const noexcept
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr bool operator!=( const I& lhs ) const
         {
           return !operator==( lhs );
         }
         __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr bool operator==( const iterator& a,
-                                                                              const iterator& b ) noexcept
+                                                                              const iterator& b )
         {
           return a.current_ == b.current_;
         }
         __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr bool operator!=( const iterator& a,
-                                                                              const iterator& b ) noexcept
+                                                                              const iterator& b )
         {
           return !( a == b );
         }
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr difference_type operator-( const iterator& a,
+                                                                                        const iterator& b )
+        {
+          return std::distance( a.current_, b.current_ );
+        }
+
+        constexpr explicit operator bool() const { return current_ != I(); }
       };
 
       using __details::wrappers::IterSpanBase<I>::IterSpanBase;
@@ -2460,7 +2486,7 @@ namespace pgbar {
     template<typename P>
     class IterSpan<P*> : public __details::wrappers::IterSpanBase<P*> {
       static_assert( std::is_pointer<P*>::value,
-                     "pgbar::scope::IterSpan<P*>: Only available for pointer types" );
+                     "pgbar::slice::IterSpan<P*>: Only available for pointer types" );
 
     public:
       class iterator {
@@ -2471,10 +2497,11 @@ namespace pgbar {
       public:
         using iterator_category = std::forward_iterator_tag;
         using value_type        = P;
-        using difference_type   = void;
+        using difference_type   = std::ptrdiff_t;
         using pointer           = P*;
-        using reference         = typename std::add_lvalue_reference<value_type>::type;
+        using reference         = value_type&;
 
+        constexpr iterator() = default;
         __PGBAR_CXX14_CNSTXPR iterator( P* startpoint, P* endpoint ) noexcept
           : current_ { startpoint }, reversed_ { false }
         {
@@ -2505,9 +2532,17 @@ namespace pgbar {
         {
           return *current_;
         }
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR reference operator*() const noexcept
+        {
+          return *current_;
+        }
         __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR pointer operator->() noexcept
         {
-          return std::addressof( current_ );
+          return current_;
+        }
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR pointer operator->() const noexcept
+        {
+          return current_;
         }
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr bool operator==( const P* lhs ) const noexcept
@@ -2528,6 +2563,14 @@ namespace pgbar {
         {
           return !( a == b );
         }
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr difference_type operator-(
+          const iterator& a,
+          const iterator& b ) noexcept
+        {
+          return a.current_ - b.current_;
+        }
+
+        constexpr explicit operator bool() const noexcept { return current_ != nullptr; }
       };
 
       /**
@@ -2556,7 +2599,7 @@ namespace pgbar {
 
     template<typename R, typename B>
     class ProxySpan;
-  } // namespace scope
+  } // namespace slice
 
   namespace color {
     constexpr __details::types::HexRGB None    = __PGBAR_DEFAULT;
@@ -2618,23 +2661,6 @@ namespace pgbar {
   __PGBAR_CXX17_INLINE std::atomic<bool> Indicator::_disable_styling { true };
 
   namespace __details {
-    namespace traits {
-      template<typename T>
-      struct is_scope {
-      private:
-        template<typename N>
-        static constexpr std::true_type check( const scope::NumericSpan<N>& );
-        template<typename I>
-        static constexpr std::true_type check( const scope::IterSpan<I>& );
-        static constexpr std::false_type check( ... );
-
-      public:
-        static constexpr bool value =
-          AllOf<Not<std::is_reference<T>>,
-                decltype( check( std::declval<typename std::remove_cv<T>::type>() ) )>::value;
-      };
-    } // namespace traits
-
     namespace console {
       // escape codes
       namespace escodes {
@@ -3049,7 +3075,8 @@ namespace pgbar {
         }
 
         // Since the control flow of the child thread has been completely handed over to task_,
-        // this function does not guarantee that the child thread can be closed immediately after being called.
+        // this function does not guarantee that the child thread can be closed immediately after being
+        // called.
         void shutdown() noexcept
         {
           state_.store( State::Dead, std::memory_order_release );
@@ -3071,7 +3098,7 @@ namespace pgbar {
           return instance;
         }
 
-        Runner( const Self& )    = delete;
+        Runner( const Self& )            = delete;
         Self& operator=( const Self& ) & = delete;
         ~Runner() noexcept { shutdown(); }
 
@@ -3480,27 +3507,27 @@ namespace pgbar {
    {}
 
     // A wrapper that stores the value of the bit option setting.
-    struct Style final : __PGBAR_BASE( __details::types::Byte ) {
+    struct Style : __PGBAR_BASE( __details::types::Byte ) {
       __PGBAR_OPTIONS( Style, __details::types::Byte, _settings )
     };
 
     // A wrapper that stores the value of the color effect setting.
-    struct Colored final : __PGBAR_BASE( bool ) {
+    struct Colored : __PGBAR_BASE( bool ) {
       __PGBAR_OPTIONS( Colored, bool, _enable )
     };
 
     // A wrapper that stores the value of the font boldness setting.
-    struct Bolded final : __PGBAR_BASE( bool ) {
+    struct Bolded : __PGBAR_BASE( bool ) {
       __PGBAR_OPTIONS( Bolded, bool, _enable )
     };
 
     // A wrapper that stores the number of tasks.
-    struct Tasks final : __PGBAR_BASE( std::uint64_t ) {
+    struct Tasks : __PGBAR_BASE( std::uint64_t ) {
       __PGBAR_OPTIONS( Tasks, std::uint64_t, _num_tasks )
     };
 
     // A wrapper that stores the length of the bar indicator, in the character unit.
-    struct BarLength final : __PGBAR_BASE( __details::types::Size ) {
+    struct BarLength : __PGBAR_BASE( __details::types::Size ) {
       __PGBAR_OPTIONS( BarLength, __details::types::Size, _num_char )
     };
 
@@ -3517,7 +3544,7 @@ namespace pgbar {
      *
      * The effective range is between -128 (slowest) and 127 (fastest).
      */
-    struct Shift final : __PGBAR_BASE( std::int8_t ) {
+    struct Shift : __PGBAR_BASE( std::int8_t ) {
       __PGBAR_OPTIONS( Shift, std::int8_t, _shift_factor )
     };
 
@@ -3533,7 +3560,7 @@ namespace pgbar {
      *
      * - Typical usage: 1000 (decimal) or 1024 (binary) scaling.
      */
-    struct Magnitude final : __PGBAR_BASE( std::uint16_t ) {
+    struct Magnitude : __PGBAR_BASE( std::uint16_t ) {
       __PGBAR_OPTIONS( Magnitude, std::uint16_t, _magnitude )
     };
 
@@ -3559,57 +3586,57 @@ namespace pgbar {
 # endif
 
     // A wrapper that stores the characters of the filler in the bar indicator.
-    struct Filler final : __PGBAR_BASE( __details::charcodes::U8String ) {
+    struct Filler : __PGBAR_BASE( __details::charcodes::U8String ) {
       __PGBAR_OPTIONS( Filler, __details::charcodes::U8String, _filler )
     };
 
     // A wrapper that stores the characters of the remains in the bar indicator.
-    struct Remains final : __PGBAR_BASE( __details::charcodes::U8String ) {
+    struct Remains : __PGBAR_BASE( __details::charcodes::U8String ) {
       __PGBAR_OPTIONS( Remains, __details::charcodes::U8String, _remains )
     };
 
     // A wrapper that stores characters located to the left of the bar indicator.
-    struct Starting final : __PGBAR_BASE( __details::charcodes::U8String ) {
+    struct Starting : __PGBAR_BASE( __details::charcodes::U8String ) {
       __PGBAR_OPTIONS( Starting, __details::charcodes::U8String, _starting )
     };
 
     // A wrapper that stores characters located to the right of the bar indicator.
-    struct Ending final : __PGBAR_BASE( __details::charcodes::U8String ) {
+    struct Ending : __PGBAR_BASE( __details::charcodes::U8String ) {
       __PGBAR_OPTIONS( Ending, __details::charcodes::U8String, _ending )
     };
 
     // A wrapper that stores the prefix text.
-    struct Prefix final : __PGBAR_BASE( __details::charcodes::U8String ) {
+    struct Prefix : __PGBAR_BASE( __details::charcodes::U8String ) {
       __PGBAR_OPTIONS( Prefix, __details::charcodes::U8String, _prefix )
     };
 
     // A wrapper that stores the postfix text.
-    struct Postfix final : __PGBAR_BASE( __details::charcodes::U8String ) {
+    struct Postfix : __PGBAR_BASE( __details::charcodes::U8String ) {
       __PGBAR_OPTIONS( Postfix, __details::charcodes::U8String, _postfix )
     };
 
     // A wrapper that stores the `true` message text.
-    struct TrueMesg final : __PGBAR_BASE( __details::charcodes::U8String ) {
+    struct TrueMesg : __PGBAR_BASE( __details::charcodes::U8String ) {
       __PGBAR_OPTIONS( TrueMesg, __details::charcodes::U8String, _true_mesg )
     };
 
     // A wrapper that stores the `false` message text.
-    struct FalseMesg final : __PGBAR_BASE( __details::charcodes::U8String ) {
+    struct FalseMesg : __PGBAR_BASE( __details::charcodes::U8String ) {
       __PGBAR_OPTIONS( FalseMesg, __details::charcodes::U8String, _false_mesg )
     };
 
     // A wrapper that stores the separator component used to separate different infomation.
-    struct Divider final : __PGBAR_BASE( __details::charcodes::U8String ) {
+    struct Divider : __PGBAR_BASE( __details::charcodes::U8String ) {
       __PGBAR_OPTIONS( Divider, __details::charcodes::U8String, _divider )
     };
 
     // A wrapper that stores the border component located to the left of the whole indicator.
-    struct LeftBorder final : __PGBAR_BASE( __details::charcodes::U8String ) {
+    struct LeftBorder : __PGBAR_BASE( __details::charcodes::U8String ) {
       __PGBAR_OPTIONS( LeftBorder, __details::charcodes::U8String, _l_border )
     };
 
     // A wrapper that stores the border component located to the right of the whole indicator.
-    struct RightBorder final : __PGBAR_BASE( __details::charcodes::U8String ) {
+    struct RightBorder : __PGBAR_BASE( __details::charcodes::U8String ) {
       __PGBAR_OPTIONS( RightBorder, __details::charcodes::U8String, _r_border )
     };
 
@@ -3627,52 +3654,52 @@ namespace pgbar {
    {}
 
     // A wrapper that stores the prefix text color.
-    struct PrefixColor final : __PGBAR_BASE( __details::types::String ) {
+    struct PrefixColor : __PGBAR_BASE( __details::types::String ) {
       __PGBAR_OPTIONS( PrefixColor, __details::types::String, _prfx_color )
     };
 
     // A wrapper that stores the postfix text color.
-    struct PostfixColor final : __PGBAR_BASE( __details::types::String ) {
+    struct PostfixColor : __PGBAR_BASE( __details::types::String ) {
       __PGBAR_OPTIONS( PostfixColor, __details::types::String, _pstfx_color )
     };
 
     // A wrapper that stores the `true` message text color.
-    struct TrueColor final : __PGBAR_BASE( __details::types::String ) {
+    struct TrueColor : __PGBAR_BASE( __details::types::String ) {
       __PGBAR_OPTIONS( TrueColor, __details::types::String, _true_color )
     };
 
     // A wrapper that stores the `false` message text color.
-    struct FalseColor final : __PGBAR_BASE( __details::types::String ) {
+    struct FalseColor : __PGBAR_BASE( __details::types::String ) {
       __PGBAR_OPTIONS( FalseColor, __details::types::String, _false_color )
     };
 
     // A wrapper that stores the color of component located to the left of the bar indicator.
-    struct StartColor final : __PGBAR_BASE( __details::types::String ) {
+    struct StartColor : __PGBAR_BASE( __details::types::String ) {
       __PGBAR_OPTIONS( StartColor, __details::types::String, _start_color )
     };
 
     // A wrapper that stores the color of component located to the right of the bar indicator.
-    struct EndColor final : __PGBAR_BASE( __details::types::String ) {
+    struct EndColor : __PGBAR_BASE( __details::types::String ) {
       __PGBAR_OPTIONS( EndColor, __details::types::String, _end_color )
     };
 
     // A wrapper that stores the color of the filler in the bar indicator.
-    struct FillerColor final : __PGBAR_BASE( __details::types::String ) {
+    struct FillerColor : __PGBAR_BASE( __details::types::String ) {
       __PGBAR_OPTIONS( FillerColor, __details::types::String, _filler_color )
     };
 
     // A wrapper that stores the color of the remains in the bar indicator.
-    struct RemainsColor final : __PGBAR_BASE( __details::types::String ) {
+    struct RemainsColor : __PGBAR_BASE( __details::types::String ) {
       __PGBAR_OPTIONS( RemainsColor, __details::types::String, _remains_color )
     };
 
     // A wrapper that stores the color of the lead in the bar indicator.
-    struct LeadColor final : __PGBAR_BASE( __details::types::String ) {
+    struct LeadColor : __PGBAR_BASE( __details::types::String ) {
       __PGBAR_OPTIONS( LeadColor, __details::types::String, _lead_color )
     };
 
     // A wrapper that stores the color of the whole infomation indicator.
-    struct InfoColor final : __PGBAR_BASE( __details::types::String ) {
+    struct InfoColor : __PGBAR_BASE( __details::types::String ) {
       __PGBAR_OPTIONS( InfoColor, __details::types::String, _info_color )
     };
 
@@ -3697,7 +3724,7 @@ namespace pgbar {
      * @throw exception::InvalidArgument
      *   Thrown if any input string fails UTF-8 validation or the array size mismatches.
      */
-    struct SpeedUnit final : __PGBAR_BASE( __PGBAR_PACK( std::array<__details::charcodes::U8String, 4> ) ) {
+    struct SpeedUnit : __PGBAR_BASE( __PGBAR_PACK( std::array<__details::charcodes::U8String, 4> ) ) {
       /**
        * @throw exception::InvalidArgument
        *
@@ -3732,7 +3759,7 @@ namespace pgbar {
     };
 
     // A wrapper that stores the `lead` animated element.
-    struct Lead final : __PGBAR_BASE( std::vector<__details::charcodes::U8String> ) {
+    struct Lead : __PGBAR_BASE( std::vector<__details::charcodes::U8String> ) {
     private:
       using Base = __details::wrappers::OptionWrapper<std::vector<__details::charcodes::U8String>>;
 
@@ -3877,11 +3904,11 @@ namespace pgbar {
       class TaskQuantity : public Base {
         friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( TaskQuantity& cfg, option::Tasks&& val )
         {
-          cfg.task_range_.end_value( val.value() );
+          cfg.task_range_ = slice::NumericSpan<std::uint64_t>( val.value() );
         }
 
       protected:
-        scope::NumericSpan<std::uint64_t> task_range_;
+        slice::NumericSpan<std::uint64_t> task_range_;
 
       public:
         constexpr TaskQuantity() = default;
@@ -3898,7 +3925,7 @@ namespace pgbar {
         __PGBAR_NODISCARD std::uint64_t tasks() const
         {
           concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          return task_range_.end_value();
+          return task_range_.back();
         }
 
         __PGBAR_CXX14_CNSTXPR void swap( TaskQuantity& lhs ) noexcept
@@ -4831,7 +4858,7 @@ namespace pgbar {
         __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR __PGBAR_INLINE_FN types::Size fixed_len_counter()
           const noexcept
         {
-          return utils::count_digits( this->task_range_.end_value() ) * 2 + 1;
+          return utils::count_digits( this->task_range_.back() ) * 2 + 1;
         }
 
       public:
@@ -4958,17 +4985,19 @@ namespace pgbar {
         template<typename N>
 # if __PGBAR_CXX20
           requires std::is_arithmetic_v<N>
-        __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR scope::ProxySpan<scope::NumericSpan<N>, Derived>
+        __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR slice::ProxySpan<slice::NumericSpan<N>, Derived>
 # else
         __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR
           typename std::enable_if<std::is_arithmetic<N>::value,
-                                  scope::ProxySpan<scope::NumericSpan<N>, Derived>>::type
+                                  slice::ProxySpan<slice::NumericSpan<N>, Derived>>::type
 # endif
           iterate( N startpoint, N endpoint, N step ) &
         { // default parameter will cause ambiguous overloads
           // so we have to write them all
-          return { scope::NumericSpan<typename std::decay<N>::type>( startpoint, endpoint, step ),
-                   static_cast<Derived&>( *this ) };
+          return {
+            { startpoint, endpoint, step },
+            static_cast<Derived&>( *this )
+          };
         }
         template<typename N, typename F>
 # if __PGBAR_CXX20
@@ -4986,15 +5015,17 @@ namespace pgbar {
         template<typename N>
 # if __PGBAR_CXX20
           requires std::is_floating_point_v<N>
-        __PGBAR_NODISCARD scope::ProxySpan<scope::NumericSpan<N>, Derived>
+        __PGBAR_NODISCARD slice::ProxySpan<slice::NumericSpan<N>, Derived>
 # else
         __PGBAR_NODISCARD typename std::enable_if<std::is_floating_point<N>::value,
-                                                  scope::ProxySpan<scope::NumericSpan<N>, Derived>>::type
+                                                  slice::ProxySpan<slice::NumericSpan<N>, Derived>>::type
 # endif
           iterate( N endpoint, N step ) &
         {
-          return { scope::NumericSpan<typename std::decay<N>::type>( {}, endpoint, step ),
-                   static_cast<Derived&>( *this ) };
+          return {
+            { {}, endpoint, step },
+            static_cast<Derived&>( *this )
+          };
         }
         template<typename N, typename F>
 # if __PGBAR_CXX20
@@ -5013,16 +5044,18 @@ namespace pgbar {
         template<typename N>
 # if __PGBAR_CXX20
           requires std::is_integral_v<N>
-        __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR scope::ProxySpan<scope::NumericSpan<N>, Derived>
+        __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR slice::ProxySpan<slice::NumericSpan<N>, Derived>
 # else
         __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR
           typename std::enable_if<std::is_integral<N>::value,
-                                  scope::ProxySpan<scope::NumericSpan<N>, Derived>>::type
+                                  slice::ProxySpan<slice::NumericSpan<N>, Derived>>::type
 # endif
           iterate( N startpoint, N endpoint ) &
         {
-          return { scope::NumericSpan<typename std::decay<N>::type>( startpoint, endpoint, 1 ),
-                   static_cast<Derived&>( *this ) };
+          return {
+            { startpoint, endpoint, 1 },
+            static_cast<Derived&>( *this )
+          };
         }
         template<typename N, typename F>
 # if __PGBAR_CXX20
@@ -5040,16 +5073,18 @@ namespace pgbar {
         template<typename N>
 # if __PGBAR_CXX20
           requires std::is_integral_v<N>
-        __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR scope::ProxySpan<scope::NumericSpan<N>, Derived>
+        __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR slice::ProxySpan<slice::NumericSpan<N>, Derived>
 # else
         __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR
           typename std::enable_if<std::is_integral<N>::value,
-                                  scope::ProxySpan<scope::NumericSpan<N>, Derived>>::type
+                                  slice::ProxySpan<slice::NumericSpan<N>, Derived>>::type
 # endif
           iterate( N endpoint ) &
         {
-          return { scope::NumericSpan<typename std::decay<N>::type>( {}, endpoint, 1 ),
-                   static_cast<Derived&>( *this ) };
+          return {
+            { {}, endpoint, 1 },
+            static_cast<Derived&>( *this )
+          };
         }
         template<typename N, typename F>
 # if __PGBAR_CXX20
@@ -5067,25 +5102,27 @@ namespace pgbar {
         // Visualize unidirectional traversal of a iterator interval defined by parameters.
         template<typename I>
 # if __PGBAR_CXX20
-          requires traits::TraversableIterator<I>
-        __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR scope::ProxySpan<scope::IterSpan<I>, Derived>
+          requires traits::is_sized_iterator<I>::value
+        __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR slice::ProxySpan<slice::IterSpan<I>, Derived>
 # else
         __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR
-          typename std::enable_if<!std::is_arithmetic<I>::value,
-                                  scope::ProxySpan<scope::IterSpan<I>, Derived>>::type
+          typename std::enable_if<traits::is_sized_iterator<I>::value,
+                                  slice::ProxySpan<slice::IterSpan<I>, Derived>>::type
 # endif
           iterate( I startpoint, I endpoint ) & noexcept(
             traits::AnyOf<std::is_pointer<I>, std::is_nothrow_move_constructible<I>>::value )
         {
-          return { scope::IterSpan<I>( std::move( startpoint ), std::move( endpoint ) ),
-                   static_cast<Derived&>( *this ) };
+          return {
+            { std::move( startpoint ), std::move( endpoint ) },
+            static_cast<Derived&>( *this )
+          };
         }
         template<typename I, typename F>
 # if __PGBAR_CXX20
-          requires traits::TraversableIterator<I>
+          requires traits::is_sized_iterator<I>::value
         __PGBAR_CXX14_CNSTXPR void
 # else
-        __PGBAR_CXX14_CNSTXPR typename std::enable_if<!std::is_arithmetic<I>::value>::type
+        __PGBAR_CXX14_CNSTXPR typename std::enable_if<traits::is_sized_iterator<I>::value>::type
 # endif
           iterate( I startpoint, I endpoint, F&& unary_fn )
         {
@@ -5094,37 +5131,36 @@ namespace pgbar {
         }
 
         // Visualize unidirectional traversal of a abstract range interval defined by `container`'s
-        // scope.
+        // slice.
         template<class R>
 # if __PGBAR_CXX20
-          requires std::ranges::range<R>
+          requires traits::is_sized_range<std::remove_reference_t<R>>::value
         __PGBAR_NODISCARD __PGBAR_CXX17_CNSTXPR
-          scope::ProxySpan<scope::IterSpan<traits::IteratorTrait_t<std::remove_reference_t<R>>>, Derived>
+          slice::ProxySpan<slice::IterSpan<traits::IteratorOf_t<std::remove_reference_t<R>>>, Derived>
 # else
         __PGBAR_NODISCARD __PGBAR_CXX17_CNSTXPR typename std::enable_if<
-          traits::AnyOf<std::is_class<typename std::decay<R>::type>,
-                        std::is_array<typename std::remove_reference<R>::type>>::value,
-          scope::ProxySpan<scope::IterSpan<traits::IteratorTrait_t<typename std::remove_reference<R>::type>>,
+          traits::is_sized_range<typename std::remove_reference<R>::type>::value,
+          slice::ProxySpan<slice::IterSpan<traits::IteratorOf_t<typename std::remove_reference<R>::type>>,
                            Derived>>::type
 # endif
           iterate( R& container ) &
         { // forward it to the iterator overload
+          return {
 # if __PGBAR_CXX20
-          return iterate( std::ranges::begin( container ), std::ranges::end( container ) );
+            { std::ranges::begin( container ), std::ranges::end( container ) },
 # else
-          using std::begin;
-          using std::end; // for ADL
-          return iterate( begin( container ), end( container ) );
+            { std::begin( container ), std::end( container ) },
 # endif
+            static_cast<Derived&>( *this )
+          };
         }
         template<class R, typename F>
 # if __PGBAR_CXX20
-          requires std::ranges::range<R>
+          requires traits::is_sized_range<std::remove_reference_t<R>>::value
         __PGBAR_CXX17_CNSTXPR void
 # else
         __PGBAR_CXX17_CNSTXPR typename std::enable_if<
-          traits::AnyOf<std::is_class<typename std::decay<R>::type>,
-                        std::is_array<typename std::remove_reference<R>::type>>::value>::type
+          traits::is_sized_range<typename std::remove_reference<R>::type>::value>::type
 # endif
           iterate( R&& container, F&& unary_fn )
         {
@@ -7541,12 +7577,13 @@ namespace pgbar {
 
   template<typename Bar, typename I, typename F, typename... Options>
 # if __PGBAR_CXX20
-    requires( __details::traits::TraversableIterator<I> && __details::traits::is_iterable_bar<Bar>::value
+    requires( __details::traits::is_sized_iterator<I>::value && __details::traits::is_iterable_bar<Bar>::value
               && std::is_constructible_v<Bar, Options...> )
   __PGBAR_INLINE_FN void
 # else
   __PGBAR_INLINE_FN typename std::enable_if<
-    __details::traits::AllOf<__details::traits::is_iterable_bar<Bar>,
+    __details::traits::AllOf<__details::traits::is_sized_iterator<I>,
+                             __details::traits::is_iterable_bar<Bar>,
                              std::is_constructible<Bar, Options...>,
                              __details::traits::Not<std::is_arithmetic<I>>>::value>::type
 # endif
@@ -7564,12 +7601,13 @@ namespace pgbar {
            typename... Options>
 # if __PGBAR_CXX20
     requires(
-      __details::traits::TraversableIterator<I> && __details::traits::is_config<Config>::value
+      __details::traits::is_sized_iterator<I>::value && __details::traits::is_config<Config>::value
       && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
       && std::is_constructible_v<Config, Options...> )
   __PGBAR_INLINE_FN void
 # else
   __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
+    __details::traits::is_sized_iterator<I>,
     __details::traits::is_config<Config>,
     __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
     std::is_constructible<Config, Options...>,
@@ -7586,15 +7624,14 @@ namespace pgbar {
 
   template<typename Bar, class R, typename F, typename... Options>
 # if __PGBAR_CXX20
-    requires( std::ranges::range<R> && __details::traits::is_iterable_bar<Bar>::value
+    requires( __details::traits::is_sized_range<R>::value && __details::traits::is_iterable_bar<Bar>::value
               && std::is_constructible_v<Bar, Options...> )
   __PGBAR_INLINE_FN void
 # else
-  __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
-    __details::traits::is_iterable_bar<Bar>,
-    std::is_constructible<Bar, Options...>,
-    __details::traits::AnyOf<std::is_class<typename std::decay<R>::type>,
-                             std::is_array<typename std::remove_reference<R>::type>>>::value>::type
+  __PGBAR_INLINE_FN
+    typename std::enable_if<__details::traits::AllOf<__details::traits::is_sized_range<R>,
+                                                     __details::traits::is_iterable_bar<Bar>,
+                                                     std::is_constructible<Bar, Options...>>::value>::type
 # endif
     iterate( R&& container, F&& unary_fn, Options&&... options )
   {
@@ -7610,17 +7647,16 @@ namespace pgbar {
            typename... Options>
 # if __PGBAR_CXX20
     requires(
-      std::ranges::range<R> && __details::traits::is_config<Config>::value
+      __details::traits::is_sized_range<R>::value && __details::traits::is_config<Config>::value
       && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
       && std::is_constructible_v<Config, Options...> )
   __PGBAR_INLINE_FN void
 # else
   __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
+    __details::traits::is_sized_range<R>,
     __details::traits::is_config<Config>,
     __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
-    std::is_constructible<Config, Options...>,
-    __details::traits::AnyOf<std::is_class<typename std::decay<R>::type>,
-                             std::is_array<typename std::remove_reference<R>::type>>>::value>::type
+    std::is_constructible<Config, Options...>>::value>::type
 # endif
     iterate( R&& container, F&& unary_fn, Options&&... options )
   {
@@ -7630,46 +7666,62 @@ namespace pgbar {
       Config( std::forward<Options>( options )... ) );
   }
 
-  namespace scope {
+  namespace slice {
     /**
      * A range that contains a bar object and an unidirectional abstract range,
      * which transforms the iterations in the abstract into a visual display of the object.
      */
     template<typename R, typename B>
     class ProxySpan {
-      static_assert( __details::traits::is_scope<R>::value,
-                     "pgbar::scope::ProxySpan: Only available for certain range types" );
+      static_assert( __details::traits::is_sized_range<R>::value,
+                     "pgbar::slice::ProxySpan: Only available for sized range" );
       static_assert( __details::traits::is_iterable_bar<B>::value,
-                     "pgbar::scope::ProxySpan: Must have a method to configure the iteration "
+                     "pgbar::slice::ProxySpan: Must have a method to configure the iteration "
                      "count for the object's configuration type" );
 
       B* itr_bar_;
       R itr_range_;
 
     public:
-      class iterator final {
-        typename R::iterator itr_;
+      class iterator {
+        using Iter = __details::traits::IteratorOf_t<R>;
+        Iter itr_;
         B* itr_bar_;
 
       public:
-        using iterator_category = std::forward_iterator_tag;
-        using value_type        = typename std::iterator_traits<typename R::iterator>::value_type;
-        using difference_type   = void;
-        using pointer           = typename std::iterator_traits<typename R::iterator>::pointer;
-        using reference         = typename std::iterator_traits<typename R::iterator>::reference;
+        using iterator_category = typename std::conditional<
+          __details::traits::AnyOf<
+            std::is_same<typename std::iterator_traits<Iter>::iterator_category, std::input_iterator_tag>,
+            std::is_same<typename std::iterator_traits<Iter>::iterator_category,
+                         std::output_iterator_tag>>::value,
+          typename std::iterator_traits<Iter>::iterator_category,
+          std::forward_iterator_tag>::type;
+# if __PGBAR_CXX20
+        using value_type      = std::iter_value_t<Iter>;
+        using difference_type = std::iter_difference_t<Iter>;
+        using reference       = std::iter_reference_t<Iter>;
+# else
+        using value_type      = typename std::iterator_traits<Iter>::value_type;
+        using difference_type = typename std::iterator_traits<Iter>::difference_type;
+        using reference       = typename std::iterator_traits<Iter>::reference;
+# endif
+        using pointer = Iter;
 
-        __PGBAR_CXX17_CNSTXPR iterator( typename R::iterator itr, B& itr_bar )
-          noexcept( std::is_nothrow_move_constructible<typename R::iterator>::value )
+        constexpr iterator() noexcept( std::is_nothrow_default_constructible<Iter>::value )
+          : itr_ {}, itr_bar_ { nullptr }
+        {}
+        __PGBAR_CXX17_CNSTXPR iterator( Iter itr, B& itr_bar )
+          noexcept( std::is_nothrow_move_constructible<Iter>::value )
           : itr_ { std::move( itr ) }, itr_bar_ { std::addressof( itr_bar ) }
         {}
         __PGBAR_CXX17_CNSTXPR iterator( iterator&& rhs )
-          noexcept( std::is_nothrow_move_constructible<typename R::iterator>::value )
+          noexcept( std::is_nothrow_move_constructible<Iter>::value )
           : itr_ { std::move( rhs.itr_ ) }, itr_bar_ { rhs.itr_bar_ }
         {
           rhs.itr_bar_ = nullptr;
         }
         __PGBAR_CXX17_CNSTXPR iterator& operator=( iterator&& rhs ) & noexcept(
-          std::is_nothrow_move_assignable<typename R::iterator>::value )
+          std::is_nothrow_move_assignable<Iter>::value )
         {
           __PGBAR_PURE_ASSUME( this != &rhs );
           itr_         = std::move( rhs.itr_ );
@@ -7698,17 +7750,17 @@ namespace pgbar {
         {
           return *itr_;
         }
-        __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR pointer operator->() noexcept
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR reference operator*() const noexcept
         {
-          return std::addressof( itr_ );
+          return *itr_;
         }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr bool operator==(
-          const typename R::iterator& lhs ) const noexcept
+        __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR pointer operator->() noexcept { return itr_; }
+        __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR pointer operator->() const noexcept { return itr_; }
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr bool operator==( const Iter& lhs ) const noexcept
         {
           return itr_ == lhs;
         }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr bool operator!=(
-          const typename R::iterator& lhs ) const noexcept
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr bool operator!=( const Iter& lhs ) const noexcept
         {
           return itr_ != lhs;
         }
@@ -7748,9 +7800,7 @@ namespace pgbar {
       // Intentional non-virtual destructors.
       __PGBAR_CXX20_CNSTXPR ~ProxySpan() = default;
 
-      /**
-       * This function CHANGES the state of the pgbar object it holds.
-       */
+      // This function will CHANGE the state of the pgbar object it holds.
       __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR iterator begin() &
       {
         itr_bar_->config().tasks( itr_range_.size() );
@@ -7775,9 +7825,9 @@ namespace pgbar {
       {
         a.swap( b );
       }
-      constexpr explicit operator bool() const noexcept { return empty(); }
+      constexpr explicit operator bool() const noexcept { return !empty(); }
     };
-  } // namespace scope
+  } // namespace slice
 
   namespace __details {
     namespace prefabs {
