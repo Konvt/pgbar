@@ -62,9 +62,12 @@
   - [`IterSpan`](#iterspan)
     - [Member method](#member-method-1)
     - [Iterator type](#iterator-type-1)
-  - [`ProxySpan`](#proxyspan)
+  - [`BoundedSpan`](#boundedspan)
     - [Member method](#member-method-2)
     - [Iterator type](#iterator-type-2)
+  - [`ProxySpan`](#proxyspan)
+    - [Member method](#member-method-3)
+    - [Iterator type](#iterator-type-3)
   - [`iterate`](#iterate)
 - [FAQ](#faq)
   - [The tick count should be the same as the total number of tasks](#the-tick-count-should-be-the-same-as-the-total-number-of-tasks)
@@ -470,8 +473,8 @@ int main()
     ele += 1; // ele here is a reference to the elements in the vector
     this_thread::sleep_for( 300ms );
   }
-  // You can iterate in reverse order
-  bar.iterate( arr2 + ( sizeof( arr2 ) / sizeof( int ) ) - 1, arr2 - 1, []( int& ) {
+  // iterate in reverse order
+  bar.iterate( std::rbegin( arr2 ), std::rend( arr2 ), []( int& ) {
     this_thread::sleep_for( 300ms );
   } );
 }
@@ -505,7 +508,9 @@ int main()
 }
 ```
 
-For types that satisfy `std::ranges::sized_range`, you can refer to the implementation of `std::ranges::ref_view` in the STL.
+This type of range is actually a "finite range", which means its size is known and it cannot be an infinite sequence like `std::views::iota(0)`.
+
+If the finite range constraint is satisfied and C++20 is used, then `iterate` can correctly handle the reference lifetime of view types that satisfy the constraint `std::ranges::view`.
 
 - - -
 
@@ -892,8 +897,8 @@ int main()
     ele += 1; // ele here is a reference to the elements in the vector
     this_thread::sleep_for( 300ms );
   }
-  // You can iterate in reverse order
-  bar.iterate( arr2 + ( sizeof( arr2 ) / sizeof( int ) ) - 1, arr2 - 1, []( int& ) {
+  // iterate in reverse order
+  bar.iterate( std::rbegin( arr2 ), std::rend( arr2 ), []( int& ) {
     this_thread::sleep_for( 300ms );
   } );
 }
@@ -927,7 +932,9 @@ int main()
 }
 ```
 
-For types that satisfy `std::ranges::sized_range`, you can refer to the implementation of `std::ranges::ref_view` in the STL.
+This type of range is actually a "finite range", which means its size is known and it cannot be an infinite sequence like `std::views::iota(0)`.
+
+If the finite range constraint is satisfied and C++20 is used, then `iterate` can correctly handle the reference lifetime of view types that satisfy the constraint `std::ranges::view`.
 
 - - -
 
@@ -1318,8 +1325,8 @@ int main()
     ele += 1; // ele here is a reference to the elements in the vector
     this_thread::sleep_for( 300ms );
   }
-  // You can iterate in reverse order
-  bar.iterate( arr2 + ( sizeof( arr2 ) / sizeof( int ) ) - 1, arr2 - 1, []( int& ) {
+  // iterate in reverse order
+  bar.iterate( std::rbegin( arr2 ), std::rend( arr2 ), []( int& ) {
     this_thread::sleep_for( 300ms );
   } );
 }
@@ -1353,7 +1360,9 @@ int main()
 }
 ```
 
-For types that satisfy `std::ranges::sized_range`, you can refer to the implementation of `std::ranges::ref_view` in the STL.
+This type of range is actually a "finite range", which means its size is known and it cannot be an infinite sequence like `std::views::iota(0)`.
+
+If the finite range constraint is satisfied and C++20 is used, then `iterate` can correctly handle the reference lifetime of view types that satisfy the constraint `std::ranges::view`.
 
 - - -
 
@@ -1714,8 +1723,8 @@ int main()
     ele += 1; // ele here is a reference to the elements in the vector
     this_thread::sleep_for( 300ms );
   }
-  // You can iterate in reverse order
-  bar.iterate( arr2 + ( sizeof( arr2 ) / sizeof( int ) ) - 1, arr2 - 1, []( int& ) {
+  // iterate in reverse order
+  bar.iterate( std::rbegin( arr2 ), std::rend( arr2 ), []( int& ) {
     this_thread::sleep_for( 300ms );
   } );
 }
@@ -1749,7 +1758,9 @@ int main()
 }
 ```
 
-For types that satisfy `std::ranges::sized_range`, you can refer to the implementation of `std::ranges::ref_view` in the STL.
+This type of range is actually a "finite range", which means its size is known and it cannot be an infinite sequence like `std::views::iota(0)`.
+
+If the finite range constraint is satisfied and C++20 is used, then `iterate` can correctly handle the reference lifetime of view types that satisfy the constraint `std::ranges::view`.
 
 - - -
 
@@ -2206,11 +2217,11 @@ void swap( NumericSpan& ) noexcept; // Exchange two NumericSpan
 The number of effective iterations of the iterator is the same as the value returned by the `NumericSpan` method `size()`;  In particular, if the step is longer than the value range, then the iterator's value will be beyond the end point of the value range.
 
 ## `IterSpan`
-`pgbar::slice::IterSpan` is a template type, which is used to express the abstract range delimited by two iterators; It can be considered a very simplified version of `std::views::ref_view`.
+`pgbar::slice::IterSpan` is a template type, which is used to express the abstract range delimited by two iterators; it can be considered a very simplified version of `std::views::ref_view`.
 
 `IterSpan` requires that the iterator type passed in must be able to copy or move constructs, and must be able to calculate the distance between two iterator objects, otherwise the compilation will fail.
 
-`IterSpan` provides a specialized version of the pointer type, which, in contrast to the main template, allows the start and end points to be passed directly inverted to represent the reverse range; The main template can only be implemented by accepting reverse iterators.
+If the passed iterator is a reverse iterator of a non-reverse type, an `pgbar::exception::InvalidArgument` will be thrown.
 
 ```cpp
 #include "pgbar/pgbar.hpp"
@@ -2226,14 +2237,12 @@ int main()
     pgbar::slice::IterSpan<std::reverse_iterator<std::vector<int>::iterator>>( arr2.rbegin(), arr2.rend() );
 }
 ```
-
-In a specialized version of the pointer type, if the paramters are null pointers, it will throw an exception `pgbar::exception::InvalidArgument`.
 ### Member method
 There are several methods in `IterSpan`:
 
 ```cpp
-iterator begin() const noexcept;       // Returns an iterator that points to the starting of the abstract range
-iterator end() const noexcept;         // Returns an iterator that points to the end of the abstract range
+iterator begin() const noexcept; // Returns an iterator that points to the starting of the abstract range
+iterator end() const noexcept;   // Returns an iterator that points to the end of the abstract range
 
 /* reference */ front() const noexcept; // Returns a reference to the element pointed to by the starting iterator of the abstract range
 /* reference */ back() const noexcept;  // Return a reference to the previous element pointed to by the ending iterator of the abstract range
@@ -2245,7 +2254,27 @@ void swap( IterSpan& ) noexcept; // Exchange two IterSpan
 ### Iterator type
 `IterSpan::iterator` is a forward iterator that overrides operator functions including, but not limited to, `operator++()`, `operator++( int )`, `operator+=()`, `operator*()`, and equality operators.
 
-Since it is a forward iterator and does not provide a self-decrement operator, all reverse operations depend on the iterator type implementation; For the specialized version, it depends on the pointer order passed during construction.
+Since it is a forward iterator and does not provide a self-decrement operator, all reverse operations depend on the iterator type implementation.
+
+## `BoundedSpan`
+`pgbar::slice::BoundedSpan` is a nullable template type that represents an iterable range that satisfies the concept `std::ranges::sized_range` but does not satisfy the concept `std::ranges::view`.
+
+In simple terms, `pgbar::slice::BoundedSpan` can be regarded as a simplified version of `std::ranges::ref_view`; it is a view of container types and array types.
+### Member method
+There are several methods in `BoundedSpan`:
+```cpp
+/* iterator */ begin() const; // Returns an iterator that points to the starting of the abstract range
+/* sentinel */ end() const;   // Returns an sentinel that points to the end of the abstract range
+
+/* reference */ front() const;      // Returns a reference to the element pointed to by the starting iterator of the abstract range
+/* reference */ back() const;       // Return a reference to the previous element pointed to by the ending iterator of the abstract range
+/* size_t */ step() const noexcept; // Returns the current step size, usually the compile-time constant 1
+/* size_t */ size() const;          // Returns the size of the current abstract range
+
+void swap( BoundedSpan& ) noexcept; // Exchange two BoundedSpan
+```
+### Iterator type
+The iterator type of `BoundedSpan::iterator` is equivalent to the iterator type of its underlying range.
 
 ## `ProxySpan`
 `pgbar::slice::ProxySpan` is a nullable template type that expresses the iteration range of a sole progress bar.
@@ -2259,10 +2288,10 @@ Calling `ProxySpan`'s `begin()` method causes the `ProxySpan` object to attempt 
 There are several methods in `ProxySpan`:
 
 ```cpp
-iterator begin() & noexcept;   // Assigns a value to the internal progress bar instance and returns the starting iterator
-iterator end() const noexcept; // Return the terminating iterator
-bool empty() const noexcept;   // Check whether the object points to a valid progress bar instance
-explicit operator bool();      // Convert to bool based on the evaluation context
+/* iterator */ begin() &;          // Assigns a value to the internal progress bar instance and returns the starting iterator
+/* sentinel */ end() const;        // Return the terminating sentinel
+bool empty() const noexcept;       // Check whether the object points to a valid progress bar instance
+explicit operator bool() noexcept; // Check whether the current object is non-empty
 
 void swap( ProxySpan& ) noexcept; // Exchange two ProxySpan
 ```
