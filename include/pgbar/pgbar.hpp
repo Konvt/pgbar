@@ -2128,7 +2128,7 @@ namespace pgbar {
 
   namespace slice {
     /**
-     * An undirectional range delimited by an numeric interval [start, end).
+     * An bidirectional range delimited by an numeric interval [start, end).
      *
      * The `end` can be less than the `start` only if the `step` is negative,
      * otherwise it throws exception `pgbar::exception::InvalidArgument`.
@@ -2146,11 +2146,15 @@ namespace pgbar {
         __details::types::Size itr_cnt_;
 
       public:
-        using iterator_category = std::forward_iterator_tag;
-        using value_type        = N;
-        using difference_type   = std::ptrdiff_t;
-        using pointer           = value_type*;
-        using reference         = value_type;
+# if __PGBAR_CXX20
+        using iterator_category = std::random_access_iterator_tag;
+# else
+        using iterator_category = std::bidirectional_iterator_tag;
+# endif
+        using value_type      = N;
+        using difference_type = std::ptrdiff_t;
+        using pointer         = value_type*;
+        using reference       = value_type;
 
         constexpr iterator( N startpoint, N step, __details::types::Size iterated = 0 ) noexcept
           : itr_start_ { startpoint }, itr_step_ { step }, itr_cnt_ { iterated }
@@ -2171,35 +2175,51 @@ namespace pgbar {
           operator++();
           return before;
         }
-        __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator& operator+=( value_type increment ) noexcept
+        __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator& operator--() & noexcept
         {
-          itr_cnt_ += increment > 0 ? static_cast<__details::types::Size>( increment / itr_step_ ) : 0;
+          --itr_cnt_;
           return *this;
         }
-
+        __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator operator--( int ) & noexcept
+        {
+          auto before = *this;
+          operator--();
+          return before;
+        }
         __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr reference operator*() const noexcept
         {
-          return static_cast<reference>( static_cast<__details::types::Size>( itr_start_ )
+          return static_cast<reference>( itr_start_
                                          + itr_cnt_ * static_cast<__details::types::Size>( itr_step_ ) );
         }
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr reference operator[](
+          __details::types::Size inc ) const noexcept
+        {
+          return *( *this + inc );
+        }
 
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr bool operator==( value_type num ) const noexcept
+        friend __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator operator+( const iterator& itr,
+                                                                           value_type increment ) noexcept
         {
-          return operator*() == num;
+          return { itr.itr_start_,
+                   itr.itr_step_,
+                   itr.itr_cnt_ + static_cast<__details::types::Size>( increment / itr.itr_step_ ) };
         }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr bool operator!=( value_type num ) const noexcept
+        friend __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator operator+( value_type increment,
+                                                                           const iterator& itr ) noexcept
         {
-          return !( operator==( num ) );
+          return itr + increment;
         }
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr bool operator==( const iterator& a,
-                                                                              const iterator& b ) noexcept
+        friend __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator operator-( const iterator& itr,
+                                                                           value_type increment ) noexcept
         {
-          return a.itr_start_ == b.itr_start_ && a.itr_step_ == b.itr_step_ && a.itr_cnt_ == b.itr_cnt_;
+          return { itr.itr_start_,
+                   itr.itr_step_,
+                   itr.itr_cnt_ - static_cast<__details::types::Size>( increment / itr.itr_step_ ) };
         }
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr bool operator!=( const iterator& a,
-                                                                              const iterator& b ) noexcept
+        friend __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator operator-( value_type increment,
+                                                                           const iterator& itr ) noexcept
         {
-          return !( a == b );
+          return itr - increment;
         }
         __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr difference_type operator-(
           const iterator& a,
@@ -2207,8 +2227,66 @@ namespace pgbar {
         {
           return static_cast<difference_type>( *a - *b );
         }
-
-        constexpr explicit operator bool() const noexcept { return itr_cnt_ != 0; }
+        friend __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator& operator+=( iterator& itr,
+                                                                             value_type increment ) noexcept
+        {
+          itr.itr_cnt_ += static_cast<__details::types::Size>( increment / itr.itr_step_ );
+          return itr;
+        }
+        friend __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator& operator-=( iterator& itr,
+                                                                             value_type increment ) noexcept
+        {
+          itr.itr_cnt_ -= static_cast<__details::types::Size>( increment / itr.itr_step_ );
+          return itr;
+        }
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr bool operator==( const iterator& itr,
+                                                                              value_type num ) noexcept
+        {
+          return *itr == num;
+        }
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr bool operator!=( const iterator& itr,
+                                                                              value_type num ) noexcept
+        {
+          return !( itr == num );
+        }
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr bool operator==( const iterator& a,
+                                                                              const iterator& b ) noexcept
+        {
+          return a.itr_start_ == b.itr_start_ && a.itr_step_ == b.itr_step_ && a.itr_cnt_ == b.itr_cnt_;
+        }
+# if __PGBAR_CXX20
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr auto operator<=>( const iterator& a,
+                                                                               const iterator& b ) noexcept
+        {
+          return a.itr_start_ == b.itr_start_ && a.itr_step_ == b.itr_step_ && a.itr_cnt_ <=> b.itr_cnt_;
+        }
+# else
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr bool operator!=( const iterator& a,
+                                                                              const iterator& b ) noexcept
+        {
+          return !( a == b );
+        }
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr bool operator<( const iterator& a,
+                                                                             const iterator& b ) noexcept
+        {
+          return a.itr_start_ == b.itr_start_ && a.itr_step_ == b.itr_step_ && a.itr_cnt_ < b.itr_cnt_;
+        }
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr bool operator>( const iterator& a,
+                                                                             const iterator& b ) noexcept
+        {
+          return b < a;
+        }
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr bool operator<=( const iterator& a,
+                                                                              const iterator& b ) noexcept
+        {
+          return !( b < a );
+        }
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr bool operator>=( const iterator& a,
+                                                                              const iterator& b ) noexcept
+        {
+          return !( a < b );
+        }
+# endif
       };
 
       constexpr NumericSpan() noexcept : start_ {}, end_ {}, step_ { 1 } {}
@@ -2276,8 +2354,12 @@ namespace pgbar {
           return static_cast<__details::types::Size>( std::ceil( ( end_ - start_ ) / step_ ) );
       }
 
-      __PGBAR_NODISCARD constexpr bool empty() const noexcept { return start_ == end_; }
-
+      __PGBAR_NODISCARD constexpr bool empty() const noexcept { return size() == 0; }
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr typename iterator::reference operator[](
+        __details::types::Size inc ) const noexcept
+      {
+        return *( begin() + inc );
+      }
       __PGBAR_CXX14_CNSTXPR void swap( NumericSpan<N>& lhs ) noexcept
       {
         __PGBAR_PURE_ASSUME( this != &lhs );
@@ -2297,7 +2379,11 @@ namespace pgbar {
      * Accepted iterator types must satisfy subtractable.
      */
     template<typename I>
-    class IterSpan {
+    class IterSpan
+# if __PGBAR_CXX20
+      : public std::ranges::view_interface<IterSpan<I>>
+# endif
+    {
       static_assert( __details::traits::is_sized_iterator<I>::value,
                      "pgbar::slice::IterSpan: Only available for sized iterator types" );
       static_assert(
@@ -2337,7 +2423,7 @@ namespace pgbar {
         using pointer = I;
 
         constexpr iterator() = default;
-        constexpr explicit iterator( I startpoint ) noexcept( std::is_nothrow_move_constructible<I>::value )
+        constexpr iterator( I startpoint ) noexcept( std::is_nothrow_move_constructible<I>::value )
           : current_ { std::move( startpoint ) }
         {}
         constexpr iterator( const iterator& )                          = default;
@@ -2367,13 +2453,25 @@ namespace pgbar {
           return current_;
         }
 
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr bool operator==( const I& lhs ) const
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr bool operator==( const iterator& itr,
+                                                                              const I& ir )
         {
-          return current_ == lhs;
+          return itr.current_ == ir;
         }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr bool operator!=( const I& lhs ) const
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr bool operator==( const I& ir,
+                                                                              const iterator& itr )
         {
-          return !operator==( lhs );
+          return itr == ir;
+        }
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr bool operator!=( const iterator& itr,
+                                                                              const I& ir )
+        {
+          return !( itr == ir );
+        }
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr bool operator!=( const I& ir,
+                                                                              const iterator& itr )
+        {
+          return !( itr == ir );
         }
         __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr bool operator==( const iterator& a,
                                                                               const iterator& b )
@@ -2460,7 +2558,11 @@ namespace pgbar {
     };
 
     template<typename R>
-    class BoundedSpan {
+    class BoundedSpan
+# if __PGBAR_CXX20
+      : public std::ranges::view_interface<BoundedSpan<R>>
+# endif
+    {
 # if __PGBAR_CXX20
       static_assert( __details::traits::is_bounded_range<R>::value && !std::ranges::view<R>,
                      "pgbar::slice::BoundedSpan: Only available for bounded ranges, excluding view types" );
@@ -7694,6 +7796,9 @@ namespace pgbar {
 
         constexpr iterator() noexcept( std::is_nothrow_default_constructible<Iter>::value )
           : itr_ {}, itr_bar_ { nullptr }
+        {}
+        __PGBAR_CXX17_CNSTXPR iterator( Iter itr ) noexcept( std::is_nothrow_move_constructible<Iter>::value )
+          : itr_ { std::move( itr ) }, itr_bar_ { nullptr }
         {}
         __PGBAR_CXX17_CNSTXPR iterator( Iter itr, B& itr_bar )
           noexcept( std::is_nothrow_move_constructible<Iter>::value )
