@@ -7695,6 +7695,9 @@ namespace pgbar {
         constexpr iterator() noexcept( std::is_nothrow_default_constructible<Iter>::value )
           : itr_ {}, itr_bar_ { nullptr }
         {}
+        __PGBAR_CXX17_CNSTXPR iterator( Iter itr ) noexcept( std::is_nothrow_move_constructible<Iter>::value )
+          : itr_ { std::move( itr ) }, itr_bar_ { nullptr }
+        {}
         __PGBAR_CXX17_CNSTXPR iterator( Iter itr, B& itr_bar )
           noexcept( std::is_nothrow_move_constructible<Iter>::value )
           : itr_ { std::move( itr ) }, itr_bar_ { std::addressof( itr_bar ) }
