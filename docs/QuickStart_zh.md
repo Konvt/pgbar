@@ -627,10 +627,10 @@ int main()
 `BlockBar` 由以下几种元素组成：
 
 ```text
-{LeftBorder}{Prefix}{Percent}{Starting}{BlockBar}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{Postfix}{RightBorder}
+{LeftBorder}{Prefix}{Percent}{Starting}{Lead}{Remains}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{Postfix}{RightBorder}
 ```
 
-其中可以自定义的部分有：`LeftBorder`、`Prefix`、`Starting`、`Ending`、`Speed`、`Postfix` 和 `RightBorder`，它们的功能与名字相同。
+其中可以自定义的部分有：`LeftBorder`、`Prefix`、`Starting`、`Lead`、`Remains`、`Ending`、`Speed`、`Postfix` 和 `RightBorder`，它们的功能与名字相同。
 
 这些元素可以直接在 `pgbar::option` 中找到对应的包装类型：
 
@@ -649,6 +649,8 @@ pgbar::option::FalseMesg;   // 修改进度条结束时，用于替换 Prefix �
 
 pgbar::option::Starting;  // 修改进度条块左侧、Percent 右侧的元素
 pgbar::option::Ending;    // 修改进度条块右侧、Counter 左侧的元素
+pgbar::option::Lead;      // 修改可变动画部分的各个帧
+pgbar::option::Remains;   // 修改未迭代部分的填充字符
 pgbar::option::BarLength; // 调整进度条的长度
 
 pgbar::option::SpeedUnit; // 修改 Speed 部分的单位
@@ -663,6 +665,8 @@ pgbar::option::TrueColor;    // 修改 TrueMesg 的颜色
 pgbar::option::FalseColor;   // 修改 FalseMesg 的颜色
 pgbar::option::StartColor;   // 修改 Starting 的颜色
 pgbar::option::EndColor;     // 修改 Ending 的颜色
+pgbar::option::RemainsColor; // 修改 Remains 的颜色
+pgbar::option::LeadColor;    // 修改 Lead 的颜色
 pgbar::option::InfoColor;    // 修改 Divider、Percent、Counter、Speed、Elapsed 和 Countdown 的颜色
 ```
 

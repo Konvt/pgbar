@@ -627,10 +627,10 @@ int main()
 `BlockBar` consists of the following elements:
 
 ```text
-{LeftBorder}{Prefix}{Percent}{Starting}{BlockBar}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{Postfix}{RightBorder}
+{LeftBorder}{Prefix}{Percent}{Starting}{Lead}{Remains}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{Postfix}{RightBorder}
 ```
 
-The customizable sections are: `LeftBorder`, `Prefix`, `Starting`, `Ending`, `Speed`, `Postfix` and `RightBorder`, all of which have the same method as the name.
+The customizable sections are: `LeftBorder`, `Prefix`, `Starting`, `Lead`, `Remains`, `Ending`, `Speed`, `Postfix` and `RightBorder`, all of which have the same method as the name.
 
 These elements can be found directly in `pgbar::option` with the corresponding wrapper type:
 
@@ -649,6 +649,8 @@ pgbar::option::FalseMesg;   // Modify the element used to replace the Prefix sec
 
 pgbar::option::Starting;  // Modify the elements left of the progress bar and right of Percent
 pgbar::option::Ending;    // Modify the elements right of the progress bar and left of the Counter
+pgbar::option::Lead;      // Modify the frames of the animation section
+pgbar::option::Remains;   // Modify the fill character for the uniterated part
 pgbar::option::BarLength; // Adjust the length of the progress bar
 
 pgbar::option::SpeedUnit; // Modify the unit in the Speed section
@@ -663,6 +665,8 @@ pgbar::option::TrueColor;    // Modify the color of TrueMesg
 pgbar::option::FalseColor;   // Modify the color of FalseMesg
 pgbar::option::StartColor;   // Modify the color of Starting
 pgbar::option::EndColor;     // Modify the color of Ending
+pgbar::option::RemainsColor; // Modify the color of Remains
+pgbar::option::LeadColor;    // Modify the color of Lead
 pgbar::option::InfoColor;    // Modify the color of Divider, Percent, Counter, Speed, Elapsed and Countdown
 ```
 

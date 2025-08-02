@@ -2134,7 +2134,11 @@ namespace pgbar {
      * otherwise it throws exception `pgbar::exception::InvalidArgument`.
      */
     template<typename N>
-    class NumericSpan {
+    class NumericSpan
+# if __PGBAR_CXX20
+      : public std::ranges::view_interface<NumericSpan<N>>
+# endif
+    {
       static_assert( std::is_arithmetic<N>::value,
                      "pgbar::slice::NumericSpan: Only available for arithmetic types" );
 
@@ -4000,17 +4004,12 @@ namespace pgbar {
       };
 
       template<typename Base, typename Derived>
-      class BasicAnimation : public Base {
-        friend __PGBAR_INLINE_FN void unpacker( BasicAnimation& cfg, option::LeadColor&& val ) noexcept
+      class Frames : public Base {
+        friend __PGBAR_INLINE_FN void unpacker( Frames& cfg, option::LeadColor&& val ) noexcept
         {
           cfg.lead_col_ = std::move( val.value() );
         }
-        friend __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR void unpacker( BasicAnimation& cfg,
-                                                                      option::Shift&& val ) noexcept
-        {
-          cfg.shift_factor_ = val.value() < 0 ? ( 1.0 / ( -val.value() ) ) : val.value();
-        }
-        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( BasicAnimation& cfg,
+        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( Frames& cfg,
                                                                       option::Lead&& val ) noexcept
         {
           if ( std::all_of( val.value().cbegin(),
@@ -4030,35 +4029,25 @@ namespace pgbar {
         }
 
       protected:
-        types::Float shift_factor_;
         types::String lead_col_;
         std::vector<charcodes::U8String> lead_;
         types::Size size_longest_lead_;
 
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::Size fixed_len_animation()
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::Size fixed_len_frames()
           const noexcept
         {
           return size_longest_lead_;
         }
 
       public:
-        __PGBAR_CXX20_CNSTXPR BasicAnimation() = default;
-        __PGBAR_NONEMPTY_CLASS( BasicAnimation, __PGBAR_CXX20_CNSTXPR )
+        __PGBAR_CXX20_CNSTXPR Frames() = default;
+        __PGBAR_NONEMPTY_CLASS( Frames, __PGBAR_CXX20_CNSTXPR )
 
 # define __PGBAR_METHOD( OptionName, ParamName, Operation )         \
    std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
    unpacker( *this, option::OptionName( Operation( ParamName ) ) ); \
    return static_cast<Derived&>( *this )
 
-        /**
-         * Set the rate factor of the animation with negative value slowing down the switch per frame
-         * and positive value speeding it up.
-         *
-         * The maximum and minimum of the rate factor is between -128 and 127.
-         *
-         * If the value is zero, freeze the animation.
-         */
-        Derived& shift( std::int8_t _shift_factor ) & { __PGBAR_METHOD( Shift, _shift_factor, ); }
         /**
          * @throw exception::InvalidArgument
          *
@@ -4090,13 +4079,163 @@ namespace pgbar {
 
 # undef __PGBAR_METHOD
 
+        __PGBAR_CXX20_CNSTXPR void swap( Frames& lhs ) noexcept
+        {
+          using std::swap;
+          lead_col_.swap( lhs.lead_col_ );
+          lead_.swap( lhs.lead_ );
+          swap( size_longest_lead_, lhs.size_longest_lead_ );
+          Base::swap( lhs );
+        }
+      };
+
+      template<typename Base, typename Derived>
+      class Filler : public Base {
+# define __PGBAR_UNPAKING( OptionName, MemberName, Constexpr )                                        \
+   friend __PGBAR_INLINE_FN Constexpr void unpacker( Filler& cfg, option::OptionName&& val ) noexcept \
+   {                                                                                                  \
+     cfg.MemberName = std::move( val.value() );                                                       \
+   }
+        __PGBAR_UNPAKING( Filler, filler_, __PGBAR_CXX20_CNSTXPR )
+        __PGBAR_UNPAKING( FillerColor, filler_col_, )
+# undef __PGBAR_UNPAKING
+
+      protected:
+        charcodes::U8String filler_;
+        types::String filler_col_;
+
+      public:
+        __PGBAR_CXX20_CNSTXPR Filler() = default;
+        __PGBAR_NONEMPTY_CLASS( Filler, __PGBAR_CXX20_CNSTXPR )
+
+# define __PGBAR_METHOD( OptionName, ParamName, Operation )         \
+   std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
+   unpacker( *this, option::OptionName( Operation( ParamName ) ) ); \
+   return static_cast<Derived&>( *this )
+
+        /**
+         * @throw exception::InvalidArgument
+         *
+         * If the passed parameters are not coding in UTF-8.
+         */
+        Derived& filler( types::String _filler ) & { __PGBAR_METHOD( Filler, _filler, std::move ); }
+# if __PGBAR_CXX20
+        Derived& filler( std::u8string_view _filler ) & { __PGBAR_METHOD( Filler, _filler, ); }
+# endif
+        Derived& filler_color( types::HexRGB _filler_color ) &
+        {
+          __PGBAR_METHOD( FillerColor, _filler_color, );
+        }
+        /**
+         * @throw exception::InvalidArgument
+         *
+         * If the passed parameters is not a valid RGB color string.
+         */
+        Derived& filler_color( types::ROStr _filler_color ) &
+        {
+          __PGBAR_METHOD( FillerColor, _filler_color, );
+        }
+
+# undef __PGBAR_METHOD
+        __PGBAR_CXX20_CNSTXPR void swap( Filler& lhs ) noexcept
+        {
+          filler_.swap( lhs.filler_ );
+          filler_col_.swap( lhs.filler_col_ );
+          Base::swap( lhs );
+        }
+      };
+
+      template<typename Base, typename Derived>
+      class Remains : public Base {
+# define __PGBAR_UNPAKING( OptionName, MemberName, Constexpr )                                         \
+   friend __PGBAR_INLINE_FN Constexpr void unpacker( Remains& cfg, option::OptionName&& val ) noexcept \
+   {                                                                                                   \
+     cfg.MemberName = std::move( val.value() );                                                        \
+   }
+        __PGBAR_UNPAKING( Remains, remains_, __PGBAR_CXX20_CNSTXPR )
+        __PGBAR_UNPAKING( RemainsColor, remains_col_, )
+# undef __PGBAR_UNPAKING
+
+      protected:
+        types::String remains_col_;
+        charcodes::U8String remains_;
+
+      public:
+        __PGBAR_CXX20_CNSTXPR Remains() = default;
+        __PGBAR_NONEMPTY_CLASS( Remains, __PGBAR_CXX20_CNSTXPR )
+
+# define __PGBAR_METHOD( OptionName, ParamName, Operation )         \
+   std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
+   unpacker( *this, option::OptionName( Operation( ParamName ) ) ); \
+   return static_cast<Derived&>( *this )
+
+        Derived& remains_color( types::HexRGB _remains_color ) &
+        {
+          __PGBAR_METHOD( RemainsColor, _remains_color, );
+        }
+        /**
+         * @throw exception::InvalidArgument
+         *
+         * If the passed parameters is not a valid RGB color string.
+         */
+        Derived& remains_color( types::ROStr _remains_color ) &
+        {
+          __PGBAR_METHOD( RemainsColor, _remains_color, );
+        }
+
+        /**
+         * @throw exception::InvalidArgument
+         *
+         * If the passed parameters are not coding in UTF-8.
+         */
+        Derived& remains( types::String _remains ) & { __PGBAR_METHOD( Remains, _remains, std::move ); }
+# if __PGBAR_CXX20
+        Derived& remains( std::u8string_view _remains ) & { __PGBAR_METHOD( Remains, _remains, ); }
+# endif
+# undef __PGBAR_METHOD
+
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void swap( Remains& lhs ) noexcept
+        {
+          remains_col_.swap( lhs.remains_col_ );
+          remains_.swap( lhs.remains_ );
+          Base::swap( lhs );
+        }
+      };
+
+      template<typename Base, typename Derived>
+      class BasicAnimation : public Base {
+        friend __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR void unpacker( BasicAnimation& cfg,
+                                                                      option::Shift&& val ) noexcept
+        {
+          cfg.shift_factor_ = val.value() < 0 ? ( 1.0 / ( -val.value() ) ) : val.value();
+        }
+
+      protected:
+        types::Float shift_factor_;
+
+      public:
+        __PGBAR_CXX20_CNSTXPR BasicAnimation() = default;
+        __PGBAR_NONEMPTY_CLASS( BasicAnimation, __PGBAR_CXX20_CNSTXPR )
+
+        /**
+         * Set the rate factor of the animation with negative value slowing down the switch per frame
+         * and positive value speeding it up.
+         *
+         * The maximum and minimum of the rate factor is between -128 and 127.
+         *
+         * If the value is zero, freeze the animation.
+         */
+        Derived& shift( std::int8_t _shift_factor ) &
+        {
+          std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };
+          unpacker( *this, option::Shift( _shift_factor ) );
+          return static_cast<Derived&>( *this );
+        }
+
         __PGBAR_CXX20_CNSTXPR void swap( BasicAnimation& lhs ) noexcept
         {
           using std::swap;
           swap( shift_factor_, lhs.shift_factor_ );
-          lead_col_.swap( lhs.lead_col_ );
-          lead_.swap( lhs.lead_ );
-          swap( size_longest_lead_, lhs.size_longest_lead_ );
           Base::swap( lhs );
         }
       };
@@ -4114,14 +4253,12 @@ namespace pgbar {
         __PGBAR_UNPAKING( BarLength, bar_length_, __PGBAR_CXX20_CNSTXPR )
         __PGBAR_UNPAKING( StartColor, start_col_, )
         __PGBAR_UNPAKING( EndColor, end_col_, )
-        __PGBAR_UNPAKING( FillerColor, filler_col_, )
 # undef __PGBAR_UNPAKING
 
       protected:
         types::Size bar_length_;
         charcodes::U8String starting_, ending_;
         types::String start_col_, end_col_;
-        types::String filler_col_;
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::Size fixed_len_bar() const noexcept
         {
@@ -4168,19 +4305,6 @@ namespace pgbar {
          * If the passed parameters is not a valid RGB color string.
          */
         Derived& end_color( types::ROStr _end_color ) & { __PGBAR_METHOD( EndColor, _end_color, ); }
-        Derived& filler_color( types::HexRGB _filler_color ) &
-        {
-          __PGBAR_METHOD( FillerColor, _filler_color, );
-        }
-        /**
-         * @throw exception::InvalidArgument
-         *
-         * If the passed parameters is not a valid RGB color string.
-         */
-        Derived& filler_color( types::ROStr _filler_color ) &
-        {
-          __PGBAR_METHOD( FillerColor, _filler_color, );
-        }
         // Set the length of the bar indicator.
         Derived& bar_length( types::Size _length ) & { __PGBAR_METHOD( BarLength, _length, ); }
 
@@ -4198,27 +4322,13 @@ namespace pgbar {
           ending_.swap( lhs.ending_ );
           start_col_.swap( lhs.start_col_ );
           end_col_.swap( lhs.end_col_ );
-          filler_col_.swap( lhs.filler_col_ );
           Base::swap( lhs );
         }
       };
 
       template<typename Base, typename Derived>
-      class CharIndicator : public Base {
-# define __PGBAR_UNPAKING( OptionName, MemberName, Constexpr )                                               \
-   friend __PGBAR_INLINE_FN Constexpr void unpacker( CharIndicator& cfg, option::OptionName&& val ) noexcept \
-   {                                                                                                         \
-     cfg.MemberName = std::move( val.value() );                                                              \
-   }
-        __PGBAR_UNPAKING( Remains, remains_, __PGBAR_CXX20_CNSTXPR )
-        __PGBAR_UNPAKING( RemainsColor, remains_col_, )
-        __PGBAR_UNPAKING( Filler, filler_, __PGBAR_CXX20_CNSTXPR )
-# undef __PGBAR_UNPAKING
-
+      class CharIndic : public Base {
       protected:
-        types::String remains_col_;
-        charcodes::U8String remains_, filler_;
-
         __PGBAR_INLINE_FN __PGBAR_CXX23_CNSTXPR io::Stringbuf& build_char( io::Stringbuf& buffer,
                                                                            types::Float num_percent,
                                                                            types::Size num_frame_cnt ) const
@@ -4236,11 +4346,11 @@ namespace pgbar {
           __PGBAR_PURE_ASSUME( len_finished + len_unfinished == this->bar_length_ );
 
           // build filler_
-          if ( !filler_.empty() && filler_.size() <= len_finished ) {
-            const types::Size fill_num  = len_finished / filler_.size(),
-                              remaining = len_finished % filler_.size();
+          if ( !this->filler_.empty() && this->filler_.size() <= len_finished ) {
+            const types::Size fill_num  = len_finished / this->filler_.size(),
+                              remaining = len_finished % this->filler_.size();
             len_unfinished += remaining;
-            buffer.append( filler_, fill_num );
+            buffer.append( this->filler_, fill_num );
           } else
             len_unfinished += len_finished;
           // build lead_
@@ -4256,10 +4366,10 @@ namespace pgbar {
             }
           }
           // build remains_
-          this->try_dye( buffer, remains_col_ );
+          this->try_dye( buffer, this->remains_col_ );
           if ( !this->remains_.empty() && this->remains_.size() <= len_unfinished )
-            buffer.append( remains_, len_unfinished / remains_.size() )
-              .append( constants::blank, len_unfinished % remains_.size() );
+            buffer.append( this->remains_, len_unfinished / this->remains_.size() )
+              .append( constants::blank, len_unfinished % this->remains_.size() );
           else
             buffer.append( constants::blank, len_unfinished );
 
@@ -4268,62 +4378,12 @@ namespace pgbar {
         }
 
       public:
-        __PGBAR_CXX20_CNSTXPR CharIndicator() = default;
-        __PGBAR_NONEMPTY_CLASS( CharIndicator, __PGBAR_CXX20_CNSTXPR )
-
-# define __PGBAR_METHOD( OptionName, ParamName, Operation )         \
-   std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
-   unpacker( *this, option::OptionName( Operation( ParamName ) ) ); \
-   return static_cast<Derived&>( *this )
-
-        Derived& remains_color( types::HexRGB _remains_color ) &
-        {
-          __PGBAR_METHOD( RemainsColor, _remains_color, );
-        }
-        /**
-         * @throw exception::InvalidArgument
-         *
-         * If the passed parameters is not a valid RGB color string.
-         */
-        Derived& remains_color( types::ROStr _remains_color ) &
-        {
-          __PGBAR_METHOD( RemainsColor, _remains_color, );
-        }
-
-        /**
-         * @throw exception::InvalidArgument
-         *
-         * If the passed parameters are not coding in UTF-8.
-         */
-        Derived& remains( types::String _remains ) & { __PGBAR_METHOD( Remains, _remains, std::move ); }
-        /**
-         * @throw exception::InvalidArgument
-         *
-         * If the passed parameters are not coding in UTF-8.
-         */
-        Derived& filler( types::String _filler ) & { __PGBAR_METHOD( Filler, _filler, std::move ); }
-# if __PGBAR_CXX20
-        Derived& remains( std::u8string_view _remains ) & { __PGBAR_METHOD( Remains, _remains, ); }
-        Derived& filler( std::u8string_view _filler ) & { __PGBAR_METHOD( Filler, _filler, ); }
-# endif
-# undef __PGBAR_METHOD
-
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void swap( CharIndicator& lhs ) noexcept
-        {
-          remains_col_.swap( lhs.remains_col_ );
-          remains_.swap( lhs.remains_ );
-          filler_.swap( lhs.filler_ );
-          Base::swap( lhs );
-        }
+        __PGBAR_EMPTY_CLASS( CharIndic )
       };
 
       template<typename Base, typename Derived>
-      class BlockIndicator : public Base {
+      class BlockIndic : public Base {
       protected:
-        const std::array<types::LitStr, 8> filler_ = {
-          { "▏", "▎", "▍", "▌", "▋", "▊", "▉", "█" }
-        };
-
         __PGBAR_INLINE_FN __PGBAR_CXX23_CNSTXPR io::Stringbuf& build_block( io::Stringbuf& buffer,
                                                                             types::Float num_percent ) const
         {
@@ -4333,51 +4393,31 @@ namespace pgbar {
           this->try_reset( buffer );
           this->try_dye( buffer, this->start_col_ ) << this->starting_;
           this->try_reset( buffer );
-          this->try_dye( buffer, this->filler_col_ );
 
-          const auto len_finished = static_cast<types::Size>( std::trunc( this->bar_length_ * num_percent ) );
+          const auto len_finished       = static_cast<types::Size>( this->bar_length_ * num_percent );
           const types::Float float_part = ( this->bar_length_ * num_percent ) - len_finished;
           __PGBAR_PURE_ASSUME( float_part >= 0.0 );
           __PGBAR_PURE_ASSUME( float_part <= 1.0 );
-          const types::Size incomplete_block = static_cast<types::Size>( float_part * filler_.size() );
-          const types::Size len_unfinished   = this->bar_length_ - len_finished - ( incomplete_block != 0 );
-          __PGBAR_PURE_ASSUME( len_finished + len_unfinished + ( incomplete_block != 0 )
-                               == this->bar_length_ );
+          const types::Size incomplete_block = static_cast<types::Size>( float_part * this->lead_.size() );
+          const types::Size len_unfinished   = this->bar_length_ - len_finished - 1;
 
-          buffer.append( filler_.back(), len_finished )
-            .append( filler_[incomplete_block], incomplete_block != 0 );
-          this->try_reset( buffer ).append( constants::blank, len_unfinished );
+          if ( !this->lead_.empty() ) {
+            this->try_dye( buffer, this->lead_col_ );
+            __PGBAR_PURE_ASSUME( len_finished + len_unfinished + 1 == this->bar_length_ );
+            buffer.append( this->lead_.back(), len_finished ).append( this->lead_[incomplete_block] );
+          }
+          this->try_reset( buffer );
+          this->try_dye( buffer, this->remains_col_ ).append( this->remains_, len_unfinished );
           this->try_reset( buffer );
           return this->try_dye( buffer, this->end_col_ ) << this->ending_;
         }
 
       public:
-        constexpr BlockIndicator() = default;
-        constexpr BlockIndicator( const BlockIndicator& lhs )
-          noexcept( std::is_nothrow_copy_constructible<Base>::value )
-          : Base( lhs )
-        {}
-        constexpr BlockIndicator( BlockIndicator&& rhs )
-          noexcept( std::is_nothrow_move_constructible<Base>::value )
-          : Base( std::move( rhs ) )
-        {}
-        __PGBAR_CXX14_CNSTXPR BlockIndicator& operator=( const BlockIndicator& lhs ) & noexcept(
-          std::is_nothrow_copy_assignable<Base>::value )
-        {
-          Base::operator=( lhs );
-          return *this;
-        }
-        __PGBAR_CXX14_CNSTXPR BlockIndicator& operator=( BlockIndicator&& rhs ) & noexcept(
-          std::is_nothrow_move_assignable<Base>::value )
-        {
-          Base::operator=( std::move( rhs ) );
-          return *this;
-        }
-        __PGBAR_CXX20_CNSTXPR ~BlockIndicator() = default;
+        __PGBAR_EMPTY_CLASS( BlockIndic )
       };
 
       template<typename Base, typename Derived>
-      class Spinner : public Base {
+      class SpinnerIndic : public Base {
       protected:
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& build_spinner(
           io::Stringbuf& buffer,
@@ -4396,20 +4436,12 @@ namespace pgbar {
         }
 
       public:
-        __PGBAR_EMPTY_CLASS( Spinner )
+        __PGBAR_EMPTY_CLASS( SpinnerIndic )
       };
 
       template<typename Base, typename Derived>
-      class Sweeper : public Base {
-        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( Sweeper& cfg,
-                                                                      option::Filler&& val ) noexcept
-        {
-          cfg.filler_ = std::move( val.value() );
-        }
-
+      class SweeperIndic : public Base {
       protected:
-        charcodes::U8String filler_;
-
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& build_sweeper(
           io::Stringbuf& buffer,
           types::Size num_frame_cnt ) const
@@ -4432,46 +4464,27 @@ namespace pgbar {
               const auto right_fill_len = this->bar_length_ - ( left_fill_len + current_lead.size() );
               __PGBAR_ASSERT( left_fill_len + right_fill_len + current_lead.size() == this->bar_length_ );
 
-              buffer.append( filler_, left_fill_len / filler_.size() )
-                .append( constants::blank, left_fill_len % filler_.size() );
+              buffer.append( this->filler_, left_fill_len / this->filler_.size() )
+                .append( constants::blank, left_fill_len % this->filler_.size() );
               this->try_reset( buffer ).append( this->lead_col_ ).append( current_lead );
               this->try_reset( buffer )
                 .append( this->filler_col_ )
-                .append( constants::blank, right_fill_len % filler_.size() )
-                .append( filler_, right_fill_len / filler_.size() );
+                .append( constants::blank, right_fill_len % this->filler_.size() )
+                .append( this->filler_, right_fill_len / this->filler_.size() );
             } else
               buffer.append( constants::blank, this->bar_length_ );
-          } else if ( filler_.empty() )
+          } else if ( this->filler_.empty() )
             buffer.append( constants::blank, this->bar_length_ );
           else
-            buffer.append( filler_, this->bar_length_ / filler_.size() )
-              .append( constants::blank, this->bar_length_ % filler_.size() );
+            buffer.append( this->filler_, this->bar_length_ / this->filler_.size() )
+              .append( constants::blank, this->bar_length_ % this->filler_.size() );
 
           this->try_reset( buffer );
           return this->try_dye( buffer, this->end_col_ ) << this->ending_;
         }
 
       public:
-        __PGBAR_CXX20_CNSTXPR Sweeper() = default;
-        __PGBAR_NONEMPTY_CLASS( Sweeper, __PGBAR_CXX20_CNSTXPR )
-
-        /**
-         * @throw exception::InvalidArgument
-         *
-         * If the passed parameters are not coding in UTF-8.
-         */
-        Derived& filler( types::String param ) &
-        {
-          std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          unpacker( *this, option::Filler( std::move( param ) ) );
-          return static_cast<Derived&>( *this );
-        }
-
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void swap( Sweeper& lhs ) noexcept
-        {
-          filler_.swap( lhs.filler_ );
-          Base::swap( lhs );
-        }
+        __PGBAR_EMPTY_CLASS( SweeperIndic )
       };
 
       template<typename Base, typename Derived>
@@ -5254,15 +5267,23 @@ namespace pgbar {
     } // namespace assets
 
     namespace traits {
-      __PGBAR_INHERIT_REGISTER( assets::CharIndicator,
-                                assets::TaskQuantity,
-                                __PGBAR_PACK( assets::BasicAnimation, assets::BasicIndicator ) );
-      __PGBAR_INHERIT_REGISTER( assets::BlockIndicator, assets::TaskQuantity, assets::BasicIndicator );
+      // There is no need to declare the dependency on assets::Core here.
+      // It will be directly passed to the dependency resolution function as the initial base class.
+      __PGBAR_INHERIT_REGISTER( assets::BasicAnimation, , assets::Frames );
 
-      __PGBAR_INHERIT_REGISTER( assets::Spinner, , assets::BasicAnimation );
-      __PGBAR_INHERIT_REGISTER( assets::Sweeper,
+      __PGBAR_INHERIT_REGISTER(
+        assets::CharIndic,
+        assets::TaskQuantity,
+        __PGBAR_PACK( assets::BasicAnimation, assets::BasicIndicator, assets::Filler, assets::Remains ) );
+      __PGBAR_INHERIT_REGISTER( assets::BlockIndic,
+                                assets::TaskQuantity,
+                                __PGBAR_PACK( assets::Frames, assets::BasicIndicator, assets::Remains ) );
+      __PGBAR_INHERIT_REGISTER( assets::SpinnerIndic, , assets::BasicAnimation );
+      __PGBAR_INHERIT_REGISTER( assets::SweeperIndic,
                                 ,
-                                __PGBAR_PACK( assets::BasicAnimation, assets::BasicIndicator ) );
+                                __PGBAR_PACK( assets::BasicAnimation,
+                                              assets::BasicIndicator,
+                                              assets::Filler ) );
 
       __PGBAR_INHERIT_REGISTER( assets::PercentMeter, assets::TaskQuantity, );
       __PGBAR_INHERIT_REGISTER( assets::SpeedMeter, assets::TaskQuantity, );
@@ -5271,69 +5292,74 @@ namespace pgbar {
       __PGBAR_INHERIT_REGISTER( assets::Timer, assets::TaskQuantity, );
 
       template<template<typename...> class Component>
-      struct ComponentTraits {
+      struct OptionFor {
         using type = TypeList<>;
       };
       template<template<typename...> class Component>
-      using ComponentTraits_t = typename ComponentTraits<Component>::type;
+      using OptionFor_t = typename OptionFor<Component>::type;
 
-# define __PGBAR_COMPONENT_REGISTER( Component, ... ) \
-   template<>                                         \
-   struct ComponentTraits<Component> {                \
-     using type = TypeList<__VA_ARGS__>;              \
+# define __PGBAR_BIND_OPTION( Component, ... ) \
+   template<>                                  \
+   struct OptionFor<Component> {               \
+     using type = TypeList<__VA_ARGS__>;       \
    }
 
-      __PGBAR_COMPONENT_REGISTER( assets::Core, option::Colored, option::Bolded );
-      __PGBAR_COMPONENT_REGISTER( assets::TaskQuantity, option::Tasks );
-      __PGBAR_COMPONENT_REGISTER( assets::Prefix,
-                                  option::Prefix,
-                                  option::TrueMesg,
-                                  option::FalseMesg,
-                                  option::PrefixColor,
-                                  option::TrueColor,
-                                  option::FalseColor );
-      __PGBAR_COMPONENT_REGISTER( assets::Postfix, option::Postfix, option::PostfixColor );
-      __PGBAR_COMPONENT_REGISTER( assets::Segment,
-                                  option::Divider,
-                                  option::LeftBorder,
-                                  option::RightBorder,
-                                  option::InfoColor );
-      __PGBAR_COMPONENT_REGISTER( assets::PercentMeter, );
-      __PGBAR_COMPONENT_REGISTER( assets::SpeedMeter, option::SpeedUnit, option::Magnitude );
-      __PGBAR_COMPONENT_REGISTER( assets::BasicAnimation, option::Shift, option::Lead, option::LeadColor );
-      __PGBAR_COMPONENT_REGISTER( assets::BasicIndicator,
-                                  option::Starting,
-                                  option::Ending,
-                                  option::StartColor,
-                                  option::EndColor,
-                                  option::BarLength,
-                                  option::FillerColor );
+      __PGBAR_BIND_OPTION( assets::Core, option::Colored, option::Bolded );
+      __PGBAR_BIND_OPTION( assets::TaskQuantity, option::Tasks );
+      __PGBAR_BIND_OPTION( assets::Frames, option::Lead, option::LeadColor );
+      __PGBAR_BIND_OPTION( assets::Filler, option::Filler, option::FillerColor );
+      __PGBAR_BIND_OPTION( assets::Remains, option::Remains, option::RemainsColor );
+      __PGBAR_BIND_OPTION( assets::BasicAnimation, option::Shift );
+      __PGBAR_BIND_OPTION( assets::BasicIndicator,
+                           option::Starting,
+                           option::Ending,
+                           option::StartColor,
+                           option::EndColor,
+                           option::BarLength );
+      __PGBAR_BIND_OPTION( assets::Prefix,
+                           option::Prefix,
+                           option::TrueMesg,
+                           option::FalseMesg,
+                           option::PrefixColor,
+                           option::TrueColor,
+                           option::FalseColor );
+      __PGBAR_BIND_OPTION( assets::Postfix, option::Postfix, option::PostfixColor );
+      __PGBAR_BIND_OPTION( assets::Segment,
+                           option::Divider,
+                           option::LeftBorder,
+                           option::RightBorder,
+                           option::InfoColor );
+      __PGBAR_BIND_OPTION( assets::PercentMeter, );
+      __PGBAR_BIND_OPTION( assets::SpeedMeter, option::SpeedUnit, option::Magnitude );
 
       template<>
-      struct ComponentTraits<assets::CharIndicator> {
-        using type = Merge_t<ComponentTraits_t<assets::TaskQuantity>,
-                             ComponentTraits_t<assets::BasicAnimation>,
-                             ComponentTraits_t<assets::BasicIndicator>,
-                             TypeList<option::Remains, option::Filler, option::RemainsColor>>;
+      struct OptionFor<assets::CharIndic> {
+        using type = Merge_t<OptionFor_t<assets::TaskQuantity>,
+                             OptionFor_t<assets::Frames>,
+                             OptionFor_t<assets::Filler>,
+                             OptionFor_t<assets::Remains>,
+                             OptionFor_t<assets::BasicAnimation>,
+                             OptionFor_t<assets::BasicIndicator>>;
       };
       template<>
-      struct ComponentTraits<assets::BlockIndicator> {
-        using type = Merge_t<ComponentTraits_t<assets::TaskQuantity>,
-                             ComponentTraits_t<assets::BasicAnimation>,
-                             ComponentTraits_t<assets::BasicIndicator>,
-                             TypeList<option::Remains, option::Filler, option::RemainsColor>>;
+      struct OptionFor<assets::BlockIndic> {
+        using type = Merge_t<OptionFor_t<assets::TaskQuantity>,
+                             OptionFor_t<assets::Frames>,
+                             OptionFor_t<assets::Remains>,
+                             OptionFor_t<assets::BasicAnimation>,
+                             OptionFor_t<assets::BasicIndicator>>;
       };
       template<>
-      struct ComponentTraits<assets::Spinner> {
-        using type =
-          Merge_t<ComponentTraits_t<assets::TaskQuantity>, ComponentTraits_t<assets::BasicAnimation>>;
+      struct OptionFor<assets::SpinnerIndic> {
+        using type = Merge_t<OptionFor_t<assets::TaskQuantity>, OptionFor_t<assets::BasicAnimation>>;
       };
       template<>
-      struct ComponentTraits<assets::Sweeper> {
-        using type = Merge_t<ComponentTraits_t<assets::TaskQuantity>,
-                             ComponentTraits_t<assets::BasicAnimation>,
-                             ComponentTraits_t<assets::BasicIndicator>,
-                             TypeList<option::Filler>>;
+      struct OptionFor<assets::SweeperIndic> {
+        using type = Merge_t<OptionFor_t<assets::TaskQuantity>,
+                             OptionFor_t<assets::Frames>,
+                             OptionFor_t<assets::Filler>,
+                             OptionFor_t<assets::BasicAnimation>,
+                             OptionFor_t<assets::BasicIndicator>>;
       };
     } // namespace traits
 
@@ -5355,22 +5381,23 @@ namespace pgbar {
                                                      assets::BasicAnimation>>::value,
                        "pgbar::__details::prefabs::BasicConfig: Invalid progress bar type" );
 
-        using Self       = BasicConfig;
-        using Base       = typename traits::LI_t<BarType,
-                                                 assets::Prefix,
-                                                 assets::Postfix,
-                                                 assets::Segment,
-                                                 assets::PercentMeter,
-                                                 assets::SpeedMeter,
-                                                 assets::CounterMeter,
-                                                 assets::Timer>::template type<assets::Core<Derived>, Derived>;
-        using Constraint = traits::Merge_t<traits::TypeList<option::Style>,
-                                           traits::ComponentTraits_t<BarType>,
-                                           traits::ComponentTraits_t<assets::Prefix>,
-                                           traits::ComponentTraits_t<assets::Postfix>,
-                                           traits::ComponentTraits_t<assets::Segment>,
-                                           traits::ComponentTraits_t<assets::SpeedMeter>,
-                                           traits::ComponentTraits_t<assets::Timer>>;
+        using Self      = BasicConfig;
+        using Base      = typename traits::LI_t<BarType,
+                                                assets::Prefix,
+                                                assets::Postfix,
+                                                assets::Segment,
+                                                assets::PercentMeter,
+                                                assets::SpeedMeter,
+                                                assets::CounterMeter,
+                                                assets::Timer>::template type<assets::Core<Derived>, Derived>;
+        using Permitted = traits::Merge_t<traits::TypeList<option::Style>,
+                                          traits::OptionFor_t<BarType>,
+                                          traits::OptionFor_t<assets::Prefix>,
+                                          traits::OptionFor_t<assets::Postfix>,
+                                          traits::OptionFor_t<assets::Segment>,
+                                          traits::OptionFor_t<assets::SpeedMeter>,
+                                          traits::OptionFor_t<assets::Timer>,
+                                          traits::OptionFor_t<assets::Core>>;
 
         friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( BasicConfig& cfg,
                                                                       option::Style&& val ) noexcept
@@ -5478,12 +5505,12 @@ namespace pgbar {
 # if __PGBAR_CXX20
         template<typename... Args>
           requires( !traits::Duplicated<traits::TypeList<Args...>>::value
-                    && ( traits::Exist<traits::Unique_t<Constraint>, Args>::value && ... ) )
+                    && ( traits::Exist<traits::Unique_t<Permitted>, Args>::value && ... ) )
 # else
         template<typename... Args,
                  typename = typename std::enable_if<
                    traits::AllOf<traits::Not<traits::Duplicated<traits::TypeList<Args...>>>,
-                                 traits::Exist<traits::Unique_t<Constraint>, Args>...>::value>::type>
+                                 traits::Exist<traits::Unique_t<Permitted>, Args>...>::value>::type>
 # endif
         BasicConfig( Args... args )
         {
@@ -5546,13 +5573,13 @@ namespace pgbar {
         template<typename Arg, typename... Args>
 # if __PGBAR_CXX20
           requires( !traits::Duplicated<traits::TypeList<Arg, Args...>>::value
-                    && traits::Exist<traits::Unique_t<Constraint>, Arg>::value
-                    && ( traits::Exist<traits::Unique_t<Constraint>, Args>::value && ... ) )
+                    && traits::Exist<traits::Unique_t<Permitted>, Arg>::value
+                    && ( traits::Exist<traits::Unique_t<Permitted>, Args>::value && ... ) )
         Derived&
 # else
         typename std::enable_if<traits::AllOf<traits::Not<traits::Duplicated<traits::TypeList<Arg, Args...>>>,
-                                              traits::Exist<traits::Unique_t<Constraint>, Arg>,
-                                              traits::Exist<traits::Unique_t<Constraint>, Args>...>::value,
+                                              traits::Exist<traits::Unique_t<Permitted>, Arg>,
+                                              traits::Exist<traits::Unique_t<Permitted>, Args>...>::value,
                                 Derived&>::type
 # endif
           set( Arg arg, Args... args ) &
@@ -5651,8 +5678,8 @@ namespace pgbar {
       return Indicator::_disable_styling.load( std::memory_order_acquire );
     }
 
-    class Line : public __details::prefabs::BasicConfig<__details::assets::CharIndicator, Line> {
-      using Base = __details::prefabs::BasicConfig<__details::assets::CharIndicator, Line>;
+    class Line : public __details::prefabs::BasicConfig<__details::assets::CharIndic, Line> {
+      using Base = __details::prefabs::BasicConfig<__details::assets::CharIndic, Line>;
       friend Base;
 
       template<typename... Options>
@@ -5679,9 +5706,7 @@ namespace pgbar {
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::InfoColor>::value )
           unpacker( *this, option::InfoColor( color::Cyan ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::SpeedUnit>::value )
-          unpacker(
-            *this,
-            option::SpeedUnit( std::array<__details::types::String, 4>( { "Hz", "kHz", "MHz", "GHz" } ) ) );
+          unpacker( *this, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Magnitude>::value )
           unpacker( *this, option::Magnitude( 1000 ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Style>::value )
@@ -5705,24 +5730,26 @@ namespace pgbar {
       ~Line()                          = default;
     };
 
-    class Block : public __details::prefabs::BasicConfig<__details::assets::BlockIndicator, Block> {
-      using Base = __details::prefabs::BasicConfig<__details::assets::BlockIndicator, Block>;
+    class Block : public __details::prefabs::BasicConfig<__details::assets::BlockIndic, Block> {
+      using Base = __details::prefabs::BasicConfig<__details::assets::BlockIndic, Block>;
       friend Base;
 
       template<typename... Options>
       void initialize()
       {
         using ParamList = __details::traits::TypeList<Options...>;
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Lead>::value )
+          unpacker( *this, option::Lead( { "▏", "▎", "▍", "▌", "▋", "▊", "▉", "█" } ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::BarLength>::value )
           unpacker( *this, option::BarLength( 30 ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Remains>::value )
+          unpacker( *this, option::Remains( " " ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Divider>::value )
           unpacker( *this, option::Divider( " | " ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::InfoColor>::value )
           unpacker( *this, option::InfoColor( color::Cyan ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::SpeedUnit>::value )
-          unpacker(
-            *this,
-            option::SpeedUnit( std::array<__details::types::String, 4>( { "Hz", "kHz", "MHz", "GHz" } ) ) );
+          unpacker( *this, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Magnitude>::value )
           unpacker( *this, option::Magnitude( 1000 ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Style>::value )
@@ -5746,8 +5773,8 @@ namespace pgbar {
       ~Block()                           = default;
     };
 
-    class Spin : public __details::prefabs::BasicConfig<__details::assets::Spinner, Spin> {
-      using Base = __details::prefabs::BasicConfig<__details::assets::Spinner, Spin>;
+    class Spin : public __details::prefabs::BasicConfig<__details::assets::SpinnerIndic, Spin> {
+      using Base = __details::prefabs::BasicConfig<__details::assets::SpinnerIndic, Spin>;
       friend Base;
 
       template<typename... Options>
@@ -5763,9 +5790,7 @@ namespace pgbar {
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::InfoColor>::value )
           unpacker( *this, option::InfoColor( color::Cyan ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::SpeedUnit>::value )
-          unpacker(
-            *this,
-            option::SpeedUnit( std::array<__details::types::String, 4>( { "Hz", "kHz", "MHz", "GHz" } ) ) );
+          unpacker( *this, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Magnitude>::value )
           unpacker( *this, option::Magnitude( 1000 ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Style>::value )
@@ -5777,7 +5802,7 @@ namespace pgbar {
       {
         return this->common_render_size()
              + ( this->visual_masks_[__details::utils::as_val( Base::Mask::Ani )]
-                   ? this->fixed_len_animation()
+                   ? this->fixed_len_frames()
                        + ( ( this->true_mesg_.empty() || this->false_mesg_.empty() )
                            && !this->prefix_.empty() )
                    : 0 );
@@ -5792,8 +5817,8 @@ namespace pgbar {
       ~Spin()                          = default;
     };
 
-    class Sweep : public __details::prefabs::BasicConfig<__details::assets::Sweeper, Sweep> {
-      using Base = __details::prefabs::BasicConfig<__details::assets::Sweeper, Sweep>;
+    class Sweep : public __details::prefabs::BasicConfig<__details::assets::SweeperIndic, Sweep> {
+      using Base = __details::prefabs::BasicConfig<__details::assets::SweeperIndic, Sweep>;
       friend Base;
 
       template<typename... Options>
@@ -5817,9 +5842,7 @@ namespace pgbar {
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::InfoColor>::value )
           unpacker( *this, option::InfoColor( color::Cyan ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::SpeedUnit>::value )
-          unpacker(
-            *this,
-            option::SpeedUnit( std::array<__details::types::String, 4>( { "Hz", "kHz", "MHz", "GHz" } ) ) );
+          unpacker( *this, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Magnitude>::value )
           unpacker( *this, option::Magnitude( 1000 ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Style>::value )
@@ -6644,7 +6667,7 @@ namespace pgbar {
    * A progress bar with a smoother bar, requires an Unicode-supported terminal.
    *
    * It's structure is shown below:
-   * {LeftBorder}{Prefix}{Percent}{Starting}{BlockBar}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{Postfix}{RightBorder}
+   * {LeftBorder}{Prefix}{Percent}{Starting}{Lead}{Remains}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{Postfix}{RightBorder}
    */
   template<Channel Outlet = Channel::Stderr, Policy Mode = Policy::Async, Region Area = Region::Fixed>
   using BlockBar = __details::prefabs::BasicBar<config::Block, Outlet, Mode, Area>;
@@ -7737,7 +7760,11 @@ namespace pgbar {
      * which transforms the iterations in the abstract into a visual display of the object.
      */
     template<typename R, typename B>
-    class ProxySpan {
+    class ProxySpan
+# if __PGBAR_CXX20
+      : public std::ranges::view_interface<ProxySpan<R, B>>
+# endif
+    {
       static_assert( __details::traits::is_bounded_range<R>::value,
                      "pgbar::slice::ProxySpan: Only available for bounded ranges" );
       static_assert( __details::traits::is_iterable_bar<B>::value,
@@ -8618,7 +8645,7 @@ struct std::tuple_size<pgbar::MultiBar<Bs...>> : std::integral_constant<std::siz
 template<std::size_t I, typename... Bs>
 struct std::tuple_element<I, pgbar::MultiBar<Bs...>> : pgbar::__details::traits::TypeAt<I, Bs...> {};
 
-# undef __PGBAR_COMPONENT_REGISTER
+# undef __PGBAR_BIND_OPTION
 # undef __PGBAR_TRAIT_REGISTER
 
 # undef __PGBAR_EMPTY_CLASS
