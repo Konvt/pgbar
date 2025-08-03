@@ -88,7 +88,7 @@
        }                          \
      } while ( false )
 #  else
-#   define __PGBAR_UNREACHABLE __PGBAR_PURE_ASSUME( false )
+#   define __PGBAR_UNREACHABLE __PGBAR_TRUST( false )
 #   define __PGBAR_ASSUME( expr )
 #  endif
 # endif
@@ -150,10 +150,10 @@
 # endif
 
 // For assertion conditions without side effects.
-# define __PGBAR_PURE_ASSUME( expr ) \
-   do {                              \
-     __PGBAR_ASSERT( expr );         \
-     __PGBAR_ASSUME( expr );         \
+# define __PGBAR_TRUST( expr ) \
+   do {                        \
+     __PGBAR_ASSERT( expr );   \
+     __PGBAR_ASSUME( expr );   \
    } while ( false )
 
 # define __PGBAR_DEFAULT 0xC105EA11 // C1O5E -> ClOSE, A11 -> All
@@ -1058,14 +1058,20 @@ namespace pgbar {
 
       template<typename Numeric>
       __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR __PGBAR_INLINE_FN
-        typename std::enable_if<std::is_arithmetic<Numeric>::value, types::Size>::type
+        typename std::enable_if<std::is_unsigned<Numeric>::value, types::Size>::type
         count_digits( Numeric val ) noexcept
       {
-        auto abs_val       = static_cast<std::uint64_t>( val < 0 ? -val : val );
-        types::Size digits = abs_val == 0;
-        for ( ; abs_val > 0; abs_val /= 10 )
+        types::Size digits = val == 0;
+        for ( ; val > 0; val /= 10 )
           ++digits;
         return digits;
+      }
+      template<typename Numeric>
+      __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR __PGBAR_INLINE_FN
+        typename std::enable_if<std::is_signed<Numeric>::value, types::Size>::type
+        count_digits( Numeric val ) noexcept
+      {
+        return count_digits( static_cast<std::uint64_t>( val < 0 ? -val : val ) );
       }
 
       // Format an integer number.
@@ -1098,7 +1104,7 @@ namespace pgbar {
 
          * So the implementation here is provided manually. */
         __PGBAR_ASSERT( std::isfinite( val ) );
-        __PGBAR_PURE_ASSUME( precision >= 0 );
+        __PGBAR_TRUST( precision >= 0 );
 # if __PGBAR_CXX17
         const auto abs_rounded_val = std::round( std::abs( val ) );
         const auto int_digits      = count_digits( abs_rounded_val );
@@ -1109,8 +1115,8 @@ namespace pgbar {
           int_digits + precision + 2,
           [val, precision]( types::Char* buf, types::Size n ) noexcept {
             const auto result = std::to_chars( buf, buf + n, val, std::chars_format::fixed, precision );
-            __PGBAR_PURE_ASSUME( result.ec == std::errc {} );
-            __PGBAR_PURE_ASSUME( result.ptr >= buf );
+            __PGBAR_TRUST( result.ec == std::errc {} );
+            __PGBAR_TRUST( result.ptr >= buf );
             return static_cast<types::Size>( result.ptr - buf );
           } );
 #  else
@@ -1121,7 +1127,7 @@ namespace pgbar {
                                            val,
                                            std::chars_format::fixed,
                                            precision );
-        __PGBAR_PURE_ASSUME( result.ec == std::errc {} );
+        __PGBAR_TRUST( result.ec == std::errc {} );
         __PGBAR_ASSERT( result.ptr >= formatted.data() );
         formatted.resize( result.ptr - formatted.data() );
 #  endif
@@ -1139,7 +1145,7 @@ namespace pgbar {
         if ( precision > 0 ) {
           formatted.push_back( '.' );
           const auto fract_digits = count_digits( fraction );
-          __PGBAR_PURE_ASSUME( fract_digits <= static_cast<types::Size>( precision ) );
+          __PGBAR_TRUST( fract_digits <= static_cast<types::Size>( precision ) );
           formatted.append( precision - fract_digits, '0' ).append( format( fraction ) );
         }
 # endif
@@ -1278,7 +1284,7 @@ namespace pgbar {
 
         __PGBAR_CXX20_CNSTXPR void swap( T& lhs ) noexcept
         {
-          __PGBAR_PURE_ASSUME( this != &lhs );
+          __PGBAR_TRUST( this != &lhs );
           using std::swap;
           swap( data_, lhs.data_ );
         }
@@ -1309,14 +1315,17 @@ namespace pgbar {
             void* ptr         = const_cast<void*>( static_cast<const void*>( buf_ ) );
             std::size_t space = sizeof( buf_ );
             Data* offset      = static_cast<Data*>( std::align( alignof( T ), sizeof( T ), ptr, space ) );
-            __PGBAR_PURE_ASSUME( offset != nullptr );
+            __PGBAR_TRUST( offset != nullptr );
             return offset;
           }
         };
         struct VTable final {
           const typename Derived::Invoker invoke;
-          const typename std::add_pointer<void( AnyFn& ) noexcept>::type destroy;
-          const typename std::add_pointer<void( AnyFn& dst, AnyFn& src ) noexcept>::type move;
+          // The handling of function types by msvc is very strange:
+          // it often triggers internal compiler errors for no apparent reason,
+          // so here we have to manually write the function pointer type.
+          void ( *const destroy )( AnyFn& ) noexcept;
+          void ( *const move )( AnyFn& dst, AnyFn& src ) noexcept;
         };
 
         template<typename T>
@@ -1367,7 +1376,7 @@ namespace pgbar {
         {
           using T              = typename std::decay<F>::type;
           const auto _location = new ( any.template aligned_location<T>() ) T( std::forward<F>( fn ) );
-          __PGBAR_PURE_ASSUME( static_cast<void*>( _location ) == static_cast<void*>( &any ) );
+          __PGBAR_TRUST( static_cast<void*>( _location ) == static_cast<void*>( &any ) );
           vtable = &table_inline<T>();
         }
         template<typename F>
@@ -1415,7 +1424,7 @@ namespace pgbar {
 
         __PGBAR_INLINE_FN __PGBAR_CXX23_CNSTXPR void reset() noexcept
         {
-          __PGBAR_PURE_ASSUME( vtable_ != nullptr );
+          __PGBAR_TRUST( vtable_ != nullptr );
           vtable_->destroy( callee_ );
           vtable_ = &table_null();
         }
@@ -1436,15 +1445,15 @@ namespace pgbar {
         FnStorageBlock& operator=( const FnStorageBlock& ) & = delete;
         __PGBAR_CXX23_CNSTXPR FnStorageBlock( FnStorageBlock&& rhs ) noexcept : vtable_ { rhs.vtable_ }
         {
-          __PGBAR_PURE_ASSUME( rhs.vtable_ != nullptr );
+          __PGBAR_TRUST( rhs.vtable_ != nullptr );
           vtable_->move( callee_, rhs.callee_ );
           rhs.vtable_ = &table_null();
         }
         __PGBAR_CXX23_CNSTXPR FnStorageBlock& operator=( FnStorageBlock&& rhs ) & noexcept
         {
-          __PGBAR_PURE_ASSUME( this != &rhs );
-          __PGBAR_PURE_ASSUME( vtable_ != nullptr );
-          __PGBAR_PURE_ASSUME( rhs.vtable_ != nullptr );
+          __PGBAR_TRUST( this != &rhs );
+          __PGBAR_TRUST( vtable_ != nullptr );
+          __PGBAR_TRUST( rhs.vtable_ != nullptr );
           reset();
           std::swap( vtable_, rhs.vtable_ );
           vtable_->move( callee_, rhs.callee_ );
@@ -1454,8 +1463,8 @@ namespace pgbar {
 
         __PGBAR_CXX14_CNSTXPR void swap( FnStorageBlock& lhs ) noexcept
         {
-          __PGBAR_PURE_ASSUME( vtable_ != nullptr );
-          __PGBAR_PURE_ASSUME( lhs.vtable_ != nullptr );
+          __PGBAR_TRUST( vtable_ != nullptr );
+          __PGBAR_TRUST( lhs.vtable_ != nullptr );
           AnyFn tmp;
           vtable_->move( tmp, callee_ );
           lhs.vtable_->move( callee_, lhs.callee_ );
@@ -1521,8 +1530,7 @@ namespace pgbar {
         }
 
       protected:
-        using Invoker =
-          typename std::add_pointer<R( Fn_t<AnyFn>&, Param_t<Args>... ) noexcept( Noexcept )>::type;
+        using Invoker = R ( * )( Fn_t<AnyFn>&, Param_t<Args>... ) noexcept( Noexcept );
 
         static __PGBAR_CXX14_CNSTXPR R invoke_null( Fn_t<AnyFn>&, Param_t<Args>... ) noexcept( Noexcept )
         {
@@ -1587,7 +1595,7 @@ namespace pgbar {
 
         __PGBAR_CXX23_CNSTXPR R operator()( Args... args )
         {
-          __PGBAR_PURE_ASSUME( this->vtable_ != nullptr );
+          __PGBAR_TRUST( this->vtable_ != nullptr );
           return ( *this->vtable_->invoke )( this->callee_, std::forward<Args>( args )... );
         }
       };
@@ -1605,7 +1613,7 @@ namespace pgbar {
           : start_ { start }, end_ { end }, width_ { width }
         {          // This is an internal component, so we assume the arguments are always valid.
 # if __PGBAR_CXX14 // C++11 requires the constexpr ctor should have an empty function body.
-          __PGBAR_PURE_ASSUME( start_ <= end_ );
+          __PGBAR_TRUST( start_ <= end_ );
 # endif
         }
         constexpr CodeChart( const CodeChart& )                          = default;
@@ -1707,7 +1715,7 @@ namespace pgbar {
             // After RFC 3629, the maximum length of each standard UTF-8 character is 4 bytes.
             const auto first_byte  = static_cast<types::UCodePoint>( *start_point );
             auto validator         = [start_point, raw_u8_str, &u8_str]( types::Size expected_len ) {
-              __PGBAR_PURE_ASSUME( start_point >= raw_u8_str );
+              __PGBAR_TRUST( start_point >= raw_u8_str );
               if ( u8_str.size() - ( start_point - raw_u8_str ) < expected_len )
                 __PGBAR_UNLIKELY throw exception::InvalidArgument( "pgbar: incomplete UTF-8 string" );
 
@@ -2066,7 +2074,7 @@ namespace pgbar {
         }
         ExceptionBox& operator=( ExceptionBox&& rhs ) & noexcept
         {
-          __PGBAR_PURE_ASSUME( this != &rhs );
+          __PGBAR_TRUST( this != &rhs );
           // Exception pointers should not be discarded due to movement semantics.
           // Thus we only swap them here.
           swap( rhs );
@@ -2114,7 +2122,7 @@ namespace pgbar {
 
         void swap( ExceptionBox& lhs ) noexcept
         {
-          __PGBAR_PURE_ASSUME( this != &lhs );
+          __PGBAR_TRUST( this != &lhs );
           std::lock( this->rw_mtx_, lhs.rw_mtx_ );
           std::lock_guard<concurrent::SharedMutex> lock1 { this->rw_mtx_, std::adopt_lock };
           std::lock_guard<concurrent::SharedMutex> lock2 { lhs.rw_mtx_, std::adopt_lock };
@@ -2346,7 +2354,7 @@ namespace pgbar {
       __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr N step() const noexcept { return step_; }
       __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX23_CNSTXPR __details::types::Size size() const noexcept
       {
-        __PGBAR_PURE_ASSUME( step_ != 0 );
+        __PGBAR_TRUST( step_ != 0 );
         if __PGBAR_CXX17_CNSTXPR ( std::is_unsigned<N>::value )
           return ( ( end_ - start_ + step_ ) - 1 ) / step_;
         else if __PGBAR_CXX17_CNSTXPR ( std::is_integral<N>::value ) {
@@ -2366,7 +2374,7 @@ namespace pgbar {
       }
       __PGBAR_CXX14_CNSTXPR void swap( NumericSpan<N>& lhs ) noexcept
       {
-        __PGBAR_PURE_ASSUME( this != &lhs );
+        __PGBAR_TRUST( this != &lhs );
         using std::swap;
         swap( start_, lhs.start_ );
         swap( end_, lhs.end_ );
@@ -2550,7 +2558,7 @@ namespace pgbar {
 
       __PGBAR_CXX20_CNSTXPR void swap( IterSpan<I>& lhs ) noexcept
       {
-        __PGBAR_PURE_ASSUME( this != &lhs );
+        __PGBAR_TRUST( this != &lhs );
         using std::swap;
         swap( start_, lhs.start_ );
         swap( end_, lhs.end_ );
@@ -2657,7 +2665,7 @@ namespace pgbar {
 
       __PGBAR_CXX17_CNSTXPR void swap( BoundedSpan<R>& lhs ) noexcept
       {
-        __PGBAR_PURE_ASSUME( this != &lhs );
+        __PGBAR_TRUST( this != &lhs );
         std::swap( rnge_, lhs.rnge_ );
       }
       friend __PGBAR_CXX17_CNSTXPR void swap( BoundedSpan<R>& a, BoundedSpan<R>& b ) noexcept { a.swap( b ); }
@@ -2682,7 +2690,15 @@ namespace pgbar {
   } // namespace color
 
   // A enum that specifies the type of the output stream.
-  enum class Channel : int { Stdout = STDOUT_FILENO, Stderr = STDERR_FILENO };
+  enum class Channel : int {
+# if __PGBAR_UNIX
+    Stdout = STDOUT_FILENO,
+    Stderr = STDERR_FILENO
+# else
+    Stdout = 1,
+    Stderr = 2
+# endif
+  };
   enum class Policy : __details::types::Byte { Async, Sync };
   enum class Region : __details::types::Byte { Fixed, Flexible };
 
@@ -2830,7 +2846,7 @@ namespace pgbar {
          */
         void enable_vt() const noexcept
         {
-# if __PGBAR_WIN
+# if __PGBAR_WIN && defined( ENABLE_VIRTUAL_TERMINAL_PROCESSING )
           static std::once_flag flag;
           std::call_once( flag, []() noexcept {
             HANDLE stream_handle =
@@ -2891,13 +2907,13 @@ namespace pgbar {
         }
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& operator=( const Self& lhs ) &
         {
-          __PGBAR_PURE_ASSUME( this != &lhs );
+          __PGBAR_TRUST( this != &lhs );
           buffer_ = lhs.buffer_;
           return *this;
         }
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& operator=( Self&& rhs ) & noexcept
         {
-          __PGBAR_PURE_ASSUME( this != &rhs );
+          __PGBAR_TRUST( this != &rhs );
           swap( rhs );
           rhs.buffer_.clear();
           rhs.buffer_.shrink_to_fit();
@@ -2971,7 +2987,7 @@ namespace pgbar {
 
         __PGBAR_CXX20_CNSTXPR void swap( Stringbuf& lhs ) noexcept
         {
-          __PGBAR_PURE_ASSUME( this != &lhs );
+          __PGBAR_TRUST( this != &lhs );
           buffer_.swap( lhs.buffer_ );
         }
         friend __PGBAR_CXX20_CNSTXPR void swap( Stringbuf& a, Stringbuf& b ) noexcept { a.swap( b ); }
@@ -3078,7 +3094,7 @@ namespace pgbar {
         friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& operator<<( OStream& stream,
                                                                          OStream& ( *fnptr )(OStream&))
         {
-          __PGBAR_PURE_ASSUME( fnptr != nullptr );
+          __PGBAR_TRUST( fnptr != nullptr );
           return fnptr( stream );
         }
       };
@@ -4333,8 +4349,8 @@ namespace pgbar {
                                                                            types::Float num_percent,
                                                                            types::Size num_frame_cnt ) const
         {
-          __PGBAR_PURE_ASSUME( num_percent >= 0.0 );
-          __PGBAR_PURE_ASSUME( num_percent <= 1.0 );
+          __PGBAR_TRUST( num_percent >= 0.0 );
+          __PGBAR_TRUST( num_percent <= 1.0 );
 
           this->try_reset( buffer );
           this->try_dye( buffer, this->start_col_ ) << this->starting_;
@@ -4343,7 +4359,7 @@ namespace pgbar {
 
           const auto len_finished = static_cast<types::Size>( std::round( this->bar_length_ * num_percent ) );
           types::Size len_unfinished = this->bar_length_ - len_finished;
-          __PGBAR_PURE_ASSUME( len_finished + len_unfinished == this->bar_length_ );
+          __PGBAR_TRUST( len_finished + len_unfinished == this->bar_length_ );
 
           // build filler_
           if ( !this->filler_.empty() && this->filler_.size() <= len_finished ) {
@@ -4387,8 +4403,8 @@ namespace pgbar {
         __PGBAR_INLINE_FN __PGBAR_CXX23_CNSTXPR io::Stringbuf& build_block( io::Stringbuf& buffer,
                                                                             types::Float num_percent ) const
         {
-          __PGBAR_PURE_ASSUME( num_percent >= 0.0 );
-          __PGBAR_PURE_ASSUME( num_percent <= 1.0 );
+          __PGBAR_TRUST( num_percent >= 0.0 );
+          __PGBAR_TRUST( num_percent <= 1.0 );
 
           this->try_reset( buffer );
           this->try_dye( buffer, this->start_col_ ) << this->starting_;
@@ -4396,15 +4412,17 @@ namespace pgbar {
 
           const auto len_finished       = static_cast<types::Size>( this->bar_length_ * num_percent );
           const types::Float float_part = ( this->bar_length_ * num_percent ) - len_finished;
-          __PGBAR_PURE_ASSUME( float_part >= 0.0 );
-          __PGBAR_PURE_ASSUME( float_part <= 1.0 );
+          __PGBAR_TRUST( float_part >= 0.0 );
+          __PGBAR_TRUST( float_part <= 1.0 );
           const types::Size incomplete_block = static_cast<types::Size>( float_part * this->lead_.size() );
-          const types::Size len_unfinished   = this->bar_length_ - len_finished - 1;
+          const types::Size len_unfinished =
+            this->bar_length_ - len_finished - ( this->bar_length_ != len_finished );
 
           if ( !this->lead_.empty() ) {
             this->try_dye( buffer, this->lead_col_ );
-            __PGBAR_PURE_ASSUME( len_finished + len_unfinished + 1 == this->bar_length_ );
-            buffer.append( this->lead_.back(), len_finished ).append( this->lead_[incomplete_block] );
+            __PGBAR_TRUST( len_finished + len_unfinished + 1 == this->bar_length_ );
+            buffer.append( this->lead_.back(), len_finished )
+              .append( this->lead_[incomplete_block], this->bar_length_ != len_finished );
           }
           this->try_reset( buffer );
           this->try_dye( buffer, this->remains_col_ ).append( this->remains_, len_unfinished );
@@ -4777,8 +4795,8 @@ namespace pgbar {
       protected:
         __PGBAR_NODISCARD __PGBAR_INLINE_FN types::String build_percent( types::Float num_percent ) const
         {
-          __PGBAR_PURE_ASSUME( num_percent >= 0.0 );
-          __PGBAR_PURE_ASSUME( num_percent <= 1.0 );
+          __PGBAR_TRUST( num_percent >= 0.0 );
+          __PGBAR_TRUST( num_percent <= 1.0 );
 
           if ( num_percent <= 0.0 )
             __PGBAR_UNLIKELY return { __PGBAR_DEFAULT_PERCENT };
@@ -4825,7 +4843,7 @@ namespace pgbar {
                                                                        std::uint64_t num_task_done,
                                                                        std::uint64_t num_all_tasks ) const
         {
-          __PGBAR_PURE_ASSUME( num_task_done <= num_all_tasks );
+          __PGBAR_TRUST( num_task_done <= num_all_tasks );
           if ( num_all_tasks == 0 )
             __PGBAR_UNLIKELY return utils::format<utils::TxtLayout::Right>( _fixed_length + longest_unit_,
                                                                             "-- " + units_.front() );
@@ -4921,7 +4939,7 @@ namespace pgbar {
         __PGBAR_NODISCARD __PGBAR_INLINE_FN types::String build_counter( std::uint64_t num_task_done,
                                                                          std::uint64_t num_all_tasks ) const
         {
-          __PGBAR_PURE_ASSUME( num_task_done <= num_all_tasks );
+          __PGBAR_TRUST( num_task_done <= num_all_tasks );
           if ( num_all_tasks == 0 )
             return { "-/-" };
 
@@ -4979,7 +4997,7 @@ namespace pgbar {
           std::uint64_t num_task_done,
           std::uint64_t num_all_tasks ) const
         {
-          __PGBAR_PURE_ASSUME( num_task_done <= num_all_tasks );
+          __PGBAR_TRUST( num_task_done <= num_all_tasks );
           if ( num_task_done == 0 || num_all_tasks == 0 )
             return { __PGBAR_DEFAULT_TIMER };
 
@@ -5535,7 +5553,7 @@ namespace pgbar {
         }
         Self& operator=( const Self& lhs ) & noexcept( std::is_nothrow_copy_assignable<Base>::value )
         {
-          __PGBAR_PURE_ASSUME( this != &lhs );
+          __PGBAR_TRUST( this != &lhs );
           std::unique_lock<concurrent::SharedMutex> lock1 { this->rw_mtx_, std::defer_lock };
           concurrent::SharedLock<concurrent::SharedMutex> lock2 { lhs.rw_mtx_, std::defer_lock };
           std::lock( lock1, lock2 );
@@ -5933,7 +5951,7 @@ namespace pgbar {
           std::uint64_t num_all_tasks,
           const std::chrono::steady_clock::time_point& zero_point ) const
         {
-          __PGBAR_PURE_ASSUME( num_task_done <= num_all_tasks );
+          __PGBAR_TRUST( num_task_done <= num_all_tasks );
           using Self = Config;
           if ( this->visual_masks_[utils::as_val( Self::Mask::Cnt )]
                || this->visual_masks_[utils::as_val( Self::Mask::Sped )]
@@ -6109,7 +6127,7 @@ namespace pgbar {
           std::uint64_t num_all_tasks,
           const std::chrono::steady_clock::time_point& zero_point ) const
         {
-          __PGBAR_PURE_ASSUME( num_task_done <= num_all_tasks );
+          __PGBAR_TRUST( num_task_done <= num_all_tasks );
           const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
 
           concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
@@ -6129,7 +6147,7 @@ namespace pgbar {
           bool final_mesg,
           const std::chrono::steady_clock::time_point& zero_point ) const
         {
-          __PGBAR_PURE_ASSUME( num_task_done <= num_all_tasks );
+          __PGBAR_TRUST( num_task_done <= num_all_tasks );
           const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
 
           concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
@@ -6165,7 +6183,7 @@ namespace pgbar {
           std::uint64_t num_all_tasks,
           const std::chrono::steady_clock::time_point& zero_point ) const
         {
-          __PGBAR_PURE_ASSUME( num_task_done <= num_all_tasks );
+          __PGBAR_TRUST( num_task_done <= num_all_tasks );
           const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
 
           concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
@@ -6179,7 +6197,7 @@ namespace pgbar {
           bool final_mesg,
           const std::chrono::steady_clock::time_point& zero_point ) const
         {
-          __PGBAR_PURE_ASSUME( num_task_done <= num_all_tasks );
+          __PGBAR_TRUST( num_task_done <= num_all_tasks );
           const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
 
           concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
@@ -6215,7 +6233,7 @@ namespace pgbar {
           std::uint64_t num_all_tasks,
           const std::chrono::steady_clock::time_point& zero_point ) const
         {
-          __PGBAR_PURE_ASSUME( num_task_done <= num_all_tasks );
+          __PGBAR_TRUST( num_task_done <= num_all_tasks );
           const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
 
           concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
@@ -6230,7 +6248,7 @@ namespace pgbar {
           bool final_mesg,
           const std::chrono::steady_clock::time_point& zero_point ) const
         {
-          __PGBAR_PURE_ASSUME( num_task_done <= num_all_tasks );
+          __PGBAR_TRUST( num_task_done <= num_all_tasks );
           const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
 
           concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
@@ -6258,7 +6276,7 @@ namespace pgbar {
           std::uint64_t num_all_tasks,
           const std::chrono::steady_clock::time_point& zero_point ) const
         {
-          __PGBAR_PURE_ASSUME( num_task_done <= num_all_tasks );
+          __PGBAR_TRUST( num_task_done <= num_all_tasks );
           const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
 
           concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
@@ -6308,7 +6326,7 @@ namespace pgbar {
           bool final_mesg,
           const std::chrono::steady_clock::time_point& zero_point ) const
         {
-          __PGBAR_PURE_ASSUME( num_task_done <= num_all_tasks );
+          __PGBAR_TRUST( num_task_done <= num_all_tasks );
           const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
 
           concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
@@ -6566,7 +6584,7 @@ namespace pgbar {
         BasicBar( Self&& rhs ) noexcept : state_ { State::Stop }, config_ { std::move( rhs.config_ ) } {}
         Self& operator=( Self&& rhs ) & noexcept
         { // There is nothing to move in the base classes.
-          __PGBAR_PURE_ASSUME( this != &rhs );
+          __PGBAR_TRUST( this != &rhs );
           config_ = std::move( rhs.config_ );
           return *this;
         }
@@ -6629,7 +6647,7 @@ namespace pgbar {
 
         __PGBAR_CXX20_CNSTXPR void swap( BasicBar& lhs ) noexcept
         {
-          __PGBAR_PURE_ASSUME( this != &lhs );
+          __PGBAR_TRUST( this != &lhs );
           __PGBAR_ASSERT( active() == false );
           __PGBAR_ASSERT( lhs.active() == false );
           Base::swap( lhs );
@@ -7031,7 +7049,7 @@ namespace pgbar {
 
         void swap( TupleBar& rhs ) noexcept
         {
-          __PGBAR_PURE_ASSUME( this != &rhs );
+          __PGBAR_TRUST( this != &rhs );
           __PGBAR_ASSERT( online() == false );
           __PGBAR_ASSERT( rhs.online() == false );
           (void)std::initializer_list<char> {
@@ -7137,7 +7155,7 @@ namespace pgbar {
     }
     Self& operator=( Self&& rhs ) & noexcept
     {
-      __PGBAR_PURE_ASSUME( this != &rhs );
+      __PGBAR_TRUST( this != &rhs );
       __PGBAR_ASSERT( active() == false );
       __PGBAR_ASSERT( rhs.active() == false );
       tuple_ = std::move( rhs );
@@ -7840,7 +7858,7 @@ namespace pgbar {
         __PGBAR_CXX17_CNSTXPR iterator& operator=( iterator&& rhs ) & noexcept(
           std::is_nothrow_move_assignable<Iter>::value )
         {
-          __PGBAR_PURE_ASSUME( this != &rhs );
+          __PGBAR_TRUST( this != &rhs );
           itr_         = std::move( rhs.itr_ );
           itr_bar_     = rhs.itr_bar_;
           rhs.itr_bar_ = nullptr;
@@ -7850,14 +7868,14 @@ namespace pgbar {
 
         __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator& operator++() &
         {
-          __PGBAR_PURE_ASSUME( itr_bar_ != nullptr );
+          __PGBAR_TRUST( itr_bar_ != nullptr );
           ++itr_;
           itr_bar_->tick();
           return *this;
         }
         __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator operator++( int ) &
         {
-          __PGBAR_PURE_ASSUME( itr_bar_ != nullptr );
+          __PGBAR_TRUST( itr_bar_ != nullptr );
           auto before = *this;
           operator++();
           return before;
@@ -7888,25 +7906,23 @@ namespace pgbar {
         }
 
 # if __PGBAR_CXX17
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr bool operator==( const iterator& a,
-                                                                              const sentinel& b )
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr bool operator==( const sentinel& b ) const
         {
-          return a.itr_ == b.end_;
+          return itr_ == b.end_;
         }
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr bool operator!=( const iterator& a,
-                                                                              const sentinel& b )
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr bool operator!=( const sentinel& b ) const
         {
-          return !( a == b );
+          return !( *this == b );
         }
         __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr bool operator==( const sentinel& a,
                                                                               const iterator& b )
         {
-          return a.itr_ == b.end_;
+          return b == a;
         }
         __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr bool operator!=( const sentinel& a,
                                                                               const iterator& b )
         {
-          return !( a == b );
+          return !( b == a );
         }
 # endif
 
@@ -7927,7 +7943,7 @@ namespace pgbar {
       __PGBAR_CXX17_CNSTXPR ProxySpan& operator=( ProxySpan&& rhs ) & noexcept(
         std::is_nothrow_move_assignable<R>::value )
       {
-        __PGBAR_PURE_ASSUME( this != &rhs );
+        __PGBAR_TRUST( this != &rhs );
         swap( rhs );
         rhs.itr_bar_ = nullptr;
         return *this;
@@ -7952,7 +7968,7 @@ namespace pgbar {
 
       __PGBAR_CXX14_CNSTXPR void swap( ProxySpan<R, B>& lhs ) noexcept
       {
-        __PGBAR_PURE_ASSUME( this != &lhs );
+        __PGBAR_TRUST( this != &lhs );
         std::swap( itr_bar_, lhs.itr_bar_ );
         itr_range_.swap( lhs.itr_range_ );
       }
@@ -7983,7 +7999,7 @@ namespace pgbar {
             static_assert(
               traits::AllOf<std::is_base_of<Indicator, Derived>, traits::is_bar<Derived>>::value,
               "pgbar::__details::assets::DynamicContext::Slot::halt: Derived must inherit from Indicator" );
-            __PGBAR_PURE_ASSUME( bar != nullptr );
+            __PGBAR_TRUST( bar != nullptr );
             static_cast<Derived*>( bar )->halt();
           }
           template<typename Derived>
@@ -7992,13 +8008,13 @@ namespace pgbar {
             static_assert(
               traits::AllOf<std::is_base_of<Indicator, Derived>, traits::is_bar<Derived>>::value,
               "pgbar::__details::assets::DynamicContext::Slot::render: Derived must inherit from Indicator" );
-            __PGBAR_PURE_ASSUME( bar != nullptr );
+            __PGBAR_TRUST( bar != nullptr );
             render::RenderAction<void>::automate( static_cast<Derived&>( *bar ) );
           }
 
         public:
-          typename std::add_pointer<void( Indicator* ) noexcept>::type halt_;
-          typename std::add_pointer<void( Indicator* )>::type render_;
+          void ( *halt_ )( Indicator* ) noexcept;
+          void ( *render_ )( Indicator* );
           std::weak_ptr<Indicator> target_;
           bool active_;
 
@@ -8401,7 +8417,7 @@ namespace pgbar {
 
     void swap( Self& lhs ) noexcept
     {
-      __PGBAR_PURE_ASSUME( this != &lhs );
+      __PGBAR_TRUST( this != &lhs );
       core_.swap( lhs.core_ );
     }
     friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
