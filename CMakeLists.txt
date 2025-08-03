@@ -111,6 +111,10 @@ if(PGBAR_BUILD_DEMO)
     list(APPEND DEMO_TARGETS ${TARGET_NAME})
   endforeach()
 
+  # Manually inject to trigger the generation of compile commands.json.
+  add_executable(main "misc/main.cpp")
+  target_link_libraries(main PRIVATE pgbar)
+
   add_custom_target(demo
     DEPENDS ${DEMO_TARGETS}
     COMMENT "Building all demo programs")

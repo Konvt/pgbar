@@ -1530,7 +1530,11 @@ namespace pgbar {
         }
 
       protected:
-        using Invoker = R ( * )( Fn_t<AnyFn>&, Param_t<Args>... ) noexcept( Noexcept );
+        using Invoker = R ( * )( Fn_t<AnyFn>&, Param_t<Args>... )
+#  if __PGBAR_CXX17
+          noexcept( Noexcept )
+#  endif
+          ;
 
         static __PGBAR_CXX14_CNSTXPR R invoke_null( Fn_t<AnyFn>&, Param_t<Args>... ) noexcept( Noexcept )
         {
@@ -4789,8 +4793,8 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class PercentMeter : public Base {
-        static constexpr types::Char _default_percent[] = " --.--%";
-        static constexpr types::Size _fixed_length = sizeof( _default_percent ) / sizeof( types::Char ) - 1;
+# define __PGBAR_DEFAULT_PERCENT " --.--%"
+        static constexpr types::Size _fixed_length = sizeof( __PGBAR_DEFAULT_PERCENT ) - 1;
 
       protected:
         __PGBAR_NODISCARD __PGBAR_INLINE_FN types::String build_percent( types::Float num_percent ) const
@@ -4799,7 +4803,7 @@ namespace pgbar {
           __PGBAR_TRUST( num_percent <= 1.0 );
 
           if ( num_percent <= 0.0 )
-            __PGBAR_UNLIKELY return { _default_percent, _fixed_length };
+            __PGBAR_UNLIKELY return { __PGBAR_DEFAULT_PERCENT, _fixed_length };
 
           auto str = utils::format( num_percent * 100.0, 2 );
           str.push_back( '%' );
@@ -4815,6 +4819,7 @@ namespace pgbar {
       public:
         __PGBAR_EMPTY_CLASS( PercentMeter )
       };
+# undef __PGBAR_DEFAULT_PERCENT
 
       template<typename Base, typename Derived>
       class SpeedMeter : public Base {
@@ -4831,8 +4836,8 @@ namespace pgbar {
           cfg.magnitude_ = val.value();
         }
 
-        static constexpr types::Char _default_speed[] = "   inf ";
-        static constexpr types::Size _fixed_length    = sizeof( _default_speed ) / sizeof( types::Char ) - 1;
+# define __PGBAR_DEFAULT_SPEED "   inf "
+        static constexpr types::Size _fixed_length = sizeof( __PGBAR_DEFAULT_SPEED ) - 1;
 
       protected:
         std::array<charcodes::U8String, 4> units_;
@@ -4870,7 +4875,7 @@ namespace pgbar {
           else { // "Giga" or "infinity"
             const types::Float remains = frequency / tier2;
             if ( remains > magnitude_ )
-              __PGBAR_UNLIKELY rate_str = _default_speed + units_[3];
+              __PGBAR_UNLIKELY rate_str = __PGBAR_DEFAULT_SPEED + units_[3];
             else
               rate_str = utils::format( remains, 2 ) + ' ' + units_[3];
           }
@@ -4932,6 +4937,7 @@ namespace pgbar {
           Base::swap( lhs );
         }
       };
+# undef __PGBAR_DEFAULT_SPEED
 
       template<typename Base, typename Derived>
       class CounterMeter : public Base {
@@ -4962,9 +4968,9 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class Timer : public Base {
-        static constexpr types::Char _default_timer[] = "--:--:--";
-        static constexpr types::Size _fixed_length = ( sizeof( _default_timer ) / sizeof( types::Char ) ) - 1;
-        static constexpr types::Char _timer_segment[] = " < ";
+# define __PGBAR_DEFAULT_TIMER "--:--:--"
+# define __PGBAR_TIMER_SEGMENT " < "
+        static constexpr types::Size _fixed_length = sizeof( __PGBAR_DEFAULT_TIMER ) - 1;
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN types::String time_formatter( types::TimeUnit duration ) const
         {
@@ -5000,7 +5006,7 @@ namespace pgbar {
         {
           __PGBAR_TRUST( num_task_done <= num_all_tasks );
           if ( num_task_done == 0 || num_all_tasks == 0 )
-            return { _default_timer, _fixed_length };
+            return { __PGBAR_DEFAULT_TIMER, _fixed_length };
 
           auto time_per_task = time_passed / num_task_done;
           if ( time_per_task.count() == 0 )
@@ -5009,7 +5015,7 @@ namespace pgbar {
           const auto remaining_tasks = num_all_tasks - num_task_done;
           // overflow check
           if ( remaining_tasks > ( std::numeric_limits<std::int64_t>::max )() / time_per_task.count() )
-            return { _default_timer, _fixed_length };
+            return { __PGBAR_DEFAULT_TIMER, _fixed_length };
           else
             return time_formatter( time_per_task * remaining_tasks );
         }
@@ -5024,17 +5030,19 @@ namespace pgbar {
           std::uint64_t num_task_done,
           std::uint64_t num_all_tasks ) const
         {
-          return buffer << build_elapsed( time_passed ) << _timer_segment
+          return buffer << build_elapsed( time_passed ) << __PGBAR_TIMER_SEGMENT
                         << build_countdown( time_passed, num_task_done, num_all_tasks );
         }
         __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr types::Size fixed_len_hybird() const noexcept
         {
-          return fixed_len_elapsed() + fixed_len_countdown() + sizeof( _timer_segment ) - 1;
+          return fixed_len_elapsed() + fixed_len_countdown() + sizeof( __PGBAR_TIMER_SEGMENT ) - 1;
         }
 
       public:
         __PGBAR_EMPTY_CLASS( Timer )
       };
+# undef __PGBAR_DEFAULT_TIMER
+# undef __PGBAR_TIMER_SEGMENT
 
       template<typename Base, typename Derived>
       class TaskCounter : public Base {
