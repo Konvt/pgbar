@@ -181,29 +181,29 @@ namespace pgbar {
       template<std::size_t N>
       Error( const char ( &mes )[N] ) noexcept : message_ { mes }
       {}
-      virtual ~Error() = default;
-      virtual const char* what() const noexcept { return message_; }
+      ~Error() override = default;
+      __PGBAR_NODISCARD const char* what() const noexcept override { return message_; }
     };
 
     // Exception for invalid function arguments.
     class InvalidArgument : public Error {
     public:
       using Error::Error;
-      virtual ~InvalidArgument() = default;
+      ~InvalidArgument() override = default;
     };
 
     // Exception for error state of object.
     class InvalidState : public Error {
     public:
       using Error::Error;
-      virtual ~InvalidState() = default;
+      ~InvalidState() override = default;
     };
 
     // Exception for local system error.
     class SystemError : public Error {
     public:
       using Error::Error;
-      virtual ~SystemError() = default;
+      ~SystemError() override = default;
     };
   } // namespace exception
 
@@ -2097,7 +2097,7 @@ namespace pgbar {
           std::lock_guard<SharedMutex> lock { rw_mtx_ };
           if ( exception_ )
             return false;
-          exception_ = e;
+          exception_ = std::move( e );
           return true;
         }
         __PGBAR_INLINE_FN std::exception_ptr load() const noexcept
@@ -3459,7 +3459,7 @@ namespace pgbar {
         // Adjust the thread working interval between this loop and the next loop.
         static __PGBAR_INLINE_FN void working_interval( types::TimeUnit new_rate )
         {
-          _working_interval.store( std::move( new_rate ), std::memory_order_release );
+          _working_interval.store( new_rate, std::memory_order_release );
         }
 
         static Self& itself() noexcept
@@ -3875,7 +3875,7 @@ namespace pgbar {
         : Base( { __details::charcodes::U8String( std::move( _lead ) ) } )
       {}
 # if __PGBAR_CXX20
-      __PGBAR_CXX20_CNSTXPR Lead( std::vector<std::u8string_view> _leads )
+      __PGBAR_CXX20_CNSTXPR Lead( const std::vector<std::u8string_view>& _leads )
       {
         std::transform(
           _leads.cbegin(),
@@ -4081,10 +4081,7 @@ namespace pgbar {
          */
         Derived& lead( types::String _lead ) & { __PGBAR_METHOD( Lead, _lead, std::move ); }
 # if __PGBAR_CXX20
-        Derived& lead( std::vector<std::u8string_view> _leads ) &
-        {
-          __PGBAR_METHOD( Lead, _leads, std::move );
-        }
+        Derived& lead( const std::vector<std::u8string_view>& _leads ) & { __PGBAR_METHOD( Lead, _leads, ); }
         Derived& lead( std::u8string_view _lead ) & { __PGBAR_METHOD( Lead, _lead, ); }
 # endif
 
@@ -4355,6 +4352,8 @@ namespace pgbar {
         {
           __PGBAR_TRUST( num_percent >= 0.0 );
           __PGBAR_TRUST( num_percent <= 1.0 );
+          if ( this->bar_length_ == 0 )
+            return buffer;
 
           this->try_reset( buffer );
           this->try_dye( buffer, this->start_col_ ) << this->starting_;
@@ -4409,6 +4408,8 @@ namespace pgbar {
         {
           __PGBAR_TRUST( num_percent >= 0.0 );
           __PGBAR_TRUST( num_percent <= 1.0 );
+          if ( this->bar_length_ == 0 )
+            return buffer;
 
           this->try_reset( buffer );
           this->try_dye( buffer, this->start_col_ ) << this->starting_;
@@ -4418,16 +4419,21 @@ namespace pgbar {
           const types::Float float_part = ( this->bar_length_ * num_percent ) - len_finished;
           __PGBAR_TRUST( float_part >= 0.0 );
           __PGBAR_TRUST( float_part <= 1.0 );
-          const types::Size incomplete_block = static_cast<types::Size>( float_part * this->lead_.size() );
+          const auto incomplete_block = static_cast<types::Size>( float_part * this->lead_.size() );
+          __PGBAR_ASSERT( incomplete_block <= this->lead_.size() );
           const types::Size len_unfinished =
             this->bar_length_ - len_finished - ( this->bar_length_ != len_finished );
+          __PGBAR_TRUST( len_finished + len_unfinished + 1 == this->bar_length_ );
+
+          this->try_dye( buffer, this->filler_col_ );
+          buffer.append( this->filler_, len_finished );
 
           if ( !this->lead_.empty() ) {
+            this->try_reset( buffer );
             this->try_dye( buffer, this->lead_col_ );
-            __PGBAR_TRUST( len_finished + len_unfinished + 1 == this->bar_length_ );
-            buffer.append( this->lead_.back(), len_finished )
-              .append( this->lead_[incomplete_block], this->bar_length_ != len_finished );
+            buffer.append( this->lead_[incomplete_block], this->bar_length_ != len_finished );
           }
+
           this->try_reset( buffer );
           this->try_dye( buffer, this->remains_col_ ).append( this->remains_, len_unfinished );
           this->try_reset( buffer );
@@ -4468,6 +4474,9 @@ namespace pgbar {
           io::Stringbuf& buffer,
           types::Size num_frame_cnt ) const
         {
+          if ( this->bar_length_ == 0 )
+            return buffer;
+
           num_frame_cnt = static_cast<types::Size>( num_frame_cnt * this->shift_factor_ );
           this->try_reset( buffer );
           this->try_dye( buffer, this->start_col_ ) << this->starting_;
@@ -4477,22 +4486,25 @@ namespace pgbar {
           if ( !this->lead_.empty() ) {
             const auto& current_lead = this->lead_[num_frame_cnt % this->lead_.size()];
             if ( current_lead.size() <= this->bar_length_ ) {
-              const auto left_fill_len = [this, num_frame_cnt, &current_lead]() noexcept {
-                const auto real_len    = this->bar_length_ - current_lead.size() + 1;
-                const auto total_len   = real_len * 2;
-                const auto current_pos = num_frame_cnt % total_len;
-                return current_pos > real_len ? total_len - current_pos : current_pos - ( current_pos != 0 );
+              const auto virtual_point = [this, num_frame_cnt]() noexcept -> types::Size {
+                if ( this->bar_length_ == 1 )
+                  return 1;
+                const auto period = 2 * this->bar_length_ - 2;
+                const auto pos    = num_frame_cnt % period;
+                return pos < this->bar_length_ ? pos + 1 : 2 * this->bar_length_ - pos - 1;
               }();
-              const auto right_fill_len = this->bar_length_ - ( left_fill_len + current_lead.size() );
-              __PGBAR_ASSERT( left_fill_len + right_fill_len + current_lead.size() == this->bar_length_ );
+              const auto len_half_lead  = ( current_lead.size() / 2 ) + ( current_lead.size() % 2 );
+              const auto len_left_fill  = len_half_lead < virtual_point ? virtual_point - len_half_lead : 0;
+              const auto len_right_fill = this->bar_length_ - ( len_left_fill + current_lead.size() );
+              __PGBAR_ASSERT( len_left_fill + len_right_fill + current_lead.size() == this->bar_length_ );
 
-              buffer.append( this->filler_, left_fill_len / this->filler_.size() )
-                .append( constants::blank, left_fill_len % this->filler_.size() );
+              buffer.append( this->filler_, len_left_fill / this->filler_.size() )
+                .append( constants::blank, len_left_fill % this->filler_.size() );
               this->try_reset( buffer ).append( this->lead_col_ ).append( current_lead );
               this->try_reset( buffer )
                 .append( this->filler_col_ )
-                .append( constants::blank, right_fill_len % this->filler_.size() )
-                .append( this->filler_, right_fill_len / this->filler_.size() );
+                .append( constants::blank, len_right_fill % this->filler_.size() )
+                .append( this->filler_, len_right_fill / this->filler_.size() );
             } else
               buffer.append( constants::blank, this->bar_length_ );
           } else if ( this->filler_.empty() )
@@ -4992,7 +5004,7 @@ namespace pgbar {
       protected:
         __PGBAR_NODISCARD __PGBAR_INLINE_FN types::String build_elapsed( types::TimeUnit time_passed ) const
         {
-          return time_formatter( std::move( time_passed ) );
+          return time_formatter( time_passed );
         }
         __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr types::Size fixed_len_elapsed() const noexcept
         {
@@ -5302,9 +5314,10 @@ namespace pgbar {
         assets::CharIndic,
         assets::TaskQuantity,
         __PGBAR_PACK( assets::BasicAnimation, assets::BasicIndicator, assets::Filler, assets::Remains ) );
-      __PGBAR_INHERIT_REGISTER( assets::BlockIndic,
-                                assets::TaskQuantity,
-                                __PGBAR_PACK( assets::Frames, assets::BasicIndicator, assets::Remains ) );
+      __PGBAR_INHERIT_REGISTER(
+        assets::BlockIndic,
+        assets::TaskQuantity,
+        __PGBAR_PACK( assets::Frames, assets::BasicIndicator, assets::Filler, assets::Remains ) );
       __PGBAR_INHERIT_REGISTER( assets::SpinnerIndic, , assets::BasicAnimation );
       __PGBAR_INHERIT_REGISTER( assets::SweeperIndic,
                                 ,
@@ -5372,6 +5385,7 @@ namespace pgbar {
       struct OptionFor<assets::BlockIndic> {
         using type = Merge_t<OptionFor_t<assets::TaskQuantity>,
                              OptionFor_t<assets::Frames>,
+                             OptionFor_t<assets::Filler>,
                              OptionFor_t<assets::Remains>,
                              OptionFor_t<assets::BasicAnimation>,
                              OptionFor_t<assets::BasicIndicator>>;
@@ -5675,13 +5689,13 @@ namespace pgbar {
     template<Channel Outlet>
     void refresh_interval( TimeUnit new_rate )
     {
-      __details::render::Renderer<Outlet, Policy::Async>::working_interval( std::move( new_rate ) );
+      __details::render::Renderer<Outlet, Policy::Async>::working_interval( new_rate );
     }
     // Set every channels to the same output interval.
     inline void refresh_interval( TimeUnit new_rate )
     {
       __details::render::Renderer<Channel::Stderr, Policy::Async>::working_interval( new_rate );
-      __details::render::Renderer<Channel::Stdout, Policy::Async>::working_interval( std::move( new_rate ) );
+      __details::render::Renderer<Channel::Stdout, Policy::Async>::working_interval( new_rate );
     }
 
     inline void hide_completed( bool flag ) noexcept
@@ -5766,9 +5780,11 @@ namespace pgbar {
       {
         using ParamList = __details::traits::TypeList<Options...>;
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Lead>::value )
-          unpacker( *this, option::Lead( { " ", "▏", "▎", "▍", "▌", "▋", "▊", "▉", "█" } ) );
+          unpacker( *this, option::Lead( { " ", "▏", "▎", "▍", "▌", "▋", "▊", "▉" } ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::BarLength>::value )
           unpacker( *this, option::BarLength( 30 ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Filler>::value )
+          unpacker( *this, option::Filler( "█" ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Remains>::value )
           unpacker( *this, option::Remains( " " ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Divider>::value )
@@ -5863,7 +5879,7 @@ namespace pgbar {
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Filler>::value )
           unpacker( *this, option::Filler( "-" ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Lead>::value )
-          unpacker( *this, option::Lead( "<==>" ) );
+          unpacker( *this, option::Lead( "<=>" ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Divider>::value )
           unpacker( *this, option::Divider( " | " ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::InfoColor>::value )
@@ -6092,7 +6108,8 @@ namespace pgbar {
           this->common_build( buffer, num_task_done, num_all_tasks, zero_point );
 
           if ( !this->postfix_.empty()
-               && ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty() ) )
+               && ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty()
+                    || !this->prefix_.empty() ) )
             buffer << constants::blank;
           this->build_postfix( buffer );
           this->try_reset( buffer );
@@ -6694,7 +6711,7 @@ namespace pgbar {
    * A progress bar with a smoother bar, requires an Unicode-supported terminal.
    *
    * It's structure is shown below:
-   * {LeftBorder}{Prefix}{Percent}{Starting}{Lead}{Remains}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{Postfix}{RightBorder}
+   * {LeftBorder}{Prefix}{Percent}{Starting}{Filler}{Lead}{Remains}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{Postfix}{RightBorder}
    */
   template<Channel Outlet = Channel::Stderr, Policy Mode = Policy::Async, Region Area = Region::Fixed>
   using BlockBar = __details::prefabs::BasicBar<config::Block, Outlet, Mode, Area>;

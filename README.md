@@ -22,7 +22,7 @@
 
 ### BlockBar
 ```
-{LeftBorder}{Prefix}{Percent}{Starting}{Lead}{Remains}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{Postfix}{RightBorder}
+{LeftBorder}{Prefix}{Percent}{Starting}{Filler}{Lead}{Remains}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{Postfix}{RightBorder}
  35.22% | ██████████▋                    |  47275560/134217727 |  16.80 MHz | 00:00:02 < 00:00:05
 ```
 ![BlockBar](images/blockbar.gif)
