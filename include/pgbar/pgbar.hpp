@@ -5766,7 +5766,7 @@ namespace pgbar {
       {
         using ParamList = __details::traits::TypeList<Options...>;
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Lead>::value )
-          unpacker( *this, option::Lead( { "▏", "▎", "▍", "▌", "▋", "▊", "▉", "█" } ) );
+          unpacker( *this, option::Lead( { " ", "▏", "▎", "▍", "▌", "▋", "▊", "▉", "█" } ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::BarLength>::value )
           unpacker( *this, option::BarLength( 30 ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Remains>::value )
@@ -6017,8 +6017,8 @@ namespace pgbar {
           this->try_reset( buffer );
           if ( this->visual_masks_.any() )
             this->try_style( buffer, this->info_col_ );
-          if ( !this->prefix_.empty() && !this->postfix_.empty() )
-            buffer << this->divider_;
+          if ( !this->prefix_.empty() && ( this->visual_masks_.any() || !this->postfix_.empty() ) )
+            buffer << constants::blank;
           if ( this->visual_masks_[utils::as_val( Self::Mask::Per )] ) {
             buffer << this->build_percent( num_percent );
             auto masks = this->visual_masks_;
@@ -6038,8 +6038,8 @@ namespace pgbar {
           }
           this->common_build( buffer, num_task_done, num_all_tasks, zero_point );
 
-          if ( !this->postfix_.empty() && ( !this->prefix_.empty() || this->visual_masks_.any() ) )
-            buffer << this->divider_;
+          if ( !this->postfix_.empty() && this->visual_masks_.any() )
+            buffer << constants::blank;
           this->build_postfix( buffer );
           this->try_reset( buffer );
           if ( !this->prefix_.empty() || !this->postfix_.empty() || this->visual_masks_.any() ) {
@@ -6069,8 +6069,9 @@ namespace pgbar {
           this->try_reset( buffer );
           if ( this->visual_masks_.any() )
             this->try_style( buffer, this->info_col_ );
-          if ( ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty() ) )
-            buffer << this->divider_;
+          if ( ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty() )
+               && ( this->visual_masks_.any() || !this->postfix_.empty() ) )
+            buffer << constants::blank;
           if ( this->visual_masks_[utils::as_val( Self::Mask::Per )] ) {
             buffer << this->build_percent( num_percent );
             auto masks = this->visual_masks_;
@@ -6091,9 +6092,8 @@ namespace pgbar {
           this->common_build( buffer, num_task_done, num_all_tasks, zero_point );
 
           if ( !this->postfix_.empty()
-               && ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty()
-                    || this->visual_masks_.any() ) )
-            buffer << this->divider_;
+               && ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty() ) )
+            buffer << constants::blank;
           this->build_postfix( buffer );
           this->try_reset( buffer );
           if ( ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty()
