@@ -22,12 +22,16 @@ int main()
                                             pgbar::option::FalseColor( pgbar::color::Red ),
                                             pgbar::option::InfoColor( "#7D7" ) ),
                        pgbar::config::Block( pgbar::option::Prefix( "Picking something..." ),
-                                             pgbar::option::Lead( { "⠄", "⠆", "⠇", "⠧", "⠷", "⠿" } ),
+                                             pgbar::option::Lead( { " ", "⠄", "⠆", "⠇", "⠧", "⠷", "⠿" } ),
                                              pgbar::option::TrueMesg( "✔ Mission Complete" ),
                                              pgbar::option::TrueColor( pgbar::color::Green ),
                                              pgbar::option::FalseMesg( "❌ Mission failed" ),
                                              pgbar::option::FalseColor( pgbar::color::Red ),
-                                             pgbar::option::InfoColor( "#7BD" ) ) );
+                                             pgbar::option::InfoColor( "#7BD" ) ),
+                       pgbar::config::Sweep( pgbar::option::Prefix( "Doing something....." ),
+                                             pgbar::option::Filler( "." ),
+                                             pgbar::option::Lead( "·.·" ),
+                                             pgbar::option::InfoColor( "#26B4EB" ) ) );
 
   vector<thread> pool;
   pool.emplace_back( [&bar]() {
@@ -46,8 +50,10 @@ int main()
     }
     bar.reset<1>( false );
   } );
+  bar.tick<2>();
 
   for ( auto& td : pool )
     td.join();
+  bar.reset<2>();
   bar.wait();
 }

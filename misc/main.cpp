@@ -16,6 +16,6 @@ int main()
       mt19937 rd { random_device {}() };
       this_thread::sleep_for( chrono::microseconds( uniform_int_distribution<int>( 700, 1100 )( rd ) ) );
     },
-    pgbar::option::Lead( { " ", "▁", "▂", "▃", "▃", "▄", "▅", "▆", "▇", "█" } ),
+    pgbar::option::Lead( { " ", "▁", "▂", "▃", "▄", "▅", "▆", "▇", "█" } ),
     pgbar::option::InfoColor( "#FFD200" ) );
 }
