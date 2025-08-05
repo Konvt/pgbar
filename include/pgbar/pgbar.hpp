@@ -8093,10 +8093,11 @@ namespace pgbar {
         void eliminate() noexcept
         {
           // Search for the first k invalid or destructed progress bars and remove them.
-          bars_.erase( bars_.begin(),
-                       std::find_if( bars_.cbegin(), bars_.cend(), []( const Slot& slot ) noexcept {
-                         return slot.render_ != nullptr && !slot.target_.expired();
-                       } ) );
+          auto itr = std::find_if( bars_.cbegin(), bars_.cend(), []( const Slot& slot ) noexcept {
+            return slot.render_ != nullptr && !slot.target_.expired();
+          } );
+          num_discarded_line_.fetch_add( std::distance( bars_.cbegin(), itr ), std::memory_order_release );
+          bars_.erase( bars_.cbegin(), std::move( itr ) );
         }
 
       public:
@@ -8161,7 +8162,7 @@ namespace pgbar {
                        if ( istty ) {
                          if __PGBAR_CXX17_CNSTXPR ( Area == Region::Fixed ) {
                            ostream << console::escodes::resetcursor;
-                           if ( hide_done ) {
+                           if ( !hide_done ) {
                              const auto num_discarded = num_discarded_line_.load( std::memory_order_acquire );
                              if ( num_discarded != 0 ) {
                                ostream.append( console::escodes::nextline, num_discarded )
@@ -8266,7 +8267,7 @@ namespace pgbar {
 
     namespace prefabs {
       template<typename C, Channel O, Policy M, Region A>
-      class SharedBar
+      class SharedBar final
         : public BasicBar<C, O, M, A>
         , public std::enable_shared_from_this<SharedBar<C, O, M, A>> {
         using Base = BasicBar<C, O, M, A>;
