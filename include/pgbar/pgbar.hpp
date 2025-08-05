@@ -6009,7 +6009,7 @@ namespace pgbar {
       };
 
       template<typename Config, typename Impl>
-      struct BuilderAdopter : public CommonBuilder<Config> {
+      struct AnimatedBuilder : public CommonBuilder<Config> {
       private:
         using Self = Config;
         using Base = CommonBuilder<Config>;
@@ -6129,9 +6129,9 @@ namespace pgbar {
       template<typename Config>
       struct Builder;
       template<>
-      struct Builder<config::Line> final : public BuilderAdopter<config::Line, Builder<config::Line>> {
+      struct Builder<config::Line> final : public AnimatedBuilder<config::Line, Builder<config::Line>> {
       private:
-        using Base = BuilderAdopter<config::Line, Builder<config::Line>>;
+        using Base = AnimatedBuilder<config::Line, Builder<config::Line>>;
         friend Base;
 
       protected:
@@ -6143,7 +6143,7 @@ namespace pgbar {
         }
 
       public:
-        using Base::BuilderAdopter;
+        using Base::AnimatedBuilder;
         Builder( config::Line&& rhs ) noexcept : Base( std::move( rhs ) ) {}
 
         __PGBAR_INLINE_FN io::Stringbuf& build(
@@ -6189,9 +6189,9 @@ namespace pgbar {
       };
 
       template<>
-      struct Builder<config::Block> final : public BuilderAdopter<config::Block, Builder<config::Block>> {
+      struct Builder<config::Block> final : public AnimatedBuilder<config::Block, Builder<config::Block>> {
       private:
-        using Base = BuilderAdopter<config::Block, Builder<config::Block>>;
+        using Base = AnimatedBuilder<config::Block, Builder<config::Block>>;
         friend Base;
 
       protected:
@@ -6202,7 +6202,7 @@ namespace pgbar {
         }
 
       public:
-        using Base::BuilderAdopter;
+        using Base::AnimatedBuilder;
         __PGBAR_INLINE_FN io::Stringbuf& build(
           io::Stringbuf& buffer,
           std::uint64_t num_task_done,
@@ -6238,9 +6238,9 @@ namespace pgbar {
       };
 
       template<>
-      struct Builder<config::Sweep> final : public BuilderAdopter<config::Sweep, Builder<config::Sweep>> {
+      struct Builder<config::Sweep> final : public AnimatedBuilder<config::Sweep, Builder<config::Sweep>> {
       private:
-        using Base = BuilderAdopter<config::Sweep, Builder<config::Sweep>>;
+        using Base = AnimatedBuilder<config::Sweep, Builder<config::Sweep>>;
         friend Base;
 
       protected:
@@ -6251,7 +6251,7 @@ namespace pgbar {
         }
 
       public:
-        using Base::BuilderAdopter;
+        using Base::AnimatedBuilder;
         __PGBAR_INLINE_FN io::Stringbuf& build(
           io::Stringbuf& buffer,
           types::Size num_frame_cnt,
