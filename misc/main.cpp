@@ -1,5 +1,5 @@
 // This file is only used to trigger CMake to generate compile_commands.json.
-#include "../include/pgbar/pgbar.hpp"
+#include "pgbar/pgbar.hpp"
 #include <random>
 #include <thread>
 using namespace std;

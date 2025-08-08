@@ -31,7 +31,7 @@ int main()
                                              pgbar::option::InfoColor( "#7BD" ) ),
                        pgbar::config::Sweep( pgbar::option::Prefix( "Doing something....." ),
                                              pgbar::option::Filler( "." ),
-                                             pgbar::option::Lead( "·.·" ),
+                                             pgbar::option::Lead( "·" ),
                                              pgbar::option::InfoColor( "#26B4EB" ) ) );
 
   vector<thread> pool;
