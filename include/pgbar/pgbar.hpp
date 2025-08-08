@@ -291,12 +291,14 @@ namespace pgbar {
       struct AllOf<Pred, Preds...> {
       private:
         template<bool Cond, typename... Ps>
-        static constexpr typename std::enable_if<Cond, AllOf<Ps...>>::type conditional();
-        template<bool Cond, typename...>
-        static constexpr typename std::enable_if<!Cond, std::false_type>::type conditional();
+        struct _Select;
+        template<typename... Ps>
+        struct _Select<true, Ps...> : AllOf<Ps...> {};
+        template<typename... Ps>
+        struct _Select<false, Ps...> : std::false_type {};
 
       public:
-        static constexpr bool value = decltype( conditional<bool( Pred::value ), Preds...>() )::value;
+        static constexpr bool value = _Select<bool( Pred::value ), Preds...>::value;
       };
 
       template<typename... Preds>
@@ -306,13 +308,15 @@ namespace pgbar {
       template<typename Pred, typename... Preds>
       struct AnyOf<Pred, Preds...> {
       private:
-        template<bool Cond, typename...>
-        static constexpr typename std::enable_if<Cond, std::true_type>::type conditional();
         template<bool Cond, typename... Ps>
-        static constexpr typename std::enable_if<!Cond, AnyOf<Ps...>>::type conditional();
+        struct _Select;
+        template<typename... Ps>
+        struct _Select<true, Ps...> : std::true_type {};
+        template<typename... Ps>
+        struct _Select<false, Ps...> : AnyOf<Ps...> {};
 
       public:
-        static constexpr bool value = decltype( conditional<bool( Pred::value ), Preds...>() )::value;
+        static constexpr bool value = _Select<bool( Pred::value ), Preds...>::value;
       };
 
       template<typename Pred>
@@ -370,15 +374,15 @@ namespace pgbar {
       template<typename Head, typename... Tail, typename T, typename... Ts>
       struct StartsWith<TypeList<Head, Tail...>, T, Ts...> {
       private:
-        template<bool Cond, typename RestList, typename... RestTargets>
-        static constexpr typename std::enable_if<Cond, StartsWith<RestList, RestTargets...>>::type
-          conditional();
-        template<bool Cond, typename, typename...>
-        static constexpr typename std::enable_if<!Cond, std::false_type>::type conditional();
+        template<bool Cond, typename RestList>
+        struct _Select;
+        template<typename RestList>
+        struct _Select<true, RestList> : StartsWith<RestList, Ts...> {};
+        template<typename RestList>
+        struct _Select<false, RestList> : std::false_type {};
 
       public:
-        static constexpr bool value =
-          decltype( conditional<std::is_same<Head, T>::value, TypeList<Tail...>, Ts...>() )::value;
+        static constexpr bool value = _Select<std::is_same<Head, T>::value, TypeList<Tail...>>::value;
       };
 
       template<typename HeadTpList, typename TailTpList>
@@ -409,14 +413,15 @@ namespace pgbar {
       template<typename Head, typename... Tail, typename T>
       struct Own<TypeList<Head, Tail...>, T> {
       private:
-        template<bool Cond, typename, typename>
-        static constexpr typename std::enable_if<Cond, std::true_type>::type conditional();
-        template<bool Cond, typename RestList, typename Target>
-        static constexpr typename std::enable_if<!Cond, Own<RestList, Target>>::type conditional();
+        template<bool Cond, typename RestList>
+        struct _Select;
+        template<typename RestList>
+        struct _Select<true, RestList> : std::true_type {};
+        template<typename RestList>
+        struct _Select<false, RestList> : Own<RestList, T> {};
 
       public:
-        static constexpr bool value =
-          decltype( conditional<std::is_same<T, Head>::value, TypeList<Tail...>, T>() )::value;
+        static constexpr bool value = _Select<std::is_same<T, Head>::value, TypeList<Tail...>>::value;
       };
 
       /**
@@ -439,13 +444,19 @@ namespace pgbar {
       template<typename... Ts, typename T>
       struct Expand<TypeSet<Ts...>, T> {
       private:
-        template<bool Cond, typename, typename... Contents>
-        static constexpr typename std::enable_if<Cond, TypeSet<Contents...>>::type conditional();
-        template<bool Cond, typename NewOne, typename... Contents>
-        static constexpr typename std::enable_if<!Cond, TypeSet<Contents..., NewOne>>::type conditional();
+        template<bool Cond, typename NewOne>
+        struct _Select;
+        template<typename NewOne>
+        struct _Select<true, NewOne> {
+          using type = TypeSet<Ts...>;
+        };
+        template<typename NewOne>
+        struct _Select<false, NewOne> {
+          using type = TypeSet<Ts..., NewOne>;
+        };
 
       public:
-        using type = decltype( conditional<Exist<TypeSet<Ts...>, T>::value, T, Ts...>() );
+        using type = typename _Select<Exist<TypeSet<Ts...>, T>::value, T>::type;
       };
 
       template<typename List>
@@ -484,15 +495,15 @@ namespace pgbar {
         template<typename VisitedSet, typename U, typename... Us>
         struct Helper<VisitedSet, TypeList<U, Us...>> {
         private:
-          template<bool Cond, typename, typename, typename>
-          static constexpr typename std::enable_if<Cond, std::true_type>::type conditional();
-          template<bool Cond, typename Track, typename Traced, typename RestList>
-          static constexpr typename std::enable_if<!Cond, Helper<Expand_t<Track, Traced>, RestList>>::type
-            conditional();
+          template<bool Cond, typename RestList>
+          struct _Select;
+          template<typename RestList>
+          struct _Select<true, RestList> : std::true_type {};
+          template<typename RestList>
+          struct _Select<false, RestList> : Helper<Expand_t<VisitedSet, U>, RestList> {};
 
         public:
-          static constexpr bool value =
-            decltype( conditional<Exist<VisitedSet, U>::value, VisitedSet, U, TypeList<Us...>>() )::value;
+          static constexpr bool value = _Select<Exist<VisitedSet, U>::value, TypeList<Us...>>::value;
         };
 
       public:
@@ -521,14 +532,15 @@ namespace pgbar {
                class T>
       struct Include<TemplateList<Head, Tail...>, T> {
       private:
-        template<bool Cond, typename ReseList, template<typename...> class>
-        static constexpr typename std::enable_if<Cond, std::true_type>::type conditional();
-        template<bool Cond, typename ReseList, template<typename...> class Target>
-        static constexpr typename std::enable_if<!Cond, Include<ReseList, Target>>::type conditional();
+        template<bool Cond, typename RestList>
+        struct _Select;
+        template<typename RestList>
+        struct _Select<true, RestList> : std::true_type {};
+        template<typename RestList>
+        struct _Select<false, RestList> : Include<TemplateList<Tail...>, T> {};
 
       public:
-        static constexpr bool value =
-          decltype( conditional<Equal<Head, T>::value, TemplateList<Tail...>, T>() )::value;
+        static constexpr bool value = _Select<Equal<Head, T>::value, TemplateList<Tail...>>::value;
       };
 
       // Insert a new template type into the head of the TemplateList.
@@ -559,13 +571,19 @@ namespace pgbar {
       template<template<typename...> class... Ts, template<typename...> class T>
       struct Extend<TemplateSet<Ts...>, T> {
       private:
-        template<bool Cond, template<typename...> class, template<typename...> class... Contents>
-        static constexpr typename std::enable_if<Cond, TemplateSet<Contents...>>::type conditional();
-        template<bool Cond, template<typename...> class NewOne, template<typename...> class... Contents>
-        static constexpr typename std::enable_if<!Cond, TemplateSet<Contents..., NewOne>>::type conditional();
+        template<bool Cond, template<typename...> class NewOne>
+        struct _Select;
+        template<template<typename...> class NewOne>
+        struct _Select<true, NewOne> {
+          using type = TemplateSet<Ts...>;
+        };
+        template<template<typename...> class NewOne>
+        struct _Select<false, NewOne> {
+          using type = TemplateSet<Ts..., NewOne>;
+        };
 
       public:
-        using type = decltype( conditional<Contain<TemplateSet<Ts...>, T>::value, T, Ts...>() );
+        using type = typename _Select<Contain<TemplateSet<Ts...>, T>::value, T>::type;
       };
 
       /**
@@ -577,8 +595,8 @@ namespace pgbar {
        */
       template<template<typename...> class Node>
       struct InheritFrom {
-        using VBs  = TemplateList<>; // virtual base
-        using NVBs = TemplateList<>; // non-virtual base
+        using VBs  = TemplateSet<>; // virtual base
+        using NVBs = TemplateSet<>; // non-virtual base
       };
 
       // Gets the virtual base list of the template class `Node`.
@@ -594,8 +612,8 @@ namespace pgbar {
 # define __PGBAR_INHERIT_REGISTER( Node, VBList, NVBList ) \
    template<>                                              \
    struct InheritFrom<Node> {                              \
-     using VBs  = TemplateList<VBList>;                    \
-     using NVBs = TemplateList<NVBList>;                   \
+     using VBs  = TemplateSet<VBList>;                     \
+     using NVBs = TemplateSet<NVBList>;                    \
    }
 
       /**
@@ -610,9 +628,9 @@ namespace pgbar {
        * The only trade-off is a slight increase in compilation time
        * when resolving highly complex inheritance dependencies.
        *
-       * NVBList: Non-virtual Base List, VBList: Virtual Base List
+       * NVBList: Non-virtual Base List, VBList: Virtual Base List.
        */
-      template<typename NVBList, typename VBList = TemplateList<>>
+      template<typename NVBSet, typename VBSet = TemplateSet<>>
       struct TopoSort;
 
       // NVB: Non-virtual Base, VB: Virtual Base
@@ -621,99 +639,89 @@ namespace pgbar {
                class... NVBs,
                template<typename...>
                class... VBs>
-      struct TopoSort<TemplateList<NVB, NVBs...>, TemplateList<VBs...>> {
+      struct TopoSort<TemplateSet<NVB, NVBs...>, TemplateSet<VBs...>> {
       private:
-        // VI: Virtual Inherit
-        template<bool VI, typename NodeList, typename SortedList, typename VisitedVBs>
+        // VI: Virtual Inherit.
+        template<bool VI,
+                 typename /* TemplateSet */ NodeSet,
+                 typename /* TemplateList */ SortedList,
+                 typename /* TemplateSet */ SetVisitedVB>
         struct Helper;
-        /* Return the virtual base class node that was accessed during the recursive process.
-         * pt: path type. */
-        template<bool VI, typename NodeList, typename SortedList, typename VisitedVBs>
-        using Helper_pt = typename Helper<VI, NodeList, SortedList, VisitedVBs>::path;
-        /* Return the sorted list.
-         * tp: type. */
-        template<bool VI, typename NodeList, typename SortedList, typename VisitedVBs>
-        using Helper_tp = typename Helper<VI, NodeList, SortedList, VisitedVBs>::type;
+        // Return the virtual base class node that was accessed during the recursive process.
+        template<bool VI, typename NodeSet, typename SortedList, typename SetVisitedVB>
+        using Helper_ps = typename Helper<VI, NodeSet, SortedList, SetVisitedVB>::pathset;
+        // Return the sorted list.
+        template<bool VI, typename NodeSet, typename SortedList, typename SetVisitedVB>
+        using Helper_tp = typename Helper<VI, NodeSet, SortedList, SetVisitedVB>::type;
 
-        template<bool VI, typename SortedList, typename VisitedVBs>
-        struct Helper<VI, TemplateList<>, SortedList, VisitedVBs> {
-          using path = VisitedVBs;
-          using type = SortedList;
+        template<bool VI, typename SortedList, typename SetVisitedVB>
+        struct Helper<VI, TemplateSet<>, SortedList, SetVisitedVB> {
+          using /* TemplateSet */ pathset = SetVisitedVB;
+          using type                      = SortedList;
         };
         template<template<typename...> class Head,
                  template<typename...>
                  class... Tail,
                  typename SortedList,
-                 typename VisitedVBs>
-        struct Helper<true, TemplateList<Head, Tail...>, SortedList, VisitedVBs> {
+                 typename SetVisitedVB>
+        struct Helper<true, TemplateSet<Head, Tail...>, SortedList, SetVisitedVB> {
         private:
-          using SortVB_t = Helper_tp<true, InheritFrom_vbt<Head>, SortedList, VisitedVBs>;
-          using MarkVB_t = Helper_pt<true, InheritFrom_vbt<Head>, SortedList, VisitedVBs>;
+          using SortVB_t = Helper_tp<true, InheritFrom_vbt<Head>, SortedList, SetVisitedVB>;
+          using MarkVB_t = Helper_ps<true, InheritFrom_vbt<Head>, SortedList, SetVisitedVB>;
 
-          using SortTail_t = Helper_tp<true, TemplateList<Tail...>, SortVB_t, MarkVB_t>;
-          using MarkTail_t = Helper_pt<true, TemplateList<Tail...>, SortVB_t, MarkVB_t>;
+          using SortTail_t = Helper_tp<true, TemplateSet<Tail...>, SortVB_t, MarkVB_t>;
+          using MarkTail_t = Helper_ps<true, TemplateSet<Tail...>, SortVB_t, MarkVB_t>;
 
           using SortNVB_t = Helper_tp<false, InheritFrom_nvbt<Head>, SortTail_t, MarkTail_t>;
-          using MarkNVB_t = Helper_pt<false, InheritFrom_nvbt<Head>, SortTail_t, MarkTail_t>;
+          using MarkNVB_t = Helper_ps<false, InheritFrom_nvbt<Head>, SortTail_t, MarkTail_t>;
 
-          template<bool Cond,
-                   typename RestNodes,
-                   typename Sorted,
-                   typename Visited,
-                   typename,
-                   template<typename...>
-                   class>
-          static constexpr typename std::enable_if<Cond, Helper_tp<true, RestNodes, Sorted, Visited>>::type
-            conditional();
-          template<bool Cond,
-                   typename,
-                   typename,
-                   typename,
-                   typename IList, // Intermediate List
-                   template<typename...>
-                   class Target>
-          static constexpr typename std::enable_if<!Cond, Prepend_t<IList, Target>>::type conditional();
+          template<bool Cond, typename RestNodes, template<typename...> class Target>
+          struct _Select;
+          template<typename RestNodes, template<typename...> class Target>
+          struct _Select<true, RestNodes, Target> {
+            using type = Helper_tp<true, RestNodes, SortedList, SetVisitedVB>;
+          };
+          template<typename RestNodes, template<typename...> class Target>
+          struct _Select<false, RestNodes, Target> {
+            using type = Prepend_t<SortNVB_t, Target>;
+          };
 
         public:
-          using path = Extend_t<MarkNVB_t, Head>;
-          using type =
-            decltype( conditional<AnyOf<Contain<VisitedVBs, Head>, Contain<MarkTail_t, Head>>::value,
-                                  TemplateList<Tail...>,
-                                  SortedList,
-                                  VisitedVBs,
-                                  SortNVB_t,
-                                  Head>() );
+          using pathset = Extend_t<MarkNVB_t, Head>;
+          using type = typename _Select<AnyOf<Contain<SetVisitedVB, Head>, Contain<MarkTail_t, Head>>::value,
+                                        TemplateSet<Tail...>,
+                                        Head>::type;
         };
         template<template<typename...> class Head,
                  template<typename...>
                  class... Tail,
                  typename SortedList,
-                 typename VisitedVBs>
-        struct Helper<false, TemplateList<Head, Tail...>, SortedList, VisitedVBs> {
+                 typename SetVisitedVB>
+        struct Helper<false, TemplateSet<Head, Tail...>, SortedList, SetVisitedVB> {
         private:
-          using SortVB_t = Helper_tp<true, InheritFrom_vbt<Head>, SortedList, VisitedVBs>;
-          using MarkVB_t = Helper_pt<true, InheritFrom_vbt<Head>, SortedList, VisitedVBs>;
+          using SortVB_t = Helper_tp<true, InheritFrom_vbt<Head>, SortedList, SetVisitedVB>;
+          using MarkVB_t = Helper_ps<true, InheritFrom_vbt<Head>, SortedList, SetVisitedVB>;
 
-          using SortTail_t = Helper_tp<false, TemplateList<Tail...>, SortVB_t, MarkVB_t>;
-          using MarkTail_t = Helper_pt<false, TemplateList<Tail...>, SortVB_t, MarkVB_t>;
+          using SortTail_t = Helper_tp<false, TemplateSet<Tail...>, SortVB_t, MarkVB_t>;
+          using MarkTail_t = Helper_ps<false, TemplateSet<Tail...>, SortVB_t, MarkVB_t>;
 
           using SortNVB_t = Helper_tp<false, InheritFrom_nvbt<Head>, SortTail_t, MarkTail_t>;
-          using MarkNVB_t = Helper_pt<false, InheritFrom_nvbt<Head>, SortTail_t, MarkTail_t>;
+          using MarkNVB_t = Helper_ps<false, InheritFrom_nvbt<Head>, SortTail_t, MarkTail_t>;
 
         public:
-          using path = MarkNVB_t;
-          using type = Prepend_t<SortNVB_t, Head>;
+          using pathset = MarkNVB_t;
+          using type    = Prepend_t<SortNVB_t, Head>;
         };
 
       public:
         using type = Helper_tp<false,
-                               TemplateList<NVB, NVBs...>,
-                               Helper_tp<true, TemplateList<VBs...>, TemplateList<>, TemplateSet<>>,
-                               Helper_pt<true, TemplateList<VBs...>, TemplateList<>, TemplateSet<>>>;
+                               TemplateSet<NVB, NVBs...>,
+                               Helper_tp<true, TemplateSet<VBs...>, TemplateList<>, TemplateSet<>>,
+                               Helper_ps<true, TemplateSet<VBs...>, TemplateList<>, TemplateSet<>>>;
       };
       // Get a list of topological sorting results for the input template classes.
-      template<typename NVBList, typename VBList = TemplateList<>>
-      using TopoSort_t = typename TopoSort<NVBList, VBList>::type;
+      template<typename NVBSet, typename VBSet = TemplateSet<>>
+      using TopoSort_t = typename TopoSort<NVBSet, VBSet>::type;
 
       /**
        * Linearization of Inheritance.
@@ -723,7 +731,7 @@ namespace pgbar {
        *
        * It relies on the template `InheritFrom` and `TopoSort` classes to work.
        */
-      template<typename NVBList, typename VBList = TemplateList<>>
+      template<typename NVBSet, typename VBSet = TemplateSet<>>
       struct LI;
 
       template<template<typename...> class NVB,
@@ -731,7 +739,7 @@ namespace pgbar {
                class... NVBs,
                template<typename...>
                class... VBs>
-      struct LI<TemplateList<NVB, NVBs...>, TemplateList<VBs...>> {
+      struct LI<TemplateSet<NVB, NVBs...>, TemplateSet<VBs...>> {
       private:
         template<typename TopoOrder, typename RBC, typename... Args>
         struct Helper;
@@ -752,15 +760,15 @@ namespace pgbar {
         };
 
       public:
-        // RBC: Root Base Class
+        // RBC: Root Base Class.
         template<typename RBC, typename... Args>
-        using type = Helper_t<TopoSort_t<TemplateList<NVB, NVBs...>, TemplateList<VBs...>>, RBC, Args...>;
+        using type = Helper_t<TopoSort_t<TemplateSet<NVB, NVBs...>, TemplateSet<VBs...>>, RBC, Args...>;
       };
 
       template<template<typename...> class NVB, template<typename...> class... NVBs>
       struct LI_t {
         template<typename RBC, typename... Args>
-        using type = typename LI<TemplateList<NVB, NVBs...>>::template type<RBC, Args...>;
+        using type = typename LI<TemplateSet<NVB, NVBs...>>::template type<RBC, Args...>;
       };
 
       /**
@@ -807,28 +815,28 @@ namespace pgbar {
                  bool is_const      = std::is_const<T>::value,
                  bool has_itr       = has_iterator<T>::value,
                  bool has_const_itr = has_const_iterator<T>::value>
-        struct Selector {
+        struct _Select {
           using type = U;
         };
         template<typename U, bool P1, bool P2, bool P3>
-        struct Selector<U, true, P1, P2, P3> {
+        struct _Select<U, true, P1, P2, P3> {
           using type = typename std::add_pointer<typename std::remove_extent<U>::type>::type;
         };
         template<typename U, bool P2>
-        struct Selector<U, false, true, P2, true> {
+        struct _Select<U, false, true, P2, true> {
           using type = typename U::const_iterator;
         };
         template<typename U, bool P3>
-        struct Selector<U, false, false, true, P3> {
+        struct _Select<U, false, false, true, P3> {
           using type = typename U::iterator;
         };
         template<typename U>
-        struct Selector<U, false, true, true, false> {
+        struct _Select<U, false, true, true, false> {
           using type = typename U::iterator;
         };
 
       public:
-        using type = typename Selector<T>::type;
+        using type = typename _Select<T>::type;
       };
 # endif
       // Get the result type of `IteratorOf`.
@@ -4493,8 +4501,16 @@ namespace pgbar {
                 const auto pos    = num_frame_cnt % period;
                 return pos < this->bar_length_ ? pos + 1 : 2 * this->bar_length_ - pos - 1;
               }();
-              const auto len_half_lead  = ( current_lead.size() / 2 ) + ( current_lead.size() % 2 );
-              const auto len_left_fill  = len_half_lead < virtual_point ? virtual_point - len_half_lead : 0;
+              const auto len_left_fill = [this, virtual_point, &current_lead]() noexcept -> types::Size {
+                const auto len_half_lead = ( current_lead.size() / 2 ) + current_lead.size() % 2;
+                if ( virtual_point <= len_half_lead )
+                  return 0;
+                const auto len_unreach = this->bar_length_ - virtual_point;
+                if ( len_unreach <= len_half_lead - current_lead.size() % 2 )
+                  return this->bar_length_ - current_lead.size();
+
+                return virtual_point - len_half_lead;
+              }();
               const auto len_right_fill = this->bar_length_ - ( len_left_fill + current_lead.size() );
               __PGBAR_ASSERT( len_left_fill + len_right_fill + current_lead.size() == this->bar_length_ );
 
@@ -5416,11 +5432,11 @@ namespace pgbar {
                               assets::CounterMeter,
                               assets::Timer>::template type<assets::Core<Derived>, Derived> {
         // BarType must inherit from BasicIndicator or BasicAnimation
-        static_assert( traits::AnyOf<traits::Include<traits::TopoSort_t<traits::TemplateList<BarType>>,
-                                                     assets::BasicIndicator>,
-                                     traits::Include<traits::TopoSort_t<traits::TemplateList<BarType>>,
-                                                     assets::BasicAnimation>>::value,
-                       "pgbar::__details::prefabs::BasicConfig: Invalid progress bar type" );
+        static_assert(
+          traits::AnyOf<
+            traits::Include<traits::TopoSort_t<traits::TemplateSet<BarType>>, assets::BasicIndicator>,
+            traits::Include<traits::TopoSort_t<traits::TemplateSet<BarType>>, assets::BasicAnimation>>::value,
+          "pgbar::__details::prefabs::BasicConfig: Invalid progress bar type" );
 
         using Self      = BasicConfig;
         using Base      = typename traits::LI_t<BarType,
@@ -5929,7 +5945,7 @@ namespace pgbar {
    struct ConfigTraits<Config> {                                                          \
      static_assert( is_config<Config>::value,                                             \
                     "pgbar::__details::traits::ConfigTraits: Unexpected type mismatch" ); \
-     using type = TemplateList<__VA_ARGS__>;                                              \
+     using type = TemplateSet<__VA_ARGS__>;                                               \
    }
 
       __PGBAR_TRAIT_REGISTER( config::Line, assets::TaskCounter, assets::FrameCounter );
@@ -5942,11 +5958,8 @@ namespace pgbar {
       template<typename Config>
       struct CommonBuilder : public Config {
         using Config::Config;
-        CommonBuilder( const CommonBuilder& lhs )
-          noexcept( std::is_nothrow_copy_constructible<Config>::value )
-          : Config( static_cast<Config&>( lhs ) )
-        {}
-        CommonBuilder( CommonBuilder&& rhs ) noexcept : Config( static_cast<Config&&>( rhs ) ) {}
+        CommonBuilder( const CommonBuilder& lhs ) = default;
+        CommonBuilder( CommonBuilder&& rhs )      = default;
         CommonBuilder( const Config& config ) noexcept( std::is_nothrow_copy_constructible<Config>::value )
           : Config( config )
         {}
@@ -6415,7 +6428,7 @@ namespace pgbar {
                                                                          BasicBar<Soul, Outlet, Mode, Area>> {
         static_assert(
           traits::AllOf<traits::is_config<Soul>,
-                        traits::Include<traits::ConfigTraits_t<Soul>, assets::TaskCounter>>::value,
+                        traits::Contain<traits::ConfigTraits_t<Soul>, assets::TaskCounter>>::value,
           "pgbar::__details::prefabs::BasicBar: Invalid config type" );
         using Self = BasicBar;
         using Base = typename traits::LI<traits::ConfigTraits_t<Soul>>::template type<Indicator, Self>;
