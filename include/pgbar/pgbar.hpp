@@ -6669,7 +6669,7 @@ namespace pgbar {
           } );
         }
 
-        __PGBAR_NODISCARD bool active() const noexcept override final
+        __PGBAR_NODISCARD bool active() const noexcept final
         {
           return state_.load( std::memory_order_acquire ) != State::Stop;
         }
@@ -6678,7 +6678,7 @@ namespace pgbar {
           do_reset( static_cast<ResetMode>( final_mesg ) );
           __PGBAR_ASSERT( active() == false );
         }
-        void reset() noexcept override final { reset( true ); }
+        void reset() noexcept final { reset( true ); }
 
         Soul& config() & noexcept { return config_; }
         const Soul& config() const& noexcept { return config_; }
@@ -6945,7 +6945,7 @@ namespace pgbar {
           return do_render<Pos + 1>(); // tail recursive
         }
 
-        void do_halt( bool forced ) noexcept override final
+        void do_halt( bool forced ) noexcept final
         { // This virtual function is invoked only via the vtable,
           // hence the default arguments from the base class declaration are always used.
           // Any default arguments provided in the derived class are ignored.
@@ -6962,7 +6962,7 @@ namespace pgbar {
             }
           }
         }
-        void do_boot() & override final
+        void do_boot() & final
         {
           std::lock_guard<std::mutex> lock { sched_mtx_ };
           auto& executor = render::Renderer<Outlet, Mode>::itself();
@@ -8290,8 +8290,8 @@ namespace pgbar {
 
         Server server_;
 
-        void do_halt( bool forced ) noexcept override final { server_->pop( this, forced ); }
-        void do_boot() & override final { server_->append( this->shared_from_this() ); }
+        void do_halt( bool forced ) noexcept final { server_->pop( this, forced ); }
+        void do_boot() & final { server_->append( this->shared_from_this() ); }
 
       public:
         SharedBar( Server server, C&& config ) noexcept
@@ -8334,13 +8334,12 @@ namespace pgbar {
 
   template<Channel Outlet = Channel::Stderr, Policy Mode = Policy::Async, Region Area = Region::Fixed>
   class DynamicBar {
-    using Self = DynamicBar;
-    std::shared_ptr<__details::assets::DynamicContext<Outlet, Mode, Area>> core_;
+    using Self   = DynamicBar;
+    using Server = __details::assets::DynamicContext<Outlet, Mode, Area>;
+    std::shared_ptr<Server> core_;
 
   public:
-    DynamicBar() noexcept( false )
-      : core_ { std::make_shared<__details::assets::DynamicContext<Outlet, Mode, Area>>() }
-    {}
+    DynamicBar()                     = default;
     DynamicBar( const Self& )        = delete;
     Self& operator=( const Self& ) & = delete;
     DynamicBar( Self&& )             = default;
@@ -8349,24 +8348,20 @@ namespace pgbar {
 
     __PGBAR_NODISCARD __PGBAR_INLINE_FN bool active() const noexcept
     {
-      __PGBAR_ASSERT( core_ != nullptr );
-      return core_->size() != 0;
+      return core_ != nullptr && core_->size() != 0;
     }
     __PGBAR_NODISCARD __PGBAR_INLINE_FN __details::types::Size size() const noexcept
     {
-      __PGBAR_ASSERT( core_ != nullptr );
-      __PGBAR_ASSERT( core_.use_count() > 1 );
-      return core_.use_count() - 1;
+      return core_ == nullptr ? 0 : core_.use_count() - 1;
     }
     __PGBAR_NODISCARD __PGBAR_INLINE_FN __details::types::Size active_size() const noexcept
     {
-      __PGBAR_ASSERT( core_ != nullptr );
-      return core_->size();
+      return core_ == nullptr ? 0 : core_->size();
     }
     __PGBAR_INLINE_FN void reset() noexcept
     {
-      __PGBAR_ASSERT( core_ != nullptr );
-      core_->halt();
+      if ( core_ != nullptr )
+        core_->halt();
     }
 
     // Wait until the indicator is Stop.
@@ -8391,9 +8386,10 @@ namespace pgbar {
       typename std::enable_if<__details::traits::is_config<Config>::value,
                               std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>>::type
 # endif
-      insert( __details::prefabs::BasicBar<Config, Outlet, Mode, Area>&& bar ) const
+      insert( __details::prefabs::BasicBar<Config, Outlet, Mode, Area>&& bar )
     {
-      __PGBAR_ASSERT( core_ != nullptr );
+      if ( core_ == nullptr )
+        __PGBAR_UNLIKELY core_ = std::make_shared<Server>();
       return std::make_shared<__details::prefabs::SharedBar<Config, Outlet, Mode, Area>>( core_,
                                                                                           std::move( bar ) );
     }
@@ -8407,9 +8403,10 @@ namespace pgbar {
       std::shared_ptr<__details::prefabs::BasicBar<typename std::decay<Config>::type, Outlet, Mode, Area>>>::
       type
 # endif
-      insert( Config&& cfg ) const
+      insert( Config&& cfg )
     {
-      __PGBAR_ASSERT( core_ != nullptr );
+      if ( core_ == nullptr )
+        __PGBAR_UNLIKELY core_ = std::make_shared<Server>();
       return std::make_shared<
         __details::prefabs::SharedBar<typename std::decay<Config>::type, Outlet, Mode, Area>>(
         core_,
@@ -8430,9 +8427,10 @@ namespace pgbar {
                                std::integral_constant<bool, ( Bar::Layout == Area )>>::value,
       std::shared_ptr<Bar>>::type
 # endif
-      insert( Options&&... options ) const
+      insert( Options&&... options )
     {
-      __PGBAR_ASSERT( core_ != nullptr );
+      if ( core_ == nullptr )
+        __PGBAR_UNLIKELY core_ = std::make_shared<Server>();
       return std::make_shared<__details::prefabs::SharedBar<typename Bar::Config, Outlet, Mode, Area>>(
         core_,
         std::forward<Options>( options )... );
@@ -8447,9 +8445,10 @@ namespace pgbar {
                                                        std::is_constructible<Config, Options...>>::value,
                               std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>>::type
 # endif
-      insert( Options&&... options ) const
+      insert( Options&&... options )
     {
-      __PGBAR_ASSERT( core_ != nullptr );
+      if ( core_ == nullptr )
+        __PGBAR_UNLIKELY core_ = std::make_shared<Server>();
       return std::make_shared<__details::prefabs::SharedBar<Config, Outlet, Mode, Area>>(
         core_,
         std::forward<Options>( options )... );
