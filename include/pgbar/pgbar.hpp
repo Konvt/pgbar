@@ -2712,7 +2712,7 @@ namespace pgbar {
 # endif
   };
   enum class Policy : __details::types::Byte { Async, Sync };
-  enum class Region : __details::types::Byte { Fixed, Flexible };
+  enum class Region : __details::types::Byte { Fixed, Relative };
 
   namespace config {
     void hide_completed( bool flag ) noexcept;

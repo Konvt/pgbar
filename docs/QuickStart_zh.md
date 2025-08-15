@@ -384,17 +384,17 @@ int main()
 
 无论选择哪种渲染调度策略，终端上的具体渲染方式都由第三个模板参数 `pgbar::Region` 决定。
 
-该参数有两个可选值：默认的固定区域渲染 `pgbar::Region::Fixed`，以及基于相对位置的渲染 `pgbar::Region::Flexible`。
+该参数有两个可选值：默认的固定区域渲染 `pgbar::Region::Fixed`，以及基于相对位置的渲染 `pgbar::Region::Relative`。
 
 `pgbar::Region::Fixed` 会在首次渲染时保存当前光标位置，并始终在该固定区域刷新进度条；此时同一输出流上的其他内容都会被进度条刷新覆盖。
 
-`pgbar::Region::Flexible` 会根据上一次渲染输出的行数、回退并覆盖旧进度条内容；此时向同一输出流写入信息后，若额外添加适当数量的换行符，那么写入的额外信息能够得到保留。
+`pgbar::Region::Relative` 会根据上一次渲染输出的行数、回退并覆盖旧进度条内容；此时向同一输出流写入信息后，若额外添加适当数量的换行符，那么写入的额外信息能够得到保留。
 
-但如果进度条字符串长度过长，使用 `pgbar::Region::Flexible` 会导致终端渲染异常。
+但如果进度条字符串长度过长，使用 `pgbar::Region::Relative` 会导致终端渲染异常。
 
 > 对于任意一个独立的进度条而言，它的渲染结构共占两行：一行是进度条本身，一行则是空行；
 >
-> 因此使用 `pgbar::Region::Flexible` 布局时，如果需要额外再输出信息，就需要在输出后再额外插入两个换行符；
+> 因此使用 `pgbar::Region::Relative` 布局时，如果需要额外再输出信息，就需要在输出后再额外插入两个换行符；
 >
 > 否则由于进度条占据两行结构，后续渲染会错误覆盖已有输出。
 >
@@ -406,7 +406,7 @@ int main()
 
 int main()
 {
-  pgbar::ProgressBar</* any channel */, /* any policy */, pgbar::Region::Flexible> bar;
+  pgbar::ProgressBar</* any channel */, /* any policy */, pgbar::Region::Relative> bar;
   bar.config().tasks( 100 );
 
   for ( size_t i = 0; i < 95; ++i )
@@ -814,17 +814,17 @@ int main()
 
 无论选择哪种渲染调度策略，终端上的具体渲染方式都由第三个模板参数 `pgbar::Region` 决定。
 
-该参数有两个可选值：默认的固定区域渲染 `pgbar::Region::Fixed`，以及基于相对位置的渲染 `pgbar::Region::Flexible`。
+该参数有两个可选值：默认的固定区域渲染 `pgbar::Region::Fixed`，以及基于相对位置的渲染 `pgbar::Region::Relative`。
 
 `pgbar::Region::Fixed` 会在首次渲染时保存当前光标位置，并始终在该固定区域刷新进度条；此时同一输出流上的其他内容都会被进度条刷新覆盖。
 
-`pgbar::Region::Flexible` 会根据上一次渲染输出的行数、回退并覆盖旧进度条内容；此时向同一输出流写入信息后，若额外添加适当数量的换行符，那么写入的额外信息能够得到保留。
+`pgbar::Region::Relative` 会根据上一次渲染输出的行数、回退并覆盖旧进度条内容；此时向同一输出流写入信息后，若额外添加适当数量的换行符，那么写入的额外信息能够得到保留。
 
-但如果进度条字符串长度过长，使用 `pgbar::Region::Flexible` 会导致终端渲染异常。
+但如果进度条字符串长度过长，使用 `pgbar::Region::Relative` 会导致终端渲染异常。
 
 > 对于任意一个独立的进度条而言，它的渲染结构共占两行：一行是进度条本身，一行则是空行；
 >
-> 因此使用 `pgbar::Region::Flexible` 布局时，如果需要额外再输出信息，就需要在输出后再额外插入两个换行符；
+> 因此使用 `pgbar::Region::Relative` 布局时，如果需要额外再输出信息，就需要在输出后再额外插入两个换行符；
 >
 > 否则由于进度条占据两行结构，后续渲染会错误覆盖已有输出。
 >
@@ -836,7 +836,7 @@ int main()
 
 int main()
 {
-  pgbar::BlockBar</* any channel */, /* any policy */, pgbar::Region::Flexible> bar;
+  pgbar::BlockBar</* any channel */, /* any policy */, pgbar::Region::Relative> bar;
   bar.config().tasks( 100 );
 
   for ( size_t i = 0; i < 95; ++i )
@@ -1243,17 +1243,17 @@ int main()
 
 无论选择哪种渲染调度策略，进度条在终端的渲染方式都由第三个模板参数 `pgbar::Region` 决定。
 
-该参数有两个可选值：在固定终端区域渲染的 `pgbar::Region::Fixed`（默认值），以及相较于上一次渲染输出位置渲染的 `pgbar::Region::Flexible`。
+该参数有两个可选值：在固定终端区域渲染的 `pgbar::Region::Fixed`（默认值），以及相较于上一次渲染输出位置渲染的 `pgbar::Region::Relative`。
 
 `pgbar::Region::Fixed` 会在渲染开始时选中当前光标所在的终端区域，并在渲染过程中反复擦写这块区域以渲染进度条字符串；在这种情况下，任何向同一输出流写入的信息都会被进度条的下一帧刷新覆盖。
 
-`pgbar::Region::Flexible` 则仅根据上一次输出的进度条行数、在下一帧输出前回退适量的行数，并重新输出字符串以覆盖旧内容‘这种情况下，向同一输出流写入信息后，若额外添加适当数量的换行符，那么写入的额外信息能够得到保留。
+`pgbar::Region::Relative` 则仅根据上一次输出的进度条行数、在下一帧输出前回退适量的行数，并重新输出字符串以覆盖旧内容‘这种情况下，向同一输出流写入信息后，若额外添加适当数量的换行符，那么写入的额外信息能够得到保留。
 
-但如果进度条字符串长度过长，`pgbar::Region::Flexible` 会导致错误的终端渲染结果。
+但如果进度条字符串长度过长，`pgbar::Region::Relative` 会导致错误的终端渲染结果。
 
 > 对于任意一个独立的进度条而言，它的渲染结构共占两行：一行是进度条本身，一行则是空行；
 >
-> 因此使用 `pgbar::Region::Flexible` 布局时，如果需要额外再输出信息，就需要在输出后再额外插入两个换行符；
+> 因此使用 `pgbar::Region::Relative` 布局时，如果需要额外再输出信息，就需要在输出后再额外插入两个换行符；
 >
 > 否则由于进度条占据两行结构，后续渲染将错误覆盖已有输出。
 >
@@ -1265,7 +1265,7 @@ int main()
 
 int main()
 {
-  pgbar::SweepBar</* any channel */, /* any policy */, pgbar::Region::Flexible> bar;
+  pgbar::SweepBar</* any channel */, /* any policy */, pgbar::Region::Relative> bar;
   bar.config().tasks( 100 );
 
   for ( size_t i = 0; i < 95; ++i )
@@ -1641,17 +1641,17 @@ int main()
 
 无论选择哪种渲染调度策略，进度条在终端的渲染方式都由第三个模板参数 `pgbar::Region` 决定。
 
-该参数有两个可选值：在固定终端区域渲染的 `pgbar::Region::Fixed`（默认值），以及相较于上一次渲染输出位置渲染的 `pgbar::Region::Flexible`。
+该参数有两个可选值：在固定终端区域渲染的 `pgbar::Region::Fixed`（默认值），以及相较于上一次渲染输出位置渲染的 `pgbar::Region::Relative`。
 
 `pgbar::Region::Fixed` 会在渲染开始时选中当前光标所在的终端区域，并在渲染过程中反复擦写这块区域以渲染进度条字符串；在这种情况下，任何向同一输出流写入的信息都会被进度条的下一帧刷新覆盖。
 
-`pgbar::Region::Flexible` 则仅根据上一次输出的进度条行数、在下一帧输出前回退适量的行数，并重新输出字符串以覆盖旧内容‘这种情况下，向同一输出流写入信息后，若额外添加适当数量的换行符，那么写入的额外信息能够得到保留。
+`pgbar::Region::Relative` 则仅根据上一次输出的进度条行数、在下一帧输出前回退适量的行数，并重新输出字符串以覆盖旧内容‘这种情况下，向同一输出流写入信息后，若额外添加适当数量的换行符，那么写入的额外信息能够得到保留。
 
-但如果进度条字符串长度过长，`pgbar::Region::Flexible` 会导致错误的终端渲染结果。
+但如果进度条字符串长度过长，`pgbar::Region::Relative` 会导致错误的终端渲染结果。
 
 > 对于任意一个独立的进度条而言，它的渲染结构共占两行：一行是进度条本身，一行则是空行；
 >
-> 因此使用 `pgbar::Region::Flexible` 布局时，如果需要额外再输出信息，就需要在输出后再额外插入两个换行符；
+> 因此使用 `pgbar::Region::Relative` 布局时，如果需要额外再输出信息，就需要在输出后再额外插入两个换行符；
 >
 > 否则由于进度条占据两行结构，后续渲染将错误覆盖已有输出。
 >
@@ -1663,7 +1663,7 @@ int main()
 
 int main()
 {
-  pgbar::SpinBar</* any channel */, /* any policy */, pgbar::Region::Flexible> bar;
+  pgbar::SpinBar</* any channel */, /* any policy */, pgbar::Region::Relative> bar;
   bar.config().tasks( 100 );
 
   for ( size_t i = 0; i < 95; ++i )
@@ -1879,7 +1879,7 @@ int main()
 ### 渲染策略
 `MutliBar` 的渲染策略与独立进度条相同，但渲染行为略有差异。
 
-因为 `MutliBar` 会在多行同时渲染多个进度条，因此使用 `pgbar::Region::Flexible` 时，进度条的渲染结构所占的行数将会由 `MutliBar` 容纳的进度条类型数量决定。
+因为 `MutliBar` 会在多行同时渲染多个进度条，因此使用 `pgbar::Region::Relative` 时，进度条的渲染结构所占的行数将会由 `MutliBar` 容纳的进度条类型数量决定。
 
 `MutliBar` 容纳的进度条数量可由 `active_size()` 方法得到，而渲染结构所占行数将会是该方法返回的数量 +1。
 
@@ -1893,7 +1893,7 @@ int main()
 {
   // Since the newline character is output successively here,
   // the scheduling strategy has chosen synchronization to avoid inconsistent output behavior
-  auto bar = pgbar::make_multi</* any channel */, pgbar::Policy::Sync, pgbar::Region::Flexible>(
+  auto bar = pgbar::make_multi</* any channel */, pgbar::Policy::Sync, pgbar::Region::Relative>(
     pgbar::config::Line( pgbar::option::Tasks( 100 ) ),
     pgbar::config::Line( pgbar::option::Tasks( 150 ) ),
     pgbar::config::Line( pgbar::option::Tasks( 200 ) ) );
@@ -2072,7 +2072,7 @@ int main()
 ### 渲染策略
 `DynamicBar` 的渲染策略与独立进度条相同，但渲染行为略有差异。
 
-因为 `DynamicBar` 会在多行同时渲染多个进度条，因此使用 `pgbar::Region::Flexible` 时，进度条的渲染结构所占的行数将会由 `DynamicBar` 中正在运行的进度条数量决定。
+因为 `DynamicBar` 会在多行同时渲染多个进度条，因此使用 `pgbar::Region::Relative` 时，进度条的渲染结构所占的行数将会由 `DynamicBar` 中正在运行的进度条数量决定。
 
 `DynamicBar` 容纳的进度条数量可由 `active_size()` 方法得到，而渲染结构所占行数将会是该方法返回的数量 +1。
 
@@ -2086,7 +2086,7 @@ int main()
 {
   // Since the newline character is output successively here,
   // the scheduling strategy has chosen synchronization to avoid inconsistent output behavior
-  pgbar::DynamicBar</* any channel */, pgbar::Policy::Sync, pgbar::Region::Flexible> dbar;
+  pgbar::DynamicBar</* any channel */, pgbar::Policy::Sync, pgbar::Region::Relative> dbar;
 
   auto bar1 = dbar.insert( pgbar::config::Line( pgbar::option::Tasks( 100 ) ) );
   auto bar2 = dbar.insert( pgbar::config::Line( pgbar::option::Tasks( 150 ) ) );
