@@ -384,17 +384,17 @@ int main()
 
 No matter which rendering scheduling strategy is chosen, the specific rendering method on the terminal is determined by the third template parameter `pgbar::Region`.
 
-This parameter has two optional values: the default fixed-region rendering `pgbar::Region::Fixed`, and the relative location-based rendering `pgbar::Region::Flexible`.
+This parameter has two optional values: the default fixed-region rendering `pgbar::Region::Fixed`, and the relative location-based rendering `pgbar::Region::Relative`.
 
 `pgbar::Region::Fixed` will save the current cursor position during the first rendering and always refresh the progress bar in this fixed area; at this point, all other contents on the same output stream will be refreshed and overwritten by the progress bar.
 
-`pgbar::Region::Flexible` will roll back and overwrite the content of the old progress bar based on the number of lines output from the last rendering; at this point, after writing information to the same output stream, if an appropriate number of line breaks are added, the additional written information can be retained.
+`pgbar::Region::Relative` will roll back and overwrite the content of the old progress bar based on the number of lines output from the last rendering; at this point, after writing information to the same output stream, if an appropriate number of line breaks are added, the additional written information can be retained.
 
-However, if the progress bar string is too long, using `pgbar::Region::Flexible` will cause terminal rendering exceptions.
+However, if the progress bar string is too long, using `pgbar::Region::Relative` will cause terminal rendering exceptions.
 
 > For any sole progress bar, its rendering structure occupies two lines: one line is the progress bar itself, and the other is an empty line.
 >
-> Therefore, when using the layout `pgbar::Region::Flexible`, if additional information needs to be output, two extra line breaks must be inserted after the output.
+> Therefore, when using the layout `pgbar::Region::Relative`, if additional information needs to be output, two extra line breaks must be inserted after the output.
 >
 > Otherwise, due to the progress bar occupying a two-line structure, subsequent rendering will incorrectly overwrite the existing output.
 >
@@ -406,7 +406,7 @@ However, if the progress bar string is too long, using `pgbar::Region::Flexible`
 
 int main()
 {
-  pgbar::ProgressBar</* any channel */, /* any policy */, pgbar::Region::Flexible> bar;
+  pgbar::ProgressBar</* any channel */, /* any policy */, pgbar::Region::Relative> bar;
   bar.config().tasks( 100 );
 
   for ( size_t i = 0; i < 95; ++i )
@@ -814,17 +814,17 @@ int main()
 
 No matter which rendering scheduling strategy is chosen, the specific rendering method on the terminal is determined by the third template parameter `pgbar::Region`.
 
-This parameter has two optional values: the default fixed-region rendering `pgbar::Region::Fixed`, and the relative location-based rendering `pgbar::Region::Flexible`.
+This parameter has two optional values: the default fixed-region rendering `pgbar::Region::Fixed`, and the relative location-based rendering `pgbar::Region::Relative`.
 
 `pgbar::Region::Fixed` will save the current cursor position during the first rendering and always refresh the progress bar in this fixed area; at this point, all other contents on the same output stream will be refreshed and overwritten by the progress bar.
 
-`pgbar::Region::Flexible` will roll back and overwrite the content of the old progress bar based on the number of lines output from the last rendering; at this point, after writing information to the same output stream, if an appropriate number of line breaks are added, the additional written information can be retained.
+`pgbar::Region::Relative` will roll back and overwrite the content of the old progress bar based on the number of lines output from the last rendering; at this point, after writing information to the same output stream, if an appropriate number of line breaks are added, the additional written information can be retained.
 
-However, if the progress bar string is too long, using `pgbar::Region::Flexible` will cause terminal rendering exceptions.
+However, if the progress bar string is too long, using `pgbar::Region::Relative` will cause terminal rendering exceptions.
 
 > For any sole progress bar, its rendering structure occupies two lines: one line is the progress bar itself, and the other is an empty line.
 >
-> Therefore, when using the layout `pgbar::Region::Flexible`, if additional information needs to be output, two extra line breaks must be inserted after the output.
+> Therefore, when using the layout `pgbar::Region::Relative`, if additional information needs to be output, two extra line breaks must be inserted after the output.
 >
 > Otherwise, due to the progress bar occupying a two-line structure, subsequent rendering will incorrectly overwrite the existing output.
 >
@@ -836,7 +836,7 @@ However, if the progress bar string is too long, using `pgbar::Region::Flexible`
 
 int main()
 {
-  pgbar::BlockBar</* any channel */, /* any policy */, pgbar::Region::Flexible> bar;
+  pgbar::BlockBar</* any channel */, /* any policy */, pgbar::Region::Relative> bar;
   bar.config().tasks( 100 );
 
   for ( size_t i = 0; i < 95; ++i )
@@ -1243,17 +1243,17 @@ int main()
 
 No matter which rendering scheduling strategy is chosen, the specific rendering method on the terminal is determined by the third template parameter `pgbar::Region`.
 
-This parameter has two optional values: the default fixed-region rendering `pgbar::Region::Fixed`, and the relative location-based rendering `pgbar::Region::Flexible`.
+This parameter has two optional values: the default fixed-region rendering `pgbar::Region::Fixed`, and the relative location-based rendering `pgbar::Region::Relative`.
 
 `pgbar::Region::Fixed` will save the current cursor position during the first rendering and always refresh the progress bar in this fixed area; at this point, all other contents on the same output stream will be refreshed and overwritten by the progress bar.
 
-`pgbar::Region::Flexible` will roll back and overwrite the content of the old progress bar based on the number of lines output from the last rendering; at this point, after writing information to the same output stream, if an appropriate number of line breaks are added, the additional written information can be retained.
+`pgbar::Region::Relative` will roll back and overwrite the content of the old progress bar based on the number of lines output from the last rendering; at this point, after writing information to the same output stream, if an appropriate number of line breaks are added, the additional written information can be retained.
 
-However, if the progress bar string is too long, using `pgbar::Region::Flexible` will cause terminal rendering exceptions.
+However, if the progress bar string is too long, using `pgbar::Region::Relative` will cause terminal rendering exceptions.
 
 > For any sole progress bar, its rendering structure occupies two lines: one line is the progress bar itself, and the other is an empty line.
 >
-> Therefore, when using the layout `pgbar::Region::Flexible`, if additional information needs to be output, two extra line breaks must be inserted after the output.
+> Therefore, when using the layout `pgbar::Region::Relative`, if additional information needs to be output, two extra line breaks must be inserted after the output.
 >
 > Otherwise, due to the progress bar occupying a two-line structure, subsequent rendering will incorrectly overwrite the existing output.
 >
@@ -1265,7 +1265,7 @@ However, if the progress bar string is too long, using `pgbar::Region::Flexible`
 
 int main()
 {
-  pgbar::SweepBar</* any channel */, /* any policy */, pgbar::Region::Flexible> bar;
+  pgbar::SweepBar</* any channel */, /* any policy */, pgbar::Region::Relative> bar;
   bar.config().tasks( 100 );
 
   for ( size_t i = 0; i < 95; ++i )
@@ -1640,17 +1640,17 @@ int main()
 
 No matter which rendering scheduling strategy is chosen, the specific rendering method on the terminal is determined by the third template parameter `pgbar::Region`.
 
-This parameter has two optional values: the default fixed-region rendering `pgbar::Region::Fixed`, and the relative location-based rendering `pgbar::Region::Flexible`.
+This parameter has two optional values: the default fixed-region rendering `pgbar::Region::Fixed`, and the relative location-based rendering `pgbar::Region::Relative`.
 
 `pgbar::Region::Fixed` will save the current cursor position during the first rendering and always refresh the progress bar in this fixed area; at this point, all other contents on the same output stream will be refreshed and overwritten by the progress bar.
 
-`pgbar::Region::Flexible` will roll back and overwrite the content of the old progress bar based on the number of lines output from the last rendering; at this point, after writing information to the same output stream, if an appropriate number of line breaks are added, the additional written information can be retained.
+`pgbar::Region::Relative` will roll back and overwrite the content of the old progress bar based on the number of lines output from the last rendering; at this point, after writing information to the same output stream, if an appropriate number of line breaks are added, the additional written information can be retained.
 
-However, if the progress bar string is too long, using `pgbar::Region::Flexible` will cause terminal rendering exceptions.
+However, if the progress bar string is too long, using `pgbar::Region::Relative` will cause terminal rendering exceptions.
 
 > For any sole progress bar, its rendering structure occupies two lines: one line is the progress bar itself, and the other is an empty line.
 >
-> Therefore, when using the layout `pgbar::Region::Flexible`, if additional information needs to be output, two extra line breaks must be inserted after the output.
+> Therefore, when using the layout `pgbar::Region::Relative`, if additional information needs to be output, two extra line breaks must be inserted after the output.
 >
 > Otherwise, due to the progress bar occupying a two-line structure, subsequent rendering will incorrectly overwrite the existing output.
 >
@@ -1662,7 +1662,7 @@ However, if the progress bar string is too long, using `pgbar::Region::Flexible`
 
 int main()
 {
-  pgbar::SpinBar</* any channel */, /* any policy */, pgbar::Region::Flexible> bar;
+  pgbar::SpinBar</* any channel */, /* any policy */, pgbar::Region::Relative> bar;
   bar.config().tasks( 100 );
 
   for ( size_t i = 0; i < 95; ++i )
@@ -1882,7 +1882,7 @@ int main()
 ### Rendering strategy
 The rendering strategy of `MutliBar` is the same as that of the sole progress bar, but the rendering behavior is slightly different.
 
-Because `MutliBar` renders multiple progress bars simultaneously on multiple lines, when using `pgbar::Region::Flexible`, the number of lines occupied by the rendering structure of the progress bar will be determined by the number of progress bar types accommodated by `MutliBar`.
+Because `MutliBar` renders multiple progress bars simultaneously on multiple lines, when using `pgbar::Region::Relative`, the number of lines occupied by the rendering structure of the progress bar will be determined by the number of progress bar types accommodated by `MutliBar`.
 
 The number of progress bars accommodated by `MutliBar` can be obtained by the `active_size()` method, and the number of rows occupied by the rendering structure will be the number returned by this method +1.
 
@@ -1896,7 +1896,7 @@ int main()
 {
   // Since the newline character is output successively here,
   // the scheduling strategy has chosen synchronization to avoid inconsistent output behavior
-  auto bar = pgbar::make_multi</* any channel */, pgbar::Policy::Sync, pgbar::Region::Flexible>(
+  auto bar = pgbar::make_multi</* any channel */, pgbar::Policy::Sync, pgbar::Region::Relative>(
     pgbar::config::Line( pgbar::option::Tasks( 100 ) ),
     pgbar::config::Line( pgbar::option::Tasks( 150 ) ),
     pgbar::config::Line( pgbar::option::Tasks( 200 ) ) );
@@ -2079,7 +2079,7 @@ int main()
 ### Rendering strategy
 The rendering strategy of `DynamicBar` is the same as that of the sole progress bar, but the rendering behavior is slightly different.
 
-Because `DynamicBar` renders multiple progress bars simultaneously on multiple lines, when using `pgbar::Region::Flexible`, the number of lines occupied by the rendering structure of the progress bar will be determined by the number of running progress bars in `DynamicBar`.
+Because `DynamicBar` renders multiple progress bars simultaneously on multiple lines, when using `pgbar::Region::Relative`, the number of lines occupied by the rendering structure of the progress bar will be determined by the number of running progress bars in `DynamicBar`.
 
 The number of running progress bars by `DynamicBar` can be obtained by the `active_size()` method, and the number of rows occupied by the rendering structure will be the number returned by this method +1.
 
@@ -2093,7 +2093,7 @@ int main()
 {
   // Since the newline character is output successively here,
   // the scheduling strategy has chosen synchronization to avoid inconsistent output behavior
-  pgbar::DynamicBar</* any channel */, pgbar::Policy::Sync, pgbar::Region::Flexible> dbar;
+  pgbar::DynamicBar</* any channel */, pgbar::Policy::Sync, pgbar::Region::Relative> dbar;
 
   auto bar1 = dbar.insert( pgbar::config::Line( pgbar::option::Tasks( 100 ) ) );
   auto bar2 = dbar.insert( pgbar::config::Line( pgbar::option::Tasks( 150 ) ) );
