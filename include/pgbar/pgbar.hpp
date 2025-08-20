@@ -526,10 +526,8 @@ namespace pgbar {
       template<template<typename...> class T>
       struct Include<TemplateList<>, T> : std::false_type {};
       template<template<typename...> class Head,
-               template<typename...>
-               class... Tail,
-               template<typename...>
-               class T>
+               template<typename...> class... Tail,
+               template<typename...> class T>
       struct Include<TemplateList<Head, Tail...>, T> {
       private:
         template<bool Cond, typename RestList>
@@ -635,10 +633,8 @@ namespace pgbar {
 
       // NVB: Non-virtual Base, VB: Virtual Base
       template<template<typename...> class NVB,
-               template<typename...>
-               class... NVBs,
-               template<typename...>
-               class... VBs>
+               template<typename...> class... NVBs,
+               template<typename...> class... VBs>
       struct TopoSort<TemplateSet<NVB, NVBs...>, TemplateSet<VBs...>> {
       private:
         // VI: Virtual Inherit.
@@ -660,8 +656,7 @@ namespace pgbar {
           using type                      = SortedList;
         };
         template<template<typename...> class Head,
-                 template<typename...>
-                 class... Tail,
+                 template<typename...> class... Tail,
                  typename SortedList,
                  typename SetVisitedVB>
         struct Helper<true, TemplateSet<Head, Tail...>, SortedList, SetVisitedVB> {
@@ -693,8 +688,7 @@ namespace pgbar {
                                         Head>::type;
         };
         template<template<typename...> class Head,
-                 template<typename...>
-                 class... Tail,
+                 template<typename...> class... Tail,
                  typename SortedList,
                  typename SetVisitedVB>
         struct Helper<false, TemplateSet<Head, Tail...>, SortedList, SetVisitedVB> {
@@ -735,10 +729,8 @@ namespace pgbar {
       struct LI;
 
       template<template<typename...> class NVB,
-               template<typename...>
-               class... NVBs,
-               template<typename...>
-               class... VBs>
+               template<typename...> class... NVBs,
+               template<typename...> class... VBs>
       struct LI<TemplateSet<NVB, NVBs...>, TemplateSet<VBs...>> {
       private:
         template<typename TopoOrder, typename RBC, typename... Args>
@@ -751,8 +743,7 @@ namespace pgbar {
           using type = RBC;
         };
         template<template<typename...> class Head,
-                 template<typename...>
-                 class... Tail,
+                 template<typename...> class... Tail,
                  typename RBC,
                  typename... Args>
         struct Helper<TemplateList<Head, Tail...>, RBC, Args...> {
@@ -985,7 +976,7 @@ namespace pgbar {
       }
 # else
       template<typename C, typename MemFn, typename Object, typename... Args>
-      __PGBAR_INLINE_FN constexpr auto invoke( MemFn C::*method, Object&& object, Args&&... args )
+      __PGBAR_INLINE_FN constexpr auto invoke( MemFn C::* method, Object&& object, Args&&... args )
         noexcept( noexcept( ( std::forward<Object>( object ).*method )( std::forward<Args>( args )... ) ) ) ->
         typename std::enable_if<
           traits::AllOf<std::is_member_function_pointer<MemFn C::*>,
@@ -996,7 +987,7 @@ namespace pgbar {
         return ( std::forward<Object>( object ).*method )( std::forward<Args>( args )... );
       }
       template<typename C, typename MemFn, typename Object, typename... Args>
-      __PGBAR_INLINE_FN constexpr auto invoke( MemFn C::*method, Object&& object, Args&&... args )
+      __PGBAR_INLINE_FN constexpr auto invoke( MemFn C::* method, Object&& object, Args&&... args )
         noexcept( noexcept( ( object.get().*method )( std::forward<Args>( args )... ) ) ) ->
         typename std::enable_if<
           traits::AllOf<std::is_member_function_pointer<MemFn C::*>,
@@ -1006,7 +997,7 @@ namespace pgbar {
         return ( object.get().*method )( std::forward<Args>( args )... );
       }
       template<typename C, typename MemFn, typename Object, typename... Args>
-      __PGBAR_INLINE_FN constexpr auto invoke( MemFn C::*method, Object&& object, Args&&... args )
+      __PGBAR_INLINE_FN constexpr auto invoke( MemFn C::* method, Object&& object, Args&&... args )
         noexcept( noexcept( ( ( *std::forward<Object>( object ) )
                               .*method )( std::forward<Args>( args )... ) ) ) ->
         typename std::enable_if<
@@ -1020,7 +1011,7 @@ namespace pgbar {
         return ( ( *std::forward<Object>( object ) ).*method )( std::forward<Args>( args )... );
       }
       template<typename C, typename MemObj, typename Object>
-      __PGBAR_INLINE_FN constexpr auto invoke( MemObj C::*member, Object&& object ) noexcept ->
+      __PGBAR_INLINE_FN constexpr auto invoke( MemObj C::* member, Object&& object ) noexcept ->
         typename std::enable_if<
           traits::AllOf<std::is_member_object_pointer<MemObj C::*>,
                         traits::AnyOf<std::is_base_of<C, typename std::decay<Object>::type>,
@@ -1030,7 +1021,7 @@ namespace pgbar {
         return std::forward<Object>( object ).*member;
       }
       template<typename C, typename MemObj, typename Object>
-      __PGBAR_INLINE_FN constexpr auto invoke( MemObj C::*member, Object&& object ) noexcept ->
+      __PGBAR_INLINE_FN constexpr auto invoke( MemObj C::* member, Object&& object ) noexcept ->
         typename std::enable_if<
           traits::AllOf<std::is_member_object_pointer<MemObj C::*>,
                         traits::InstanceOf<typename std::decay<Object>::type, std::reference_wrapper>>::value,
@@ -1039,9 +1030,8 @@ namespace pgbar {
         return object.get().*member;
       }
       template<typename C, typename MemObj, typename Object>
-      __PGBAR_INLINE_FN constexpr auto invoke( MemObj C::*member, Object&& object )
-        noexcept( noexcept( ( *std::forward<Object>( object ) ).*member ) ) ->
-        typename std::enable_if<
+      __PGBAR_INLINE_FN constexpr auto invoke( MemObj C::* member, Object&& object )
+        noexcept( noexcept( ( *std::forward<Object>( object ) ).*member ) ) -> typename std::enable_if<
           traits::AllOf<std::is_member_object_pointer<MemObj C::*>,
                         traits::Not<traits::AnyOf<std::is_base_of<C, typename std::decay<Object>::type>,
                                                   std::is_same<C, typename std::decay<Object>::type>,
@@ -1253,12 +1243,10 @@ namespace pgbar {
       struct Invocable_r {
       private:
         template<typename F>
-        static constexpr auto check( F&& fn ) ->
-          typename std::enable_if<
-            std::is_convertible<decltype( utils::invoke( std::forward<F>( fn ),
-                                                         std::declval<ArgTypes>()... ) ),
-                                R>::value,
-            std::true_type>::type;
+        static constexpr auto check( F&& fn ) -> typename std::enable_if<
+          std::is_convertible<decltype( utils::invoke( std::forward<F>( fn ), std::declval<ArgTypes>()... ) ),
+                              R>::value,
+          std::true_type>::type;
         static constexpr std::false_type check( ... );
 
       public:
@@ -1842,7 +1830,7 @@ namespace pgbar {
         {
           auto tmp = types::String( a );
           tmp.append( b.bytes_ );
-          return U8String( std::move( tmp ) );
+          return Self( std::move( tmp ) );
         }
         template<types::Size N>
         __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( const char ( &a )[N],
@@ -1850,14 +1838,14 @@ namespace pgbar {
         {
           auto tmp = types::String( a );
           tmp.append( b.bytes_ );
-          return U8String( std::move( tmp ) );
+          return Self( std::move( tmp ) );
         }
         __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( const char* a,
                                                                                          const Self& b )
         {
           auto tmp = types::String( a );
           tmp.append( b.bytes_ );
-          return U8String( std::move( tmp ) );
+          return Self( std::move( tmp ) );
         }
 # if __PGBAR_CXX20
         static_assert( sizeof( char8_t ) == sizeof( char ),
@@ -1868,7 +1856,7 @@ namespace pgbar {
         {
           auto tmp = Self( a );
           tmp.bytes_.append( b.bytes_ );
-          return U8String( std::move( tmp ) );
+          return tmp;
         }
 # endif
         __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( const Self& a,
@@ -1876,7 +1864,7 @@ namespace pgbar {
         {
           auto tmp = a.bytes_;
           tmp.append( b );
-          return U8String( std::move( tmp ) );
+          return Self( std::move( tmp ) );
         }
         __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( Self&& a,
                                                                                          types::ROStr b )
@@ -1910,54 +1898,54 @@ namespace pgbar {
       template<TxtLayout Style>
       __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::String format(
         types::Size width,
-        const charcodes::U8String& __str ) noexcept( false )
+        const charcodes::U8String& str ) noexcept( false )
       {
-        return format<Style>( width, __str.size(), __str.str() );
+        return format<Style>( width, str.size(), str.str() );
       }
     } // namespace utils
 
     namespace concurrent {
       // Wait for pred to be true.
-      template<typename F, typename Rep, typename Period>
-      __PGBAR_INLINE_FN void adaptive_wait( F&& pred, const std::chrono::duration<Rep, Period>& threshold )
-        noexcept( noexcept( pred() ) )
+      template<typename F>
+      __PGBAR_INLINE_FN void spin_wait( F&& pred, types::Size threshold ) noexcept( noexcept( pred() ) )
       {
-        const auto start = std::chrono::steady_clock::now();
-        for ( bool within_threshold = true; !pred(); ) {
-          if ( within_threshold )
-            within_threshold = std::chrono::steady_clock::now() - start <= threshold;
+        for ( types::Size cnt = 0; !pred(); ) {
+          if ( cnt < threshold )
+            ++cnt;
           else
             std::this_thread::yield();
         }
       }
       template<typename F>
-      __PGBAR_INLINE_FN void adaptive_wait( F&& pred ) noexcept( noexcept( pred() ) )
+      __PGBAR_INLINE_FN void spin_wait( F&& pred ) noexcept( noexcept( pred() ) )
       {
-        adaptive_wait( std::forward<F>( pred ), std::chrono::milliseconds( 1 ) );
+        spin_wait( std::forward<F>( pred ), 128 );
       }
 
-      template<typename F, typename Rep1, typename Period1, typename Rep2, typename Period2>
-      __PGBAR_INLINE_FN bool adaptive_wait_for( F&& pred,
-                                                const std::chrono::duration<Rep1, Period1>& timeout,
-                                                const std::chrono::duration<Rep2, Period2>& threshold )
+      template<typename F, typename Rep, typename Period>
+      __PGBAR_INLINE_FN bool spin_wait_for( F&& pred,
+                                            types::Size threshold,
+                                            const std::chrono::duration<Rep, Period>& timeout )
         noexcept( noexcept( pred() ) )
       {
         const auto start = std::chrono::steady_clock::now();
-        while ( !pred() ) {
+        for ( types::Size cnt; !pred(); ) {
           const auto elapsed = std::chrono::steady_clock::now() - start;
           if ( elapsed >= timeout )
             return false;
-          else if ( elapsed <= threshold )
+          else if ( cnt < threshold ) {
+            ++cnt;
             continue;
+          }
           std::this_thread::yield();
         }
         return true;
       }
       template<typename F, typename Rep, typename Period>
-      __PGBAR_INLINE_FN bool adaptive_wait_for( F&& pred, const std::chrono::duration<Rep, Period>& timeout )
+      __PGBAR_INLINE_FN bool spin_wait_for( F&& pred, const std::chrono::duration<Rep, Period>& timeout )
         noexcept( noexcept( pred() ) )
       {
-        return adaptive_wait_for( std::forward<F>( pred ), timeout, std::chrono::milliseconds( 1 ) );
+        return spin_wait_for( std::forward<F>( pred ), 128, timeout );
       }
 
 # if __PGBAR_CXX17
@@ -2744,13 +2732,13 @@ namespace pgbar {
     // Wait until the indicator is Stop.
     void wait() const noexcept
     {
-      __details::concurrent::adaptive_wait( [this]() noexcept { return !active(); } );
+      __details::concurrent::spin_wait( [this]() noexcept { return !active(); } );
     }
     // Wait for the indicator is Stop or timed out.
     template<class Rep, class Period>
     __PGBAR_NODISCARD bool wait_for( const std::chrono::duration<Rep, Period>& timeout ) const noexcept
     {
-      return __details::concurrent::adaptive_wait_for( [this]() noexcept { return !active(); }, timeout );
+      return __details::concurrent::spin_wait_for( [this]() noexcept { return !active(); }, timeout );
     }
   };
   __PGBAR_CXX17_INLINE std::atomic<bool> Indicator::_hide_completed { false };
@@ -3205,7 +3193,7 @@ namespace pgbar {
                                                State::Suspend,
                                                std::memory_order_release,
                                                std::memory_order_relaxed ) ) {
-            concurrent::adaptive_wait(
+            concurrent::spin_wait(
               [this]() noexcept { return state_.load( std::memory_order_acquire ) != State::Suspend; } );
             std::lock_guard<std::mutex> lock { mtx_ };
             // Ensure that the background thread is truely suspended.
@@ -3427,7 +3415,7 @@ namespace pgbar {
               std::lock_guard<std::mutex> lock { mtx_ };
               cond_var_.notify_one();
             }
-            concurrent::adaptive_wait(
+            concurrent::spin_wait(
               [this]() noexcept { return state_.load( std::memory_order_acquire ) != State::Active; } );
             std::lock_guard<std::mutex> lock { mtx_ };
           }
@@ -3501,7 +3489,7 @@ namespace pgbar {
               state_.store( State::Quit, std::memory_order_release );
               throw;
             }
-            concurrent::adaptive_wait(
+            concurrent::spin_wait(
               [this]() noexcept { return state_.load( std::memory_order_acquire ) != State::Awake; } );
             renderer.throw_if();
             // Recheck whether any exceptions have been received in the background thread.
@@ -3574,7 +3562,7 @@ namespace pgbar {
                                                    std::memory_order_relaxed );
           };
           if ( try_update( State::Awake ) || try_update( State::Active ) )
-            concurrent::adaptive_wait(
+            concurrent::spin_wait(
               [this]() noexcept { return state_.load( std::memory_order_acquire ) != State::Attempt; } );
         }
 
@@ -7219,13 +7207,13 @@ namespace pgbar {
     // Wait for all progress bars to stop.
     void wait() const noexcept
     {
-      __details::concurrent::adaptive_wait( [this]() noexcept { return !active(); } );
+      __details::concurrent::spin_wait( [this]() noexcept { return !active(); } );
     }
     // Wait for all progress bars to stop or time out.
     template<class Rep, class Period>
     __PGBAR_NODISCARD bool wait_for( const std::chrono::duration<Rep, Period>& timeout ) const noexcept
     {
-      return __details::concurrent::adaptive_wait_for( [this]() noexcept { return !active(); }, timeout );
+      return __details::concurrent::spin_wait_for( [this]() noexcept { return !active(); }, timeout );
     }
 
     template<__details::types::Size Pos>
@@ -8367,14 +8355,14 @@ namespace pgbar {
     // Wait until the indicator is Stop.
     __PGBAR_INLINE_FN void wait() const noexcept
     {
-      __details::concurrent::adaptive_wait( [this]() noexcept { return !active(); } );
+      __details::concurrent::spin_wait( [this]() noexcept { return !active(); } );
     }
     // Wait for the indicator is Stop or timed out.
     template<class Rep, class Period>
     __PGBAR_NODISCARD __PGBAR_INLINE_FN bool wait_for(
       const std::chrono::duration<Rep, Period>& timeout ) const noexcept
     {
-      return __details::concurrent::adaptive_wait_for( [this]() noexcept { return !active(); }, timeout );
+      return __details::concurrent::spin_wait_for( [this]() noexcept { return !active(); }, timeout );
     }
 
     template<typename Config>

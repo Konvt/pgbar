@@ -8,4 +8,7 @@ Diagnostics:
       - "performance-*"
     Remove:
       - "modernize-use-trailing-return-type"
+      - "modernize-use-constraints"
+      - "modernize-type-traits"
+      - "performance-enum-size"
   UnusedIncludes: Strict
