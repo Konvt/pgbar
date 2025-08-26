@@ -2749,18 +2749,18 @@ namespace pgbar {
       // escape codes
       namespace escodes {
 # ifdef PGBAR_COLORLESS
-        constexpr types::LitStr fontreset = "";
-        constexpr types::LitStr fontbold  = "";
+        __PGBAR_CXX17_INLINE constexpr types::LitStr fontreset = "";
+        __PGBAR_CXX17_INLINE constexpr types::LitStr fontbold  = "";
 # else
-        constexpr types::LitStr fontreset = "\x1B[0m";
-        constexpr types::LitStr fontbold  = "\x1B[1m";
+        __PGBAR_CXX17_INLINE constexpr types::LitStr fontreset = "\x1B[0m";
+        __PGBAR_CXX17_INLINE constexpr types::LitStr fontbold  = "\x1B[1m";
 # endif
-        constexpr types::LitStr savecursor  = "\x1B[s";
-        constexpr types::LitStr resetcursor = "\x1B[u";
-        constexpr types::LitStr linewipe    = "\x1B[K";
-        constexpr types::LitStr prevline    = "\x1b[A";
-        constexpr types::Char nextline      = '\n';
-        constexpr types::Char linestart     = '\r';
+        __PGBAR_CXX17_INLINE constexpr types::LitStr savecursor  = "\x1B[s";
+        __PGBAR_CXX17_INLINE constexpr types::LitStr resetcursor = "\x1B[u";
+        __PGBAR_CXX17_INLINE constexpr types::LitStr linewipe    = "\x1B[K";
+        __PGBAR_CXX17_INLINE constexpr types::LitStr prevline    = "\x1b[A";
+        __PGBAR_CXX17_INLINE constexpr types::Char nextline      = '\n';
+        __PGBAR_CXX17_INLINE constexpr types::Char linestart     = '\r';
 
         /**
          * Convert a hexidecimal RGB color value to an ANSI escape code.
@@ -2816,7 +2816,7 @@ namespace pgbar {
         // Detect whether the specified output stream is bound to a terminal.
         bool detect() noexcept
         {
-          const bool value = []() {
+          const bool value = []() noexcept {
 # if defined( PGBAR_INTTY ) || __PGBAR_UNKNOWN
             return true;
 # elif __PGBAR_WIN
@@ -2900,28 +2900,12 @@ namespace pgbar {
       public:
         __PGBAR_CXX20_CNSTXPR Stringbuf() = default;
 
-        __PGBAR_CXX20_CNSTXPR Stringbuf( const Self& lhs ) { operator=( lhs ); }
-        __PGBAR_CXX20_CNSTXPR Stringbuf( Self&& rhs ) noexcept : Stringbuf()
-        {
-          operator=( std::move( rhs ) );
-        }
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& operator=( const Self& lhs ) &
-        {
-          __PGBAR_TRUST( this != &lhs );
-          buffer_ = lhs.buffer_;
-          return *this;
-        }
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& operator=( Self&& rhs ) & noexcept
-        {
-          __PGBAR_TRUST( this != &rhs );
-          swap( rhs );
-          rhs.buffer_.clear();
-          rhs.buffer_.shrink_to_fit();
-          return *this;
-        }
-
+        __PGBAR_CXX20_CNSTXPR Stringbuf( const Self& lhs )                           = default;
+        __PGBAR_CXX20_CNSTXPR Stringbuf( Self&& rhs ) noexcept                       = default;
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& operator=( const Self& lhs ) & = default;
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& operator=( Self&& rhs ) &      = default;
         // Intentional non-virtual destructors.
-        __PGBAR_CXX20_CNSTXPR ~Stringbuf() = default;
+        __PGBAR_CXX20_CNSTXPR ~Stringbuf()                                           = default;
 
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR bool empty() const noexcept { return buffer_.empty(); }
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void clear() & noexcept { buffer_.clear(); }
