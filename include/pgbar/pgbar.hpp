@@ -888,23 +888,6 @@ namespace pgbar {
       struct is_bounded_range<T[N]> : std::true_type {};
 # endif
 
-# if __PGBAR_CXX17
-      template<typename T, typename Signature>
-      struct Match;
-      template<typename T, typename R, typename... Args>
-      struct Match<T, R( Args... )> : std::is_invocable_r<R, T, Args...> {};
-# else
-      template<typename T, typename Signature, typename = void>
-      struct Match : std::false_type {};
-      template<typename T, typename R, typename... Args>
-      struct Match<T,
-                   R( Args... ),
-                   typename std::enable_if<
-                     std::is_same<decltype( std::declval<T>()( std::declval<Args>()... ) ),
-                                  decltype( std::declval<T>()( std::declval<Args>()... ) )>::value>::type>
-        : std::is_convertible<decltype( std::declval<T>()( std::declval<Args>()... ) ), R> {};
-# endif
-
       // Check whether the type Instance is an instantiated version of Tmp or whether it inherits from Tmp
       // itself.
       template<typename Instance, template<typename...> class Tmp>
@@ -3890,9 +3873,9 @@ namespace pgbar {
    __PGBAR_CXX20_CNSTXPR ~ClassName()                              = default;
 
       template<typename Derived>
-      class Core {
+      class CoreConfig {
 # define __PGBAR_UNPAKING( OptionName, MemberName )                                                  \
-   friend __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR void unpacker( Core& cfg,                          \
+   friend __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR void unpacker( CoreConfig& cfg,                    \
                                                                  option::OptionName&& val ) noexcept \
    {                                                                                                 \
      cfg.fonts_[utils::as_val( Mask::OptionName )] = val.value();                                    \
@@ -3927,20 +3910,20 @@ namespace pgbar {
         }
 
       public:
-        Core() noexcept : fonts_ { static_cast<types::Byte>( ~0 ) } {}
-        constexpr Core( const Core& lhs ) : fonts_ { lhs.fonts_ } {}
-        constexpr Core( Core&& rhs ) noexcept : fonts_ { rhs.fonts_ } {}
-        __PGBAR_CXX14_CNSTXPR Core& operator=( const Core& lhs ) &
+        CoreConfig() noexcept : fonts_ { static_cast<types::Byte>( ~0 ) } {}
+        constexpr CoreConfig( const CoreConfig& lhs ) : fonts_ { lhs.fonts_ } {}
+        constexpr CoreConfig( CoreConfig&& rhs ) noexcept : fonts_ { rhs.fonts_ } {}
+        __PGBAR_CXX14_CNSTXPR CoreConfig& operator=( const CoreConfig& lhs ) &
         {
           fonts_ = lhs.fonts_;
           return *this;
         }
-        __PGBAR_CXX14_CNSTXPR Core& operator=( Core&& rhs ) & noexcept
+        __PGBAR_CXX14_CNSTXPR CoreConfig& operator=( CoreConfig&& rhs ) & noexcept
         {
           fonts_ = rhs.fonts_;
           return *this;
         }
-        __PGBAR_CXX20_CNSTXPR ~Core() = default;
+        __PGBAR_CXX20_CNSTXPR ~CoreConfig() = default;
 
 # define __PGBAR_METHOD( OptionName, ParamName )              \
                                                               \
@@ -3949,9 +3932,9 @@ namespace pgbar {
    return static_cast<Derived&>( *this )
 
         // Enable or disable the color effect.
-        Derived& colored( bool _enable ) & { __PGBAR_METHOD( Colored, _enable ); }
+        Derived& colored( bool _enable ) & noexcept { __PGBAR_METHOD( Colored, _enable ); }
         // Enable or disable the bold effect.
-        Derived& bolded( bool _enable ) & { __PGBAR_METHOD( Bolded, _enable ); }
+        Derived& bolded( bool _enable ) & noexcept { __PGBAR_METHOD( Bolded, _enable ); }
 
 # undef __PGBAR_METHOD
 # define __PGBAR_METHOD( Offset )                                    \
@@ -3959,18 +3942,19 @@ namespace pgbar {
    return fonts_[utils::as_val( Mask::Offset )]
 
         // Check whether the color effect is enabled.
-        __PGBAR_NODISCARD bool colored() const { __PGBAR_METHOD( Colored ); }
+        __PGBAR_NODISCARD bool colored() const noexcept { __PGBAR_METHOD( Colored ); }
         // Check whether the bold effect is enabled.
-        __PGBAR_NODISCARD bool bolded() const { __PGBAR_METHOD( Bolded ); }
+        __PGBAR_NODISCARD bool bolded() const noexcept { __PGBAR_METHOD( Bolded ); }
 
 # undef __PGBAR_METHOD
 
-        __PGBAR_CXX14_CNSTXPR void swap( Core& lhs ) noexcept { std::swap( fonts_, lhs.fonts_ ); }
+        __PGBAR_CXX14_CNSTXPR void swap( CoreConfig& lhs ) noexcept { std::swap( fonts_, lhs.fonts_ ); }
       };
 
       template<typename Base, typename Derived>
       class TaskQuantity : public Base {
-        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( TaskQuantity& cfg, option::Tasks&& val )
+        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( TaskQuantity& cfg,
+                                                                      option::Tasks&& val ) noexcept
         {
           cfg.task_range_ = slice::NumericSpan<std::uint64_t>( val.value() );
         }
@@ -3983,14 +3967,14 @@ namespace pgbar {
         __PGBAR_NONEMPTY_CLASS( TaskQuantity, __PGBAR_CXX14_CNSTXPR )
 
         // Set the number of tasks, passing in zero is no exception.
-        Derived& tasks( std::uint64_t param ) &
+        Derived& tasks( std::uint64_t param ) & noexcept
         {
           std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };
           unpacker( *this, option::Tasks( param ) );
           return static_cast<Derived&>( *this );
         }
         // Get the current number of tasks.
-        __PGBAR_NODISCARD std::uint64_t tasks() const
+        __PGBAR_NODISCARD std::uint64_t tasks() const noexcept
         {
           concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
           return task_range_.back();
@@ -4222,7 +4206,7 @@ namespace pgbar {
          *
          * If the value is zero, freeze the animation.
          */
-        Derived& shift( std::int8_t _shift_factor ) &
+        Derived& shift( std::int8_t _shift_factor ) & noexcept
         {
           std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };
           unpacker( *this, option::Shift( _shift_factor ) );
@@ -4303,11 +4287,11 @@ namespace pgbar {
          */
         Derived& end_color( types::ROStr _end_color ) & { __PGBAR_METHOD( EndColor, _end_color, ); }
         // Set the length of the bar indicator.
-        Derived& bar_length( types::Size _length ) & { __PGBAR_METHOD( BarLength, _length, ); }
+        Derived& bar_length( types::Size _length ) & noexcept { __PGBAR_METHOD( BarLength, _length, ); }
 
-        __PGBAR_NODISCARD types::Size bar_length() const
+        __PGBAR_NODISCARD types::Size bar_length() const noexcept
         {
-          __details::concurrent::SharedLock<__details::concurrent::SharedMutex> lock { this->rw_mtx_ };
+          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
           return bar_length_;
         }
 
@@ -4710,7 +4694,6 @@ namespace pgbar {
    {                                                                                                   \
      cfg.MemberName = Operation( val.value() );                                                        \
    }
-        __PGBAR_UNPAKING( Style, visibilities_, , __PGBAR_CXX20_CNSTXPR )
         __PGBAR_UNPAKING( InfoColor, info_col_, std::move, )
         __PGBAR_UNPAKING( Divider, divider_, std::move, __PGBAR_CXX20_CNSTXPR )
         __PGBAR_UNPAKING( LeftBorder, l_border_, std::move, __PGBAR_CXX20_CNSTXPR )
@@ -4892,7 +4875,7 @@ namespace pgbar {
         __PGBAR_CXX20_CNSTXPR SpeedMeter() = default;
         __PGBAR_NONEMPTY_CLASS( SpeedMeter, __PGBAR_CXX20_CNSTXPR )
 
-# define __PGBAR_METHOD( ParamName, OptionName )                    \
+# define __PGBAR_METHOD( OptionName, ParamName )                    \
    std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
    unpacker( *this, option::OptionName( std::move( ParamName ) ) ); \
    return static_cast<Derived&>( *this )
@@ -4906,7 +4889,7 @@ namespace pgbar {
          * The given each unit will be treated as 1,000 times greater than the previous one
          * (from left to right).
          */
-        Derived& speed_unit( std::array<types::String, 4> _units ) & { __PGBAR_METHOD( _units, SpeedUnit ); }
+        Derived& speed_unit( std::array<types::String, 4> _units ) & { __PGBAR_METHOD( SpeedUnit, _units ); }
 # if __PGBAR_CXX20
         /**
          * @param _units
@@ -4915,7 +4898,7 @@ namespace pgbar {
          */
         Derived& speed_unit( std::array<std::u8string_view, 4> _units ) &
         {
-          __PGBAR_METHOD( _units, SpeedUnit );
+          __PGBAR_METHOD( SpeedUnit, _units );
         }
 # endif
 
@@ -4926,7 +4909,7 @@ namespace pgbar {
          * Defines the threshold at which values are converted to higher-order units
          * (e.g. 1000 -> "1k", 1000000 -> "1M").
          */
-        Derived& magnitude( std::uint16_t _magnitude ) & { __PGBAR_METHOD( _magnitude, Magnitude ); }
+        Derived& magnitude( std::uint16_t _magnitude ) & noexcept { __PGBAR_METHOD( Magnitude, _magnitude ); }
 
 # undef __PGBAR_METHOD
 
@@ -5043,7 +5026,1108 @@ namespace pgbar {
       };
 # undef __PGBAR_DEFAULT_TIMER
 # undef __PGBAR_TIMER_SEGMENT
+    } // namespace assets
 
+    namespace traits {
+      // There is no need to declare the dependency on assets::CoreConfig here.
+      // It will be directly passed to the dependency resolution function as the initial base class.
+      __PGBAR_INHERIT_REGISTER( assets::BasicAnimation, , assets::Frames );
+
+      __PGBAR_INHERIT_REGISTER(
+        assets::CharIndic,
+        assets::TaskQuantity,
+        __PGBAR_PACK( assets::BasicAnimation, assets::BasicIndicator, assets::Filler, assets::Remains ) );
+      __PGBAR_INHERIT_REGISTER(
+        assets::BlockIndic,
+        assets::TaskQuantity,
+        __PGBAR_PACK( assets::Frames, assets::BasicIndicator, assets::Filler, assets::Remains ) );
+      __PGBAR_INHERIT_REGISTER( assets::SpinnerIndic, , assets::BasicAnimation );
+      __PGBAR_INHERIT_REGISTER( assets::SweeperIndic,
+                                ,
+                                __PGBAR_PACK( assets::BasicAnimation,
+                                              assets::BasicIndicator,
+                                              assets::Filler ) );
+
+      __PGBAR_INHERIT_REGISTER( assets::PercentMeter, assets::TaskQuantity, );
+      __PGBAR_INHERIT_REGISTER( assets::SpeedMeter, assets::TaskQuantity, );
+      __PGBAR_INHERIT_REGISTER( assets::CounterMeter, assets::TaskQuantity, );
+
+      __PGBAR_INHERIT_REGISTER( assets::Timer, assets::TaskQuantity, );
+
+      template<template<typename...> class Component>
+      struct OptionFor {
+        using type = TypeList<>;
+      };
+      template<template<typename...> class Component>
+      using OptionFor_t = typename OptionFor<Component>::type;
+
+# define __PGBAR_BIND_OPTION( Component, ... ) \
+   template<>                                  \
+   struct OptionFor<Component> {               \
+     using type = TypeList<__VA_ARGS__>;       \
+   }
+
+      __PGBAR_BIND_OPTION( assets::CoreConfig, option::Colored, option::Bolded );
+      __PGBAR_BIND_OPTION( assets::TaskQuantity, option::Tasks );
+      __PGBAR_BIND_OPTION( assets::Frames, option::Lead, option::LeadColor );
+      __PGBAR_BIND_OPTION( assets::Filler, option::Filler, option::FillerColor );
+      __PGBAR_BIND_OPTION( assets::Remains, option::Remains, option::RemainsColor );
+      __PGBAR_BIND_OPTION( assets::BasicAnimation, option::Shift );
+      __PGBAR_BIND_OPTION( assets::BasicIndicator,
+                           option::Starting,
+                           option::Ending,
+                           option::StartColor,
+                           option::EndColor,
+                           option::BarLength );
+      __PGBAR_BIND_OPTION( assets::Prefix,
+                           option::Prefix,
+                           option::TrueMesg,
+                           option::FalseMesg,
+                           option::PrefixColor,
+                           option::TrueColor,
+                           option::FalseColor );
+      __PGBAR_BIND_OPTION( assets::Postfix, option::Postfix, option::PostfixColor );
+      __PGBAR_BIND_OPTION( assets::Segment,
+                           option::Divider,
+                           option::LeftBorder,
+                           option::RightBorder,
+                           option::InfoColor );
+      __PGBAR_BIND_OPTION( assets::PercentMeter, );
+      __PGBAR_BIND_OPTION( assets::SpeedMeter, option::SpeedUnit, option::Magnitude );
+
+      template<>
+      struct OptionFor<assets::CharIndic> {
+        using type = Merge_t<OptionFor_t<assets::TaskQuantity>,
+                             OptionFor_t<assets::Frames>,
+                             OptionFor_t<assets::Filler>,
+                             OptionFor_t<assets::Remains>,
+                             OptionFor_t<assets::BasicAnimation>,
+                             OptionFor_t<assets::BasicIndicator>>;
+      };
+      template<>
+      struct OptionFor<assets::BlockIndic> {
+        using type = Merge_t<OptionFor_t<assets::TaskQuantity>,
+                             OptionFor_t<assets::Frames>,
+                             OptionFor_t<assets::Filler>,
+                             OptionFor_t<assets::Remains>,
+                             OptionFor_t<assets::BasicAnimation>,
+                             OptionFor_t<assets::BasicIndicator>>;
+      };
+      template<>
+      struct OptionFor<assets::SpinnerIndic> {
+        using type = Merge_t<OptionFor_t<assets::TaskQuantity>, OptionFor_t<assets::BasicAnimation>>;
+      };
+      template<>
+      struct OptionFor<assets::SweeperIndic> {
+        using type = Merge_t<OptionFor_t<assets::TaskQuantity>,
+                             OptionFor_t<assets::Frames>,
+                             OptionFor_t<assets::Filler>,
+                             OptionFor_t<assets::BasicAnimation>,
+                             OptionFor_t<assets::BasicIndicator>>;
+      };
+    } // namespace traits
+
+    namespace prefabs {
+      template<template<typename...> class BarType, typename Derived>
+      class BasicConfig
+        : public traits::LI_t<BarType,
+                              assets::Prefix,
+                              assets::Postfix,
+                              assets::Segment,
+                              assets::PercentMeter,
+                              assets::SpeedMeter,
+                              assets::CounterMeter,
+                              assets::Timer>::template type<assets::CoreConfig<Derived>, Derived> {
+        // In fact, all the dependent components of BasicConfig can be fully injected from the outside.
+        // This is not done here just to reduce repetitive code
+
+        // BarType must inherit from BasicIndicator or BasicAnimation
+        static_assert(
+          traits::AnyOf<
+            traits::Include<traits::TopoSort_t<traits::TemplateSet<BarType>>, assets::BasicIndicator>,
+            traits::Include<traits::TopoSort_t<traits::TemplateSet<BarType>>, assets::BasicAnimation>>::value,
+          "pgbar::__details::prefabs::BasicConfig: Invalid progress bar type" );
+
+        using Self = BasicConfig;
+        using Base =
+          typename traits::LI_t<BarType,
+                                assets::Prefix,
+                                assets::Postfix,
+                                assets::Segment,
+                                assets::PercentMeter,
+                                assets::SpeedMeter,
+                                assets::CounterMeter,
+                                assets::Timer>::template type<assets::CoreConfig<Derived>, Derived>;
+        using Permitted = traits::Merge_t<traits::TypeList<option::Style>,
+                                          traits::OptionFor_t<BarType>,
+                                          traits::OptionFor_t<assets::Prefix>,
+                                          traits::OptionFor_t<assets::Postfix>,
+                                          traits::OptionFor_t<assets::Segment>,
+                                          traits::OptionFor_t<assets::SpeedMeter>,
+                                          traits::OptionFor_t<assets::Timer>,
+                                          traits::OptionFor_t<assets::CoreConfig>>;
+
+        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( BasicConfig& cfg,
+                                                                      option::Style&& val ) noexcept
+        {
+          cfg.visual_masks_ = val.value();
+        }
+
+        template<bool Enable>
+        class Modifier final {
+          friend Self;
+          Self& self_;
+          std::atomic<bool> owner_;
+
+          Modifier( Self& self ) noexcept : self_ { self }, owner_ { true } { self_.rw_mtx_.lock(); }
+          Modifier( Self& self, std::adopt_lock_t ) noexcept : self_ { self }, owner_ { true } {}
+# if !__PGBAR_CXX17
+          // There was not standard NRVO support before C++17.
+          Modifier( Modifier&& rhs ) noexcept : self_ { rhs.self_ }, owner_ { true }
+          {
+            rhs.owner_.store( false, std::memory_order_release );
+          }
+# endif
+        public:
+          ~Modifier() noexcept
+          {
+            if ( owner_.load( std::memory_order_acquire ) )
+              self_.rw_mtx_.unlock();
+          }
+          Modifier( const Modifier& )              = delete;
+          Modifier& operator=( const Modifier& ) & = delete;
+
+# define __PGBAR_METHOD( MethodName, EnumName )                      \
+   Modifier&& MethodName()&& noexcept                                \
+   {                                                                 \
+     if ( owner_.load( std::memory_order_acquire ) )                 \
+       self_.visual_masks_.set( utils::as_val( EnumName ), Enable ); \
+     return static_cast<Modifier&&>( *this );                        \
+   }
+          __PGBAR_METHOD( percent, Mask::Per )
+          __PGBAR_METHOD( animation, Mask::Ani )
+          __PGBAR_METHOD( counter, Mask::Cnt )
+          __PGBAR_METHOD( speed, Mask::Sped )
+          __PGBAR_METHOD( elapsed, Mask::Elpsd )
+          __PGBAR_METHOD( countdown, Mask::Cntdwn )
+# undef __PGBAR_METHOD
+          Modifier&& entire() && noexcept
+          {
+            if ( owner_.load( std::memory_order_acquire ) ) {
+              if __PGBAR_CXX17_CNSTXPR ( Enable )
+                self_.visual_masks_.set();
+              else
+                self_.visual_masks_.reset();
+            }
+            return static_cast<Modifier&&>( *this );
+          }
+
+          Modifier<!Enable> negate() && noexcept
+          {
+            auto negate = Modifier<!Enable>( this->self_, std::adopt_lock );
+            owner_.store( false, std::memory_order_release );
+            return negate;
+          }
+        };
+
+      protected:
+        enum class Mask : types::Byte { Per = 0, Ani, Cnt, Sped, Elpsd, Cntdwn };
+        std::bitset<6> visual_masks_;
+
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN types::Size common_render_size() const noexcept
+        {
+          return this->fixed_len_prefix() + this->fixed_len_postfix()
+               + ( visual_masks_[utils::as_val( Mask::Per )] ? this->fixed_len_percent() : 0 )
+               + ( visual_masks_[utils::as_val( Mask::Cnt )] ? this->fixed_len_counter() : 0 )
+               + ( visual_masks_[utils::as_val( Mask::Sped )] ? this->fixed_len_speed() : 0 )
+               + ( visual_masks_[utils::as_val( Mask::Elpsd )] && visual_masks_[utils::as_val( Mask::Cntdwn )]
+                     ? this->fixed_len_hybird()
+                     : ( visual_masks_[utils::as_val( Mask::Elpsd )]
+                           ? this->fixed_len_elapsed()
+                           : ( this->visual_masks_[utils::as_val( Mask::Cntdwn )]
+                                 ? this->fixed_len_countdown()
+                                 : 0 ) ) )
+               + ( visual_masks_[utils::as_val( Mask::Elpsd )] && visual_masks_[utils::as_val( Mask::Cntdwn )]
+                     ? 3
+                     : 0 )
+               + this->fixed_len_segment( this->visual_masks_.count()
+                                          - ( this->visual_masks_[utils::as_val( Mask::Cntdwn )]
+                                              && this->visual_masks_[utils::as_val( Mask::Elpsd )] )
+                                          + ( !this->true_mesg_.empty() || !this->false_mesg_.empty()
+                                              || !this->prefix_.empty() || !this->postfix_.empty() ) );
+        }
+
+      public:
+        // Percent Meter
+        static constexpr types::Byte Per    = 1 << 0;
+        // Animation
+        static constexpr types::Byte Ani    = 1 << 1;
+        // Task Progress Counter
+        static constexpr types::Byte Cnt    = 1 << 2;
+        // Speed Meter
+        static constexpr types::Byte Sped   = 1 << 3;
+        // Elapsed Timer
+        static constexpr types::Byte Elpsd  = 1 << 4;
+        // Countdown Timer
+        static constexpr types::Byte Cntdwn = 1 << 5;
+        // Enable all components
+        static constexpr types::Byte Entire = ~0;
+
+# if __PGBAR_CXX20
+        template<typename... Args>
+          requires( !traits::Duplicated<traits::TypeList<Args...>>::value
+                    && ( traits::Exist<traits::Unique_t<Permitted>, Args>::value && ... ) )
+# else
+        template<typename... Args,
+                 typename = typename std::enable_if<
+                   traits::AllOf<traits::Not<traits::Duplicated<traits::TypeList<Args...>>>,
+                                 traits::Exist<traits::Unique_t<Permitted>, Args>...>::value>::type>
+# endif
+        BasicConfig( Args... args )
+        {
+          static_cast<Derived*>( this )->template initialize<Args...>();
+          (void)std::initializer_list<char> { ( unpacker( *this, std::move( args ) ), '\0' )... };
+        }
+
+        BasicConfig( const Self& lhs ) noexcept( traits::AllOf<std::is_nothrow_default_constructible<Base>,
+                                                               std::is_nothrow_copy_assignable<Base>>::value )
+          : Base( lhs )
+        {
+          concurrent::SharedLock<concurrent::SharedMutex> lock { lhs.rw_mtx_ };
+          visual_masks_ = lhs.visual_masks_;
+        }
+        BasicConfig( Self&& rhs ) noexcept : Base( std::move( rhs ) )
+        {
+          concurrent::SharedLock<concurrent::SharedMutex> lock { rhs.rw_mtx_ };
+          using std::swap;
+          swap( visual_masks_, rhs.visual_masks_ );
+        }
+        Self& operator=( const Self& lhs ) & noexcept( std::is_nothrow_copy_assignable<Base>::value )
+        {
+          __PGBAR_TRUST( this != &lhs );
+          std::unique_lock<concurrent::SharedMutex> lock1 { this->rw_mtx_, std::defer_lock };
+          concurrent::SharedLock<concurrent::SharedMutex> lock2 { lhs.rw_mtx_, std::defer_lock };
+          std::lock( lock1, lock2 );
+
+          visual_masks_ = lhs.visual_masks_;
+          Base::operator=( lhs );
+          return *this;
+        }
+        Self& operator=( Self&& rhs ) & noexcept
+        {
+          __PGBAR_ASSERT( this != &rhs );
+          std::lock( this->rw_mtx_, rhs.rw_mtx_ );
+          std::lock_guard<concurrent::SharedMutex> lock1 { this->rw_mtx_, std::adopt_lock };
+          std::lock_guard<concurrent::SharedMutex> lock2 { rhs.rw_mtx_, std::adopt_lock };
+
+          using std::swap;
+          swap( visual_masks_, rhs.visual_masks_ );
+          Base::operator=( std::move( rhs ) );
+          return *this;
+        }
+        /**
+         * Note: Because there are no exposed public base classes for config type,
+         * there should be no scenarios for managing derived objects using base class references.
+         * So the destructor here is deliberately set to be non-virtual.
+         */
+        ~BasicConfig() = default;
+
+        Derived& style( types::Byte val ) & noexcept
+        {
+          std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };
+          unpacker( *this, option::Style( val ) );
+          return static_cast<Derived&>( *this );
+        }
+
+        template<typename Arg, typename... Args>
+# if __PGBAR_CXX20
+          requires( !traits::Duplicated<traits::TypeList<Arg, Args...>>::value
+                    && traits::Exist<traits::Unique_t<Permitted>, Arg>::value
+                    && ( traits::Exist<traits::Unique_t<Permitted>, Args>::value && ... ) )
+        Derived&
+# else
+        typename std::enable_if<traits::AllOf<traits::Not<traits::Duplicated<traits::TypeList<Arg, Args...>>>,
+                                              traits::Exist<traits::Unique_t<Permitted>, Arg>,
+                                              traits::Exist<traits::Unique_t<Permitted>, Args>...>::value,
+                                Derived&>::type
+# endif
+          set( Arg arg, Args... args ) & noexcept(
+            traits::AllOf<
+              std::integral_constant<bool,
+                                     noexcept( unpacker( std::declval<Derived&>(), std::move( arg ) ) )>,
+              std::integral_constant<bool,
+                                     noexcept( unpacker( std::declval<Derived&>(),
+                                                         std::move( args ) ) )>...>::value )
+        {
+          std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };
+          unpacker( *this, std::move( arg ) );
+          (void)std::initializer_list<char> { ( unpacker( *this, std::move( args ) ), '\0' )... };
+          return static_cast<Derived&>( *this );
+        }
+
+        __PGBAR_NODISCARD types::Size fixed_length() const noexcept
+        {
+          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
+          return static_cast<const Derived*>( this )->fixed_render_size();
+        }
+
+        __PGBAR_NODISCARD Modifier<true> enable() & noexcept { return Modifier<true>( *this ); }
+        __PGBAR_NODISCARD Modifier<false> disable() & noexcept { return Modifier<false>( *this ); }
+
+        __PGBAR_INLINE_FN __PGBAR_CXX23_CNSTXPR void swap( BasicConfig& lhs ) noexcept
+        {
+          std::lock( this->rw_mtx_, lhs.rw_mtx_ );
+          std::lock_guard<concurrent::SharedMutex> lock1 { this->rw_mtx_, std::adopt_lock };
+          std::lock_guard<concurrent::SharedMutex> lock2 { lhs.rw_mtx_, std::adopt_lock };
+          using std::swap;
+          swap( visual_masks_, lhs.visual_masks_ );
+          Base::swap( lhs );
+        }
+        friend __PGBAR_INLINE_FN __PGBAR_CXX23_CNSTXPR void swap( BasicConfig& a, BasicConfig& b ) noexcept
+        {
+          a.swap( b );
+        }
+      };
+    } // namespace prefabs
+
+    namespace traits {
+      template<typename C>
+      struct is_config {
+      private:
+        template<template<typename...> class B, typename D>
+        static constexpr std::true_type check( const prefabs::BasicConfig<B, D>& );
+        static constexpr std::false_type check( ... );
+
+      public:
+        static constexpr bool value =
+          AllOf<Not<std::is_reference<C>>,
+                decltype( check( std::declval<typename std::remove_cv<C>::type>() ) )>::value;
+      };
+    } // namespace traits
+  } // namespace __details
+
+  namespace config {
+    /**
+     * Determine if the output stream is binded to the tty based on the platform api.
+     *
+     * Always returns true if defined `PGBAR_INTTY`,
+     * or the local platform is neither `Windows` nor `unix-like`.
+     */
+    __PGBAR_NODISCARD inline bool intty( Channel channel ) noexcept
+    {
+      if ( channel == Channel::Stdout )
+        return __details::console::TerminalContext<Channel::Stdout>::itself().detect();
+      return __details::console::TerminalContext<Channel::Stderr>::itself().detect();
+    }
+
+    __PGBAR_NODISCARD inline __details::types::Size terminal_width( Channel channel ) noexcept
+    {
+      if ( channel == Channel::Stdout )
+        return __details::console::TerminalContext<Channel::Stdout>::itself().width();
+      return __details::console::TerminalContext<Channel::Stderr>::itself().width();
+    }
+
+    using TimeUnit = __details::types::TimeUnit;
+    // Get the current output interval.
+    template<Channel Outlet>
+    __PGBAR_NODISCARD TimeUnit refresh_interval() noexcept
+    {
+      return __details::render::Renderer<Outlet, Policy::Async>::working_interval();
+    }
+    // Set the new output interval.
+    template<Channel Outlet>
+    void refresh_interval( TimeUnit new_rate ) noexcept
+    {
+      __details::render::Renderer<Outlet, Policy::Async>::working_interval( new_rate );
+    }
+    // Set every channels to the same output interval.
+    inline void refresh_interval( TimeUnit new_rate ) noexcept
+    {
+      __details::render::Renderer<Channel::Stderr, Policy::Async>::working_interval( new_rate );
+      __details::render::Renderer<Channel::Stdout, Policy::Async>::working_interval( new_rate );
+    }
+
+    inline void hide_completed( bool flag ) noexcept
+    {
+      Indicator::_hide_completed.store( flag, std::memory_order_release );
+    }
+    __PGBAR_NODISCARD inline bool hide_completed() noexcept
+    {
+      return Indicator::_hide_completed.load( std::memory_order_acquire );
+    }
+    /**
+     * Whether to automatically disable the style effect of the configuration object
+     * when the output stream is not directed to a terminal.
+     */
+    inline void disable_styling( bool flag ) noexcept
+    {
+      Indicator::_disable_styling.store( flag, std::memory_order_release );
+    }
+    __PGBAR_NODISCARD inline bool disable_styling() noexcept
+    {
+      return Indicator::_disable_styling.load( std::memory_order_acquire );
+    }
+
+    class Line : public __details::prefabs::BasicConfig<__details::assets::CharIndic, Line> {
+      using Base = __details::prefabs::BasicConfig<__details::assets::CharIndic, Line>;
+      friend Base;
+
+      template<typename... Options>
+      void initialize()
+      {
+        // The types in the tuple are never repeated.
+        using ParamList = __details::traits::TypeList<Options...>;
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Shift>::value )
+          unpacker( *this, option::Shift( -2 ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Lead>::value )
+          unpacker( *this, option::Lead( ">" ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Starting>::value )
+          unpacker( *this, option::Starting( "[" ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Ending>::value )
+          unpacker( *this, option::Ending( "]" ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::BarLength>::value )
+          unpacker( *this, option::BarLength( 30 ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Filler>::value )
+          unpacker( *this, option::Filler( "=" ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Remains>::value )
+          unpacker( *this, option::Remains( " " ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Divider>::value )
+          unpacker( *this, option::Divider( " | " ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::InfoColor>::value )
+          unpacker( *this, option::InfoColor( color::Cyan ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::SpeedUnit>::value )
+          unpacker( *this, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Magnitude>::value )
+          unpacker( *this, option::Magnitude( 1000 ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Style>::value )
+          unpacker( *this, option::Style( Base::Entire ) );
+      }
+
+    protected:
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN __details::types::Size fixed_render_size() const noexcept
+      {
+        return this->common_render_size()
+             + ( this->visual_masks_[__details::utils::as_val( Base::Mask::Ani )] ? this->fixed_len_bar()
+                                                                                  : 0 );
+      }
+
+    public:
+      using Base::Base;
+      __PGBAR_CXX23_CNSTXPR Line( const Line& )              = default;
+      __PGBAR_CXX23_CNSTXPR Line( Line&& )                   = default;
+      __PGBAR_CXX23_CNSTXPR Line& operator=( const Line& ) & = default;
+      __PGBAR_CXX23_CNSTXPR Line& operator=( Line&& ) &      = default;
+      __PGBAR_CXX20_CNSTXPR ~Line()                          = default;
+    };
+
+    class Block : public __details::prefabs::BasicConfig<__details::assets::BlockIndic, Block> {
+      using Base = __details::prefabs::BasicConfig<__details::assets::BlockIndic, Block>;
+      friend Base;
+
+      template<typename... Options>
+      void initialize()
+      {
+        using ParamList = __details::traits::TypeList<Options...>;
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Lead>::value )
+          unpacker( *this, option::Lead( { " ", "▏", "▎", "▍", "▌", "▋", "▊", "▉" } ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::BarLength>::value )
+          unpacker( *this, option::BarLength( 30 ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Filler>::value )
+          unpacker( *this, option::Filler( "█" ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Remains>::value )
+          unpacker( *this, option::Remains( " " ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Divider>::value )
+          unpacker( *this, option::Divider( " | " ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::InfoColor>::value )
+          unpacker( *this, option::InfoColor( color::Cyan ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::SpeedUnit>::value )
+          unpacker( *this, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Magnitude>::value )
+          unpacker( *this, option::Magnitude( 1000 ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Style>::value )
+          unpacker( *this, option::Style( Base::Entire ) );
+      }
+
+    protected:
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN __details::types::Size fixed_render_size() const noexcept
+      {
+        return this->common_render_size()
+             + ( this->visual_masks_[__details::utils::as_val( Base::Mask::Ani )] ? this->fixed_len_bar()
+                                                                                  : 0 );
+      }
+
+    public:
+      using Base::Base;
+      __PGBAR_CXX23_CNSTXPR Block( const Block& )              = default;
+      __PGBAR_CXX23_CNSTXPR Block( Block&& )                   = default;
+      __PGBAR_CXX23_CNSTXPR Block& operator=( const Block& ) & = default;
+      __PGBAR_CXX23_CNSTXPR Block& operator=( Block&& ) &      = default;
+      __PGBAR_CXX20_CNSTXPR ~Block()                           = default;
+    };
+
+    class Spin : public __details::prefabs::BasicConfig<__details::assets::SpinnerIndic, Spin> {
+      using Base = __details::prefabs::BasicConfig<__details::assets::SpinnerIndic, Spin>;
+      friend Base;
+
+      template<typename... Options>
+      void initialize()
+      {
+        using ParamList = __details::traits::TypeList<Options...>;
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Shift>::value )
+          unpacker( *this, option::Shift( -3 ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Lead>::value )
+          unpacker( *this, option::Lead( { "/", "-", "\\", "|" } ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Divider>::value )
+          unpacker( *this, option::Divider( " | " ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::InfoColor>::value )
+          unpacker( *this, option::InfoColor( color::Cyan ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::SpeedUnit>::value )
+          unpacker( *this, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Magnitude>::value )
+          unpacker( *this, option::Magnitude( 1000 ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Style>::value )
+          unpacker( *this, option::Style( Base::Ani | Base::Elpsd ) );
+      }
+
+    protected:
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN __details::types::Size fixed_render_size() const noexcept
+      {
+        return this->common_render_size()
+             + ( this->visual_masks_[__details::utils::as_val( Base::Mask::Ani )]
+                   ? this->fixed_len_frames()
+                       + ( ( this->true_mesg_.empty() || this->false_mesg_.empty() )
+                           && !this->prefix_.empty() )
+                   : 0 );
+      }
+
+    public:
+      using Base::Base;
+      __PGBAR_CXX23_CNSTXPR Spin( const Spin& )              = default;
+      __PGBAR_CXX23_CNSTXPR Spin( Spin&& )                   = default;
+      __PGBAR_CXX23_CNSTXPR Spin& operator=( const Spin& ) & = default;
+      __PGBAR_CXX23_CNSTXPR Spin& operator=( Spin&& ) &      = default;
+      __PGBAR_CXX20_CNSTXPR ~Spin()                          = default;
+    };
+
+    class Sweep : public __details::prefabs::BasicConfig<__details::assets::SweeperIndic, Sweep> {
+      using Base = __details::prefabs::BasicConfig<__details::assets::SweeperIndic, Sweep>;
+      friend Base;
+
+      template<typename... Options>
+      void initialize()
+      {
+        using ParamList = __details::traits::TypeList<Options...>;
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Shift>::value )
+          unpacker( *this, option::Shift( -3 ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Starting>::value )
+          unpacker( *this, option::Starting( "[" ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Ending>::value )
+          unpacker( *this, option::Ending( "]" ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::BarLength>::value )
+          unpacker( *this, option::BarLength( 30 ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Filler>::value )
+          unpacker( *this, option::Filler( "-" ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Lead>::value )
+          unpacker( *this, option::Lead( "<=>" ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Divider>::value )
+          unpacker( *this, option::Divider( " | " ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::InfoColor>::value )
+          unpacker( *this, option::InfoColor( color::Cyan ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::SpeedUnit>::value )
+          unpacker( *this, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Magnitude>::value )
+          unpacker( *this, option::Magnitude( 1000 ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Style>::value )
+          unpacker( *this, option::Style( Base::Ani | Base::Elpsd ) );
+      }
+
+    protected:
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN __details::types::Size fixed_render_size() const noexcept
+      {
+        return this->common_render_size()
+             + ( this->visual_masks_[__details::utils::as_val( Base::Mask::Ani )] ? this->fixed_len_bar()
+                                                                                  : 0 );
+      }
+
+    public:
+      using Base::Base;
+      __PGBAR_CXX23_CNSTXPR Sweep( const Sweep& )              = default;
+      __PGBAR_CXX23_CNSTXPR Sweep( Sweep&& )                   = default;
+      __PGBAR_CXX23_CNSTXPR Sweep& operator=( const Sweep& ) & = default;
+      __PGBAR_CXX23_CNSTXPR Sweep& operator=( Sweep&& ) &      = default;
+      __PGBAR_CXX20_CNSTXPR ~Sweep()                           = default;
+    };
+  } // namespace config
+
+  namespace __details {
+    namespace render {
+      template<typename Config>
+      struct CommonBuilder : public Config {
+        using Config::Config;
+        __PGBAR_CXX23_CNSTXPR CommonBuilder( const CommonBuilder& lhs ) = default;
+        __PGBAR_CXX23_CNSTXPR CommonBuilder( CommonBuilder&& rhs )      = default;
+        constexpr CommonBuilder( const Config& config )
+          noexcept( std::is_nothrow_copy_constructible<Config>::value )
+          : Config( config )
+        {}
+        constexpr CommonBuilder( Config&& config ) noexcept : Config( std::move( config ) ) {}
+        __PGBAR_CXX20_CNSTXPR ~CommonBuilder() = default;
+
+# define __PGBAR_METHOD( ParamType, Operation, Noexcept )                        \
+   __PGBAR_CXX14_CNSTXPR CommonBuilder& operator=( ParamType config ) & Noexcept \
+   {                                                                             \
+     Config::operator=( Operation( config ) );                                   \
+     return *this;                                                               \
+   }
+        __PGBAR_METHOD( const CommonBuilder&, , noexcept( std::is_nothrow_copy_assignable<Config>::value ) )
+        __PGBAR_METHOD( CommonBuilder&&, std::move, noexcept )
+        __PGBAR_METHOD( const Config&, , noexcept( std::is_nothrow_copy_assignable<Config>::value ) )
+        __PGBAR_METHOD( Config&&, std::move, noexcept )
+# undef __PGBAR_METHOD
+
+      protected:
+        /**
+         * Builds and only builds the components belows:
+         * `CounterMeter`, `SpeedMeter`, `ElapsedTimer` and `CountdownTimer`
+         */
+        __PGBAR_INLINE_FN io::Stringbuf& common_build(
+          io::Stringbuf& buffer,
+          std::uint64_t num_task_done,
+          std::uint64_t num_all_tasks,
+          const std::chrono::steady_clock::time_point& zero_point ) const
+        {
+          __PGBAR_TRUST( num_task_done <= num_all_tasks );
+          using Self = Config;
+          if ( this->visual_masks_[utils::as_val( Self::Mask::Cnt )]
+               || this->visual_masks_[utils::as_val( Self::Mask::Sped )]
+               || this->visual_masks_[utils::as_val( Self::Mask::Elpsd )]
+               || this->visual_masks_[utils::as_val( Self::Mask::Cntdwn )] ) {
+            if ( this->visual_masks_[utils::as_val( Self::Mask::Cnt )] ) {
+              buffer << this->build_counter( num_task_done, num_all_tasks );
+              if ( this->visual_masks_[utils::as_val( Self::Mask::Sped )]
+                   || this->visual_masks_[utils::as_val( Self::Mask::Elpsd )]
+                   || this->visual_masks_[utils::as_val( Self::Mask::Cntdwn )] )
+                buffer << this->divider_;
+            }
+            const auto time_passed = std::chrono::steady_clock::now() - zero_point;
+            if ( this->visual_masks_[utils::as_val( Self::Mask::Sped )] ) {
+              buffer << this->build_speed( time_passed, num_task_done, num_all_tasks );
+              if ( this->visual_masks_[utils::as_val( Self::Mask::Elpsd )]
+                   || this->visual_masks_[utils::as_val( Self::Mask::Cntdwn )] )
+                buffer << this->divider_;
+            }
+            if ( this->visual_masks_[utils::as_val( Self::Mask::Elpsd )]
+                 && this->visual_masks_[utils::as_val( Self::Mask::Cntdwn )] )
+              this->build_hybird( buffer, time_passed, num_task_done, num_all_tasks );
+            else if ( this->visual_masks_[utils::as_val( Self::Mask::Elpsd )] )
+              buffer << this->build_elapsed( time_passed );
+            else if ( this->visual_masks_[utils::as_val( Self::Mask::Cntdwn )] )
+              buffer << this->build_countdown( time_passed, num_task_done, num_all_tasks );
+          }
+          return buffer;
+        }
+      };
+
+      template<typename Config, typename Impl>
+      struct AnimatedBuilder : public CommonBuilder<Config> {
+      private:
+        using Self = Config;
+        using Base = CommonBuilder<Config>;
+
+      protected:
+        template<typename... Args>
+        __PGBAR_INLINE_FN io::Stringbuf& indirect_build(
+          io::Stringbuf& buffer,
+          std::uint64_t num_task_done,
+          std::uint64_t num_all_tasks,
+          types::Float num_percent,
+          const std::chrono::steady_clock::time_point& zero_point,
+          Args&&... args ) const
+        {
+          if ( !this->prefix_.empty() || !this->postfix_.empty() || this->visual_masks_.any() ) {
+            this->try_style( buffer, this->info_col_ );
+            buffer << this->l_border_;
+          }
+
+          this->build_prefix( buffer );
+          this->try_reset( buffer );
+          if ( this->visual_masks_.any() )
+            this->try_style( buffer, this->info_col_ );
+          if ( !this->prefix_.empty() && ( this->visual_masks_.any() || !this->postfix_.empty() ) )
+            buffer << constants::blank;
+          if ( this->visual_masks_[utils::as_val( Self::Mask::Per )] ) {
+            buffer << this->build_percent( num_percent );
+            auto masks = this->visual_masks_;
+            if ( masks.reset( utils::as_val( Self::Mask::Per ) ).any() )
+              buffer << this->divider_;
+          }
+          if ( this->visual_masks_[utils::as_val( Self::Mask::Ani )] ) {
+            static_cast<const Impl*>( this )->build_animation( buffer, std::forward<Args>( args )... );
+            this->try_reset( buffer );
+            auto masks = this->visual_masks_;
+            if ( masks.reset( utils::as_val( Self::Mask::Ani ) )
+                   .reset( utils::as_val( Self::Mask::Per ) )
+                   .any() ) {
+              this->try_style( buffer, this->info_col_ );
+              buffer << this->divider_;
+            }
+          }
+          this->common_build( buffer, num_task_done, num_all_tasks, zero_point );
+
+          if ( !this->postfix_.empty() && this->visual_masks_.any() )
+            buffer << constants::blank;
+          this->build_postfix( buffer );
+          this->try_reset( buffer );
+          if ( !this->prefix_.empty() || !this->postfix_.empty() || this->visual_masks_.any() ) {
+            this->try_style( buffer, this->info_col_ );
+            buffer << this->r_border_;
+          }
+          return this->try_reset( buffer );
+        }
+        template<typename... Args>
+        __PGBAR_INLINE_FN io::Stringbuf& indirect_build(
+          io::Stringbuf& buffer,
+          std::uint64_t num_task_done,
+          std::uint64_t num_all_tasks,
+          types::Float num_percent,
+          bool final_mesg,
+          const std::chrono::steady_clock::time_point& zero_point,
+          Args&&... args ) const
+        {
+          if ( ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty()
+                 || !this->postfix_.empty() )
+               || this->visual_masks_.any() ) {
+            this->try_style( buffer, this->info_col_ );
+            buffer << this->l_border_;
+          }
+
+          this->build_prefix( buffer, final_mesg );
+          this->try_reset( buffer );
+          if ( this->visual_masks_.any() )
+            this->try_style( buffer, this->info_col_ );
+          if ( ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty() )
+               && ( this->visual_masks_.any() || !this->postfix_.empty() ) )
+            buffer << constants::blank;
+          if ( this->visual_masks_[utils::as_val( Self::Mask::Per )] ) {
+            buffer << this->build_percent( num_percent );
+            auto masks = this->visual_masks_;
+            if ( masks.reset( utils::as_val( Self::Mask::Per ) ).any() )
+              buffer << this->divider_;
+          }
+          if ( this->visual_masks_[utils::as_val( Self::Mask::Ani )] ) {
+            static_cast<const Impl*>( this )->build_animation( buffer, std::forward<Args>( args )... );
+            this->try_reset( buffer );
+            auto masks = this->visual_masks_;
+            if ( masks.reset( utils::as_val( Self::Mask::Ani ) )
+                   .reset( utils::as_val( Self::Mask::Per ) )
+                   .any() ) {
+              this->try_style( buffer, this->info_col_ );
+              buffer << this->divider_;
+            }
+          }
+          this->common_build( buffer, num_task_done, num_all_tasks, zero_point );
+
+          if ( !this->postfix_.empty()
+               && ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty()
+                    || !this->prefix_.empty() ) )
+            buffer << constants::blank;
+          this->build_postfix( buffer );
+          this->try_reset( buffer );
+          if ( ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty()
+                 || !this->postfix_.empty() )
+               || this->visual_masks_.any() ) {
+            this->try_style( buffer, this->info_col_ );
+            buffer << this->r_border_;
+          }
+          return this->try_reset( buffer );
+        }
+
+      public:
+        using Base::Base;
+      };
+
+      template<typename Config>
+      struct Builder;
+      template<>
+      struct Builder<config::Line> final : public AnimatedBuilder<config::Line, Builder<config::Line>> {
+      private:
+        using Base = AnimatedBuilder<config::Line, Builder<config::Line>>;
+        friend Base;
+
+      protected:
+        __PGBAR_INLINE_FN io::Stringbuf& build_animation( io::Stringbuf& buffer,
+                                                          types::Float num_percent,
+                                                          types::Size num_frame_cnt ) const
+        {
+          return this->build_char( buffer, num_percent, num_frame_cnt );
+        }
+
+      public:
+        using Base::Base;
+
+        __PGBAR_INLINE_FN io::Stringbuf& build(
+          io::Stringbuf& buffer,
+          types::Size num_frame_cnt,
+          std::uint64_t num_task_done,
+          std::uint64_t num_all_tasks,
+          const std::chrono::steady_clock::time_point& zero_point ) const
+        {
+          __PGBAR_TRUST( num_task_done <= num_all_tasks );
+          const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
+
+          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
+          return this->indirect_build( buffer,
+                                       num_task_done,
+                                       num_all_tasks,
+                                       num_percent,
+                                       zero_point,
+                                       num_percent,
+                                       num_frame_cnt );
+        }
+        __PGBAR_INLINE_FN io::Stringbuf& build(
+          io::Stringbuf& buffer,
+          types::Size num_frame_cnt,
+          std::uint64_t num_task_done,
+          std::uint64_t num_all_tasks,
+          bool final_mesg,
+          const std::chrono::steady_clock::time_point& zero_point ) const
+        {
+          __PGBAR_TRUST( num_task_done <= num_all_tasks );
+          const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
+
+          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
+          return this->indirect_build( buffer,
+                                       num_task_done,
+                                       num_all_tasks,
+                                       num_percent,
+                                       final_mesg,
+                                       zero_point,
+                                       num_percent,
+                                       num_frame_cnt );
+        }
+      };
+
+      template<>
+      struct Builder<config::Block> final : public AnimatedBuilder<config::Block, Builder<config::Block>> {
+      private:
+        using Base = AnimatedBuilder<config::Block, Builder<config::Block>>;
+        friend Base;
+
+      protected:
+        __PGBAR_INLINE_FN io::Stringbuf& build_animation( io::Stringbuf& buffer,
+                                                          types::Float num_percent ) const
+        {
+          return this->build_block( buffer, num_percent );
+        }
+
+      public:
+        using Base::Base;
+
+        __PGBAR_INLINE_FN io::Stringbuf& build(
+          io::Stringbuf& buffer,
+          std::uint64_t num_task_done,
+          std::uint64_t num_all_tasks,
+          const std::chrono::steady_clock::time_point& zero_point ) const
+        {
+          __PGBAR_TRUST( num_task_done <= num_all_tasks );
+          const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
+
+          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
+          return this
+            ->indirect_build( buffer, num_task_done, num_all_tasks, num_percent, zero_point, num_percent );
+        }
+        __PGBAR_INLINE_FN io::Stringbuf& build(
+          io::Stringbuf& buffer,
+          std::uint64_t num_task_done,
+          std::uint64_t num_all_tasks,
+          bool final_mesg,
+          const std::chrono::steady_clock::time_point& zero_point ) const
+        {
+          __PGBAR_TRUST( num_task_done <= num_all_tasks );
+          const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
+
+          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
+          return this->indirect_build( buffer,
+                                       num_task_done,
+                                       num_all_tasks,
+                                       num_percent,
+                                       final_mesg,
+                                       zero_point,
+                                       num_percent );
+        }
+      };
+
+      template<>
+      struct Builder<config::Sweep> final : public AnimatedBuilder<config::Sweep, Builder<config::Sweep>> {
+      private:
+        using Base = AnimatedBuilder<config::Sweep, Builder<config::Sweep>>;
+        friend Base;
+
+      protected:
+        __PGBAR_INLINE_FN io::Stringbuf& build_animation( io::Stringbuf& buffer,
+                                                          types::Size num_frame_cnt ) const
+        {
+          return this->build_sweeper( buffer, num_frame_cnt );
+        }
+
+      public:
+        using Base::Base;
+
+        __PGBAR_INLINE_FN io::Stringbuf& build(
+          io::Stringbuf& buffer,
+          types::Size num_frame_cnt,
+          std::uint64_t num_task_done,
+          std::uint64_t num_all_tasks,
+          const std::chrono::steady_clock::time_point& zero_point ) const
+        {
+          __PGBAR_TRUST( num_task_done <= num_all_tasks );
+          const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
+
+          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
+          return this
+            ->indirect_build( buffer, num_task_done, num_all_tasks, num_percent, zero_point, num_frame_cnt );
+        }
+        __PGBAR_INLINE_FN io::Stringbuf& build(
+          io::Stringbuf& buffer,
+          types::Size num_frame_cnt,
+          std::uint64_t num_task_done,
+          std::uint64_t num_all_tasks,
+          bool final_mesg,
+          const std::chrono::steady_clock::time_point& zero_point ) const
+        {
+          __PGBAR_TRUST( num_task_done <= num_all_tasks );
+          const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
+
+          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
+          return this->indirect_build( buffer,
+                                       num_task_done,
+                                       num_all_tasks,
+                                       num_percent,
+                                       final_mesg,
+                                       zero_point,
+                                       num_frame_cnt );
+        }
+      };
+
+      template<>
+      struct Builder<config::Spin> final : public CommonBuilder<config::Spin> {
+      private:
+        using Self = config::Spin;
+
+      public:
+        using CommonBuilder<Self>::CommonBuilder;
+
+        __PGBAR_INLINE_FN io::Stringbuf& build(
+          io::Stringbuf& buffer,
+          types::Size num_frame_cnt,
+          std::uint64_t num_task_done,
+          std::uint64_t num_all_tasks,
+          const std::chrono::steady_clock::time_point& zero_point ) const
+        {
+          __PGBAR_TRUST( num_task_done <= num_all_tasks );
+          const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
+
+          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
+          if ( !this->prefix_.empty() || !this->postfix_.empty() || this->visual_masks_.any() ) {
+            this->try_style( buffer, this->info_col_ );
+            buffer << this->l_border_;
+          }
+
+          this->build_prefix( buffer );
+          this->try_reset( buffer );
+          if ( this->visual_masks_[utils::as_val( Self::Mask::Ani )] ) {
+            if ( !this->prefix_.empty() )
+              buffer << constants::blank;
+            this->build_spinner( buffer, num_frame_cnt );
+            this->try_reset( buffer );
+            auto masks = this->visual_masks_;
+            if ( masks.reset( utils::as_val( Self::Mask::Ani ) ).any() ) {
+              this->try_style( buffer, this->info_col_ );
+              buffer << this->divider_;
+            }
+          }
+          if ( this->visual_masks_[utils::as_val( Self::Mask::Per )] ) {
+            buffer << this->build_percent( num_percent );
+            auto masks = this->visual_masks_;
+            if ( masks.reset( utils::as_val( Self::Mask::Ani ) )
+                   .reset( utils::as_val( Self::Mask::Per ) )
+                   .any() )
+              buffer << this->divider_;
+          }
+          this->common_build( buffer, num_task_done, num_all_tasks, zero_point );
+
+          if ( !this->postfix_.empty() && ( !this->prefix_.empty() || this->visual_masks_.any() ) )
+            buffer << this->divider_;
+          this->build_postfix( buffer );
+          this->try_reset( buffer );
+          if ( !this->prefix_.empty() || !this->postfix_.empty() || this->visual_masks_.any() ) {
+            this->try_style( buffer, this->info_col_ );
+            buffer << this->r_border_;
+          }
+          return this->try_reset( buffer );
+        }
+        __PGBAR_INLINE_FN io::Stringbuf& build(
+          io::Stringbuf& buffer,
+          types::Size num_frame_cnt,
+          std::uint64_t num_task_done,
+          std::uint64_t num_all_tasks,
+          bool final_mesg,
+          const std::chrono::steady_clock::time_point& zero_point ) const
+        {
+          __PGBAR_TRUST( num_task_done <= num_all_tasks );
+          const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
+
+          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
+          if ( ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty()
+                 || !this->postfix_.empty() )
+               || this->visual_masks_.any() ) {
+            this->try_style( buffer, this->info_col_ );
+            buffer << this->l_border_;
+          }
+
+          this->build_prefix( buffer, final_mesg );
+          this->try_reset( buffer );
+          if ( this->visual_masks_[utils::as_val( Self::Mask::Ani )] ) {
+            if ( ( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() ) {
+              if ( !this->prefix_.empty() )
+                buffer << constants::blank;
+              this->build_spinner( buffer, num_frame_cnt );
+              this->try_reset( buffer );
+            }
+            auto masks = this->visual_masks_;
+            if ( masks.reset( utils::as_val( Self::Mask::Ani ) ).any() ) {
+              this->try_style( buffer, this->info_col_ );
+              buffer << this->divider_;
+            }
+          }
+          if ( this->visual_masks_[utils::as_val( Self::Mask::Per )] ) {
+            buffer << this->build_percent( num_percent );
+            auto masks = this->visual_masks_;
+            if ( masks.reset( utils::as_val( Self::Mask::Ani ) )
+                   .reset( utils::as_val( Self::Mask::Per ) )
+                   .any() )
+              buffer << this->divider_;
+          }
+          this->common_build( buffer, num_task_done, num_all_tasks, zero_point );
+
+          if ( !this->postfix_.empty()
+               && ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty()
+                    || this->visual_masks_.any() ) )
+            buffer << this->divider_;
+          this->build_postfix( buffer );
+          this->try_reset( buffer );
+          if ( ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty()
+                 || !this->postfix_.empty() )
+               || this->visual_masks_.any() ) {
+            this->try_style( buffer, this->info_col_ );
+            buffer << this->r_border_;
+          }
+          return this->try_reset( buffer );
+        }
+      };
+    } // namespace render
+
+    namespace assets {
       template<typename Base, typename Derived>
       class TaskCounter : public Base {
       protected:
@@ -5053,27 +6137,16 @@ namespace pgbar {
         constexpr TaskCounter() noexcept( std::is_nothrow_default_constructible<Base>::value )
           : task_cnt_ { 0 }
         {}
-        TaskCounter( const TaskCounter& lhs ) noexcept( std::is_nothrow_copy_constructible<Base>::value )
-          : Base( lhs )
+        __PGBAR_CXX14_CNSTXPR TaskCounter( TaskCounter&& rhs ) noexcept : Base( std::move( rhs ) )
         {
           task_cnt_.store( 0, std::memory_order_relaxed );
         }
-        TaskCounter( TaskCounter&& rhs ) noexcept : Base( std::move( rhs ) )
-        {
-          task_cnt_.store( 0, std::memory_order_relaxed );
-        }
-        TaskCounter& operator=( const TaskCounter& lhs ) & noexcept(
-          std::is_nothrow_copy_assignable<Base>::value )
-        {
-          Base::operator=( lhs );
-          return *this;
-        }
-        TaskCounter& operator=( TaskCounter&& rhs ) & noexcept
+        __PGBAR_CXX14_CNSTXPR TaskCounter& operator=( TaskCounter&& rhs ) & noexcept
         {
           Base::operator=( std::move( rhs ) );
           return *this;
         }
-        __PGBAR_CXX20_CNSTXPR virtual ~TaskCounter() = 0;
+        __PGBAR_CXX20_CNSTXPR virtual ~TaskCounter() = default;
 
         // Get the progress of the task.
         __PGBAR_NODISCARD std::uint64_t progress() const noexcept
@@ -5273,8 +6346,6 @@ namespace pgbar {
             unary_fn( std::forward<decltype( e )>( e ) );
         }
       };
-      template<typename Base, typename Derived>
-      __PGBAR_CXX20_CNSTXPR TaskCounter<Base, Derived>::~TaskCounter() = default;
 
       template<typename Base, typename Derived>
       class FrameCounter : public Base {
@@ -5282,1134 +6353,45 @@ namespace pgbar {
         types::Size idx_frame_;
 
       public:
-        constexpr FrameCounter()                                               = default;
-        constexpr FrameCounter( const FrameCounter& )                          = default;
-        constexpr FrameCounter( FrameCounter&& )                               = default;
-        __PGBAR_CXX14_CNSTXPR FrameCounter& operator=( const FrameCounter& ) & = default;
-        __PGBAR_CXX14_CNSTXPR FrameCounter& operator=( FrameCounter&& ) &      = default;
-        __PGBAR_CXX20_CNSTXPR virtual ~FrameCounter()                          = 0;
+        constexpr FrameCounter()                                          = default;
+        constexpr FrameCounter( FrameCounter&& )                          = default;
+        __PGBAR_CXX14_CNSTXPR FrameCounter& operator=( FrameCounter&& ) & = default;
+        __PGBAR_CXX20_CNSTXPR virtual ~FrameCounter()                     = default;
       };
+
       template<typename Base, typename Derived>
-      __PGBAR_CXX20_CNSTXPR FrameCounter<Base, Derived>::~FrameCounter() = default;
-    } // namespace assets
+      class CoreBar;
+      template<typename Base,
+               template<typename, Channel, Policy, Region> class Derived,
+               typename Soul,
+               Channel Outlet,
+               Policy Mode,
+               Region Area>
+      class CoreBar<Base, Derived<Soul, Outlet, Mode, Area>> : public Base {
+        static_assert( traits::is_config<Soul>::value,
+                       "pgbar::__details::prefabs::CoreBar: Invalid config type" );
+        using Self   = CoreBar;
+        using Subcls = Derived<Soul, Outlet, Mode, Area>;
 
-    namespace traits {
-      // There is no need to declare the dependency on assets::Core here.
-      // It will be directly passed to the dependency resolution function as the initial base class.
-      __PGBAR_INHERIT_REGISTER( assets::BasicAnimation, , assets::Frames );
-
-      __PGBAR_INHERIT_REGISTER(
-        assets::CharIndic,
-        assets::TaskQuantity,
-        __PGBAR_PACK( assets::BasicAnimation, assets::BasicIndicator, assets::Filler, assets::Remains ) );
-      __PGBAR_INHERIT_REGISTER(
-        assets::BlockIndic,
-        assets::TaskQuantity,
-        __PGBAR_PACK( assets::Frames, assets::BasicIndicator, assets::Filler, assets::Remains ) );
-      __PGBAR_INHERIT_REGISTER( assets::SpinnerIndic, , assets::BasicAnimation );
-      __PGBAR_INHERIT_REGISTER( assets::SweeperIndic,
-                                ,
-                                __PGBAR_PACK( assets::BasicAnimation,
-                                              assets::BasicIndicator,
-                                              assets::Filler ) );
-
-      __PGBAR_INHERIT_REGISTER( assets::PercentMeter, assets::TaskQuantity, );
-      __PGBAR_INHERIT_REGISTER( assets::SpeedMeter, assets::TaskQuantity, );
-      __PGBAR_INHERIT_REGISTER( assets::CounterMeter, assets::TaskQuantity, );
-
-      __PGBAR_INHERIT_REGISTER( assets::Timer, assets::TaskQuantity, );
-
-      template<template<typename...> class Component>
-      struct OptionFor {
-        using type = TypeList<>;
-      };
-      template<template<typename...> class Component>
-      using OptionFor_t = typename OptionFor<Component>::type;
-
-# define __PGBAR_BIND_OPTION( Component, ... ) \
-   template<>                                  \
-   struct OptionFor<Component> {               \
-     using type = TypeList<__VA_ARGS__>;       \
-   }
-
-      __PGBAR_BIND_OPTION( assets::Core, option::Colored, option::Bolded );
-      __PGBAR_BIND_OPTION( assets::TaskQuantity, option::Tasks );
-      __PGBAR_BIND_OPTION( assets::Frames, option::Lead, option::LeadColor );
-      __PGBAR_BIND_OPTION( assets::Filler, option::Filler, option::FillerColor );
-      __PGBAR_BIND_OPTION( assets::Remains, option::Remains, option::RemainsColor );
-      __PGBAR_BIND_OPTION( assets::BasicAnimation, option::Shift );
-      __PGBAR_BIND_OPTION( assets::BasicIndicator,
-                           option::Starting,
-                           option::Ending,
-                           option::StartColor,
-                           option::EndColor,
-                           option::BarLength );
-      __PGBAR_BIND_OPTION( assets::Prefix,
-                           option::Prefix,
-                           option::TrueMesg,
-                           option::FalseMesg,
-                           option::PrefixColor,
-                           option::TrueColor,
-                           option::FalseColor );
-      __PGBAR_BIND_OPTION( assets::Postfix, option::Postfix, option::PostfixColor );
-      __PGBAR_BIND_OPTION( assets::Segment,
-                           option::Divider,
-                           option::LeftBorder,
-                           option::RightBorder,
-                           option::InfoColor );
-      __PGBAR_BIND_OPTION( assets::PercentMeter, );
-      __PGBAR_BIND_OPTION( assets::SpeedMeter, option::SpeedUnit, option::Magnitude );
-
-      template<>
-      struct OptionFor<assets::CharIndic> {
-        using type = Merge_t<OptionFor_t<assets::TaskQuantity>,
-                             OptionFor_t<assets::Frames>,
-                             OptionFor_t<assets::Filler>,
-                             OptionFor_t<assets::Remains>,
-                             OptionFor_t<assets::BasicAnimation>,
-                             OptionFor_t<assets::BasicIndicator>>;
-      };
-      template<>
-      struct OptionFor<assets::BlockIndic> {
-        using type = Merge_t<OptionFor_t<assets::TaskQuantity>,
-                             OptionFor_t<assets::Frames>,
-                             OptionFor_t<assets::Filler>,
-                             OptionFor_t<assets::Remains>,
-                             OptionFor_t<assets::BasicAnimation>,
-                             OptionFor_t<assets::BasicIndicator>>;
-      };
-      template<>
-      struct OptionFor<assets::SpinnerIndic> {
-        using type = Merge_t<OptionFor_t<assets::TaskQuantity>, OptionFor_t<assets::BasicAnimation>>;
-      };
-      template<>
-      struct OptionFor<assets::SweeperIndic> {
-        using type = Merge_t<OptionFor_t<assets::TaskQuantity>,
-                             OptionFor_t<assets::Frames>,
-                             OptionFor_t<assets::Filler>,
-                             OptionFor_t<assets::BasicAnimation>,
-                             OptionFor_t<assets::BasicIndicator>>;
-      };
-    } // namespace traits
-
-    namespace prefabs {
-      template<template<typename...> class BarType, typename Derived>
-      class BasicConfig
-        : public traits::LI_t<BarType,
-                              assets::Prefix,
-                              assets::Postfix,
-                              assets::Segment,
-                              assets::PercentMeter,
-                              assets::SpeedMeter,
-                              assets::CounterMeter,
-                              assets::Timer>::template type<assets::Core<Derived>, Derived> {
-        // BarType must inherit from BasicIndicator or BasicAnimation
-        static_assert(
-          traits::AnyOf<
-            traits::Include<traits::TopoSort_t<traits::TemplateSet<BarType>>, assets::BasicIndicator>,
-            traits::Include<traits::TopoSort_t<traits::TemplateSet<BarType>>, assets::BasicAnimation>>::value,
-          "pgbar::__details::prefabs::BasicConfig: Invalid progress bar type" );
-
-        using Self      = BasicConfig;
-        using Base      = typename traits::LI_t<BarType,
-                                                assets::Prefix,
-                                                assets::Postfix,
-                                                assets::Segment,
-                                                assets::PercentMeter,
-                                                assets::SpeedMeter,
-                                                assets::CounterMeter,
-                                                assets::Timer>::template type<assets::Core<Derived>, Derived>;
-        using Permitted = traits::Merge_t<traits::TypeList<option::Style>,
-                                          traits::OptionFor_t<BarType>,
-                                          traits::OptionFor_t<assets::Prefix>,
-                                          traits::OptionFor_t<assets::Postfix>,
-                                          traits::OptionFor_t<assets::Segment>,
-                                          traits::OptionFor_t<assets::SpeedMeter>,
-                                          traits::OptionFor_t<assets::Timer>,
-                                          traits::OptionFor_t<assets::Core>>;
-
-        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( BasicConfig& cfg,
-                                                                      option::Style&& val ) noexcept
+        __PGBAR_INLINE_FN friend void make_frame( Self& self )
         {
-          cfg.visual_masks_ = val.value();
+          switch ( static_cast<Subcls&>( self ).categorize() ) {
+          case StateCategory::Awake: {
+            static_cast<Subcls&>( self ).startframe();
+          } break;
+          case StateCategory::Refresh: {
+            static_cast<Subcls&>( self ).refreshframe();
+          } break;
+          case StateCategory::Finish: {
+            static_cast<Subcls&>( self ).endframe();
+          } break;
+          default: return;
+          }
         }
-
-        template<bool Enable>
-        class Modifier final {
-          friend Self;
-          Self& myself_;
-          std::atomic<bool> owner_;
-
-          Modifier( Self& myself ) noexcept : myself_ { myself }, owner_ { true } { myself_.rw_mtx_.lock(); }
-          Modifier( Self& myself, std::adopt_lock_t ) noexcept : myself_ { myself }, owner_ { true } {}
-# if !__PGBAR_CXX17
-          // There was not standard NRVO support before C++17.
-          Modifier( Modifier&& rhs ) noexcept : myself_ { rhs.myself_ }, owner_ { true }
-          {
-            rhs.owner_.store( false, std::memory_order_release );
-          }
-# endif
-        public:
-          ~Modifier() noexcept
-          {
-            if ( owner_.load( std::memory_order_acquire ) )
-              myself_.rw_mtx_.unlock();
-          }
-          Modifier( const Modifier& )              = delete;
-          Modifier& operator=( const Modifier& ) & = delete;
-
-# define __PGBAR_METHOD( MethodName, EnumName )                      \
-   Modifier&& MethodName()&& noexcept                                \
-   {                                                                 \
-     myself_.visual_masks_.set( utils::as_val( EnumName ), Enable ); \
-     return static_cast<Modifier&&>( *this );                        \
-   }
-          __PGBAR_METHOD( percent, Mask::Per )
-          __PGBAR_METHOD( animation, Mask::Ani )
-          __PGBAR_METHOD( counter, Mask::Cnt )
-          __PGBAR_METHOD( speed, Mask::Sped )
-          __PGBAR_METHOD( elapsed, Mask::Elpsd )
-          __PGBAR_METHOD( countdown, Mask::Cntdwn )
-# undef __PGBAR_METHOD
-          Modifier&& entire() && noexcept
-          {
-            if __PGBAR_CXX17_CNSTXPR ( Enable )
-              myself_.visual_masks_.set();
-            else
-              myself_.visual_masks_.reset();
-            return static_cast<Modifier&&>( *this );
-          }
-
-          Modifier<!Enable> negate() && noexcept
-          {
-            auto negate = Modifier<!Enable>( this->myself_, std::adopt_lock );
-            owner_.store( false, std::memory_order_release );
-            return negate;
-          }
-        };
 
       protected:
-        enum class Mask : types::Byte { Per = 0, Ani, Cnt, Sped, Elpsd, Cntdwn };
-        std::bitset<6> visual_masks_;
-
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN types::Size common_render_size() const noexcept
-        {
-          return this->fixed_len_prefix() + this->fixed_len_postfix()
-               + ( visual_masks_[utils::as_val( Mask::Per )] ? this->fixed_len_percent() : 0 )
-               + ( visual_masks_[utils::as_val( Mask::Cnt )] ? this->fixed_len_counter() : 0 )
-               + ( visual_masks_[utils::as_val( Mask::Sped )] ? this->fixed_len_speed() : 0 )
-               + ( visual_masks_[utils::as_val( Mask::Elpsd )] && visual_masks_[utils::as_val( Mask::Cntdwn )]
-                     ? this->fixed_len_hybird()
-                     : ( visual_masks_[utils::as_val( Mask::Elpsd )]
-                           ? this->fixed_len_elapsed()
-                           : ( this->visual_masks_[utils::as_val( Mask::Cntdwn )]
-                                 ? this->fixed_len_countdown()
-                                 : 0 ) ) )
-               + ( visual_masks_[utils::as_val( Mask::Elpsd )] && visual_masks_[utils::as_val( Mask::Cntdwn )]
-                     ? 3
-                     : 0 )
-               + this->fixed_len_segment( this->visual_masks_.count()
-                                          - ( this->visual_masks_[utils::as_val( Mask::Cntdwn )]
-                                              && this->visual_masks_[utils::as_val( Mask::Elpsd )] )
-                                          + ( !this->true_mesg_.empty() || !this->false_mesg_.empty()
-                                              || !this->prefix_.empty() || !this->postfix_.empty() ) );
-        }
-
-      public:
-        // Percent Meter
-        static constexpr types::Byte Per    = 1 << 0;
-        // Animation
-        static constexpr types::Byte Ani    = 1 << 1;
-        // Task Progress Counter
-        static constexpr types::Byte Cnt    = 1 << 2;
-        // Speed Meter
-        static constexpr types::Byte Sped   = 1 << 3;
-        // Elapsed Timer
-        static constexpr types::Byte Elpsd  = 1 << 4;
-        // Countdown Timer
-        static constexpr types::Byte Cntdwn = 1 << 5;
-        // Enable all components
-        static constexpr types::Byte Entire = ~0;
-
-# if __PGBAR_CXX20
-        template<typename... Args>
-          requires( !traits::Duplicated<traits::TypeList<Args...>>::value
-                    && ( traits::Exist<traits::Unique_t<Permitted>, Args>::value && ... ) )
-# else
-        template<typename... Args,
-                 typename = typename std::enable_if<
-                   traits::AllOf<traits::Not<traits::Duplicated<traits::TypeList<Args...>>>,
-                                 traits::Exist<traits::Unique_t<Permitted>, Args>...>::value>::type>
-# endif
-        BasicConfig( Args... args )
-        {
-          static_cast<Derived*>( this )->template initialize<Args...>();
-          (void)std::initializer_list<char> { ( unpacker( *this, std::move( args ) ), '\0' )... };
-        }
-
-        BasicConfig( const Self& lhs ) noexcept( traits::AllOf<std::is_nothrow_default_constructible<Base>,
-                                                               std::is_nothrow_copy_assignable<Base>>::value )
-          : Base()
-        {
-          concurrent::SharedLock<concurrent::SharedMutex> lock { lhs.rw_mtx_ };
-          visual_masks_ = lhs.visual_masks_;
-          Base::operator=( lhs );
-        }
-        BasicConfig( Self&& rhs ) noexcept : Base()
-        {
-          concurrent::SharedLock<concurrent::SharedMutex> lock { rhs.rw_mtx_ };
-          using std::swap;
-          swap( visual_masks_, rhs.visual_masks_ );
-          Base::operator=( std::move( rhs ) );
-        }
-        Self& operator=( const Self& lhs ) & noexcept( std::is_nothrow_copy_assignable<Base>::value )
-        {
-          __PGBAR_TRUST( this != &lhs );
-          std::unique_lock<concurrent::SharedMutex> lock1 { this->rw_mtx_, std::defer_lock };
-          concurrent::SharedLock<concurrent::SharedMutex> lock2 { lhs.rw_mtx_, std::defer_lock };
-          std::lock( lock1, lock2 );
-
-          visual_masks_ = lhs.visual_masks_;
-          Base::operator=( lhs );
-          return *this;
-        }
-        Self& operator=( Self&& rhs ) & noexcept
-        {
-          __PGBAR_ASSERT( this != &rhs );
-          std::lock( this->rw_mtx_, rhs.rw_mtx_ );
-          std::lock_guard<concurrent::SharedMutex> lock1 { this->rw_mtx_, std::adopt_lock };
-          std::lock_guard<concurrent::SharedMutex> lock2 { rhs.rw_mtx_, std::adopt_lock };
-
-          using std::swap;
-          swap( visual_masks_, rhs.visual_masks_ );
-          Base::operator=( std::move( rhs ) );
-          return *this;
-        }
-        /**
-         * Note: Because there are no exposed public base classes for config type,
-         * there should be no scenarios for managing derived objects using base class references.
-         * So the destructor here is deliberately set to be non-virtual.
-         */
-        ~BasicConfig() = default;
-
-        Derived& style( types::Byte val ) &
-        {
-          std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          unpacker( *this, option::Style( val ) );
-          return static_cast<Derived&>( *this );
-        }
-
-        template<typename Arg, typename... Args>
-# if __PGBAR_CXX20
-          requires( !traits::Duplicated<traits::TypeList<Arg, Args...>>::value
-                    && traits::Exist<traits::Unique_t<Permitted>, Arg>::value
-                    && ( traits::Exist<traits::Unique_t<Permitted>, Args>::value && ... ) )
-        Derived&
-# else
-        typename std::enable_if<traits::AllOf<traits::Not<traits::Duplicated<traits::TypeList<Arg, Args...>>>,
-                                              traits::Exist<traits::Unique_t<Permitted>, Arg>,
-                                              traits::Exist<traits::Unique_t<Permitted>, Args>...>::value,
-                                Derived&>::type
-# endif
-          set( Arg arg, Args... args ) &
-        {
-          std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          unpacker( *this, std::move( arg ) );
-          (void)std::initializer_list<char> { ( unpacker( *this, std::move( args ) ), '\0' )... };
-          return static_cast<Derived&>( *this );
-        }
-
-        __PGBAR_NODISCARD types::Size fixed_length() const
-        {
-          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          return static_cast<const Derived*>( this )->fixed_render_size();
-        }
-
-        __PGBAR_NODISCARD Modifier<true> enable() & noexcept { return Modifier<true>( *this ); }
-        __PGBAR_NODISCARD Modifier<false> disable() & noexcept { return Modifier<false>( *this ); }
-
-        __PGBAR_INLINE_FN __PGBAR_CXX23_CNSTXPR void swap( BasicConfig& lhs ) noexcept
-        {
-          std::lock( this->rw_mtx_, lhs.rw_mtx_ );
-          std::lock_guard<concurrent::SharedMutex> lock1 { this->rw_mtx_, std::adopt_lock };
-          std::lock_guard<concurrent::SharedMutex> lock2 { lhs.rw_mtx_, std::adopt_lock };
-          using std::swap;
-          swap( visual_masks_, lhs.visual_masks_ );
-          Base::swap( lhs );
-        }
-        friend __PGBAR_INLINE_FN __PGBAR_CXX23_CNSTXPR void swap( BasicConfig& a, BasicConfig& b ) noexcept
-        {
-          a.swap( b );
-        }
-      };
-    } // namespace prefabs
-  } // namespace __details
-
-  namespace config {
-    /**
-     * Determine if the output stream is binded to the tty based on the platform api.
-     *
-     * Always returns true if defined `PGBAR_INTTY`,
-     * or the local platform is neither `Windows` nor `unix-like`.
-     */
-    __PGBAR_NODISCARD inline bool intty( Channel channel ) noexcept
-    {
-      if ( channel == Channel::Stdout )
-        return __details::console::TerminalContext<Channel::Stdout>::itself().detect();
-      return __details::console::TerminalContext<Channel::Stderr>::itself().detect();
-    }
-
-    __PGBAR_NODISCARD inline __details::types::Size terminal_width( Channel channel ) noexcept
-    {
-      if ( channel == Channel::Stdout )
-        return __details::console::TerminalContext<Channel::Stdout>::itself().width();
-      return __details::console::TerminalContext<Channel::Stderr>::itself().width();
-    }
-
-    using TimeUnit = __details::types::TimeUnit;
-    // Get the current output interval.
-    template<Channel Outlet>
-    __PGBAR_NODISCARD TimeUnit refresh_interval()
-    {
-      return __details::render::Renderer<Outlet, Policy::Async>::working_interval();
-    }
-    // Set the new output interval.
-    template<Channel Outlet>
-    void refresh_interval( TimeUnit new_rate )
-    {
-      __details::render::Renderer<Outlet, Policy::Async>::working_interval( new_rate );
-    }
-    // Set every channels to the same output interval.
-    inline void refresh_interval( TimeUnit new_rate )
-    {
-      __details::render::Renderer<Channel::Stderr, Policy::Async>::working_interval( new_rate );
-      __details::render::Renderer<Channel::Stdout, Policy::Async>::working_interval( new_rate );
-    }
-
-    inline void hide_completed( bool flag ) noexcept
-    {
-      Indicator::_hide_completed.store( flag, std::memory_order_release );
-    }
-    __PGBAR_NODISCARD inline bool hide_completed() noexcept
-    {
-      return Indicator::_hide_completed.load( std::memory_order_acquire );
-    }
-    /**
-     * Whether to automatically disable the style effect of the configuration object
-     * when the output stream is not directed to a terminal.
-     */
-    inline void disable_styling( bool flag ) noexcept
-    {
-      Indicator::_disable_styling.store( flag, std::memory_order_release );
-    }
-    __PGBAR_NODISCARD inline bool disable_styling() noexcept
-    {
-      return Indicator::_disable_styling.load( std::memory_order_acquire );
-    }
-
-    class Line : public __details::prefabs::BasicConfig<__details::assets::CharIndic, Line> {
-      using Base = __details::prefabs::BasicConfig<__details::assets::CharIndic, Line>;
-      friend Base;
-
-      template<typename... Options>
-      void initialize()
-      {
-        // The types in the tuple are never repeated.
-        using ParamList = __details::traits::TypeList<Options...>;
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Shift>::value )
-          unpacker( *this, option::Shift( -2 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Lead>::value )
-          unpacker( *this, option::Lead( ">" ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Starting>::value )
-          unpacker( *this, option::Starting( "[" ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Ending>::value )
-          unpacker( *this, option::Ending( "]" ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::BarLength>::value )
-          unpacker( *this, option::BarLength( 30 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Filler>::value )
-          unpacker( *this, option::Filler( "=" ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Remains>::value )
-          unpacker( *this, option::Remains( " " ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Divider>::value )
-          unpacker( *this, option::Divider( " | " ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::InfoColor>::value )
-          unpacker( *this, option::InfoColor( color::Cyan ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::SpeedUnit>::value )
-          unpacker( *this, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Magnitude>::value )
-          unpacker( *this, option::Magnitude( 1000 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Style>::value )
-          unpacker( *this, option::Style( Base::Entire ) );
-      }
-
-    protected:
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN __details::types::Size fixed_render_size() const noexcept
-      {
-        return this->common_render_size()
-             + ( this->visual_masks_[__details::utils::as_val( Base::Mask::Ani )] ? this->fixed_len_bar()
-                                                                                  : 0 );
-      }
-
-    public:
-      using Base::Base;
-      Line( const Line& )              = default;
-      Line( Line&& )                   = default;
-      Line& operator=( const Line& ) & = default;
-      Line& operator=( Line&& ) &      = default;
-      ~Line()                          = default;
-    };
-
-    class Block : public __details::prefabs::BasicConfig<__details::assets::BlockIndic, Block> {
-      using Base = __details::prefabs::BasicConfig<__details::assets::BlockIndic, Block>;
-      friend Base;
-
-      template<typename... Options>
-      void initialize()
-      {
-        using ParamList = __details::traits::TypeList<Options...>;
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Lead>::value )
-          unpacker( *this, option::Lead( { " ", "▏", "▎", "▍", "▌", "▋", "▊", "▉" } ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::BarLength>::value )
-          unpacker( *this, option::BarLength( 30 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Filler>::value )
-          unpacker( *this, option::Filler( "█" ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Remains>::value )
-          unpacker( *this, option::Remains( " " ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Divider>::value )
-          unpacker( *this, option::Divider( " | " ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::InfoColor>::value )
-          unpacker( *this, option::InfoColor( color::Cyan ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::SpeedUnit>::value )
-          unpacker( *this, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Magnitude>::value )
-          unpacker( *this, option::Magnitude( 1000 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Style>::value )
-          unpacker( *this, option::Style( Base::Entire ) );
-      }
-
-    protected:
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN __details::types::Size fixed_render_size() const noexcept
-      {
-        return this->common_render_size()
-             + ( this->visual_masks_[__details::utils::as_val( Base::Mask::Ani )] ? this->fixed_len_bar()
-                                                                                  : 0 );
-      }
-
-    public:
-      using Base::Base;
-      Block( const Block& )              = default;
-      Block( Block&& )                   = default;
-      Block& operator=( const Block& ) & = default;
-      Block& operator=( Block&& ) &      = default;
-      ~Block()                           = default;
-    };
-
-    class Spin : public __details::prefabs::BasicConfig<__details::assets::SpinnerIndic, Spin> {
-      using Base = __details::prefabs::BasicConfig<__details::assets::SpinnerIndic, Spin>;
-      friend Base;
-
-      template<typename... Options>
-      void initialize()
-      {
-        using ParamList = __details::traits::TypeList<Options...>;
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Shift>::value )
-          unpacker( *this, option::Shift( -3 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Lead>::value )
-          unpacker( *this, option::Lead( { "/", "-", "\\", "|" } ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Divider>::value )
-          unpacker( *this, option::Divider( " | " ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::InfoColor>::value )
-          unpacker( *this, option::InfoColor( color::Cyan ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::SpeedUnit>::value )
-          unpacker( *this, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Magnitude>::value )
-          unpacker( *this, option::Magnitude( 1000 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Style>::value )
-          unpacker( *this, option::Style( Base::Ani | Base::Elpsd ) );
-      }
-
-    protected:
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN __details::types::Size fixed_render_size() const noexcept
-      {
-        return this->common_render_size()
-             + ( this->visual_masks_[__details::utils::as_val( Base::Mask::Ani )]
-                   ? this->fixed_len_frames()
-                       + ( ( this->true_mesg_.empty() || this->false_mesg_.empty() )
-                           && !this->prefix_.empty() )
-                   : 0 );
-      }
-
-    public:
-      using Base::Base;
-      Spin( const Spin& )              = default;
-      Spin( Spin&& )                   = default;
-      Spin& operator=( const Spin& ) & = default;
-      Spin& operator=( Spin&& ) &      = default;
-      ~Spin()                          = default;
-    };
-
-    class Sweep : public __details::prefabs::BasicConfig<__details::assets::SweeperIndic, Sweep> {
-      using Base = __details::prefabs::BasicConfig<__details::assets::SweeperIndic, Sweep>;
-      friend Base;
-
-      template<typename... Options>
-      void initialize()
-      {
-        using ParamList = __details::traits::TypeList<Options...>;
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Shift>::value )
-          unpacker( *this, option::Shift( -3 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Starting>::value )
-          unpacker( *this, option::Starting( "[" ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Ending>::value )
-          unpacker( *this, option::Ending( "]" ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::BarLength>::value )
-          unpacker( *this, option::BarLength( 30 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Filler>::value )
-          unpacker( *this, option::Filler( "-" ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Lead>::value )
-          unpacker( *this, option::Lead( "<=>" ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Divider>::value )
-          unpacker( *this, option::Divider( " | " ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::InfoColor>::value )
-          unpacker( *this, option::InfoColor( color::Cyan ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::SpeedUnit>::value )
-          unpacker( *this, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Magnitude>::value )
-          unpacker( *this, option::Magnitude( 1000 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Style>::value )
-          unpacker( *this, option::Style( Base::Ani | Base::Elpsd ) );
-      }
-
-    protected:
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN __details::types::Size fixed_render_size() const noexcept
-      {
-        return this->common_render_size()
-             + ( this->visual_masks_[__details::utils::as_val( Base::Mask::Ani )] ? this->fixed_len_bar()
-                                                                                  : 0 );
-      }
-
-    public:
-      using Base::Base;
-      Sweep( const Sweep& )              = default;
-      Sweep( Sweep&& )                   = default;
-      Sweep& operator=( const Sweep& ) & = default;
-      Sweep& operator=( Sweep&& ) &      = default;
-      ~Sweep()                           = default;
-    };
-  } // namespace config
-
-  namespace __details {
-    namespace traits {
-      template<typename C>
-      struct is_config
-        : AnyOf<std::is_same<typename std::remove_cv<C>::type, config::Line>,
-                std::is_same<typename std::remove_cv<C>::type, config::Block>,
-                std::is_same<typename std::remove_cv<C>::type, config::Spin>,
-                std::is_same<typename std::remove_cv<C>::type, config::Sweep>> {};
-
-      template<typename C>
-      struct ConfigTraits;
-      template<typename C>
-      using ConfigTraits_t = typename ConfigTraits<C>::type;
-
-# define __PGBAR_TRAIT_REGISTER( Config, ... )                                            \
-   template<>                                                                             \
-   struct ConfigTraits<Config> {                                                          \
-     static_assert( is_config<Config>::value,                                             \
-                    "pgbar::__details::traits::ConfigTraits: Unexpected type mismatch" ); \
-     using type = TemplateSet<__VA_ARGS__>;                                               \
-   }
-
-      __PGBAR_TRAIT_REGISTER( config::Line, assets::TaskCounter, assets::FrameCounter );
-      __PGBAR_TRAIT_REGISTER( config::Block, assets::TaskCounter );
-      __PGBAR_TRAIT_REGISTER( config::Spin, assets::TaskCounter, assets::FrameCounter );
-      __PGBAR_TRAIT_REGISTER( config::Sweep, assets::TaskCounter, assets::FrameCounter );
-    } // namespace traits
-
-    namespace render {
-      template<typename Config>
-      struct CommonBuilder : public Config {
-        using Config::Config;
-        CommonBuilder( const CommonBuilder& lhs ) = default;
-        CommonBuilder( CommonBuilder&& rhs )      = default;
-        CommonBuilder( const Config& config ) noexcept( std::is_nothrow_copy_constructible<Config>::value )
-          : Config( config )
-        {}
-        CommonBuilder( Config&& config ) noexcept : Config( std::move( config ) ) {}
-        ~CommonBuilder() = default;
-
-# define __PGBAR_METHOD( ParamType, Operation, Noexcept )  \
-   CommonBuilder& operator=( ParamType config ) & Noexcept \
-   {                                                       \
-     Config::operator=( Operation( config ) );             \
-     return *this;                                         \
-   }
-        __PGBAR_METHOD( const CommonBuilder&, , noexcept( std::is_nothrow_copy_assignable<Config>::value ) )
-        __PGBAR_METHOD( CommonBuilder&&, std::move, noexcept )
-        __PGBAR_METHOD( const Config&, , noexcept( std::is_nothrow_copy_assignable<Config>::value ) )
-        __PGBAR_METHOD( Config&&, std::move, noexcept )
-# undef __PGBAR_METHOD
-
-      protected:
-        /**
-         * Builds and only builds the components belows:
-         * `CounterMeter`, `SpeedMeter`, `ElapsedTimer` and `CountdownTimer`
-         */
-        __PGBAR_INLINE_FN io::Stringbuf& common_build(
-          io::Stringbuf& buffer,
-          std::uint64_t num_task_done,
-          std::uint64_t num_all_tasks,
-          const std::chrono::steady_clock::time_point& zero_point ) const
-        {
-          __PGBAR_TRUST( num_task_done <= num_all_tasks );
-          using Self = Config;
-          if ( this->visual_masks_[utils::as_val( Self::Mask::Cnt )]
-               || this->visual_masks_[utils::as_val( Self::Mask::Sped )]
-               || this->visual_masks_[utils::as_val( Self::Mask::Elpsd )]
-               || this->visual_masks_[utils::as_val( Self::Mask::Cntdwn )] ) {
-            if ( this->visual_masks_[utils::as_val( Self::Mask::Cnt )] ) {
-              buffer << this->build_counter( num_task_done, num_all_tasks );
-              if ( this->visual_masks_[utils::as_val( Self::Mask::Sped )]
-                   || this->visual_masks_[utils::as_val( Self::Mask::Elpsd )]
-                   || this->visual_masks_[utils::as_val( Self::Mask::Cntdwn )] )
-                buffer << this->divider_;
-            }
-            const auto time_passed = std::chrono::steady_clock::now() - zero_point;
-            if ( this->visual_masks_[utils::as_val( Self::Mask::Sped )] ) {
-              buffer << this->build_speed( time_passed, num_task_done, num_all_tasks );
-              if ( this->visual_masks_[utils::as_val( Self::Mask::Elpsd )]
-                   || this->visual_masks_[utils::as_val( Self::Mask::Cntdwn )] )
-                buffer << this->divider_;
-            }
-            if ( this->visual_masks_[utils::as_val( Self::Mask::Elpsd )]
-                 && this->visual_masks_[utils::as_val( Self::Mask::Cntdwn )] )
-              this->build_hybird( buffer, time_passed, num_task_done, num_all_tasks );
-            else if ( this->visual_masks_[utils::as_val( Self::Mask::Elpsd )] )
-              buffer << this->build_elapsed( time_passed );
-            else if ( this->visual_masks_[utils::as_val( Self::Mask::Cntdwn )] )
-              buffer << this->build_countdown( time_passed, num_task_done, num_all_tasks );
-          }
-          return buffer;
-        }
-      };
-
-      template<typename Config, typename Impl>
-      struct AnimatedBuilder : public CommonBuilder<Config> {
-      private:
-        using Self = Config;
-        using Base = CommonBuilder<Config>;
-
-      protected:
-        template<typename... Args>
-        __PGBAR_INLINE_FN io::Stringbuf& indirect_build(
-          io::Stringbuf& buffer,
-          std::uint64_t num_task_done,
-          std::uint64_t num_all_tasks,
-          types::Float num_percent,
-          const std::chrono::steady_clock::time_point& zero_point,
-          Args&&... args ) const
-        {
-          if ( !this->prefix_.empty() || !this->postfix_.empty() || this->visual_masks_.any() ) {
-            this->try_style( buffer, this->info_col_ );
-            buffer << this->l_border_;
-          }
-
-          this->build_prefix( buffer );
-          this->try_reset( buffer );
-          if ( this->visual_masks_.any() )
-            this->try_style( buffer, this->info_col_ );
-          if ( !this->prefix_.empty() && ( this->visual_masks_.any() || !this->postfix_.empty() ) )
-            buffer << constants::blank;
-          if ( this->visual_masks_[utils::as_val( Self::Mask::Per )] ) {
-            buffer << this->build_percent( num_percent );
-            auto masks = this->visual_masks_;
-            if ( masks.reset( utils::as_val( Self::Mask::Per ) ).any() )
-              buffer << this->divider_;
-          }
-          if ( this->visual_masks_[utils::as_val( Self::Mask::Ani )] ) {
-            static_cast<const Impl*>( this )->build_animation( buffer, std::forward<Args>( args )... );
-            this->try_reset( buffer );
-            auto masks = this->visual_masks_;
-            if ( masks.reset( utils::as_val( Self::Mask::Ani ) )
-                   .reset( utils::as_val( Self::Mask::Per ) )
-                   .any() ) {
-              this->try_style( buffer, this->info_col_ );
-              buffer << this->divider_;
-            }
-          }
-          this->common_build( buffer, num_task_done, num_all_tasks, zero_point );
-
-          if ( !this->postfix_.empty() && this->visual_masks_.any() )
-            buffer << constants::blank;
-          this->build_postfix( buffer );
-          this->try_reset( buffer );
-          if ( !this->prefix_.empty() || !this->postfix_.empty() || this->visual_masks_.any() ) {
-            this->try_style( buffer, this->info_col_ );
-            buffer << this->r_border_;
-          }
-          return this->try_reset( buffer );
-        }
-        template<typename... Args>
-        __PGBAR_INLINE_FN io::Stringbuf& indirect_build(
-          io::Stringbuf& buffer,
-          std::uint64_t num_task_done,
-          std::uint64_t num_all_tasks,
-          types::Float num_percent,
-          bool final_mesg,
-          const std::chrono::steady_clock::time_point& zero_point,
-          Args&&... args ) const
-        {
-          if ( ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty()
-                 || !this->postfix_.empty() )
-               || this->visual_masks_.any() ) {
-            this->try_style( buffer, this->info_col_ );
-            buffer << this->l_border_;
-          }
-
-          this->build_prefix( buffer, final_mesg );
-          this->try_reset( buffer );
-          if ( this->visual_masks_.any() )
-            this->try_style( buffer, this->info_col_ );
-          if ( ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty() )
-               && ( this->visual_masks_.any() || !this->postfix_.empty() ) )
-            buffer << constants::blank;
-          if ( this->visual_masks_[utils::as_val( Self::Mask::Per )] ) {
-            buffer << this->build_percent( num_percent );
-            auto masks = this->visual_masks_;
-            if ( masks.reset( utils::as_val( Self::Mask::Per ) ).any() )
-              buffer << this->divider_;
-          }
-          if ( this->visual_masks_[utils::as_val( Self::Mask::Ani )] ) {
-            static_cast<const Impl*>( this )->build_animation( buffer, std::forward<Args>( args )... );
-            this->try_reset( buffer );
-            auto masks = this->visual_masks_;
-            if ( masks.reset( utils::as_val( Self::Mask::Ani ) )
-                   .reset( utils::as_val( Self::Mask::Per ) )
-                   .any() ) {
-              this->try_style( buffer, this->info_col_ );
-              buffer << this->divider_;
-            }
-          }
-          this->common_build( buffer, num_task_done, num_all_tasks, zero_point );
-
-          if ( !this->postfix_.empty()
-               && ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty()
-                    || !this->prefix_.empty() ) )
-            buffer << constants::blank;
-          this->build_postfix( buffer );
-          this->try_reset( buffer );
-          if ( ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty()
-                 || !this->postfix_.empty() )
-               || this->visual_masks_.any() ) {
-            this->try_style( buffer, this->info_col_ );
-            buffer << this->r_border_;
-          }
-          return this->try_reset( buffer );
-        }
-
-      public:
-        using Base::Base;
-      };
-
-      template<typename Config>
-      struct Builder;
-      template<>
-      struct Builder<config::Line> final : public AnimatedBuilder<config::Line, Builder<config::Line>> {
-      private:
-        using Base = AnimatedBuilder<config::Line, Builder<config::Line>>;
-        friend Base;
-
-      protected:
-        __PGBAR_INLINE_FN io::Stringbuf& build_animation( io::Stringbuf& buffer,
-                                                          types::Float num_percent,
-                                                          types::Size num_frame_cnt ) const
-        {
-          return this->build_char( buffer, num_percent, num_frame_cnt );
-        }
-
-      public:
-        using Base::AnimatedBuilder;
-        Builder( config::Line&& rhs ) noexcept : Base( std::move( rhs ) ) {}
-
-        __PGBAR_INLINE_FN io::Stringbuf& build(
-          io::Stringbuf& buffer,
-          types::Size num_frame_cnt,
-          std::uint64_t num_task_done,
-          std::uint64_t num_all_tasks,
-          const std::chrono::steady_clock::time_point& zero_point ) const
-        {
-          __PGBAR_TRUST( num_task_done <= num_all_tasks );
-          const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
-
-          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          return this->indirect_build( buffer,
-                                       num_task_done,
-                                       num_all_tasks,
-                                       num_percent,
-                                       zero_point,
-                                       num_percent,
-                                       num_frame_cnt );
-        }
-        __PGBAR_INLINE_FN io::Stringbuf& build(
-          io::Stringbuf& buffer,
-          types::Size num_frame_cnt,
-          std::uint64_t num_task_done,
-          std::uint64_t num_all_tasks,
-          bool final_mesg,
-          const std::chrono::steady_clock::time_point& zero_point ) const
-        {
-          __PGBAR_TRUST( num_task_done <= num_all_tasks );
-          const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
-
-          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          return this->indirect_build( buffer,
-                                       num_task_done,
-                                       num_all_tasks,
-                                       num_percent,
-                                       final_mesg,
-                                       zero_point,
-                                       num_percent,
-                                       num_frame_cnt );
-        }
-      };
-
-      template<>
-      struct Builder<config::Block> final : public AnimatedBuilder<config::Block, Builder<config::Block>> {
-      private:
-        using Base = AnimatedBuilder<config::Block, Builder<config::Block>>;
-        friend Base;
-
-      protected:
-        __PGBAR_INLINE_FN io::Stringbuf& build_animation( io::Stringbuf& buffer,
-                                                          types::Float num_percent ) const
-        {
-          return this->build_block( buffer, num_percent );
-        }
-
-      public:
-        using Base::AnimatedBuilder;
-        __PGBAR_INLINE_FN io::Stringbuf& build(
-          io::Stringbuf& buffer,
-          std::uint64_t num_task_done,
-          std::uint64_t num_all_tasks,
-          const std::chrono::steady_clock::time_point& zero_point ) const
-        {
-          __PGBAR_TRUST( num_task_done <= num_all_tasks );
-          const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
-
-          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          return this
-            ->indirect_build( buffer, num_task_done, num_all_tasks, num_percent, zero_point, num_percent );
-        }
-        __PGBAR_INLINE_FN io::Stringbuf& build(
-          io::Stringbuf& buffer,
-          std::uint64_t num_task_done,
-          std::uint64_t num_all_tasks,
-          bool final_mesg,
-          const std::chrono::steady_clock::time_point& zero_point ) const
-        {
-          __PGBAR_TRUST( num_task_done <= num_all_tasks );
-          const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
-
-          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          return this->indirect_build( buffer,
-                                       num_task_done,
-                                       num_all_tasks,
-                                       num_percent,
-                                       final_mesg,
-                                       zero_point,
-                                       num_percent );
-        }
-      };
-
-      template<>
-      struct Builder<config::Sweep> final : public AnimatedBuilder<config::Sweep, Builder<config::Sweep>> {
-      private:
-        using Base = AnimatedBuilder<config::Sweep, Builder<config::Sweep>>;
-        friend Base;
-
-      protected:
-        __PGBAR_INLINE_FN io::Stringbuf& build_animation( io::Stringbuf& buffer,
-                                                          types::Size num_frame_cnt ) const
-        {
-          return this->build_sweeper( buffer, num_frame_cnt );
-        }
-
-      public:
-        using Base::AnimatedBuilder;
-        __PGBAR_INLINE_FN io::Stringbuf& build(
-          io::Stringbuf& buffer,
-          types::Size num_frame_cnt,
-          std::uint64_t num_task_done,
-          std::uint64_t num_all_tasks,
-          const std::chrono::steady_clock::time_point& zero_point ) const
-        {
-          __PGBAR_TRUST( num_task_done <= num_all_tasks );
-          const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
-
-          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          return this
-            ->indirect_build( buffer, num_task_done, num_all_tasks, num_percent, zero_point, num_frame_cnt );
-        }
-        __PGBAR_INLINE_FN io::Stringbuf& build(
-          io::Stringbuf& buffer,
-          types::Size num_frame_cnt,
-          std::uint64_t num_task_done,
-          std::uint64_t num_all_tasks,
-          bool final_mesg,
-          const std::chrono::steady_clock::time_point& zero_point ) const
-        {
-          __PGBAR_TRUST( num_task_done <= num_all_tasks );
-          const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
-
-          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          return this->indirect_build( buffer,
-                                       num_task_done,
-                                       num_all_tasks,
-                                       num_percent,
-                                       final_mesg,
-                                       zero_point,
-                                       num_frame_cnt );
-        }
-      };
-
-      template<>
-      struct Builder<config::Spin> final : public CommonBuilder<config::Spin> {
-      private:
-        using Self = config::Spin;
-        using CommonBuilder<Self>::CommonBuilder;
-
-      public:
-        __PGBAR_INLINE_FN io::Stringbuf& build(
-          io::Stringbuf& buffer,
-          types::Size num_frame_cnt,
-          std::uint64_t num_task_done,
-          std::uint64_t num_all_tasks,
-          const std::chrono::steady_clock::time_point& zero_point ) const
-        {
-          __PGBAR_TRUST( num_task_done <= num_all_tasks );
-          const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
-
-          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          if ( !this->prefix_.empty() || !this->postfix_.empty() || this->visual_masks_.any() ) {
-            this->try_style( buffer, this->info_col_ );
-            buffer << this->l_border_;
-          }
-
-          this->build_prefix( buffer );
-          this->try_reset( buffer );
-          if ( this->visual_masks_[utils::as_val( Self::Mask::Ani )] ) {
-            if ( !this->prefix_.empty() )
-              buffer << constants::blank;
-            this->build_spinner( buffer, num_frame_cnt );
-            this->try_reset( buffer );
-            auto masks = this->visual_masks_;
-            if ( masks.reset( utils::as_val( Self::Mask::Ani ) ).any() ) {
-              this->try_style( buffer, this->info_col_ );
-              buffer << this->divider_;
-            }
-          }
-          if ( this->visual_masks_[utils::as_val( Self::Mask::Per )] ) {
-            buffer << this->build_percent( num_percent );
-            auto masks = this->visual_masks_;
-            if ( masks.reset( utils::as_val( Self::Mask::Ani ) )
-                   .reset( utils::as_val( Self::Mask::Per ) )
-                   .any() )
-              buffer << this->divider_;
-          }
-          this->common_build( buffer, num_task_done, num_all_tasks, zero_point );
-
-          if ( !this->postfix_.empty() && ( !this->prefix_.empty() || this->visual_masks_.any() ) )
-            buffer << this->divider_;
-          this->build_postfix( buffer );
-          this->try_reset( buffer );
-          if ( !this->prefix_.empty() || !this->postfix_.empty() || this->visual_masks_.any() ) {
-            this->try_style( buffer, this->info_col_ );
-            buffer << this->r_border_;
-          }
-          return this->try_reset( buffer );
-        }
-        __PGBAR_INLINE_FN io::Stringbuf& build(
-          io::Stringbuf& buffer,
-          types::Size num_frame_cnt,
-          std::uint64_t num_task_done,
-          std::uint64_t num_all_tasks,
-          bool final_mesg,
-          const std::chrono::steady_clock::time_point& zero_point ) const
-        {
-          __PGBAR_TRUST( num_task_done <= num_all_tasks );
-          const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
-
-          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          if ( ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty()
-                 || !this->postfix_.empty() )
-               || this->visual_masks_.any() ) {
-            this->try_style( buffer, this->info_col_ );
-            buffer << this->l_border_;
-          }
-
-          this->build_prefix( buffer, final_mesg );
-          this->try_reset( buffer );
-          if ( this->visual_masks_[utils::as_val( Self::Mask::Ani )] ) {
-            if ( ( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() ) {
-              if ( !this->prefix_.empty() )
-                buffer << constants::blank;
-              this->build_spinner( buffer, num_frame_cnt );
-              this->try_reset( buffer );
-            }
-            auto masks = this->visual_masks_;
-            if ( masks.reset( utils::as_val( Self::Mask::Ani ) ).any() ) {
-              this->try_style( buffer, this->info_col_ );
-              buffer << this->divider_;
-            }
-          }
-          if ( this->visual_masks_[utils::as_val( Self::Mask::Per )] ) {
-            buffer << this->build_percent( num_percent );
-            auto masks = this->visual_masks_;
-            if ( masks.reset( utils::as_val( Self::Mask::Ani ) )
-                   .reset( utils::as_val( Self::Mask::Per ) )
-                   .any() )
-              buffer << this->divider_;
-          }
-          this->common_build( buffer, num_task_done, num_all_tasks, zero_point );
-
-          if ( !this->postfix_.empty()
-               && ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty()
-                    || this->visual_masks_.any() ) )
-            buffer << this->divider_;
-          this->build_postfix( buffer );
-          this->try_reset( buffer );
-          if ( ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty()
-                 || !this->postfix_.empty() )
-               || this->visual_masks_.any() ) {
-            this->try_style( buffer, this->info_col_ );
-            buffer << this->r_border_;
-          }
-          return this->try_reset( buffer );
-        }
-      };
-
-      template<typename Config, typename Enable = void>
-      struct RenderAction;
-    } // namespace render
-
-    namespace prefabs {
-      template<typename Soul, Channel Outlet, Policy Mode, Region Area>
-      class BasicBar
-        : public traits::LI<traits::ConfigTraits_t<Soul>>::template type<Indicator,
-                                                                         BasicBar<Soul, Outlet, Mode, Area>> {
-        static_assert(
-          traits::AllOf<traits::is_config<Soul>,
-                        traits::Contain<traits::ConfigTraits_t<Soul>, assets::TaskCounter>>::value,
-          "pgbar::__details::prefabs::BasicBar: Invalid config type" );
-        using Self = BasicBar;
-        using Base = typename traits::LI<traits::ConfigTraits_t<Soul>>::template type<Indicator, Self>;
-
-        template<typename, typename>
-        friend struct render::RenderAction;
-
-        enum class State : __details::types::Byte { Stop, Awake, StrictRefresh, LenientRefresh, Finish };
-        std::atomic<State> state_;
+        enum class StateCategory : types::Byte { Stop, Awake, Refresh, Finish };
+        enum class ResetMode : types::Byte { Failure = false, Success = true, Forced };
 
         render::Builder<Soul> config_;
         mutable std::mutex mtx_;
@@ -6417,7 +6399,6 @@ namespace pgbar {
         std::chrono::steady_clock::time_point zero_point_;
         bool final_mesg_;
 
-      protected:
         // An extension point that performs global resource cleanup related to the progress bar semantics
         // themselves.
         virtual void do_halt( bool forced = false ) noexcept
@@ -6431,8 +6412,6 @@ namespace pgbar {
             executor.appoint();
           }
         }
-        // An extension point that performs global initialization related to the progress bar type semantics
-        // themselves
         virtual void do_boot() & noexcept( false )
         {
           auto& executor = render::Renderer<Outlet, Mode>::itself();
@@ -6440,17 +6419,16 @@ namespace pgbar {
                  // No exceptions are caught here, this should be done by the thread manager.
                  auto& ostream    = io::OStream<Outlet>::itself();
                  const auto istty = console::TerminalContext<Outlet>::itself().connected();
-                 switch ( state_.load( std::memory_order_acquire ) ) {
-                 case Self::State::Awake: {
+                 switch ( static_cast<Subcls*>( this )->categorize() ) {
+                 case StateCategory::Awake: {
                    if __PGBAR_CXX17_CNSTXPR ( Area == Region::Fixed )
                      if ( istty )
                        ostream << console::escodes::savecursor;
-                   render::RenderAction<Soul>::boot( *this );
+                   static_cast<Subcls*>( this )->startframe();
                    ostream << console::escodes::nextline;
                    ostream << io::flush;
                  } break;
-                 case Self::State::StrictRefresh:  __PGBAR_FALLTHROUGH;
-                 case Self::State::LenientRefresh: {
+                 case StateCategory::Refresh: {
                    if ( istty ) {
                      if __PGBAR_CXX17_CNSTXPR ( Area == Region::Fixed )
                        ostream << console::escodes::resetcursor;
@@ -6458,11 +6436,11 @@ namespace pgbar {
                        ostream << console::escodes::prevline << console::escodes::linestart
                                << console::escodes::linewipe;
                    }
-                   render::RenderAction<Soul>::process( *this );
+                   static_cast<Subcls*>( this )->refreshframe();
                    ostream << console::escodes::nextline;
                    ostream << io::flush;
                  } break;
-                 case Self::State::Finish: {
+                 case StateCategory::Finish: {
                    if ( istty ) {
                      if __PGBAR_CXX17_CNSTXPR ( Area == Region::Fixed )
                        ostream << console::escodes::resetcursor;
@@ -6470,7 +6448,7 @@ namespace pgbar {
                        ostream << console::escodes::prevline << console::escodes::linestart
                                << console::escodes::linewipe;
                    }
-                   render::RenderAction<Soul>::finish( *this );
+                   static_cast<Subcls*>( this )->endframe();
                    if ( istty && config::hide_completed() )
                      ostream << console::escodes::linestart << console::escodes::linewipe;
                    else
@@ -6492,122 +6470,67 @@ namespace pgbar {
           }
         }
 
-        enum class ResetMode : types::Byte { Failure = false, Success = true, Forced };
-        __PGBAR_INLINE_FN void do_reset( ResetMode mode ) noexcept
-        {
-          std::lock_guard<std::mutex> lock { mtx_ };
-          if ( active() ) {
-            switch ( mode ) {
-            case ResetMode::Forced: {
-              state_.store( State::Stop, std::memory_order_release );
-            } break;
-            default: {
-              final_mesg_     = static_cast<bool>( mode );
-              auto try_update = [this]( State expected ) noexcept {
-                return state_.compare_exchange_strong( expected,
-                                                       State::Finish,
-                                                       std::memory_order_release,
-                                                       std::memory_order_acquire );
-              };
-              try_update( State::Awake ) || try_update( State::StrictRefresh )
-                || try_update( State::LenientRefresh );
-            } break;
-            }
-            do_halt( mode == ResetMode::Forced );
-          } else
-            state_.store( State::Stop, std::memory_order_release );
-        }
-        template<typename F>
-        __PGBAR_INLINE_FN void do_tick( F&& action ) & noexcept( false )
-        {
-          static_assert( traits::Match<F, void()>::value,
-                         "pgbar::__details::prefabs:BasicBar::do_tick: Invalid type" );
-          switch ( state_.load( std::memory_order_acquire ) ) {
-          case State::Stop:  __PGBAR_FALLTHROUGH;
-          case State::Awake: {
-            std::lock_guard<std::mutex> lock { mtx_ };
-            if ( state_.load( std::memory_order_acquire ) == State::Stop ) {
-              this->task_end_.store( config_.tasks(), std::memory_order_release );
-              if __PGBAR_CXX17_CNSTXPR ( std::is_same<Soul, config::Line>::value
-                                         || std::is_same<Soul, config::Block>::value )
-                if ( this->task_end_.load( std::memory_order_acquire ) == 0 )
-                  __PGBAR_UNLIKELY throw exception::InvalidState( "pgbar: the number of tasks is zero" );
-
-              if ( config::disable_styling() && !config::intty( Outlet ) )
-                config_.colored( false ).bolded( false );
-              this->task_cnt_.store( 0, std::memory_order_release );
-              zero_point_ = std::chrono::steady_clock::now();
-              state_.store( State::Awake, std::memory_order_release );
-              try {
-                do_boot();
-              } catch ( ... ) {
-                state_.store( State::Stop, std::memory_order_release );
-                throw;
-              }
-            }
-          } // Make sure that the state has already exited from Awake,
-            // so that it is not necessary to rely on whether task_end_ is zero
-            // to determine whether to exit the function.
-            if __PGBAR_CXX17_CNSTXPR ( std::is_same<Soul, config::Spin>::value
-                                       || std::is_same<Soul, config::Sweep>::value )
-              if ( state_.load( std::memory_order_acquire ) == State::LenientRefresh )
-                return;
-            __PGBAR_FALLTHROUGH;
-          case State::StrictRefresh: {
-            action();
-
-            if ( this->task_cnt_.load( std::memory_order_acquire )
-                 >= this->task_end_.load( std::memory_order_acquire ) )
-              __PGBAR_UNLIKELY do_reset( ResetMode::Success );
-            else if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Sync )
-              render::Renderer<Outlet, Mode>::itself().execute();
-          } break;
-
-          case State::LenientRefresh: {
-            if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Sync )
-              render::Renderer<Outlet, Mode>::itself().execute();
-          } break;
-
-          default: __PGBAR_UNREACHABLE;
-          }
-        }
-
       public:
-        using Config                     = Soul;
-        static constexpr Channel Sink    = Outlet;
-        static constexpr Policy Strategy = Mode;
-        static constexpr Region Layout   = Area;
+        CoreBar( Soul&& config ) noexcept : config_ { std::move( config ) } {}
 
-        BasicBar( Soul config = Soul() ) noexcept : state_ { State::Stop }, config_ { std::move( config ) } {}
-# if __PGBAR_CXX20
-        template<typename... Args>
-          requires std::is_constructible_v<Config, Args...>
-# else
-        template<typename... Args,
-                 typename = typename std::enable_if<std::is_constructible<Config, Args...>::value>::type>
-# endif
-        explicit BasicBar( Args&&... args ) : BasicBar( Soul( std::forward<Args>( args )... ) )
-        {}
-
-        BasicBar( const Self& )          = delete;
+        CoreBar( const Self& )           = delete;
         Self& operator=( const Self& ) & = delete;
-        // There is nothing to move in the base classes.
-        BasicBar( Self&& rhs ) noexcept : state_ { State::Stop }, config_ { std::move( rhs.config_ ) } {}
-        Self& operator=( Self&& rhs ) & noexcept
-        { // There is nothing to move in the base classes.
+        CoreBar( Self&& rhs ) noexcept( std::is_nothrow_move_constructible<Base>::value )
+          : Base( std::move( rhs ) ), config_ { std::move( rhs.config_ ) }
+        {}
+        Self& operator=( Self&& rhs ) & noexcept( std::is_nothrow_move_assignable<Base>::value )
+        {
           __PGBAR_TRUST( this != &rhs );
           config_ = std::move( rhs.config_ );
+          Base::operator=( std::move( rhs ) );
           return *this;
         }
-        virtual ~BasicBar() noexcept { do_reset( ResetMode::Forced ); }
+        virtual ~CoreBar() noexcept { static_cast<Subcls*>( this )->do_reset( ResetMode::Forced ); }
+
+        __PGBAR_NODISCARD bool active() const noexcept final
+        {
+          return static_cast<const Subcls*>( this )->categorize() != StateCategory::Stop;
+        }
+        void reset( bool final_mesg ) noexcept
+        {
+          static_cast<Subcls*>( this )->do_reset( static_cast<ResetMode>( final_mesg ) );
+          __PGBAR_ASSERT( active() == false );
+        }
+        void reset() noexcept final { reset( true ); }
+
+        Soul& config() & noexcept { return config_; }
+        const Soul& config() const& noexcept { return config_; }
+        Soul&& config() && noexcept { return std::move( config_ ); }
+
+        __PGBAR_CXX20_CNSTXPR void swap( CoreBar& lhs ) noexcept
+        {
+          __PGBAR_TRUST( this != &lhs );
+          __PGBAR_ASSERT( active() == false );
+          __PGBAR_ASSERT( active() == false );
+          Base::swap( lhs );
+          config_.swap( lhs.config_ );
+        }
+        friend __PGBAR_CXX20_CNSTXPR void swap( CoreBar& a, CoreBar& b ) noexcept { a.swap( b ); }
+      };
+
+      template<typename Base, typename Derived>
+      class TickableBar : public Base {
+        using Self = TickableBar;
+
+      public:
+        using Base::Base;
+        constexpr TickableBar( Self&& rhs )                   = default;
+        __PGBAR_CXX14_CNSTXPR Self& operator=( Self&& rhs ) & = default;
+        __PGBAR_CXX20_CNSTXPR virtual ~TickableBar()          = default;
 
         void tick() &
         {
-          do_tick( [this]() noexcept { this->task_cnt_.fetch_add( 1, std::memory_order_release ); } );
+          static_cast<Derived*>( this )->do_tick(
+            [this]() noexcept { this->task_cnt_.fetch_add( 1, std::memory_order_release ); } );
         }
         void tick( std::uint64_t next_step ) &
         {
-          do_tick( [&]() noexcept {
+          static_cast<Derived*>( this )->do_tick( [&]() noexcept {
             const auto task_cnt = this->task_cnt_.load( std::memory_order_acquire );
             const auto task_end = this->task_end_.load( std::memory_order_acquire );
             this->task_cnt_.fetch_add( task_cnt + next_step > task_end ? task_end - task_cnt : next_step );
@@ -6622,7 +6545,7 @@ namespace pgbar {
          */
         void tick_to( std::uint8_t percentage ) &
         {
-          do_tick( [&]() noexcept {
+          static_cast<Derived*>( this )->do_tick( [&]() noexcept {
             auto updater = [this]( std::uint64_t target ) noexcept {
               auto current = this->task_cnt_.load( std::memory_order_acquire );
               while ( !this->task_cnt_.compare_exchange_weak( current,
@@ -6634,37 +6557,420 @@ namespace pgbar {
             if ( percentage <= 100 ) {
               const auto target = static_cast<std::uint64_t>(
                 this->task_end_.load( std::memory_order_acquire ) * percentage * 0.01 );
-              __PGBAR_ASSERT( target <= this->task_end_ );
+              __PGBAR_ASSERT( target <= task_end_ );
               updater( target );
             } else
               updater( this->task_end_.load( std::memory_order_acquire ) );
           } );
         }
+      };
 
-        __PGBAR_NODISCARD bool active() const noexcept final
-        {
-          return state_.load( std::memory_order_acquire ) != State::Stop;
-        }
-        void reset( bool final_mesg ) noexcept
-        {
-          do_reset( static_cast<ResetMode>( final_mesg ) );
-          __PGBAR_ASSERT( active() == false );
-        }
-        void reset() noexcept final { reset( true ); }
+      template<typename Base, typename Derived>
+      class PlainBar;
+      template<typename Base,
+               template<typename, Channel, Policy, Region> class Derived,
+               typename Soul,
+               Channel Outlet,
+               Policy Mode,
+               Region A>
+      class PlainBar<Base, Derived<Soul, Outlet, Mode, A>> : public Base {
+        using Self = PlainBar;
+        template<typename, typename>
+        friend class CoreBar;
+        friend Base;
 
-        Soul& config() & noexcept { return config_; }
-        const Soul& config() const& noexcept { return config_; }
-        Soul&& config() && noexcept { return std::move( config_ ); }
+        using State = typename Base::StateCategory;
+        std::atomic<State> state_;
 
-        __PGBAR_CXX20_CNSTXPR void swap( BasicBar& lhs ) noexcept
+        __PGBAR_INLINE_FN void startframe() &
         {
-          __PGBAR_TRUST( this != &lhs );
-          __PGBAR_ASSERT( active() == false );
-          __PGBAR_ASSERT( lhs.active() == false );
-          Base::swap( lhs );
-          config_.swap( lhs.config_ );
+          this->config_.build( io::OStream<Outlet>::itself(),
+                               this->task_cnt_.load( std::memory_order_acquire ),
+                               this->task_end_.load( std::memory_order_acquire ),
+                               this->zero_point_ );
+          auto expected = State::Awake;
+          this->state_.compare_exchange_strong( expected,
+                                                State::Refresh,
+                                                std::memory_order_release,
+                                                std::memory_order_relaxed );
         }
-        friend __PGBAR_CXX20_CNSTXPR void swap( BasicBar& a, BasicBar& b ) noexcept { a.swap( b ); }
+        __PGBAR_INLINE_FN void refreshframe() &
+        {
+          __PGBAR_ASSERT( this->task_cnt_ <= this->task_end_ );
+          this->config_.build( io::OStream<Outlet>::itself(),
+                               this->task_cnt_.load( std::memory_order_acquire ),
+                               this->task_end_.load( std::memory_order_acquire ),
+                               this->zero_point_ );
+        }
+        __PGBAR_INLINE_FN void endframe() &
+        {
+          __PGBAR_ASSERT( this->task_cnt_ <= this->task_end_ );
+          this->config_.build( io::OStream<Outlet>::itself(),
+                               this->task_cnt_.load( std::memory_order_acquire ),
+                               this->task_end_.load( std::memory_order_acquire ),
+                               this->final_mesg_,
+                               this->zero_point_ );
+          this->state_.store( State::Stop, std::memory_order_release );
+        }
+
+      protected:
+        __PGBAR_INLINE_FN typename Base::StateCategory categorize() const noexcept
+        {
+          return state_.load( std::memory_order_acquire );
+        }
+
+        __PGBAR_INLINE_FN void do_reset( typename Base::ResetMode mode ) noexcept
+        {
+          std::lock_guard<std::mutex> lock { this->mtx_ };
+          if ( this->active() ) {
+            switch ( mode ) {
+            case Base::ResetMode::Forced: {
+              state_.store( State::Stop, std::memory_order_release );
+            } break;
+            default: {
+              this->final_mesg_ = static_cast<bool>( mode );
+              auto try_update   = [this]( State expected ) noexcept {
+                return state_.compare_exchange_strong( expected,
+                                                       State::Finish,
+                                                       std::memory_order_release,
+                                                       std::memory_order_acquire );
+              };
+              try_update( State::Awake ) || try_update( State::Refresh );
+            } break;
+            }
+            this->do_halt( mode == Base::ResetMode::Forced );
+          } else
+            state_.store( State::Stop, std::memory_order_release );
+        }
+        template<typename F>
+        __PGBAR_INLINE_FN void do_tick( F&& action ) & noexcept( false )
+        {
+          switch ( state_.load( std::memory_order_acquire ) ) {
+          case State::Stop:  __PGBAR_FALLTHROUGH;
+          case State::Awake: {
+            std::lock_guard<std::mutex> lock { this->mtx_ };
+            if ( state_.load( std::memory_order_acquire ) == State::Stop ) {
+              this->task_end_.store( this->config_.tasks(), std::memory_order_release );
+              if ( this->task_end_.load( std::memory_order_acquire ) == 0 )
+                __PGBAR_UNLIKELY throw exception::InvalidState( "pgbar: the number of tasks is zero" );
+
+              if ( config::disable_styling() && !config::intty( Outlet ) )
+                this->config_.colored( false ).bolded( false );
+              this->task_cnt_.store( 0, std::memory_order_release );
+              this->zero_point_ = std::chrono::steady_clock::now();
+              state_.store( State::Awake, std::memory_order_release );
+              try {
+                this->do_boot();
+              } catch ( ... ) {
+                state_.store( State::Stop, std::memory_order_release );
+                throw;
+              }
+            }
+          }
+          case State::Refresh: {
+            action();
+
+            if ( this->task_cnt_.load( std::memory_order_acquire )
+                 >= this->task_end_.load( std::memory_order_acquire ) )
+              __PGBAR_UNLIKELY do_reset( Base::ResetMode::Success );
+            else if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Sync )
+              render::Renderer<Outlet, Mode>::itself().execute();
+          } break;
+
+          default: __PGBAR_UNREACHABLE;
+          }
+        }
+
+      public:
+        PlainBar( Soul&& config ) noexcept( std::is_nothrow_constructible<Base, Soul&&>::value )
+          : Base( std::move( config ) ), state_ { State::Stop }
+        {}
+
+        PlainBar( const PlainBar& )          = delete;
+        Self& operator=( const PlainBar& ) & = delete;
+        PlainBar( Self&& rhs ) noexcept( std::is_nothrow_move_constructible<Base>::value )
+          : Base( std::move( rhs ) ), state_ { State::Stop }
+        {}
+        Self& operator=( Self&& rhs ) & noexcept( std::is_nothrow_move_assignable<Base>::value )
+        {
+          Base::operator=( std::move( rhs ) );
+          return *this;
+        }
+        virtual ~PlainBar() = default;
+      };
+
+      template<typename Base, typename Derived>
+      class FrameBar;
+      template<typename Base,
+               template<typename, Channel, Policy, Region> class Derived,
+               typename Soul,
+               Channel Outlet,
+               Policy Mode,
+               Region A>
+      class FrameBar<Base, Derived<Soul, Outlet, Mode, A>> : public Base {
+        using Self   = FrameBar;
+        using Subcls = Derived<Soul, Outlet, Mode, A>;
+        template<typename, typename>
+        friend class CoreBar;
+        friend Base;
+
+        enum class State : types::Byte { Stop, Awake, ProgressRefresh, ActivityRefresh, Finish };
+        std::atomic<State> state_;
+
+        __PGBAR_INLINE_FN void startframe() &
+        {
+          __PGBAR_ASSERT( task_cnt_ <= task_end_ );
+          this->idx_frame_ = 0;
+          this->config_.build( io::OStream<Outlet>::itself(),
+                               this->idx_frame_,
+                               this->task_cnt_.load( std::memory_order_acquire ),
+                               this->task_end_.load( std::memory_order_acquire ),
+                               this->zero_point_ );
+          auto expected = State::Awake;
+          state_.compare_exchange_strong( expected,
+                                          this->task_end_.load( std::memory_order_acquire ) == 0
+                                            ? State::ActivityRefresh
+                                            : State::ProgressRefresh,
+                                          std::memory_order_release,
+                                          std::memory_order_relaxed );
+        }
+        __PGBAR_INLINE_FN void refreshframe() &
+        {
+          __PGBAR_ASSERT( task_cnt_ <= task_end_ );
+          auto& buffer = io::OStream<Outlet>::itself();
+          this->config_.build( buffer,
+                               this->idx_frame_,
+                               this->task_cnt_.load( std::memory_order_acquire ),
+                               this->task_end_.load( std::memory_order_acquire ),
+                               this->zero_point_ );
+          ++this->idx_frame_;
+        }
+        __PGBAR_INLINE_FN void endframe() &
+        {
+          __PGBAR_ASSERT( this->task_cnt_ <= this->task_end_ );
+          this->config_.build( io::OStream<Outlet>::itself(),
+                               this->idx_frame_,
+                               this->task_cnt_.load( std::memory_order_acquire ),
+                               this->task_end_.load( std::memory_order_acquire ),
+                               this->final_mesg_,
+                               this->zero_point_ );
+          state_.store( State::Stop, std::memory_order_release );
+        }
+
+      protected:
+        __PGBAR_INLINE_FN typename Base::StateCategory categorize() const noexcept
+        {
+          switch ( state_.load( std::memory_order_acquire ) ) {
+          case State::Awake:           return Base::StateCategory::Awake;
+          case State::ProgressRefresh: __PGBAR_FALLTHROUGH;
+          case State::ActivityRefresh: return Base::StateCategory::Refresh;
+          case State::Finish:          return Base::StateCategory::Finish;
+          default:                     break;
+          }
+          return Base::StateCategory::Stop;
+        }
+
+        template<typename F>
+        __PGBAR_INLINE_FN void do_tick( F&& action ) & noexcept( false )
+        {
+          switch ( this->state_.load( std::memory_order_acquire ) ) {
+          case State::Stop:  __PGBAR_FALLTHROUGH;
+          case State::Awake: {
+            std::lock_guard<std::mutex> lock { this->mtx_ };
+            if ( this->state_.load( std::memory_order_acquire ) == State::Stop ) {
+              this->task_end_.store( this->config_.tasks(), std::memory_order_release );
+              static_cast<Subcls*>( this )->warmup();
+
+              if ( config::disable_styling() && !config::intty( Outlet ) )
+                this->config_.colored( false ).bolded( false );
+              this->task_cnt_.store( 0, std::memory_order_release );
+              this->zero_point_ = std::chrono::steady_clock::now();
+              this->state_.store( State::Awake, std::memory_order_release );
+              try {
+                this->do_boot();
+              } catch ( ... ) {
+                this->state_.store( State::Stop, std::memory_order_release );
+                throw;
+              }
+            }
+            if ( this->state_.load( std::memory_order_acquire ) == Base::State::ActivityRefresh )
+              return;
+          }
+            __PGBAR_FALLTHROUGH;
+          case State::ProgressRefresh: {
+            action();
+
+            if ( this->task_cnt_.load( std::memory_order_acquire )
+                 >= this->task_end_.load( std::memory_order_acquire ) )
+              __PGBAR_UNLIKELY do_reset( Base::ResetMode::Success );
+            else if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Sync )
+              render::Renderer<Outlet, Mode>::itself().execute();
+          } break;
+
+          case State::ActivityRefresh: {
+            if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Sync )
+              render::Renderer<Outlet, Mode>::itself().execute();
+          } break;
+
+          default: __PGBAR_UNREACHABLE;
+          }
+        }
+        __PGBAR_INLINE_FN void do_reset( typename Base::ResetMode mode ) noexcept
+        {
+          std::lock_guard<std::mutex> lock { this->mtx_ };
+          if ( this->active() ) {
+            switch ( mode ) {
+            case Base::ResetMode::Forced: {
+              state_.store( State::Stop, std::memory_order_release );
+            } break;
+            default: {
+              this->final_mesg_ = static_cast<bool>( mode );
+              auto try_update   = [this]( State expected ) noexcept {
+                return state_.compare_exchange_strong( expected,
+                                                       State::Finish,
+                                                       std::memory_order_release,
+                                                       std::memory_order_acquire );
+              };
+              try_update( State::Awake ) || try_update( State::ProgressRefresh )
+                || try_update( State::ActivityRefresh );
+            } break;
+            }
+            this->do_halt( mode == Base::ResetMode::Forced );
+          } else
+            state_.store( State::Stop, std::memory_order_release );
+        }
+
+      public:
+        FrameBar( Soul&& config ) noexcept( std::is_nothrow_constructible<Base, Soul&&>::value )
+          : Base( std::move( config ) ), state_ { State::Stop }
+        {}
+        FrameBar( const Self& )          = delete;
+        Self& operator=( const Self& ) & = delete;
+        FrameBar( Self&& rhs ) noexcept( std::is_nothrow_move_constructible<Base>::value )
+          : Base( std::move( rhs ) ), state_ { State::Stop }
+        {}
+        Self& operator=( Self&& rhs ) & noexcept( std::is_nothrow_move_assignable<Base>::value )
+        {
+          Base::operator=( std::move( rhs ) );
+          return *this;
+        }
+        virtual ~FrameBar() = default;
+      };
+
+      template<typename Base, typename Derived>
+      class BoundedFrameBar;
+      template<typename Base,
+               template<typename, Channel, Policy, Region> class Derived,
+               typename S,
+               Channel O,
+               Policy M,
+               Region A>
+      class BoundedFrameBar<Base, Derived<S, O, M, A>> : public Base {
+        friend Base;
+
+        void warmup() &
+        {
+          if ( this->task_end_.load( std::memory_order_acquire ) == 0 )
+            __PGBAR_UNLIKELY throw exception::InvalidState( "pgbar: the number of tasks is zero" );
+        }
+
+      public:
+        using Base::Base;
+        constexpr BoundedFrameBar( BoundedFrameBar&& )                          = default;
+        __PGBAR_CXX14_CNSTXPR BoundedFrameBar& operator=( BoundedFrameBar&& ) & = default;
+        __PGBAR_CXX20_CNSTXPR virtual ~BoundedFrameBar()                        = default;
+      };
+
+      template<typename Base, typename Derived>
+      class NullableFrameBar;
+      template<typename Base,
+               template<typename, Channel, Policy, Region> class Derived,
+               typename S,
+               Channel O,
+               Policy M,
+               Region A>
+      class NullableFrameBar<Base, Derived<S, O, M, A>> : public Base {
+        friend Base;
+
+        void warmup() & {}
+
+      public:
+        using Base::Base;
+        constexpr NullableFrameBar( NullableFrameBar&& )                          = default;
+        __PGBAR_CXX14_CNSTXPR NullableFrameBar& operator=( NullableFrameBar&& ) & = default;
+        __PGBAR_CXX20_CNSTXPR virtual ~NullableFrameBar()                         = default;
+      };
+    } // namespace assets
+
+    namespace traits {
+      __PGBAR_INHERIT_REGISTER( assets::TickableBar, , __PGBAR_PACK( assets::CoreBar, assets::TaskCounter ) );
+      __PGBAR_INHERIT_REGISTER( assets::PlainBar, , assets::TickableBar );
+      __PGBAR_INHERIT_REGISTER( assets::FrameBar,
+                                ,
+                                __PGBAR_PACK( assets::TickableBar, assets::FrameCounter ) );
+      __PGBAR_INHERIT_REGISTER( assets::BoundedFrameBar, , assets::FrameBar );
+      __PGBAR_INHERIT_REGISTER( assets::NullableFrameBar, , assets::FrameBar );
+
+      // In pgbar, the configuration type is "first-class type";
+      // thus, we hope to be able to automatically generate the progress bar type
+      // by specifying the configuration type for a template class.
+      // This's why we should define an additional tool type here.
+      template<typename Config>
+      struct BehaviourFor {
+        using type = TemplateSet<>;
+      };
+      template<typename Config>
+      using BehaviourFor_t = typename BehaviourFor<Config>::type;
+
+# define __PGBAR_BIND_BEHAVIOUR( Config, ... ) \
+   template<>                                  \
+   struct BehaviourFor<Config> {               \
+     using type = TemplateSet<__VA_ARGS__>;    \
+   }
+
+      __PGBAR_BIND_BEHAVIOUR( config::Line, assets::BoundedFrameBar );
+      __PGBAR_BIND_BEHAVIOUR( config::Block, assets::PlainBar );
+      __PGBAR_BIND_BEHAVIOUR( config::Spin, assets::NullableFrameBar );
+      __PGBAR_BIND_BEHAVIOUR( config::Sweep, assets::NullableFrameBar );
+    } // namespace traits
+
+    namespace prefabs {
+      // Interface type, used to meet the template type arguments of the base class for the derived class.
+      template<typename Soul, Channel Outlet, Policy Mode, Region Area>
+      class BasicBar
+        : public traits::LI<traits::BehaviourFor_t<Soul>>::template type<Indicator,
+                                                                         BasicBar<Soul, Outlet, Mode, Area>> {
+        using Base = typename traits::LI<
+          traits::BehaviourFor_t<Soul>>::template type<Indicator, BasicBar<Soul, Outlet, Mode, Area>>;
+
+      public:
+        using Config                     = Soul;
+        static constexpr Channel Sink    = Outlet;
+        static constexpr Policy Strategy = Mode;
+        static constexpr Region Layout   = Area;
+
+        constexpr BasicBar( Soul config ) noexcept( std::is_nothrow_constructible<Base, Soul&&>::value )
+          : Base( std::move( config ) )
+        {}
+# if __PGBAR_CXX20
+        template<typename... Args>
+          requires( !( std::is_same_v<std::decay_t<Args>, Soul> || ... )
+                    && std::is_constructible_v<Soul, Args...> )
+# else
+        template<typename... Args,
+                 typename = typename std::enable_if<
+                   traits::AllOf<traits::Not<std::is_same<typename std::decay<Args>::type, Soul>>...,
+                                 std::is_constructible<Soul, Args...>>::value>::type>
+# endif
+        constexpr BasicBar( Args&&... args ) noexcept( std::is_nothrow_constructible<Base, Args...>::value )
+          : Base( Soul( std::forward<Args>( args )... ) )
+        {}
+
+        BasicBar( const BasicBar& )                               = delete;
+        BasicBar& operator=( const BasicBar& ) &                  = delete;
+        constexpr BasicBar( BasicBar&& )                          = default;
+        __PGBAR_CXX14_CNSTXPR BasicBar& operator=( BasicBar&& ) & = default;
+        __PGBAR_CXX20_CNSTXPR virtual ~BasicBar()                 = default;
       };
     } // namespace prefabs
 
@@ -6672,8 +6978,8 @@ namespace pgbar {
       template<typename B>
       struct is_bar {
       private:
-        template<typename C, Channel O, Policy M, Region A>
-        static constexpr std::true_type check( const prefabs::BasicBar<C, O, M, A>& );
+        template<typename S, Channel O, Policy M, Region A>
+        static constexpr std::true_type check( const prefabs::BasicBar<S, O, M, A>& );
         static constexpr std::false_type check( ... );
 
       public:
@@ -6681,6 +6987,8 @@ namespace pgbar {
           AllOf<Not<std::is_reference<B>>,
                 decltype( check( std::declval<typename std::remove_cv<B>::type>() ) )>::value;
       };
+      template<typename B>
+      struct is_iterable_bar : AllOf<is_bar<B>, InstanceOf<B, assets::TaskCounter>> {};
     } // namespace traits
   } // namespace __details
 
@@ -6718,140 +7026,14 @@ namespace pgbar {
   using SweepBar = __details::prefabs::BasicBar<config::Sweep, Outlet, Mode, Area>;
 
   namespace __details {
-    namespace render {
-      template<typename Config>
-      struct RenderAction<
-        Config,
-        typename std::enable_if<traits::AnyOf<std::is_same<Config, config::Line>,
-                                              std::is_same<Config, config::Spin>,
-                                              std::is_same<Config, config::Sweep>>::value>::type> {
-        template<Channel Outlet, Policy M, Region A>
-        static __PGBAR_INLINE_FN void boot( prefabs::BasicBar<Config, Outlet, M, A>& bar )
-        {
-          using Self = prefabs::BasicBar<Config, Outlet, M, A>;
-          __PGBAR_ASSERT( bar.task_cnt_ <= bar.task_end_ );
-          bar.idx_frame_ = 0;
-          bar.config_.build( io::OStream<Outlet>::itself(),
-                             bar.idx_frame_,
-                             bar.task_cnt_.load( std::memory_order_acquire ),
-                             bar.task_end_.load( std::memory_order_acquire ),
-                             bar.zero_point_ );
-          auto expected = Self::State::Awake;
-          if __PGBAR_CXX17_CNSTXPR ( std::is_same<Config, config::Line>::value )
-            bar.state_.compare_exchange_strong( expected,
-                                                Self::State::StrictRefresh,
-                                                std::memory_order_release,
-                                                std::memory_order_relaxed );
-          else
-            bar.state_.compare_exchange_strong( expected,
-                                                bar.task_end_.load( std::memory_order_acquire ) == 0
-                                                  ? Self::State::LenientRefresh
-                                                  : Self::State::StrictRefresh,
-                                                std::memory_order_release,
-                                                std::memory_order_relaxed );
-        }
-        template<Channel Outlet, Policy M, Region A>
-        static __PGBAR_INLINE_FN void process( prefabs::BasicBar<Config, Outlet, M, A>& bar )
-        {
-          __PGBAR_ASSERT( bar.task_cnt_ <= bar.task_end_ );
-          auto& buffer = io::OStream<Outlet>::itself();
-          bar.config_.build( buffer,
-                             bar.idx_frame_,
-                             bar.task_cnt_.load( std::memory_order_acquire ),
-                             bar.task_end_.load( std::memory_order_acquire ),
-                             bar.zero_point_ );
-          ++bar.idx_frame_;
-        }
-        template<Channel Outlet, Policy M, Region A>
-        static __PGBAR_INLINE_FN void finish( prefabs::BasicBar<Config, Outlet, M, A>& bar )
-        {
-          using Self = prefabs::BasicBar<Config, Outlet, M, A>;
-          __PGBAR_ASSERT( bar.task_cnt_ <= bar.task_end_ );
-          bar.config_.build( io::OStream<Outlet>::itself(),
-                             bar.idx_frame_,
-                             bar.task_cnt_.load( std::memory_order_acquire ),
-                             bar.task_end_.load( std::memory_order_acquire ),
-                             bar.final_mesg_,
-                             bar.zero_point_ );
-          bar.state_.store( Self::State::Stop, std::memory_order_release );
-        }
-      };
-
-      template<>
-      struct RenderAction<config::Block, void> {
-        template<Channel Outlet, Policy M, Region A>
-        static __PGBAR_INLINE_FN void boot( prefabs::BasicBar<config::Block, Outlet, M, A>& bar )
-        {
-          using Self = prefabs::BasicBar<config::Block, Outlet, M, A>;
-          bar.config_.build( io::OStream<Outlet>::itself(),
-                             bar.task_cnt_.load( std::memory_order_acquire ),
-                             bar.task_end_.load( std::memory_order_acquire ),
-                             bar.zero_point_ );
-          auto expected = Self::State::Awake;
-          bar.state_.compare_exchange_strong( expected,
-                                              Self::State::StrictRefresh,
-                                              std::memory_order_release,
-                                              std::memory_order_relaxed );
-        }
-        template<Channel Outlet, Policy M, Region A>
-        static __PGBAR_INLINE_FN void process( prefabs::BasicBar<config::Block, Outlet, M, A>& bar )
-        {
-          __PGBAR_ASSERT( bar.task_cnt_ <= bar.task_end_ );
-          bar.config_.build( io::OStream<Outlet>::itself(),
-                             bar.task_cnt_.load( std::memory_order_acquire ),
-                             bar.task_end_.load( std::memory_order_acquire ),
-                             bar.zero_point_ );
-        }
-        template<Channel Outlet, Policy M, Region A>
-        static __PGBAR_INLINE_FN void finish( prefabs::BasicBar<config::Block, Outlet, M, A>& bar )
-        {
-          using Self = prefabs::BasicBar<config::Block, Outlet, M, A>;
-          __PGBAR_ASSERT( bar.task_cnt_ <= bar.task_end_ );
-          bar.config_.build( io::OStream<Outlet>::itself(),
-                             bar.task_cnt_.load( std::memory_order_acquire ),
-                             bar.task_end_.load( std::memory_order_acquire ),
-                             bar.final_mesg_,
-                             bar.zero_point_ );
-          bar.state_.store( Self::State::Stop, std::memory_order_release );
-        }
-      };
-
-      template<>
-      struct RenderAction<void, void> {
-        template<typename Config, Channel Outlet, Policy M, Region A>
-        static __PGBAR_INLINE_FN void automate( prefabs::BasicBar<Config, Outlet, M, A>& bar )
-        {
-          using Self = prefabs::BasicBar<Config, Outlet, M, A>;
-          switch ( bar.state_.load( std::memory_order_acquire ) ) {
-          case Self::State::Awake: {
-            RenderAction<Config>::boot( bar );
-          } break;
-          case Self::State::StrictRefresh:  __PGBAR_FALLTHROUGH;
-          case Self::State::LenientRefresh: {
-            RenderAction<Config>::process( bar );
-          } break;
-          case Self::State::Finish: {
-            RenderAction<Config>::finish( bar );
-          } break;
-          default: return;
-          }
-        }
-      };
-    } // namespace render
-
-    namespace traits {
-      template<typename B>
-      struct is_iterable_bar : AllOf<is_bar<B>, InstanceOf<B, assets::TaskCounter>> {};
-    } // namespace traits
-
     namespace assets {
       template<types::Size, typename Base>
       struct TupleSlot : public Base {
         using Base::Base;
-        TupleSlot( TupleSlot&& )              = default;
-        TupleSlot& operator=( TupleSlot&& ) & = default;
-        TupleSlot( Base&& rhs ) noexcept : Base( std::move( rhs ) ) {}
-        TupleSlot& operator=( Base&& rhs ) & noexcept
+        __PGBAR_CXX23_CNSTXPR TupleSlot( TupleSlot&& )              = default;
+        __PGBAR_CXX14_CNSTXPR TupleSlot& operator=( TupleSlot&& ) & = default;
+        constexpr TupleSlot( Base&& rhs ) noexcept : Base( std::move( rhs ) ) {}
+        __PGBAR_CXX14_CNSTXPR TupleSlot& operator=( Base&& rhs ) & noexcept
         {
           __PGBAR_ASSERT( this != std::addressof( rhs ) );
           Base::operator=( std::move( rhs ) );
@@ -6871,8 +7053,8 @@ namespace pgbar {
 
         std::atomic<types::Size> alive_cnt_;
         // cb: CombinedBar
-        enum class CBState : types::Byte { Stop, Awake, Refresh };
-        std::atomic<CBState> cb_state_;
+        enum class State : types::Byte { Stop, Awake, Refresh };
+        std::atomic<State> state_;
         mutable std::mutex sched_mtx_;
 
         // Bitmask indicating which bars produced output in the current render pass.
@@ -6895,7 +7077,7 @@ namespace pgbar {
             active_mask_.store( new_val, std::memory_order_release );
             if ( istty )
               ostream << console::escodes::linewipe;
-            render::RenderAction<void>::automate( at<Pos>() );
+            make_frame( at<Pos>() );
 
             if ( !at<Pos>().active() && istty && hide_done ) {
               // The renderer ensures that each call to do render is atomic.
@@ -6930,7 +7112,7 @@ namespace pgbar {
             if ( alive_cnt_.fetch_sub( 1, std::memory_order_acq_rel ) == 1 ) {
               executor.appoint();
               io::OStream<Outlet>::itself().release();
-              cb_state_.store( CBState::Stop, std::memory_order_release );
+              state_.store( State::Stop, std::memory_order_release );
             }
           }
         }
@@ -6938,12 +7120,12 @@ namespace pgbar {
         {
           std::lock_guard<std::mutex> lock { sched_mtx_ };
           auto& executor = render::Renderer<Outlet, Mode>::itself();
-          if ( cb_state_.load( std::memory_order_acquire ) == CBState::Stop ) {
+          if ( state_.load( std::memory_order_acquire ) == State::Stop ) {
             if ( !executor.try_appoint( [this]() {
                    auto& ostream    = io::OStream<Outlet>::itself();
                    const auto istty = console::TerminalContext<Outlet>::itself().connected();
-                   switch ( cb_state_.load( std::memory_order_acquire ) ) {
-                   case CBState::Awake: {
+                   switch ( state_.load( std::memory_order_acquire ) ) {
+                   case State::Awake: {
                      active_mask_.store( {}, std::memory_order_release );
                      if __PGBAR_CXX17_CNSTXPR ( Area == Region::Fixed )
                        if ( istty )
@@ -6951,13 +7133,13 @@ namespace pgbar {
                      do_render();
                      ostream << io::flush;
 
-                     auto expected = CBState::Awake;
-                     cb_state_.compare_exchange_strong( expected,
-                                                        CBState::Refresh,
-                                                        std::memory_order_release,
-                                                        std::memory_order_relaxed );
+                     auto expected = State::Awake;
+                     state_.compare_exchange_strong( expected,
+                                                     State::Refresh,
+                                                     std::memory_order_release,
+                                                     std::memory_order_relaxed );
                    } break;
-                   case CBState::Refresh: {
+                   case State::Refresh: {
                      if ( istty ) {
                        if __PGBAR_CXX17_CNSTXPR ( Area == Region::Fixed )
                          ostream << console::escodes::resetcursor;
@@ -6977,11 +7159,11 @@ namespace pgbar {
                 "pgbar: another progress bar instance is already running" );
 
             io::OStream<Outlet>::itself() << io::release;
-            cb_state_.store( CBState::Awake, std::memory_order_release );
+            state_.store( State::Awake, std::memory_order_release );
             try {
               executor.activate();
             } catch ( ... ) {
-              cb_state_.store( CBState::Stop, std::memory_order_release );
+              state_.store( State::Stop, std::memory_order_release );
               executor.appoint();
               throw;
             }
@@ -6999,7 +7181,7 @@ namespace pgbar {
           noexcept( std::tuple_size<typename std::decay<Tuple>::type>::value == sizeof...( Configs ) )
           : ElementAt_t<Is>( utils::forward_or<Is, ElementAt_t<Is>>( std::forward<Tuple>( tup ) ) )...
           , alive_cnt_ { 0 }
-          , cb_state_ { CBState::Stop }
+          , state_ { State::Stop }
         {
           static_assert( std::tuple_size<typename std::decay<Tuple>::type>::value <= sizeof...( Is ),
                          "pgbar::__details::assets::TupleBar::ctor: Unexpected tuple size mismatch" );
@@ -7035,7 +7217,7 @@ namespace pgbar {
         TupleBar( TupleBar&& rhs ) noexcept
           : TupleSlot<Tags, prefabs::BasicBar<Configs, Outlet, Mode, Area>>( std::move( rhs ) )...
           , alive_cnt_ { 0 }
-          , cb_state_ { CBState::Stop }
+          , state_ { State::Stop }
         {}
         TupleBar& operator=( TupleBar&& ) & = default;
         ~TupleBar()                         = default;
@@ -7051,7 +7233,7 @@ namespace pgbar {
         }
         __PGBAR_NODISCARD __PGBAR_INLINE_FN bool online() const noexcept
         {
-          return cb_state_.load( std::memory_order_acquire ) != CBState::Stop;
+          return state_.load( std::memory_order_acquire ) != State::Stop;
         }
         __PGBAR_NODISCARD __PGBAR_INLINE_FN types::Size active_size() const noexcept
         {
@@ -7089,7 +7271,7 @@ namespace pgbar {
 
   template<typename Bar, typename... Bars>
   class MultiBar;
-  template<Channel O, Policy M, Region A, typename Config, typename... Configs>
+  template<typename Config, typename... Configs, Channel O, Policy M, Region A>
   class MultiBar<__details::prefabs::BasicBar<Config, O, M, A>,
                  __details::prefabs::BasicBar<Configs, O, M, A>...> {
     static_assert( __details::traits::AllOf<__details::traits::is_config<Config>,
@@ -8020,7 +8202,7 @@ namespace pgbar {
               traits::AllOf<std::is_base_of<Indicator, Derived>, traits::is_bar<Derived>>::value,
               "pgbar::__details::assets::DynamicContext::Slot::render: Derived must inherit from Indicator" );
             __PGBAR_TRUST( bar != nullptr );
-            render::RenderAction<void>::automate( static_cast<Derived&>( *bar ) );
+            make_frame( static_cast<Derived&>( *bar ) );
           }
 
         public:
