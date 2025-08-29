@@ -3098,10 +3098,7 @@ namespace pgbar {
                   case State::Suspend: {
                     std::unique_lock<std::mutex> lock { mtx_ };
                     auto expected = State::Suspend;
-                    state_.compare_exchange_strong( expected,
-                                                    State::Dormant,
-                                                    std::memory_order_release,
-                                                    std::memory_order_relaxed );
+                    state_.compare_exchange_strong( expected, State::Dormant, std::memory_order_release );
                     cond_var_.wait( lock, [this]() noexcept {
                       return state_.load( std::memory_order_acquire ) != State::Dormant;
                     } );
@@ -3156,10 +3153,7 @@ namespace pgbar {
         void suspend() noexcept
         {
           auto expected = State::Active;
-          if ( state_.compare_exchange_strong( expected,
-                                               State::Suspend,
-                                               std::memory_order_release,
-                                               std::memory_order_relaxed ) ) {
+          if ( state_.compare_exchange_strong( expected, State::Suspend, std::memory_order_release ) ) {
             concurrent::spin_wait(
               [this]() noexcept { return state_.load( std::memory_order_acquire ) != State::Suspend; } );
             std::lock_guard<std::mutex> lock { mtx_ };
@@ -3189,10 +3183,7 @@ namespace pgbar {
           __PGBAR_ASSERT( state_ != State::Dead );
           __PGBAR_ASSERT( task_ != nullptr );
           auto expected = State::Dormant;
-          if ( state_.compare_exchange_strong( expected,
-                                               State::Active,
-                                               std::memory_order_release,
-                                               std::memory_order_relaxed ) ) {
+          if ( state_.compare_exchange_strong( expected, State::Active, std::memory_order_release ) ) {
             std::lock_guard<std::mutex> lock { mtx_ };
             cond_var_.notify_one();
           }
@@ -3303,10 +3294,7 @@ namespace pgbar {
                      case State::Finish:  {
                        std::unique_lock<std::mutex> lock { mtx_ };
                        auto expected = State::Finish;
-                       state_.compare_exchange_strong( expected,
-                                                       State::Dormant,
-                                                       std::memory_order_release,
-                                                       std::memory_order_relaxed );
+                       state_.compare_exchange_strong( expected, State::Dormant, std::memory_order_release );
                        cond_var_.wait( lock, [this]() noexcept {
                          return state_.load( std::memory_order_acquire ) != State::Dormant;
                        } );
@@ -3318,10 +3306,7 @@ namespace pgbar {
                          task_();
                        }
                        auto expected = State::Active;
-                       state_.compare_exchange_strong( expected,
-                                                       State::Finish,
-                                                       std::memory_order_release,
-                                                       std::memory_order_relaxed );
+                       state_.compare_exchange_strong( expected, State::Finish, std::memory_order_release );
                      } break;
                      default: return;
                      }
@@ -3374,10 +3359,7 @@ namespace pgbar {
            * the execution operation needs to be dispatched to another thread.
            */
           auto expected = State::Dormant;
-          if ( state_.compare_exchange_strong( expected,
-                                               State::Active,
-                                               std::memory_order_release,
-                                               std::memory_order_relaxed ) ) {
+          if ( state_.compare_exchange_strong( expected, State::Active, std::memory_order_release ) ) {
             {
               std::lock_guard<std::mutex> lock { mtx_ };
               cond_var_.notify_one();
@@ -3438,10 +3420,7 @@ namespace pgbar {
         void activate() & noexcept( false )
         {
           auto expected = State::Quit;
-          if ( state_.compare_exchange_strong( expected,
-                                               State::Awake,
-                                               std::memory_order_release,
-                                               std::memory_order_relaxed ) ) {
+          if ( state_.compare_exchange_strong( expected, State::Awake, std::memory_order_release ) ) {
             __PGBAR_ASSERT( task_ != nullptr );
             auto& renderer = Runner<Tag>::itself();
             try {
@@ -3483,10 +3462,7 @@ namespace pgbar {
                      case State::Awake: {
                        task_();
                        auto expected = State::Awake;
-                       state_.compare_exchange_strong( expected,
-                                                       State::Active,
-                                                       std::memory_order_release,
-                                                       std::memory_order_relaxed );
+                       state_.compare_exchange_strong( expected, State::Active, std::memory_order_release );
                      }
                        __PGBAR_FALLTHROUGH;
                      case State::Active: {
@@ -3497,10 +3473,7 @@ namespace pgbar {
                      case State::Attempt: {
                        task_();
                        auto expected = State::Attempt;
-                       state_.compare_exchange_strong( expected,
-                                                       State::Active,
-                                                       std::memory_order_release,
-                                                       std::memory_order_relaxed );
+                       state_.compare_exchange_strong( expected, State::Active, std::memory_order_release );
                      } break;
 
                      default: return;
@@ -3523,10 +3496,7 @@ namespace pgbar {
           // Each call should not be discarded.
           std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
           auto try_update = [this]( State expected ) noexcept {
-            return state_.compare_exchange_strong( expected,
-                                                   State::Attempt,
-                                                   std::memory_order_release,
-                                                   std::memory_order_relaxed );
+            return state_.compare_exchange_strong( expected, State::Attempt, std::memory_order_release );
           };
           if ( try_update( State::Awake ) || try_update( State::Active ) )
             concurrent::spin_wait(
@@ -5449,11 +5419,11 @@ namespace pgbar {
 
     inline void hide_completed( bool flag ) noexcept
     {
-      Indicator::_hide_completed.store( flag, std::memory_order_release );
+      Indicator::_hide_completed.store( flag, std::memory_order_relaxed );
     }
     __PGBAR_NODISCARD inline bool hide_completed() noexcept
     {
-      return Indicator::_hide_completed.load( std::memory_order_acquire );
+      return Indicator::_hide_completed.load( std::memory_order_relaxed );
     }
     /**
      * Whether to automatically disable the style effect of the configuration object
@@ -5461,11 +5431,11 @@ namespace pgbar {
      */
     inline void disable_styling( bool flag ) noexcept
     {
-      Indicator::_disable_styling.store( flag, std::memory_order_release );
+      Indicator::_disable_styling.store( flag, std::memory_order_relaxed );
     }
     __PGBAR_NODISCARD inline bool disable_styling() noexcept
     {
-      return Indicator::_disable_styling.load( std::memory_order_acquire );
+      return Indicator::_disable_styling.load( std::memory_order_relaxed );
     }
 
     class Line : public __details::prefabs::BasicConfig<__details::assets::CharIndic, Line> {
@@ -6131,7 +6101,8 @@ namespace pgbar {
       template<typename Base, typename Derived>
       class TaskCounter : public Base {
       protected:
-        std::atomic<std::uint64_t> task_cnt_, task_end_;
+        std::atomic<std::uint64_t> task_cnt_;
+        std::uint64_t task_end_;
 
       public:
         constexpr TaskCounter() noexcept( std::is_nothrow_default_constructible<Base>::value )
@@ -6532,8 +6503,8 @@ namespace pgbar {
         {
           static_cast<Derived*>( this )->do_tick( [&]() noexcept {
             const auto task_cnt = this->task_cnt_.load( std::memory_order_acquire );
-            const auto task_end = this->task_end_.load( std::memory_order_acquire );
-            this->task_cnt_.fetch_add( task_cnt + next_step > task_end ? task_end - task_cnt : next_step );
+            this->task_cnt_.fetch_add( task_cnt + next_step > this->task_end_ ? this->task_end_ - task_cnt
+                                                                              : next_step );
           } );
         }
         /**
@@ -6550,17 +6521,16 @@ namespace pgbar {
               auto current = this->task_cnt_.load( std::memory_order_acquire );
               while ( !this->task_cnt_.compare_exchange_weak( current,
                                                               target,
-                                                              std::memory_order_acq_rel,
+                                                              std::memory_order_release,
                                                               std::memory_order_acquire )
                       && target <= current ) {}
             };
             if ( percentage <= 100 ) {
-              const auto target = static_cast<std::uint64_t>(
-                this->task_end_.load( std::memory_order_acquire ) * percentage * 0.01 );
+              const auto target = static_cast<std::uint64_t>( this->task_end_ * percentage * 0.01 );
               __PGBAR_ASSERT( target <= task_end_ );
               updater( target );
             } else
-              updater( this->task_end_.load( std::memory_order_acquire ) );
+              updater( this->task_end_ );
           } );
         }
       };
@@ -6586,20 +6556,17 @@ namespace pgbar {
         {
           this->config_.build( io::OStream<Outlet>::itself(),
                                this->task_cnt_.load( std::memory_order_acquire ),
-                               this->task_end_.load( std::memory_order_acquire ),
+                               this->task_end_,
                                this->zero_point_ );
           auto expected = State::Awake;
-          this->state_.compare_exchange_strong( expected,
-                                                State::Refresh,
-                                                std::memory_order_release,
-                                                std::memory_order_relaxed );
+          this->state_.compare_exchange_strong( expected, State::Refresh, std::memory_order_release );
         }
         __PGBAR_INLINE_FN void refreshframe() &
         {
           __PGBAR_ASSERT( this->task_cnt_ <= this->task_end_ );
           this->config_.build( io::OStream<Outlet>::itself(),
                                this->task_cnt_.load( std::memory_order_acquire ),
-                               this->task_end_.load( std::memory_order_acquire ),
+                               this->task_end_,
                                this->zero_point_ );
         }
         __PGBAR_INLINE_FN void endframe() &
@@ -6607,7 +6574,7 @@ namespace pgbar {
           __PGBAR_ASSERT( this->task_cnt_ <= this->task_end_ );
           this->config_.build( io::OStream<Outlet>::itself(),
                                this->task_cnt_.load( std::memory_order_acquire ),
-                               this->task_end_.load( std::memory_order_acquire ),
+                               this->task_end_,
                                this->final_mesg_,
                                this->zero_point_ );
           this->state_.store( State::Stop, std::memory_order_release );
@@ -6630,10 +6597,7 @@ namespace pgbar {
             default: {
               this->final_mesg_ = static_cast<bool>( mode );
               auto try_update   = [this]( State expected ) noexcept {
-                return state_.compare_exchange_strong( expected,
-                                                       State::Finish,
-                                                       std::memory_order_release,
-                                                       std::memory_order_acquire );
+                return state_.compare_exchange_strong( expected, State::Finish, std::memory_order_release );
               };
               try_update( State::Awake ) || try_update( State::Refresh );
             } break;
@@ -6650,8 +6614,8 @@ namespace pgbar {
           case State::Awake: {
             std::lock_guard<std::mutex> lock { this->mtx_ };
             if ( state_.load( std::memory_order_acquire ) == State::Stop ) {
-              this->task_end_.store( this->config_.tasks(), std::memory_order_release );
-              if ( this->task_end_.load( std::memory_order_acquire ) == 0 )
+              this->task_end_ = this->config_.tasks();
+              if ( this->task_end_ == 0 )
                 __PGBAR_UNLIKELY throw exception::InvalidState( "pgbar: the number of tasks is zero" );
 
               if ( config::disable_styling() && !config::intty( Outlet ) )
@@ -6670,8 +6634,7 @@ namespace pgbar {
           case State::Refresh: {
             action();
 
-            if ( this->task_cnt_.load( std::memory_order_acquire )
-                 >= this->task_end_.load( std::memory_order_acquire ) )
+            if ( this->task_cnt_.load( std::memory_order_acquire ) >= this->task_end_ )
               __PGBAR_UNLIKELY do_reset( Base::ResetMode::Success );
             else if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Sync )
               render::Renderer<Outlet, Mode>::itself().execute();
@@ -6719,29 +6682,27 @@ namespace pgbar {
 
         __PGBAR_INLINE_FN void startframe() &
         {
-          __PGBAR_ASSERT( task_cnt_ <= task_end_ );
+          __PGBAR_ASSERT( this->task_cnt_ <= this->task_end_ );
           this->idx_frame_ = 0;
           this->config_.build( io::OStream<Outlet>::itself(),
                                this->idx_frame_,
                                this->task_cnt_.load( std::memory_order_acquire ),
-                               this->task_end_.load( std::memory_order_acquire ),
+                               this->task_end_,
                                this->zero_point_ );
           auto expected = State::Awake;
           state_.compare_exchange_strong( expected,
-                                          this->task_end_.load( std::memory_order_acquire ) == 0
-                                            ? State::ActivityRefresh
-                                            : State::ProgressRefresh,
-                                          std::memory_order_release,
-                                          std::memory_order_relaxed );
+                                          this->task_end_ == 0 ? State::ActivityRefresh
+                                                               : State::ProgressRefresh,
+                                          std::memory_order_release );
         }
         __PGBAR_INLINE_FN void refreshframe() &
         {
-          __PGBAR_ASSERT( task_cnt_ <= task_end_ );
+          __PGBAR_ASSERT( this->task_cnt_ <= this->task_end_ );
           auto& buffer = io::OStream<Outlet>::itself();
           this->config_.build( buffer,
                                this->idx_frame_,
                                this->task_cnt_.load( std::memory_order_acquire ),
-                               this->task_end_.load( std::memory_order_acquire ),
+                               this->task_end_,
                                this->zero_point_ );
           ++this->idx_frame_;
         }
@@ -6751,7 +6712,7 @@ namespace pgbar {
           this->config_.build( io::OStream<Outlet>::itself(),
                                this->idx_frame_,
                                this->task_cnt_.load( std::memory_order_acquire ),
-                               this->task_end_.load( std::memory_order_acquire ),
+                               this->task_end_,
                                this->final_mesg_,
                                this->zero_point_ );
           state_.store( State::Stop, std::memory_order_release );
@@ -6778,7 +6739,7 @@ namespace pgbar {
           case State::Awake: {
             std::lock_guard<std::mutex> lock { this->mtx_ };
             if ( this->state_.load( std::memory_order_acquire ) == State::Stop ) {
-              this->task_end_.store( this->config_.tasks(), std::memory_order_release );
+              this->task_end_ = this->config_.tasks();
               static_cast<Subcls*>( this )->warmup();
 
               if ( config::disable_styling() && !config::intty( Outlet ) )
@@ -6800,8 +6761,7 @@ namespace pgbar {
           case State::ProgressRefresh: {
             action();
 
-            if ( this->task_cnt_.load( std::memory_order_acquire )
-                 >= this->task_end_.load( std::memory_order_acquire ) )
+            if ( this->task_cnt_.load( std::memory_order_acquire ) >= this->task_end_ )
               __PGBAR_UNLIKELY do_reset( Base::ResetMode::Success );
             else if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Sync )
               render::Renderer<Outlet, Mode>::itself().execute();
@@ -6826,10 +6786,7 @@ namespace pgbar {
             default: {
               this->final_mesg_ = static_cast<bool>( mode );
               auto try_update   = [this]( State expected ) noexcept {
-                return state_.compare_exchange_strong( expected,
-                                                       State::Finish,
-                                                       std::memory_order_release,
-                                                       std::memory_order_acquire );
+                return state_.compare_exchange_strong( expected, State::Finish, std::memory_order_release );
               };
               try_update( State::Awake ) || try_update( State::ProgressRefresh )
                 || try_update( State::ActivityRefresh );
@@ -6870,7 +6827,7 @@ namespace pgbar {
 
         void warmup() &
         {
-          if ( this->task_end_.load( std::memory_order_acquire ) == 0 )
+          if ( this->task_end_ == 0 )
             __PGBAR_UNLIKELY throw exception::InvalidState( "pgbar: the number of tasks is zero" );
         }
 
@@ -7134,10 +7091,7 @@ namespace pgbar {
                      ostream << io::flush;
 
                      auto expected = State::Awake;
-                     state_.compare_exchange_strong( expected,
-                                                     State::Refresh,
-                                                     std::memory_order_release,
-                                                     std::memory_order_relaxed );
+                     state_.compare_exchange_strong( expected, State::Refresh, std::memory_order_release );
                    } break;
                    case State::Refresh: {
                      if ( istty ) {
@@ -8318,10 +8272,7 @@ namespace pgbar {
                      }
                      ostream << io::flush;
                      auto expected = State::Awake;
-                     state_.compare_exchange_strong( expected,
-                                                     State::Refresh,
-                                                     std::memory_order_release,
-                                                     std::memory_order_relaxed );
+                     state_.compare_exchange_strong( expected, State::Refresh, std::memory_order_release );
                    } break;
                    case State::Refresh: {
                      {
