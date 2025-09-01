@@ -22,6 +22,7 @@
 # include <memory>
 # include <mutex>
 # include <new>
+# include <numeric>
 # include <string>
 # include <thread>
 # include <tuple>
@@ -385,45 +386,6 @@ namespace pgbar {
         static constexpr bool value = _Select<std::is_same<Head, T>::value, TypeList<Tail...>>::value;
       };
 
-      template<typename HeadTpList, typename TailTpList>
-      struct Join;
-      template<typename HeadTpList, typename TailTpList>
-      using Join_t = typename Join<HeadTpList, TailTpList>::type;
-
-      template<typename... Head, typename... Tail>
-      struct Join<TypeList<Head...>, TypeList<Tail...>> {
-        using type = TypeList<Head..., Tail...>;
-      };
-
-      template<typename HeadTpList, typename... TailTpList>
-      struct Merge : Join<HeadTpList, typename Merge<TailTpList...>::type> {};
-      template<typename HeadTpList, typename... TailTpList>
-      using Merge_t = typename Merge<HeadTpList, TailTpList...>::type;
-
-      template<typename... Ts>
-      struct Merge<TypeList<Ts...>> {
-        using type = TypeList<Ts...>;
-      };
-
-      // Check whether type `T` belongs to the list `TpList`.
-      template<typename TpList, typename T>
-      struct Own;
-      template<typename T>
-      struct Own<TypeList<>, T> : std::false_type {};
-      template<typename Head, typename... Tail, typename T>
-      struct Own<TypeList<Head, Tail...>, T> {
-      private:
-        template<bool Cond, typename RestList>
-        struct _Select;
-        template<typename RestList>
-        struct _Select<true, RestList> : std::true_type {};
-        template<typename RestList>
-        struct _Select<false, RestList> : Own<RestList, T> {};
-
-      public:
-        static constexpr bool value = _Select<std::is_same<T, Head>::value, TypeList<Tail...>>::value;
-      };
-
       /**
        * A TypeList without duplicates;
        * the presence of duplicate elements will result in a hard compile error.
@@ -459,30 +421,30 @@ namespace pgbar {
         using type = typename _Select<Exist<TypeSet<Ts...>, T>::value, T>::type;
       };
 
-      template<typename List>
-      struct Unique;
-      template<typename List>
-      using Unique_t = typename Unique<List>::type;
+      template<typename HeadTpSet, typename TailTpSet>
+      struct Union;
+      template<typename HeadTpSet, typename TailTpSet>
+      using Union_t = typename Union<HeadTpSet, TailTpSet>::type;
 
-      template<typename... Ts>
-      struct Unique<TypeSet<Ts...>> {
-        using type = TypeSet<Ts...>;
+      template<typename HeadTpSet>
+      struct Union<HeadTpSet, TypeSet<>> {
+        using type = HeadTpSet;
       };
-      template<template<typename...> class List, typename... Ts>
-      struct Unique<List<Ts...>> {
-      private:
-        template<typename ResultSet, typename RestList>
-        struct Helper;
-        template<typename ResultSet>
-        struct Helper<ResultSet, List<>> {
-          using type = ResultSet;
-        };
-        template<typename ResultSet, typename U, typename... Us>
-        struct Helper<ResultSet, List<U, Us...>> : Helper<Expand_t<ResultSet, U>, List<Us...>> {};
+      template<typename HeadTpSet, typename T, typename... Ts>
+      struct Union<HeadTpSet, TypeSet<T, Ts...>> : Union<Expand_t<HeadTpSet, T>, TypeSet<Ts...>> {};
 
-      public:
-        using type = typename Helper<TypeSet<>, List<Ts...>>::type;
+      template<typename HeadTpSet, typename... TailTpSet>
+      struct Coalesce : Union<HeadTpSet, Coalesce<TailTpSet...>> {};
+      template<typename HeadTpSet, typename... TailTpSet>
+      using Coalesce_t = typename Coalesce<HeadTpSet, TailTpSet...>::type;
+
+      template<typename HeadTpSet>
+      struct Coalesce<HeadTpSet> {
+        using type = HeadTpSet;
       };
+      template<typename HeadTpSet, typename TailTpSet, typename... RestTpSets>
+      struct Coalesce<HeadTpSet, TailTpSet, RestTpSets...>
+        : Coalesce<Union_t<HeadTpSet, TailTpSet>, RestTpSets...> {};
 
       // Check whether the list contains duplicate types.
       template<typename TpList>
@@ -639,16 +601,16 @@ namespace pgbar {
       private:
         // VI: Virtual Inherit.
         template<bool VI,
-                 typename /* TemplateSet */ NodeSet,
+                 typename /* TemplateSet */ SetNode,
                  typename /* TemplateList */ SortedList,
                  typename /* TemplateSet */ SetVisitedVB>
         struct Helper;
         // Return the virtual base class node that was accessed during the recursive process.
-        template<bool VI, typename NodeSet, typename SortedList, typename SetVisitedVB>
-        using Helper_ps = typename Helper<VI, NodeSet, SortedList, SetVisitedVB>::pathset;
+        template<bool VI, typename SetNode, typename SortedList, typename SetVisitedVB>
+        using Helper_ps = typename Helper<VI, SetNode, SortedList, SetVisitedVB>::pathset;
         // Return the sorted list.
-        template<bool VI, typename NodeSet, typename SortedList, typename SetVisitedVB>
-        using Helper_tp = typename Helper<VI, NodeSet, SortedList, SetVisitedVB>::type;
+        template<bool VI, typename SetNode, typename SortedList, typename SetVisitedVB>
+        using Helper_tp = typename Helper<VI, SetNode, SortedList, SetVisitedVB>::type;
 
         template<bool VI, typename SortedList, typename SetVisitedVB>
         struct Helper<VI, TemplateSet<>, SortedList, SetVisitedVB> {
@@ -1637,12 +1599,52 @@ namespace pgbar {
         }
       };
 
-      // A simple UTF-8 string implementation.
-      class U8String final {
-        using Self = U8String;
+      // A simple UTF-8 string implementation, but it does not provide specific utf-8 codec operations.
+      class U8Raw {
+        using Self = U8Raw;
 
+      protected:
         types::Size width_;
         std::string bytes_;
+
+        /// @return The utf codepoint and the number of byte of the utf-8 character.
+        static __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR std::pair<types::UCodePoint, types::Size> next_char(
+          const types::Char* raw_u8_str,
+          types::Size length )
+        {
+          // After RFC 3629, the maximum length of each standard UTF-8 character is 4 bytes.
+          const auto first_byte = static_cast<types::UCodePoint>( *raw_u8_str );
+          auto validator        = [raw_u8_str, length]( types::Size expected_len ) {
+            if ( expected_len > length )
+              __PGBAR_UNLIKELY throw exception::InvalidArgument( "pgbar: incomplete UTF-8 string" );
+
+            for ( types::Size i = 1; i < expected_len; ++i ) {
+              if ( ( raw_u8_str[i] & 0xC0 ) != 0x80 )
+                __PGBAR_UNLIKELY throw exception::InvalidArgument( "pgbar: broken UTF-8 character" );
+            }
+            return expected_len;
+          };
+
+          if ( ( first_byte & 0x80 ) == 0 )
+            return std::make_pair( first_byte, 1 );
+          else if ( ( ( first_byte & 0xE0 ) == 0xC0 ) )
+            return std::make_pair( ( ( first_byte & 0x1F ) << 6 )
+                                     | ( static_cast<types::UCodePoint>( raw_u8_str[1] ) & 0x3F ),
+                                   validator( 2 ) );
+          else if ( ( first_byte & 0xF0 ) == 0xE0 )
+            return std::make_pair( ( ( first_byte & 0xF ) << 12 )
+                                     | ( ( static_cast<types::UCodePoint>( raw_u8_str[1] ) & 0x3F ) << 6 )
+                                     | ( static_cast<types::UCodePoint>( raw_u8_str[2] ) & 0x3F ),
+                                   validator( 3 ) );
+          else if ( ( first_byte & 0xF8 ) == 0xF0 )
+            return std::make_pair( ( ( first_byte & 0x7 ) << 18 )
+                                     | ( ( static_cast<types::UCodePoint>( raw_u8_str[1] ) & 0x3F ) << 12 )
+                                     | ( ( static_cast<types::UCodePoint>( raw_u8_str[2] ) & 0x3F ) << 6 )
+                                     | ( static_cast<types::UCodePoint>( raw_u8_str[3] ) & 0x3F ),
+                                   validator( 4 ) );
+          else
+            __PGBAR_UNLIKELY throw exception::InvalidArgument( "pgbar: not a standard UTF-8 string" );
+        }
 
       public:
         __PGBAR_NODISCARD static __PGBAR_INLINE_FN __PGBAR_CNSTEVAL std::array<CodeChart, 47>
@@ -1691,89 +1693,55 @@ namespace pgbar {
         __PGBAR_NODISCARD static __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::Size render_width(
           types::ROStr u8_str )
         {
-          types::Size width = 0;
+          types::Size width     = 0;
+          const auto raw_u8_str = u8_str.data();
           for ( types::Size i = 0; i < u8_str.size(); ) {
-            const auto raw_u8_str  = u8_str.data();
-            const auto start_point = raw_u8_str + i;
-            // After RFC 3629, the maximum length of each standard UTF-8 character is 4 bytes.
-            const auto first_byte  = static_cast<types::UCodePoint>( *start_point );
-            auto validator         = [start_point, raw_u8_str, &u8_str]( types::Size expected_len ) {
-              __PGBAR_TRUST( start_point >= raw_u8_str );
-              if ( u8_str.size() - ( start_point - raw_u8_str ) < expected_len )
-                __PGBAR_UNLIKELY throw exception::InvalidArgument( "pgbar: incomplete UTF-8 string" );
-
-              for ( types::Size i = 1; i < expected_len; ++i ) {
-                if ( ( start_point[i] & 0xC0 ) != 0x80 )
-                  __PGBAR_UNLIKELY throw exception::InvalidArgument( "pgbar: broken UTF-8 character" );
-              }
-            };
-
-            types::UCodePoint utf_codepoint = {};
-            if ( ( first_byte & 0x80 ) == 0 ) {
-              utf_codepoint = first_byte;
-              i += 1;
-            } else if ( ( ( first_byte & 0xE0 ) == 0xC0 ) ) {
-              validator( 2 );
-              utf_codepoint =
-                ( ( first_byte & 0x1F ) << 6 ) | ( static_cast<types::UCodePoint>( start_point[1] ) & 0x3F );
-              i += 2;
-            } else if ( ( first_byte & 0xF0 ) == 0xE0 ) {
-              validator( 3 );
-              utf_codepoint = ( ( first_byte & 0xF ) << 12 )
-                            | ( ( static_cast<types::UCodePoint>( start_point[1] ) & 0x3F ) << 6 )
-                            | ( static_cast<types::UCodePoint>( start_point[2] ) & 0x3F );
-              i += 3;
-            } else if ( ( first_byte & 0xF8 ) == 0xF0 ) {
-              validator( 4 );
-              utf_codepoint = ( ( first_byte & 0x7 ) << 18 )
-                            | ( ( static_cast<types::UCodePoint>( start_point[1] ) & 0x3F ) << 12 )
-                            | ( ( static_cast<types::UCodePoint>( start_point[2] ) & 0x3F ) << 6 )
-                            | ( static_cast<types::UCodePoint>( start_point[3] ) & 0x3F );
-              i += 4;
-            } else
-              __PGBAR_UNLIKELY throw exception::InvalidArgument( "pgbar: not a standard UTF-8 string" );
-
-            width += char_width( utf_codepoint );
+            const auto startpoint = raw_u8_str + i;
+            __PGBAR_TRUST( startpoint >= raw_u8_str );
+            auto parsed = next_char( startpoint, std::distance( startpoint, u8_str.data() + u8_str.size() ) );
+            width += char_width( parsed.first );
+            i += parsed.second;
           }
           return width;
         }
 
-        __PGBAR_CXX20_CNSTXPR U8String()
-          noexcept( std::is_nothrow_default_constructible<types::String>::value )
+        __PGBAR_CXX20_CNSTXPR U8Raw() noexcept( std::is_nothrow_default_constructible<types::String>::value )
           : width_ { 0 }
         {}
-        __PGBAR_CXX20_CNSTXPR explicit U8String( types::String u8_bytes ) : U8String()
+        __PGBAR_CXX20_CNSTXPR explicit U8Raw( types::String u8_bytes ) : U8Raw()
         {
           width_ = render_width( u8_bytes );
           bytes_ = std::move( u8_bytes );
         }
-        __PGBAR_CXX20_CNSTXPR U8String( const Self& )          = default;
-        __PGBAR_CXX20_CNSTXPR U8String( Self&& )               = default;
+        __PGBAR_CXX20_CNSTXPR U8Raw( const Self& )             = default;
+        __PGBAR_CXX20_CNSTXPR U8Raw( Self&& )                  = default;
         __PGBAR_CXX20_CNSTXPR Self& operator=( const Self& ) & = default;
         __PGBAR_CXX20_CNSTXPR Self& operator=( Self&& ) &      = default;
-        __PGBAR_CXX20_CNSTXPR ~U8String()                      = default;
+        __PGBAR_CXX20_CNSTXPR ~U8Raw()                         = default;
 
         __PGBAR_CXX20_CNSTXPR Self& operator=( types::ROStr u8_bytes ) &
         {
-          auto new_width = render_width( u8_bytes );
-          auto new_bytes = types::String( u8_bytes );
-          std::swap( width_, new_width );
+          const auto new_width = render_width( u8_bytes );
+          auto new_bytes       = types::String( u8_bytes );
           bytes_.swap( new_bytes );
+          width_ = new_width;
           return *this;
         }
         __PGBAR_CXX20_CNSTXPR Self& operator=( types::String u8_bytes ) &
         {
-          auto new_width = render_width( u8_bytes );
-          std::swap( width_, new_width );
+          width_ = render_width( u8_bytes );
           bytes_.swap( u8_bytes );
           return *this;
         }
 
-        __PGBAR_NODISCARD __PGBAR_CXX20_CNSTXPR bool empty() const noexcept { return bytes_.empty(); }
-        __PGBAR_CXX20_CNSTXPR types::Size size() const noexcept { return width_; }
-        __PGBAR_CXX20_CNSTXPR types::ROStr str() const noexcept { return bytes_; }
+        __PGBAR_CXX20_CNSTXPR bool empty() const noexcept { return bytes_.empty(); }
+        __PGBAR_CXX20_CNSTXPR types::Size size() const noexcept { return bytes_.size(); }
+        __PGBAR_CXX20_CNSTXPR types::Size width() const noexcept { return width_; }
+        __PGBAR_CXX20_CNSTXPR types::ROStr str() & noexcept { return bytes_; }
+        __PGBAR_CXX20_CNSTXPR types::ROStr str() const& noexcept { return bytes_; }
+        __PGBAR_CXX20_CNSTXPR types::String&& str() && noexcept { return std::move( bytes_ ); }
 
-        __PGBAR_CXX20_CNSTXPR void clear() noexcept
+        __PGBAR_CXX20_CNSTXPR void clear() noexcept( noexcept( bytes_.clear() ) )
         {
           bytes_.clear();
           width_ = 0;
@@ -1797,73 +1765,69 @@ namespace pgbar {
         __PGBAR_CXX20_CNSTXPR explicit operator types::String&&() && noexcept { return std::move( bytes_ ); }
         __PGBAR_CXX20_CNSTXPR operator types::ROStr() const noexcept { return str(); }
 
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( Self&& a,
+                                                                                         const Self& b )
+        {
+          a.bytes_.append( b.bytes_ );
+          a.width_ += b.width_;
+          return a;
+        }
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( const Self& a,
+                                                                                         const Self& b )
+        {
+          return Self( a ) + b;
+        }
         __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( types::String&& a,
                                                                                          const Self& b )
         {
           // Ensure strong exception safety.
-          const auto new_width = U8String::render_width( a );
+          const auto new_width = render_width( a );
           a.append( b.bytes_ );
-          auto ret   = U8String();
+          Self ret;
           ret.bytes_ = std::move( a );
           ret.width_ = new_width + b.width_;
           return ret;
-        }
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self
-          operator+( const types::String& a, const Self& b )
-        {
-          auto tmp = types::String( a );
-          tmp.append( b.bytes_ );
-          return Self( std::move( tmp ) );
         }
         template<types::Size N>
         __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( const char ( &a )[N],
                                                                                          const Self& b )
         {
-          auto tmp = types::String( a );
-          tmp.append( b.bytes_ );
-          return Self( std::move( tmp ) );
+          return types::String( a ) + b;
         }
         __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( const char* a,
                                                                                          const Self& b )
         {
-          auto tmp = types::String( a );
-          tmp.append( b.bytes_ );
-          return Self( std::move( tmp ) );
+          return types::String( a ) + b;
         }
-# if __PGBAR_CXX20
-        static_assert( sizeof( char8_t ) == sizeof( char ),
-                       "pgbar::__details::chaset::U8String: Unexpected type size mismatch" );
-
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( std::u8string_view a,
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( types::ROStr a,
                                                                                          const Self& b )
         {
-          auto tmp = Self( a );
-          tmp.bytes_.append( b.bytes_ );
-          return tmp;
-        }
-# endif
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( const Self& a,
-                                                                                         types::ROStr b )
-        {
-          auto tmp = a.bytes_;
-          tmp.append( b );
-          return Self( std::move( tmp ) );
+          return types::String( a ) + b;
         }
         __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( Self&& a,
                                                                                          types::ROStr b )
         {
-          const auto new_width = U8String::render_width( b );
+          const auto new_width = render_width( b );
           a.bytes_.append( b );
           a.width_ += new_width;
           return a;
         }
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( const Self& a,
+                                                                                         types::ROStr b )
+        {
+          return Self( a ) + b;
+        }
 
 # if __PGBAR_CXX20
-        __PGBAR_CXX20_CNSTXPR explicit U8String( std::u8string_view u8_sv ) : U8String()
+        static_assert( sizeof( char8_t ) == sizeof( char ),
+                       "pgbar::__details::chaset::U8Raw: Unexpected type size mismatch" );
+
+        __PGBAR_CXX20_CNSTXPR explicit U8Raw( std::u8string_view u8_sv ) : U8Raw()
         {
-          bytes_.resize( u8_sv.size() );
-          std::copy( u8_sv.cbegin(), u8_sv.cend(), bytes_.begin() );
-          width_ = render_width( bytes_ );
+          auto new_bytes = types::String( u8_sv.size(), '\0' );
+          std::copy( u8_sv.cbegin(), u8_sv.cend(), new_bytes.begin() );
+          width_ = render_width( new_bytes );
+          bytes_ = std::move( new_bytes );
         }
 
         __PGBAR_CXX20_CNSTXPR explicit operator std::u8string() const
@@ -1875,15 +1839,257 @@ namespace pgbar {
         }
 # endif
       };
+
+      class U8Text : public U8Raw {
+        using Self = U8Text;
+
+      protected:
+        // The starting offset (in byte) of each utf-8 character and its width.
+        std::vector<std::pair<types::Size, types::Size>> chars_;
+
+      public:
+        __PGBAR_NODISCARD static __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR
+          std::vector<std::pair<types::Size, types::Size>>
+          parse_char( types::ROStr u8_str )
+        {
+          std::vector<std::pair<types::Size, types::Size>> characters;
+          const auto raw_u8_str = u8_str.data();
+          for ( types::Size i = 0; i < u8_str.size(); ) {
+            const auto startpoint = raw_u8_str + i;
+            __PGBAR_TRUST( startpoint >= raw_u8_str );
+            auto resolved = U8Raw::next_char( startpoint, ( u8_str.data() + u8_str.size() ) - startpoint );
+            characters.emplace_back( i, U8Raw::char_width( resolved.first ) );
+            i += resolved.second;
+          }
+          return characters;
+        }
+
+        __PGBAR_CXX20_CNSTXPR U8Text() noexcept( std::is_nothrow_default_constructible<U8Raw>::value )
+          : U8Raw()
+        {}
+        __PGBAR_CXX20_CNSTXPR explicit U8Text( types::String u8_bytes ) : U8Text()
+        {
+          chars_ = parse_char( u8_bytes );
+          width_ =
+            std::accumulate( chars_.cbegin(),
+                             chars_.cend(),
+                             types::Size {},
+                             []( types::Size acc, const std::pair<types::Size, types::Size>& ch ) noexcept {
+                               return acc + ch.second;
+                             } );
+          bytes_ = std::move( u8_bytes );
+        }
+        __PGBAR_CXX20_CNSTXPR U8Text( const Self& )            = default;
+        __PGBAR_CXX20_CNSTXPR U8Text( Self&& )                 = default;
+        __PGBAR_CXX20_CNSTXPR Self& operator=( const Self& ) & = default;
+        __PGBAR_CXX20_CNSTXPR Self& operator=( Self&& ) &      = default;
+        __PGBAR_CXX20_CNSTXPR ~U8Text()                        = default;
+
+        __PGBAR_CXX20_CNSTXPR Self& operator=( types::ROStr u8_bytes ) &
+        {
+          auto new_chars = parse_char( u8_bytes );
+          auto new_bytes = types::String( u8_bytes );
+          chars_.swap( new_chars );
+          width_ =
+            std::accumulate( chars_.cbegin(),
+                             chars_.cend(),
+                             types::Size {},
+                             []( types::Size acc, const std::pair<types::Size, types::Size>& ch ) noexcept {
+                               return acc + ch.second;
+                             } );
+          bytes_.swap( new_bytes );
+          return *this;
+        }
+        __PGBAR_CXX20_CNSTXPR Self& operator=( types::String u8_bytes ) &
+        {
+          auto new_chars = parse_char( u8_bytes );
+          std::swap( chars_, new_chars );
+          chars_.swap( new_chars );
+          width_ =
+            std::accumulate( chars_.cbegin(),
+                             chars_.cend(),
+                             types::Size {},
+                             []( types::Size acc, const std::pair<types::Size, types::Size>& ch ) noexcept {
+                               return acc + ch.second;
+                             } );
+          bytes_.swap( u8_bytes );
+          return *this;
+        }
+
+        __PGBAR_CXX20_CNSTXPR void clear()
+          noexcept( noexcept( U8Raw::clear() ) && noexcept( chars_.clear() ) )
+        {
+          U8Raw::clear();
+          chars_.clear();
+        }
+        __PGBAR_CXX20_CNSTXPR void shrink_to_fit()
+          noexcept( noexcept( U8Raw::shrink_to_fit() ) && noexcept( chars_.shrink_to_fit() ) )
+        {
+          U8Raw::shrink_to_fit();
+          chars_.shrink_to_fit();
+        }
+
+        /**
+         * @brief Split a string into two parts based on the given length, with UTF-8 characters as the unit.
+         * @param length The given length.
+         * @return The split result and the width of each part, where the first element is the result not
+         * exceeding the length.
+         */
+        std::pair<std::array<const types::Char*, 3>, std::pair<types::Size, types::Size>> split_by(
+          types::Size length ) const noexcept
+        {
+          if ( bytes_.empty() )
+            __PGBAR_UNLIKELY return {
+              { nullptr, nullptr, nullptr },
+              std::make_pair( 0, 0 )
+            };
+
+          // split_pos is the starting point of the right part
+          types::Size split_pos  = 0;
+          types::Size left_width = 0;
+          while ( left_width + chars_[split_pos].second <= length && split_pos < chars_.size() )
+            left_width += chars_[split_pos++].second;
+
+          return {
+            { bytes_.data(),
+             bytes_.data() + ( split_pos < chars_.size() ? chars_[split_pos].first : bytes_.size() ),
+             bytes_.data() + bytes_.size() },
+            std::make_pair( left_width, width_ - left_width )
+          };
+        }
+
+        __PGBAR_CXX20_CNSTXPR void swap( Self& lhs ) noexcept
+        {
+          U8Raw::swap( lhs );
+          chars_.swap( lhs.chars_ );
+        }
+        __PGBAR_CXX20_CNSTXPR friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
+
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( Self&& a,
+                                                                                         const Self& b )
+        {
+          const auto num_a_char = a.chars_.size();
+          a.chars_.resize( a.chars_.size() + b.chars_.size() );
+          std::transform( b.chars_.cbegin(),
+                          b.chars_.cend(),
+                          a.chars_.begin() + num_a_char,
+                          [&a]( const std::pair<types::Size, types::Size>& ch ) noexcept {
+                            return std::make_pair( ch.first + a.size(), ch.second );
+                          } );
+          a.bytes_.append( b.bytes_ );
+          a.width_ += b.width_;
+          return a;
+        }
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( const Self& a,
+                                                                                         const Self& b )
+        {
+          return Self( a ) + b;
+        }
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( types::String&& a,
+                                                                                         const Self& b )
+        {
+          auto new_chars        = parse_char( a );
+          const auto num_a_char = new_chars.size();
+          new_chars.resize( new_chars.size() + b.chars_.size() );
+          std::transform( b.chars_.cbegin(),
+                          b.chars_.cend(),
+                          new_chars.begin() + num_a_char,
+                          [&a]( const std::pair<types::Size, types::Size>& ch ) noexcept {
+                            return std::make_pair( ch.first + a.size(), ch.second );
+                          } );
+          a.append( b.bytes_ );
+          U8Text ret;
+          ret.bytes_ = std::move( a );
+          ret.chars_ = std::move( new_chars );
+          ret.width_ =
+            std::accumulate( ret.chars_.cbegin(),
+                             ret.chars_.cend(),
+                             types::Size {},
+                             []( types::Size acc, const std::pair<types::Size, types::Size>& ch ) noexcept {
+                               return acc + ch.second;
+                             } );
+          return ret;
+        }
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( types::ROStr a,
+                                                                                         const Self& b )
+        {
+          return types::String( a ) + b;
+        }
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( Self&& a,
+                                                                                         types::ROStr b )
+        {
+          auto new_chars        = parse_char( b );
+          const auto num_b_char = new_chars.size();
+          new_chars.resize( new_chars.size() + a.chars_.size() );
+          std::transform( a.chars_.cbegin(),
+                          a.chars_.cend(),
+                          new_chars.begin() + num_b_char,
+                          [&b]( const std::pair<types::Size, types::Size>& ch ) noexcept {
+                            return std::make_pair( ch.first + b.size(), ch.second );
+                          } );
+          a.bytes_.append( b );
+          a.chars_ = std::move( new_chars );
+          a.width_ =
+            std::accumulate( a.chars_.cbegin(),
+                             a.chars_.cend(),
+                             types::Size {},
+                             []( types::Size acc, const std::pair<types::Size, types::Size>& ch ) noexcept {
+                               return acc + ch.second;
+                             } );
+          return a;
+        }
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( const Self& a,
+                                                                                         types::ROStr b )
+        {
+          return Self( a ) + b;
+        }
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( Self&& a,
+                                                                                         const U8Raw& b )
+        {
+          return std::move( a ) + b.str();
+        }
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( const Self& a,
+                                                                                         const U8Raw& b )
+        {
+          return Self( a ) + b.str();
+        }
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( U8Raw&& a,
+                                                                                         const Self& b )
+        {
+          return std::move( a ).str() + b;
+        }
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( const U8Raw& a,
+                                                                                         const Self& b )
+        {
+          return a.str() + b;
+        }
+
+# if __PGBAR_CXX20
+        __PGBAR_CXX20_CNSTXPR explicit U8Text( std::u8string_view u8_sv ) : U8Text()
+        {
+          auto new_bytes = types::String( u8_sv.size(), '\0' );
+          std::copy( u8_sv.cbegin(), u8_sv.cend(), new_bytes.begin() );
+          chars_ = parse_char( new_bytes );
+          width_ =
+            std::accumulate( chars_.cbegin(),
+                             chars_.cend(),
+                             types::Size {},
+                             []( types::Size acc, const std::pair<types::Size, types::Size>& ch ) noexcept {
+                               return acc + ch.second;
+                             } );
+          bytes_ = std::move( new_bytes );
+        }
+# endif
+      };
     } // namespace charcodes
 
     namespace utils {
       template<TxtLayout Style>
       __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::String format(
         types::Size width,
-        const charcodes::U8String& str ) noexcept( false )
+        const charcodes::U8Raw& str ) noexcept( false )
       {
-        return format<Style>( width, str.size(), str.str() );
+        return format<Style>( width, str.width(), str.str() );
       }
     } // namespace utils
 
@@ -2916,7 +3122,7 @@ namespace pgbar {
                                                               types::Size __num = 1 ) &
         {
           for ( types::Size _ = 0; _ < __num; ++_ )
-            buffer_.insert( buffer_.end(), info, info + N - 1 );
+            buffer_.insert( buffer_.end(), info, info + N );
           return *this;
         }
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& append( types::ROStr info, types::Size __num = 1 ) &
@@ -2925,17 +3131,24 @@ namespace pgbar {
             buffer_.insert( buffer_.end(), info.cbegin(), info.cend() );
           return *this;
         }
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& append( const charcodes::U8String& info,
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& append( const charcodes::U8Raw& info,
                                                               types::Size __num = 1 )
         {
           return append( info.str(), __num );
+        }
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& append( const types::Char* head,
+                                                              const types::Char* tail )
+        {
+          if ( head != nullptr && tail != nullptr )
+            buffer_.insert( buffer_.end(), head, tail );
+          return *this;
         }
 
         template<typename T>
         friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR typename std::enable_if<
           traits::AnyOf<std::is_same<typename std::decay<T>::type, types::Char>,
                         std::is_same<typename std::decay<T>::type, types::String>,
-                        std::is_same<typename std::decay<T>::type, charcodes::U8String>>::value,
+                        std::is_same<typename std::decay<T>::type, charcodes::U8Raw>>::value,
           Self&>::type
           operator<<( Self& stream, T&& info )
         {
@@ -3607,58 +3820,58 @@ namespace pgbar {
 # endif
 
     // A wrapper that stores the characters of the filler in the bar indicator.
-    struct Filler : __PGBAR_BASE( __details::charcodes::U8String ) {
-      __PGBAR_OPTIONS( Filler, __details::charcodes::U8String, _filler )
+    struct Filler : __PGBAR_BASE( __details::charcodes::U8Raw ) {
+      __PGBAR_OPTIONS( Filler, __details::charcodes::U8Raw, _filler )
     };
 
     // A wrapper that stores the characters of the remains in the bar indicator.
-    struct Remains : __PGBAR_BASE( __details::charcodes::U8String ) {
-      __PGBAR_OPTIONS( Remains, __details::charcodes::U8String, _remains )
+    struct Remains : __PGBAR_BASE( __details::charcodes::U8Raw ) {
+      __PGBAR_OPTIONS( Remains, __details::charcodes::U8Raw, _remains )
     };
 
     // A wrapper that stores characters located to the left of the bar indicator.
-    struct Starting : __PGBAR_BASE( __details::charcodes::U8String ) {
-      __PGBAR_OPTIONS( Starting, __details::charcodes::U8String, _starting )
+    struct Starting : __PGBAR_BASE( __details::charcodes::U8Raw ) {
+      __PGBAR_OPTIONS( Starting, __details::charcodes::U8Raw, _starting )
     };
 
     // A wrapper that stores characters located to the right of the bar indicator.
-    struct Ending : __PGBAR_BASE( __details::charcodes::U8String ) {
-      __PGBAR_OPTIONS( Ending, __details::charcodes::U8String, _ending )
+    struct Ending : __PGBAR_BASE( __details::charcodes::U8Raw ) {
+      __PGBAR_OPTIONS( Ending, __details::charcodes::U8Raw, _ending )
     };
 
     // A wrapper that stores the prefix text.
-    struct Prefix : __PGBAR_BASE( __details::charcodes::U8String ) {
-      __PGBAR_OPTIONS( Prefix, __details::charcodes::U8String, _prefix )
+    struct Prefix : __PGBAR_BASE( __details::charcodes::U8Raw ) {
+      __PGBAR_OPTIONS( Prefix, __details::charcodes::U8Raw, _prefix )
     };
 
     // A wrapper that stores the postfix text.
-    struct Postfix : __PGBAR_BASE( __details::charcodes::U8String ) {
-      __PGBAR_OPTIONS( Postfix, __details::charcodes::U8String, _postfix )
+    struct Postfix : __PGBAR_BASE( __details::charcodes::U8Raw ) {
+      __PGBAR_OPTIONS( Postfix, __details::charcodes::U8Raw, _postfix )
     };
 
     // A wrapper that stores the `true` message text.
-    struct TrueMesg : __PGBAR_BASE( __details::charcodes::U8String ) {
-      __PGBAR_OPTIONS( TrueMesg, __details::charcodes::U8String, _true_mesg )
+    struct TrueMesg : __PGBAR_BASE( __details::charcodes::U8Raw ) {
+      __PGBAR_OPTIONS( TrueMesg, __details::charcodes::U8Raw, _true_mesg )
     };
 
     // A wrapper that stores the `false` message text.
-    struct FalseMesg : __PGBAR_BASE( __details::charcodes::U8String ) {
-      __PGBAR_OPTIONS( FalseMesg, __details::charcodes::U8String, _false_mesg )
+    struct FalseMesg : __PGBAR_BASE( __details::charcodes::U8Raw ) {
+      __PGBAR_OPTIONS( FalseMesg, __details::charcodes::U8Raw, _false_mesg )
     };
 
     // A wrapper that stores the separator component used to separate different infomation.
-    struct Divider : __PGBAR_BASE( __details::charcodes::U8String ) {
-      __PGBAR_OPTIONS( Divider, __details::charcodes::U8String, _divider )
+    struct Divider : __PGBAR_BASE( __details::charcodes::U8Raw ) {
+      __PGBAR_OPTIONS( Divider, __details::charcodes::U8Raw, _divider )
     };
 
     // A wrapper that stores the border component located to the left of the whole indicator.
-    struct LeftBorder : __PGBAR_BASE( __details::charcodes::U8String ) {
-      __PGBAR_OPTIONS( LeftBorder, __details::charcodes::U8String, _l_border )
+    struct LeftBorder : __PGBAR_BASE( __details::charcodes::U8Raw ) {
+      __PGBAR_OPTIONS( LeftBorder, __details::charcodes::U8Raw, _l_border )
     };
 
     // A wrapper that stores the border component located to the right of the whole indicator.
-    struct RightBorder : __PGBAR_BASE( __details::charcodes::U8String ) {
-      __PGBAR_OPTIONS( RightBorder, __details::charcodes::U8String, _r_border )
+    struct RightBorder : __PGBAR_BASE( __details::charcodes::U8Raw ) {
+      __PGBAR_OPTIONS( RightBorder, __details::charcodes::U8Raw, _r_border )
     };
 
 # undef __PGBAR_OPTIONS
@@ -3745,7 +3958,7 @@ namespace pgbar {
      * @throw exception::InvalidArgument
      *   Thrown if any input string fails UTF-8 validation or the array size mismatches.
      */
-    struct SpeedUnit : __PGBAR_BASE( __PGBAR_PACK( std::array<__details::charcodes::U8String, 4> ) ) {
+    struct SpeedUnit : __PGBAR_BASE( __PGBAR_PACK( std::array<__details::charcodes::U8Raw, 4> ) ) {
       /**
        * @throw exception::InvalidArgument
        *
@@ -3757,12 +3970,11 @@ namespace pgbar {
        */
       __PGBAR_CXX20_CNSTXPR SpeedUnit( std::array<__details::types::String, 4> _units )
       {
-        std::transform( std::make_move_iterator( _units.begin() ),
-                        std::make_move_iterator( _units.end() ),
-                        data_.begin(),
-                        []( __details::types::String&& ele ) {
-                          return __details::charcodes::U8String( std::move( ele ) );
-                        } );
+        std::transform(
+          std::make_move_iterator( _units.begin() ),
+          std::make_move_iterator( _units.end() ),
+          data_.begin(),
+          []( __details::types::String&& ele ) { return __details::charcodes::U8Raw( std::move( ele ) ); } );
       }
 # if __PGBAR_CXX20
       /**
@@ -3773,16 +3985,16 @@ namespace pgbar {
       __PGBAR_CXX20_CNSTXPR SpeedUnit( std::array<std::u8string_view, 4> _units )
       {
         std::transform( _units.cbegin(), _units.cend(), data_.begin(), []( const std::u8string_view& ele ) {
-          return __details::charcodes::U8String( ele );
+          return __details::charcodes::U8Raw( ele );
         } );
       }
 # endif
     };
 
     // A wrapper that stores the `lead` animated element.
-    struct Lead : __PGBAR_BASE( std::vector<__details::charcodes::U8String> ) {
+    struct Lead : __PGBAR_BASE( std::vector<__details::charcodes::U8Text> ) {
     private:
-      using Base = __details::wrappers::OptionWrapper<std::vector<__details::charcodes::U8String>>;
+      using Base = __details::wrappers::OptionWrapper<std::vector<__details::charcodes::U8Text>>;
 
     public:
       /**
@@ -3792,12 +4004,11 @@ namespace pgbar {
        */
       __PGBAR_CXX20_CNSTXPR Lead( std::vector<__details::types::String> _leads )
       {
-        std::transform( std::make_move_iterator( _leads.begin() ),
-                        std::make_move_iterator( _leads.end() ),
-                        std::back_inserter( data_ ),
-                        []( __details::types::String&& ele ) {
-                          return __details::charcodes::U8String( std::move( ele ) );
-                        } );
+        std::transform(
+          std::make_move_iterator( _leads.begin() ),
+          std::make_move_iterator( _leads.end() ),
+          std::back_inserter( data_ ),
+          []( __details::types::String&& ele ) { return __details::charcodes::U8Text( std::move( ele ) ); } );
       }
       /**
        * @throw exception::InvalidArgument
@@ -3805,18 +4016,17 @@ namespace pgbar {
        * If the passed parameters are not coding in UTF-8.
        */
       __PGBAR_CXX20_CNSTXPR Lead( __details::types::String _lead )
-        : Base( { __details::charcodes::U8String( std::move( _lead ) ) } )
+        : Base( { __details::charcodes::U8Text( std::move( _lead ) ) } )
       {}
 # if __PGBAR_CXX20
       __PGBAR_CXX20_CNSTXPR Lead( const std::vector<std::u8string_view>& _leads )
       {
-        std::transform(
-          _leads.cbegin(),
-          _leads.cend(),
-          std::back_inserter( data_ ),
-          []( const std::u8string_view& ele ) { return __details::charcodes::U8String( ele ); } );
+        std::transform( _leads.cbegin(),
+                        _leads.cend(),
+                        std::back_inserter( data_ ),
+                        []( const std::u8string_view& ele ) { return __details::charcodes::U8Text( ele ); } );
       }
-      Lead( const std::u8string_view& _lead ) : Base( { __details::charcodes::U8String( _lead ) } ) {}
+      Lead( const std::u8string_view& _lead ) : Base( { __details::charcodes::U8Text( _lead ) } ) {}
 # endif
     };
 
@@ -3827,14 +4037,14 @@ namespace pgbar {
   namespace __details {
     // The Basic components of the progress bar.
     namespace assets {
-# define __PGBAR_NONEMPTY_CLASS( ClassName, Constexpr )           \
+# define __PGBAR_NONEMPTY_COMPONENT( ClassName, Constexpr )       \
    Constexpr ClassName( const ClassName& )             = default; \
    Constexpr ClassName( ClassName&& )                  = default; \
    Constexpr ClassName& operator=( const ClassName& )& = default; \
    Constexpr ClassName& operator=( ClassName&& )&      = default; \
    __PGBAR_CXX20_CNSTXPR ~ClassName()                  = default;
 
-# define __PGBAR_EMPTY_CLASS( ClassName )                                     \
+# define __PGBAR_EMPTY_COMPONENT( ClassName )                                 \
    constexpr ClassName()                                           = default; \
    constexpr ClassName( const ClassName& )                         = default; \
    constexpr ClassName( ClassName&& )                              = default; \
@@ -3934,7 +4144,7 @@ namespace pgbar {
 
       public:
         constexpr TaskQuantity() = default;
-        __PGBAR_NONEMPTY_CLASS( TaskQuantity, __PGBAR_CXX14_CNSTXPR )
+        __PGBAR_NONEMPTY_COMPONENT( TaskQuantity, __PGBAR_CXX14_CNSTXPR )
 
         // Set the number of tasks, passing in zero is no exception.
         Derived& tasks( std::uint64_t param ) & noexcept
@@ -3968,34 +4178,35 @@ namespace pgbar {
         {
           if ( std::all_of( val.value().cbegin(),
                             val.value().cend(),
-                            []( const charcodes::U8String& ele ) noexcept { return ele.empty(); } ) ) {
+                            []( const charcodes::U8Raw& ele ) noexcept { return ele.empty(); } ) ) {
             cfg.lead_.clear();
-            cfg.size_longest_lead_ = 0;
+            cfg.len_longest_lead_ = 0;
           } else {
-            cfg.lead_              = std::move( val.value() );
-            cfg.size_longest_lead_ = std::max_element( cfg.lead_.cbegin(),
-                                                       cfg.lead_.cend(),
-                                                       []( types::ROStr a, types::ROStr b ) noexcept {
-                                                         return a.size() < b.size();
-                                                       } )
-                                       ->size();
+            cfg.lead_ = std::move( val.value() );
+            cfg.len_longest_lead_ =
+              std::max_element( cfg.lead_.cbegin(),
+                                cfg.lead_.cend(),
+                                []( const charcodes::U8Raw& a, const charcodes::U8Raw& b ) noexcept {
+                                  return a.width() < b.width();
+                                } )
+                ->width();
           }
         }
 
       protected:
         types::String lead_col_;
-        std::vector<charcodes::U8String> lead_;
-        types::Size size_longest_lead_;
+        std::vector<charcodes::U8Text> lead_;
+        types::Size len_longest_lead_;
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::Size fixed_len_frames()
           const noexcept
         {
-          return size_longest_lead_;
+          return len_longest_lead_;
         }
 
       public:
         __PGBAR_CXX20_CNSTXPR Frames() = default;
-        __PGBAR_NONEMPTY_CLASS( Frames, __PGBAR_CXX20_CNSTXPR )
+        __PGBAR_NONEMPTY_COMPONENT( Frames, __PGBAR_CXX20_CNSTXPR )
 
 # define __PGBAR_METHOD( OptionName, ParamName, Operation )         \
    std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
@@ -4035,7 +4246,7 @@ namespace pgbar {
           using std::swap;
           lead_col_.swap( lhs.lead_col_ );
           lead_.swap( lhs.lead_ );
-          swap( size_longest_lead_, lhs.size_longest_lead_ );
+          swap( len_longest_lead_, lhs.len_longest_lead_ );
           Base::swap( lhs );
         }
       };
@@ -4052,12 +4263,12 @@ namespace pgbar {
 # undef __PGBAR_UNPAKING
 
       protected:
-        charcodes::U8String filler_;
+        charcodes::U8Raw filler_;
         types::String filler_col_;
 
       public:
         __PGBAR_CXX20_CNSTXPR Filler() = default;
-        __PGBAR_NONEMPTY_CLASS( Filler, __PGBAR_CXX20_CNSTXPR )
+        __PGBAR_NONEMPTY_COMPONENT( Filler, __PGBAR_CXX20_CNSTXPR )
 
 # define __PGBAR_METHOD( OptionName, ParamName, Operation )         \
    std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
@@ -4109,11 +4320,11 @@ namespace pgbar {
 
       protected:
         types::String remains_col_;
-        charcodes::U8String remains_;
+        charcodes::U8Raw remains_;
 
       public:
         __PGBAR_CXX20_CNSTXPR Remains() = default;
-        __PGBAR_NONEMPTY_CLASS( Remains, __PGBAR_CXX20_CNSTXPR )
+        __PGBAR_NONEMPTY_COMPONENT( Remains, __PGBAR_CXX20_CNSTXPR )
 
 # define __PGBAR_METHOD( OptionName, ParamName, Operation )         \
    std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
@@ -4166,7 +4377,7 @@ namespace pgbar {
 
       public:
         __PGBAR_CXX20_CNSTXPR BasicAnimation() = default;
-        __PGBAR_NONEMPTY_CLASS( BasicAnimation, __PGBAR_CXX20_CNSTXPR )
+        __PGBAR_NONEMPTY_COMPONENT( BasicAnimation, __PGBAR_CXX20_CNSTXPR )
 
         /**
          * Set the rate factor of the animation with negative value slowing down the switch per frame
@@ -4208,17 +4419,17 @@ namespace pgbar {
 
       protected:
         types::Size bar_length_;
-        charcodes::U8String starting_, ending_;
+        charcodes::U8Raw starting_, ending_;
         types::String start_col_, end_col_;
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::Size fixed_len_bar() const noexcept
         {
-          return starting_.size() + ending_.size();
+          return starting_.width() + ending_.width();
         }
 
       public:
         __PGBAR_CXX20_CNSTXPR BasicIndicator() = default;
-        __PGBAR_NONEMPTY_CLASS( BasicIndicator, __PGBAR_CXX20_CNSTXPR )
+        __PGBAR_NONEMPTY_COMPONENT( BasicIndicator, __PGBAR_CXX20_CNSTXPR )
 
 # define __PGBAR_METHOD( OptionName, ParamName, Operation )         \
    std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
@@ -4299,9 +4510,9 @@ namespace pgbar {
           __PGBAR_TRUST( len_finished + len_unfinished == this->bar_length_ );
 
           // build filler_
-          if ( !this->filler_.empty() && this->filler_.size() <= len_finished ) {
-            const types::Size fill_num  = len_finished / this->filler_.size(),
-                              remaining = len_finished % this->filler_.size();
+          if ( !this->filler_.empty() && this->filler_.width() <= len_finished ) {
+            const types::Size fill_num  = len_finished / this->filler_.width(),
+                              remaining = len_finished % this->filler_.width();
             len_unfinished += remaining;
             buffer.append( this->filler_, fill_num );
           } else
@@ -4309,20 +4520,19 @@ namespace pgbar {
           // build lead_
           this->try_reset( buffer );
           if ( !this->lead_.empty() ) {
-            num_frame_cnt = static_cast<types::Size>( num_frame_cnt * this->shift_factor_ );
-            num_frame_cnt %= this->lead_.size();
-            const auto& current_lead = this->lead_[num_frame_cnt];
-            if ( current_lead.size() <= len_unfinished ) {
-              len_unfinished -= current_lead.size();
+            num_frame_cnt            = static_cast<types::Size>( num_frame_cnt * this->shift_factor_ );
+            const auto& current_lead = this->lead_[num_frame_cnt % this->lead_.size()];
+            if ( current_lead.width() <= len_unfinished ) {
+              len_unfinished -= current_lead.width();
               this->try_dye( buffer, this->lead_col_ ) << current_lead;
               this->try_reset( buffer );
             }
           }
           // build remains_
           this->try_dye( buffer, this->remains_col_ );
-          if ( !this->remains_.empty() && this->remains_.size() <= len_unfinished )
-            buffer.append( this->remains_, len_unfinished / this->remains_.size() )
-              .append( constants::blank, len_unfinished % this->remains_.size() );
+          if ( !this->remains_.empty() && this->remains_.width() <= len_unfinished )
+            buffer.append( this->remains_, len_unfinished / this->remains_.width() )
+              .append( constants::blank, len_unfinished % this->remains_.width() );
           else
             buffer.append( constants::blank, len_unfinished );
 
@@ -4331,7 +4541,7 @@ namespace pgbar {
         }
 
       public:
-        __PGBAR_EMPTY_CLASS( CharIndic )
+        __PGBAR_EMPTY_COMPONENT( CharIndic )
       };
 
       template<typename Base, typename Derived>
@@ -4375,38 +4585,35 @@ namespace pgbar {
         }
 
       public:
-        __PGBAR_EMPTY_CLASS( BlockIndic )
+        __PGBAR_EMPTY_COMPONENT( BlockIndic )
       };
 
       template<typename Base, typename Derived>
-      class SpinnerIndic : public Base {
+      class SpinIndic : public Base {
       protected:
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& build_spinner(
-          io::Stringbuf& buffer,
-          types::Size num_frame_cnt ) const
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& build_spin( io::Stringbuf& buffer,
+                                                                           types::Size num_frame_cnt ) const
         {
           if ( this->lead_.empty() )
             return buffer;
           num_frame_cnt = static_cast<types::Size>( num_frame_cnt * this->shift_factor_ );
           num_frame_cnt %= this->lead_.size();
-          __PGBAR_ASSERT( this->size_longest_lead_ >= this->lead_[num_frame_cnt].size() );
+          __PGBAR_ASSERT( this->len_longest_lead_ >= this->lead_[num_frame_cnt].width() );
 
           this->try_reset( buffer );
           return this->try_style( buffer, this->lead_col_ )
-              << utils::format<utils::TxtLayout::Left>( this->size_longest_lead_,
-                                                        this->lead_[num_frame_cnt] );
+              << utils::format<utils::TxtLayout::Left>( this->len_longest_lead_, this->lead_[num_frame_cnt] );
         }
 
       public:
-        __PGBAR_EMPTY_CLASS( SpinnerIndic )
+        __PGBAR_EMPTY_COMPONENT( SpinIndic )
       };
 
       template<typename Base, typename Derived>
-      class SweeperIndic : public Base {
+      class SweepIndic : public Base {
       protected:
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& build_sweeper(
-          io::Stringbuf& buffer,
-          types::Size num_frame_cnt ) const
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& build_sweep( io::Stringbuf& buffer,
+                                                                            types::Size num_frame_cnt ) const
         {
           if ( this->bar_length_ == 0 )
             return buffer;
@@ -4419,7 +4626,8 @@ namespace pgbar {
 
           if ( !this->lead_.empty() ) {
             const auto& current_lead = this->lead_[num_frame_cnt % this->lead_.size()];
-            if ( current_lead.size() <= this->bar_length_ ) {
+            if ( current_lead.width() <= this->bar_length_ ) {
+              // virtual_point is a value between 1 and this->bar_length
               const auto virtual_point = [this, num_frame_cnt]() noexcept -> types::Size {
                 if ( this->bar_length_ == 1 )
                   return 1;
@@ -4428,39 +4636,101 @@ namespace pgbar {
                 return pos < this->bar_length_ ? pos + 1 : 2 * this->bar_length_ - pos - 1;
               }();
               const auto len_left_fill = [this, virtual_point, &current_lead]() noexcept -> types::Size {
-                const auto len_half_lead = ( current_lead.size() / 2 ) + current_lead.size() % 2;
+                const auto len_half_lead = ( current_lead.width() / 2 ) + current_lead.width() % 2;
                 if ( virtual_point <= len_half_lead )
                   return 0;
-                const auto len_unreach = this->bar_length_ - virtual_point;
-                if ( len_unreach <= len_half_lead - current_lead.size() % 2 )
-                  return this->bar_length_ - current_lead.size();
+                const auto len_unreached = this->bar_length_ - virtual_point;
+                if ( len_unreached <= len_half_lead - current_lead.width() % 2 )
+                  return this->bar_length_ - current_lead.width();
 
                 return virtual_point - len_half_lead;
               }();
-              const auto len_right_fill = this->bar_length_ - ( len_left_fill + current_lead.size() );
-              __PGBAR_ASSERT( len_left_fill + len_right_fill + current_lead.size() == this->bar_length_ );
+              const auto len_right_fill = this->bar_length_ - ( len_left_fill + current_lead.width() );
+              __PGBAR_ASSERT( len_left_fill + len_right_fill + current_lead.width() == this->bar_length_ );
 
-              buffer.append( this->filler_, len_left_fill / this->filler_.size() )
-                .append( constants::blank, len_left_fill % this->filler_.size() );
+              buffer.append( this->filler_, len_left_fill / this->filler_.width() )
+                .append( constants::blank, len_left_fill % this->filler_.width() );
               this->try_reset( buffer ).append( this->lead_col_ ).append( current_lead );
               this->try_reset( buffer )
                 .append( this->filler_col_ )
-                .append( constants::blank, len_right_fill % this->filler_.size() )
-                .append( this->filler_, len_right_fill / this->filler_.size() );
+                .append( constants::blank, len_right_fill % this->filler_.width() )
+                .append( this->filler_, len_right_fill / this->filler_.width() );
             } else
               buffer.append( constants::blank, this->bar_length_ );
           } else if ( this->filler_.empty() )
             buffer.append( constants::blank, this->bar_length_ );
           else
-            buffer.append( this->filler_, this->bar_length_ / this->filler_.size() )
-              .append( constants::blank, this->bar_length_ % this->filler_.size() );
+            buffer.append( this->filler_, this->bar_length_ / this->filler_.width() )
+              .append( constants::blank, this->bar_length_ % this->filler_.width() );
 
           this->try_reset( buffer );
           return this->try_dye( buffer, this->end_col_ ) << this->ending_;
         }
 
       public:
-        __PGBAR_EMPTY_CLASS( SweeperIndic )
+        __PGBAR_EMPTY_COMPONENT( SweepIndic )
+      };
+
+      template<typename Base, typename Derived>
+      class FlowIndic : public Base {
+      protected:
+        __PGBAR_INLINE_FN __PGBAR_CXX23_CNSTXPR io::Stringbuf& build_flow( io::Stringbuf& buffer,
+                                                                           types::Size num_frame_cnt ) const
+        {
+          if ( this->bar_length_ == 0 )
+            return buffer;
+
+          num_frame_cnt = static_cast<types::Size>( num_frame_cnt * this->shift_factor_ );
+          this->try_reset( buffer );
+          this->try_dye( buffer, this->start_col_ ) << this->starting_;
+          this->try_reset( buffer );
+
+          if ( !this->lead_.empty() ) {
+            const auto& current_lead = this->lead_[num_frame_cnt % this->lead_.size()];
+            if ( current_lead.width() <= this->bar_length_ ) {
+              // virtual_point is a value between 0 and this->bar_length - 1
+              const auto virtual_point = num_frame_cnt % this->bar_length_;
+              const auto len_vacancy   = this->bar_length_ - virtual_point - 1;
+
+              if ( current_lead.width() <= len_vacancy ) {
+                const auto len_right_fill = len_vacancy - current_lead.width();
+
+                this->try_dye( buffer, this->filler_col_ );
+                buffer.append( this->filler_, virtual_point / this->filler_.width() )
+                  .append( constants::blank, virtual_point % this->filler_.width() );
+                this->try_reset( buffer ).append( this->lead_col_ ).append( current_lead );
+                this->try_reset( buffer )
+                  .append( this->filler_col_ )
+                  .append( constants::blank, len_right_fill % this->filler_.width() )
+                  .append( this->filler_, len_right_fill / this->filler_.width() );
+              } else {
+                const auto division      = current_lead.split_by( len_vacancy );
+                const auto len_left_fill = virtual_point - division.second.second;
+
+                buffer.append( this->lead_col_ ).append( division.first[1], division.first[2] );
+                this->try_reset( buffer );
+                this->try_dye( buffer, this->filler_col_ )
+                  .append( constants::blank, len_left_fill % this->filler_.width() )
+                  .append( this->filler_, len_left_fill / this->filler_.width() );
+                this->try_reset( buffer );
+                buffer.append( this->lead_col_ )
+                  .append( division.first[0], division.first[1] )
+                  .append( constants::blank, len_vacancy - division.second.first );
+              }
+            } else
+              buffer.append( constants::blank, this->bar_length_ );
+          } else if ( this->filler_.empty() )
+            buffer.append( constants::blank, this->bar_length_ );
+          else
+            buffer.append( this->filler_, this->bar_length_ / this->filler_.width() )
+              .append( constants::blank, this->bar_length_ % this->filler_.width() );
+
+          this->try_reset( buffer );
+          return this->try_dye( buffer, this->end_col_ ) << this->ending_;
+        }
+
+      public:
+        __PGBAR_EMPTY_COMPONENT( FlowIndic )
       };
 
       template<typename Base, typename Derived>
@@ -4483,9 +4753,9 @@ namespace pgbar {
         types::String true_col_;
         types::String false_col_;
 
-        charcodes::U8String prefix_;
-        charcodes::U8String true_mesg_;
-        charcodes::U8String false_mesg_;
+        charcodes::U8Raw prefix_;
+        charcodes::U8Raw true_mesg_;
+        charcodes::U8Raw false_mesg_;
 
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& build_prefix( io::Stringbuf& buffer ) const
         {
@@ -4507,12 +4777,12 @@ namespace pgbar {
         __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::Size fixed_len_prefix()
           const noexcept
         {
-          return ( std::max )( ( std::max )( true_mesg_.size(), false_mesg_.size() ), prefix_.size() );
+          return ( std::max )( ( std::max )( true_mesg_.width(), false_mesg_.width() ), prefix_.width() );
         }
 
       public:
         __PGBAR_CXX20_CNSTXPR Prefix() = default;
-        __PGBAR_NONEMPTY_CLASS( Prefix, __PGBAR_CXX20_CNSTXPR )
+        __PGBAR_NONEMPTY_COMPONENT( Prefix, __PGBAR_CXX20_CNSTXPR )
 
 # define __PGBAR_METHOD( OptionName, ParamName, Operation )         \
    std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
@@ -4598,7 +4868,7 @@ namespace pgbar {
 
       protected:
         types::String pstfx_col_;
-        charcodes::U8String postfix_;
+        charcodes::U8Raw postfix_;
 
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& build_postfix( io::Stringbuf& buffer ) const
         {
@@ -4611,12 +4881,12 @@ namespace pgbar {
         __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::Size fixed_len_postfix()
           const noexcept
         {
-          return postfix_.size();
+          return postfix_.width();
         }
 
       public:
         __PGBAR_CXX20_CNSTXPR Postfix() = default;
-        __PGBAR_NONEMPTY_CLASS( Postfix, __PGBAR_CXX20_CNSTXPR )
+        __PGBAR_NONEMPTY_COMPONENT( Postfix, __PGBAR_CXX20_CNSTXPR )
 
 # define __PGBAR_METHOD( OptionName, ParamName, Operation )         \
    std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
@@ -4672,22 +4942,22 @@ namespace pgbar {
 
       protected:
         types::String info_col_;
-        charcodes::U8String divider_;
-        charcodes::U8String l_border_, r_border_;
+        charcodes::U8Raw divider_;
+        charcodes::U8Raw l_border_, r_border_;
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::Size fixed_len_segment(
           types::Size num_column ) const noexcept
         {
           switch ( num_column ) {
           case 0:  return 0;
-          case 1:  return l_border_.size() + r_border_.size();
-          default: return ( num_column - 1 ) * divider_.size() + l_border_.size() + r_border_.size();
+          case 1:  return l_border_.width() + r_border_.width();
+          default: return ( num_column - 1 ) * divider_.width() + l_border_.width() + r_border_.width();
           }
         }
 
       public:
         __PGBAR_CXX20_CNSTXPR Segment() = default;
-        __PGBAR_NONEMPTY_CLASS( Segment, __PGBAR_CXX20_CNSTXPR )
+        __PGBAR_NONEMPTY_COMPONENT( Segment, __PGBAR_CXX20_CNSTXPR )
 
 # define __PGBAR_METHOD( OptionName, ParamName, Operation )         \
    std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
@@ -4770,7 +5040,7 @@ namespace pgbar {
         }
 
       public:
-        __PGBAR_EMPTY_CLASS( PercentMeter )
+        __PGBAR_EMPTY_COMPONENT( PercentMeter )
       };
 # undef __PGBAR_DEFAULT_PERCENT
 
@@ -4779,9 +5049,10 @@ namespace pgbar {
         friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( SpeedMeter& cfg,
                                                                       option::SpeedUnit&& val ) noexcept
         {
-          cfg.units_        = std::move( val.value() );
-          cfg.longest_unit_ = ( std::max )( ( std::max )( cfg.units_[0].size(), cfg.units_[1].size() ),
-                                            ( std::max )( cfg.units_[2].size(), cfg.units_[3].size() ) );
+          cfg.units_ = std::move( val.value() );
+          cfg.len_longest_unit_ =
+            ( std::max )( ( std::max )( cfg.units_[0].width(), cfg.units_[1].width() ),
+                          ( std::max )( cfg.units_[2].width(), cfg.units_[3].width() ) );
         }
         friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( SpeedMeter& cfg,
                                                                       option::Magnitude&& val ) noexcept
@@ -4793,8 +5064,8 @@ namespace pgbar {
         static constexpr types::Size _fixed_length = sizeof( __PGBAR_DEFAULT_SPEED ) - 1;
 
       protected:
-        std::array<charcodes::U8String, 4> units_;
-        types::Size longest_unit_;
+        std::array<charcodes::U8Raw, 4> units_;
+        types::Size len_longest_unit_;
         std::uint16_t magnitude_;
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN types::String build_speed( const types::TimeUnit& time_passed,
@@ -4803,7 +5074,7 @@ namespace pgbar {
         {
           __PGBAR_TRUST( num_task_done <= num_all_tasks );
           if ( num_all_tasks == 0 )
-            __PGBAR_UNLIKELY return utils::format<utils::TxtLayout::Right>( _fixed_length + longest_unit_,
+            __PGBAR_UNLIKELY return utils::format<utils::TxtLayout::Right>( _fixed_length + len_longest_unit_,
                                                                             "-- " + units_.front() );
 
           const auto seconds_passed    = std::chrono::duration<types::Float>( time_passed ).count();
@@ -4833,17 +5104,17 @@ namespace pgbar {
               rate_str = utils::format( remains, 2 ) + ' ' + units_[3];
           }
 
-          return utils::format<utils::TxtLayout::Right>( _fixed_length + longest_unit_, rate_str );
+          return utils::format<utils::TxtLayout::Right>( _fixed_length + len_longest_unit_, rate_str );
         }
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr types::Size fixed_len_speed() const noexcept
         {
-          return _fixed_length + longest_unit_;
+          return _fixed_length + len_longest_unit_;
         }
 
       public:
         __PGBAR_CXX20_CNSTXPR SpeedMeter() = default;
-        __PGBAR_NONEMPTY_CLASS( SpeedMeter, __PGBAR_CXX20_CNSTXPR )
+        __PGBAR_NONEMPTY_COMPONENT( SpeedMeter, __PGBAR_CXX20_CNSTXPR )
 
 # define __PGBAR_METHOD( OptionName, ParamName )                    \
    std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
@@ -4886,7 +5157,7 @@ namespace pgbar {
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void swap( SpeedMeter& lhs ) & noexcept
         {
           units_.swap( lhs.units_ );
-          std::swap( longest_unit_, lhs.longest_unit_ );
+          std::swap( len_longest_unit_, lhs.len_longest_unit_ );
           Base::swap( lhs );
         }
       };
@@ -4916,7 +5187,7 @@ namespace pgbar {
         }
 
       public:
-        __PGBAR_EMPTY_CLASS( CounterMeter )
+        __PGBAR_EMPTY_COMPONENT( CounterMeter )
       };
 
       template<typename Base, typename Derived>
@@ -4992,7 +5263,7 @@ namespace pgbar {
         }
 
       public:
-        __PGBAR_EMPTY_CLASS( Timer )
+        __PGBAR_EMPTY_COMPONENT( Timer )
       };
 # undef __PGBAR_DEFAULT_TIMER
 # undef __PGBAR_TIMER_SEGMENT
@@ -5011,8 +5282,13 @@ namespace pgbar {
         assets::BlockIndic,
         assets::TaskQuantity,
         __PGBAR_PACK( assets::Frames, assets::BasicIndicator, assets::Filler, assets::Remains ) );
-      __PGBAR_INHERIT_REGISTER( assets::SpinnerIndic, , assets::BasicAnimation );
-      __PGBAR_INHERIT_REGISTER( assets::SweeperIndic,
+      __PGBAR_INHERIT_REGISTER( assets::SpinIndic, , assets::BasicAnimation );
+      __PGBAR_INHERIT_REGISTER( assets::SweepIndic,
+                                ,
+                                __PGBAR_PACK( assets::BasicAnimation,
+                                              assets::BasicIndicator,
+                                              assets::Filler ) );
+      __PGBAR_INHERIT_REGISTER( assets::FlowIndic,
                                 ,
                                 __PGBAR_PACK( assets::BasicAnimation,
                                               assets::BasicIndicator,
@@ -5026,7 +5302,7 @@ namespace pgbar {
 
       template<template<typename...> class Component>
       struct OptionFor {
-        using type = TypeList<>;
+        using type = TypeSet<>;
       };
       template<template<typename...> class Component>
       using OptionFor_t = typename OptionFor<Component>::type;
@@ -5034,7 +5310,7 @@ namespace pgbar {
 # define __PGBAR_BIND_OPTION( Component, ... ) \
    template<>                                  \
    struct OptionFor<Component> {               \
-     using type = TypeList<__VA_ARGS__>;       \
+     using type = TypeSet<__VA_ARGS__>;        \
    }
 
       __PGBAR_BIND_OPTION( assets::CoreConfig, option::Colored, option::Bolded );
@@ -5066,35 +5342,38 @@ namespace pgbar {
       __PGBAR_BIND_OPTION( assets::SpeedMeter, option::SpeedUnit, option::Magnitude );
 
       template<>
-      struct OptionFor<assets::CharIndic> {
-        using type = Merge_t<OptionFor_t<assets::TaskQuantity>,
-                             OptionFor_t<assets::Frames>,
-                             OptionFor_t<assets::Filler>,
-                             OptionFor_t<assets::Remains>,
-                             OptionFor_t<assets::BasicAnimation>,
-                             OptionFor_t<assets::BasicIndicator>>;
-      };
+      struct OptionFor<assets::CharIndic>
+        : Coalesce<OptionFor_t<assets::TaskQuantity>,
+                   OptionFor_t<assets::Frames>,
+                   OptionFor_t<assets::Filler>,
+                   OptionFor_t<assets::Remains>,
+                   OptionFor_t<assets::BasicAnimation>,
+                   OptionFor_t<assets::BasicIndicator>> {};
       template<>
-      struct OptionFor<assets::BlockIndic> {
-        using type = Merge_t<OptionFor_t<assets::TaskQuantity>,
-                             OptionFor_t<assets::Frames>,
-                             OptionFor_t<assets::Filler>,
-                             OptionFor_t<assets::Remains>,
-                             OptionFor_t<assets::BasicAnimation>,
-                             OptionFor_t<assets::BasicIndicator>>;
-      };
+      struct OptionFor<assets::BlockIndic>
+        : Coalesce<OptionFor_t<assets::TaskQuantity>,
+                   OptionFor_t<assets::Frames>,
+                   OptionFor_t<assets::Filler>,
+                   OptionFor_t<assets::Remains>,
+                   OptionFor_t<assets::BasicAnimation>,
+                   OptionFor_t<assets::BasicIndicator>> {};
       template<>
-      struct OptionFor<assets::SpinnerIndic> {
-        using type = Merge_t<OptionFor_t<assets::TaskQuantity>, OptionFor_t<assets::BasicAnimation>>;
-      };
+      struct OptionFor<assets::SpinIndic>
+        : Coalesce<OptionFor_t<assets::TaskQuantity>, OptionFor_t<assets::BasicAnimation>> {};
       template<>
-      struct OptionFor<assets::SweeperIndic> {
-        using type = Merge_t<OptionFor_t<assets::TaskQuantity>,
-                             OptionFor_t<assets::Frames>,
-                             OptionFor_t<assets::Filler>,
-                             OptionFor_t<assets::BasicAnimation>,
-                             OptionFor_t<assets::BasicIndicator>>;
-      };
+      struct OptionFor<assets::SweepIndic>
+        : Coalesce<OptionFor_t<assets::TaskQuantity>,
+                   OptionFor_t<assets::Frames>,
+                   OptionFor_t<assets::Filler>,
+                   OptionFor_t<assets::BasicAnimation>,
+                   OptionFor_t<assets::BasicIndicator>> {};
+      template<>
+      struct OptionFor<assets::FlowIndic>
+        : Coalesce<OptionFor_t<assets::TaskQuantity>,
+                   OptionFor_t<assets::Frames>,
+                   OptionFor_t<assets::Filler>,
+                   OptionFor_t<assets::BasicAnimation>,
+                   OptionFor_t<assets::BasicIndicator>> {};
     } // namespace traits
 
     namespace prefabs {
@@ -5128,14 +5407,14 @@ namespace pgbar {
                                 assets::SpeedMeter,
                                 assets::CounterMeter,
                                 assets::Timer>::template type<assets::CoreConfig<Derived>, Derived>;
-        using Permitted = traits::Merge_t<traits::TypeList<option::Style>,
-                                          traits::OptionFor_t<BarType>,
-                                          traits::OptionFor_t<assets::Prefix>,
-                                          traits::OptionFor_t<assets::Postfix>,
-                                          traits::OptionFor_t<assets::Segment>,
-                                          traits::OptionFor_t<assets::SpeedMeter>,
-                                          traits::OptionFor_t<assets::Timer>,
-                                          traits::OptionFor_t<assets::CoreConfig>>;
+        using PermittedSet = traits::Coalesce_t<traits::TypeSet<option::Style>,
+                                                traits::OptionFor_t<BarType>,
+                                                traits::OptionFor_t<assets::Prefix>,
+                                                traits::OptionFor_t<assets::Postfix>,
+                                                traits::OptionFor_t<assets::Segment>,
+                                                traits::OptionFor_t<assets::SpeedMeter>,
+                                                traits::OptionFor_t<assets::Timer>,
+                                                traits::OptionFor_t<assets::CoreConfig>>;
 
         friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( BasicConfig& cfg,
                                                                       option::Style&& val ) noexcept
@@ -5246,16 +5525,16 @@ namespace pgbar {
 # if __PGBAR_CXX20
         template<typename... Args>
           requires( !traits::Duplicated<traits::TypeList<Args...>>::value
-                    && ( traits::Exist<traits::Unique_t<Permitted>, Args>::value && ... ) )
+                    && ( traits::Exist<PermittedSet, Args>::value && ... ) )
 # else
         template<typename... Args,
                  typename = typename std::enable_if<
                    traits::AllOf<traits::Not<traits::Duplicated<traits::TypeList<Args...>>>,
-                                 traits::Exist<traits::Unique_t<Permitted>, Args>...>::value>::type>
+                                 traits::Exist<PermittedSet, Args>...>::value>::type>
 # endif
         BasicConfig( Args... args )
         {
-          static_cast<Derived*>( this )->template initialize<Args...>();
+          static_cast<Derived*>( this )->template initialize<traits::TypeSet<Args...>>();
           (void)std::initializer_list<char> { ( unpacker( *this, std::move( args ) ), '\0' )... };
         }
 
@@ -5312,13 +5591,13 @@ namespace pgbar {
         template<typename Arg, typename... Args>
 # if __PGBAR_CXX20
           requires( !traits::Duplicated<traits::TypeList<Arg, Args...>>::value
-                    && traits::Exist<traits::Unique_t<Permitted>, Arg>::value
-                    && ( traits::Exist<traits::Unique_t<Permitted>, Args>::value && ... ) )
+                    && traits::Exist<PermittedSet, Arg>::value
+                    && ( traits::Exist<PermittedSet, Args>::value && ... ) )
         Derived&
 # else
         typename std::enable_if<traits::AllOf<traits::Not<traits::Duplicated<traits::TypeList<Arg, Args...>>>,
-                                              traits::Exist<traits::Unique_t<Permitted>, Arg>,
-                                              traits::Exist<traits::Unique_t<Permitted>, Args>...>::value,
+                                              traits::Exist<PermittedSet, Arg>,
+                                              traits::Exist<PermittedSet, Args>...>::value,
                                 Derived&>::type
 # endif
           set( Arg arg, Args... args ) & noexcept(
@@ -5442,34 +5721,35 @@ namespace pgbar {
       using Base = __details::prefabs::BasicConfig<__details::assets::CharIndic, Line>;
       friend Base;
 
-      template<typename... Options>
+      template<typename ArgSet>
       void initialize()
       {
         // The types in the tuple are never repeated.
-        using ParamList = __details::traits::TypeList<Options...>;
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Shift>::value )
+        static_assert( __details::traits::InstanceOf<ArgSet, __details::traits::TypeSet>::value,
+                       "pgbar::config::Line::initialize: Invalid template type" );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Shift>::value )
           unpacker( *this, option::Shift( -2 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Lead>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Lead>::value )
           unpacker( *this, option::Lead( ">" ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Starting>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Starting>::value )
           unpacker( *this, option::Starting( "[" ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Ending>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Ending>::value )
           unpacker( *this, option::Ending( "]" ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::BarLength>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::BarLength>::value )
           unpacker( *this, option::BarLength( 30 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Filler>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Filler>::value )
           unpacker( *this, option::Filler( "=" ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Remains>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Remains>::value )
           unpacker( *this, option::Remains( " " ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Divider>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Divider>::value )
           unpacker( *this, option::Divider( " | " ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::InfoColor>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::InfoColor>::value )
           unpacker( *this, option::InfoColor( color::Cyan ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::SpeedUnit>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::SpeedUnit>::value )
           unpacker( *this, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Magnitude>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Magnitude>::value )
           unpacker( *this, option::Magnitude( 1000 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Style>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Style>::value )
           unpacker( *this, option::Style( Base::Entire ) );
       }
 
@@ -5494,27 +5774,28 @@ namespace pgbar {
       using Base = __details::prefabs::BasicConfig<__details::assets::BlockIndic, Block>;
       friend Base;
 
-      template<typename... Options>
+      template<typename ArgSet>
       void initialize()
       {
-        using ParamList = __details::traits::TypeList<Options...>;
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Lead>::value )
+        static_assert( __details::traits::InstanceOf<ArgSet, __details::traits::TypeSet>::value,
+                       "pgbar::config::Block::initialize: Invalid template type" );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Lead>::value )
           unpacker( *this, option::Lead( { " ", "▏", "▎", "▍", "▌", "▋", "▊", "▉" } ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::BarLength>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::BarLength>::value )
           unpacker( *this, option::BarLength( 30 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Filler>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Filler>::value )
           unpacker( *this, option::Filler( "█" ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Remains>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Remains>::value )
           unpacker( *this, option::Remains( " " ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Divider>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Divider>::value )
           unpacker( *this, option::Divider( " | " ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::InfoColor>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::InfoColor>::value )
           unpacker( *this, option::InfoColor( color::Cyan ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::SpeedUnit>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::SpeedUnit>::value )
           unpacker( *this, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Magnitude>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Magnitude>::value )
           unpacker( *this, option::Magnitude( 1000 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Style>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Style>::value )
           unpacker( *this, option::Style( Base::Entire ) );
       }
 
@@ -5535,27 +5816,28 @@ namespace pgbar {
       __PGBAR_CXX20_CNSTXPR ~Block()                           = default;
     };
 
-    class Spin : public __details::prefabs::BasicConfig<__details::assets::SpinnerIndic, Spin> {
-      using Base = __details::prefabs::BasicConfig<__details::assets::SpinnerIndic, Spin>;
+    class Spin : public __details::prefabs::BasicConfig<__details::assets::SpinIndic, Spin> {
+      using Base = __details::prefabs::BasicConfig<__details::assets::SpinIndic, Spin>;
       friend Base;
 
-      template<typename... Options>
+      template<typename ArgSet>
       void initialize()
       {
-        using ParamList = __details::traits::TypeList<Options...>;
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Shift>::value )
+        static_assert( __details::traits::InstanceOf<ArgSet, __details::traits::TypeSet>::value,
+                       "pgbar::config::Spin::initialize: Invalid template type" );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Shift>::value )
           unpacker( *this, option::Shift( -3 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Lead>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Lead>::value )
           unpacker( *this, option::Lead( { "/", "-", "\\", "|" } ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Divider>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Divider>::value )
           unpacker( *this, option::Divider( " | " ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::InfoColor>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::InfoColor>::value )
           unpacker( *this, option::InfoColor( color::Cyan ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::SpeedUnit>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::SpeedUnit>::value )
           unpacker( *this, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Magnitude>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Magnitude>::value )
           unpacker( *this, option::Magnitude( 1000 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Style>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Style>::value )
           unpacker( *this, option::Style( Base::Ani | Base::Elpsd ) );
       }
 
@@ -5579,35 +5861,36 @@ namespace pgbar {
       __PGBAR_CXX20_CNSTXPR ~Spin()                          = default;
     };
 
-    class Sweep : public __details::prefabs::BasicConfig<__details::assets::SweeperIndic, Sweep> {
-      using Base = __details::prefabs::BasicConfig<__details::assets::SweeperIndic, Sweep>;
+    class Sweep : public __details::prefabs::BasicConfig<__details::assets::SweepIndic, Sweep> {
+      using Base = __details::prefabs::BasicConfig<__details::assets::SweepIndic, Sweep>;
       friend Base;
 
-      template<typename... Options>
+      template<typename ArgSet>
       void initialize()
       {
-        using ParamList = __details::traits::TypeList<Options...>;
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Shift>::value )
+        static_assert( __details::traits::InstanceOf<ArgSet, __details::traits::TypeSet>::value,
+                       "pgbar::config::Sweep::initialize: Invalid template type" );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Shift>::value )
           unpacker( *this, option::Shift( -3 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Starting>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Starting>::value )
           unpacker( *this, option::Starting( "[" ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Ending>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Ending>::value )
           unpacker( *this, option::Ending( "]" ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::BarLength>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::BarLength>::value )
           unpacker( *this, option::BarLength( 30 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Filler>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Filler>::value )
           unpacker( *this, option::Filler( "-" ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Lead>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Lead>::value )
           unpacker( *this, option::Lead( "<=>" ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Divider>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Divider>::value )
           unpacker( *this, option::Divider( " | " ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::InfoColor>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::InfoColor>::value )
           unpacker( *this, option::InfoColor( color::Cyan ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::SpeedUnit>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::SpeedUnit>::value )
           unpacker( *this, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Magnitude>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Magnitude>::value )
           unpacker( *this, option::Magnitude( 1000 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Own<ParamList, option::Style>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Style>::value )
           unpacker( *this, option::Style( Base::Ani | Base::Elpsd ) );
       }
 
@@ -5626,6 +5909,56 @@ namespace pgbar {
       __PGBAR_CXX23_CNSTXPR Sweep& operator=( const Sweep& ) & = default;
       __PGBAR_CXX23_CNSTXPR Sweep& operator=( Sweep&& ) &      = default;
       __PGBAR_CXX20_CNSTXPR ~Sweep()                           = default;
+    };
+
+    class Flow : public __details::prefabs::BasicConfig<__details::assets::FlowIndic, Flow> {
+      using Base = __details::prefabs::BasicConfig<__details::assets::FlowIndic, Flow>;
+      friend Base;
+
+      template<typename ArgSet>
+      void initialize()
+      {
+        static_assert( __details::traits::InstanceOf<ArgSet, __details::traits::TypeSet>::value,
+                       "pgbar::config::Flow::initialize: Invalid template type" );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Shift>::value )
+          unpacker( *this, option::Shift( -3 ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Starting>::value )
+          unpacker( *this, option::Starting( "[" ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Ending>::value )
+          unpacker( *this, option::Ending( "]" ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::BarLength>::value )
+          unpacker( *this, option::BarLength( 30 ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Filler>::value )
+          unpacker( *this, option::Filler( " " ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Lead>::value )
+          unpacker( *this, option::Lead( "====" ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Divider>::value )
+          unpacker( *this, option::Divider( " | " ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::InfoColor>::value )
+          unpacker( *this, option::InfoColor( color::Cyan ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::SpeedUnit>::value )
+          unpacker( *this, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Magnitude>::value )
+          unpacker( *this, option::Magnitude( 1000 ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Style>::value )
+          unpacker( *this, option::Style( Base::Ani | Base::Elpsd ) );
+      }
+
+    protected:
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN __details::types::Size fixed_render_size() const noexcept
+      {
+        return this->common_render_size()
+             + ( this->visual_masks_[__details::utils::as_val( Base::Mask::Ani )] ? this->fixed_len_bar()
+                                                                                  : 0 );
+      }
+
+    public:
+      using Base::Base;
+      __PGBAR_CXX23_CNSTXPR Flow( const Flow& )              = default;
+      __PGBAR_CXX23_CNSTXPR Flow( Flow&& )                   = default;
+      __PGBAR_CXX23_CNSTXPR Flow& operator=( const Flow& ) & = default;
+      __PGBAR_CXX23_CNSTXPR Flow& operator=( Flow&& ) &      = default;
+      __PGBAR_CXX20_CNSTXPR ~Flow()                          = default;
     };
   } // namespace config
 
@@ -5937,7 +6270,59 @@ namespace pgbar {
         __PGBAR_INLINE_FN io::Stringbuf& build_animation( io::Stringbuf& buffer,
                                                           types::Size num_frame_cnt ) const
         {
-          return this->build_sweeper( buffer, num_frame_cnt );
+          return this->build_sweep( buffer, num_frame_cnt );
+        }
+
+      public:
+        using Base::Base;
+
+        __PGBAR_INLINE_FN io::Stringbuf& build(
+          io::Stringbuf& buffer,
+          types::Size num_frame_cnt,
+          std::uint64_t num_task_done,
+          std::uint64_t num_all_tasks,
+          const std::chrono::steady_clock::time_point& zero_point ) const
+        {
+          __PGBAR_TRUST( num_task_done <= num_all_tasks );
+          const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
+
+          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
+          return this
+            ->indirect_build( buffer, num_task_done, num_all_tasks, num_percent, zero_point, num_frame_cnt );
+        }
+        __PGBAR_INLINE_FN io::Stringbuf& build(
+          io::Stringbuf& buffer,
+          types::Size num_frame_cnt,
+          std::uint64_t num_task_done,
+          std::uint64_t num_all_tasks,
+          bool final_mesg,
+          const std::chrono::steady_clock::time_point& zero_point ) const
+        {
+          __PGBAR_TRUST( num_task_done <= num_all_tasks );
+          const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
+
+          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
+          return this->indirect_build( buffer,
+                                       num_task_done,
+                                       num_all_tasks,
+                                       num_percent,
+                                       final_mesg,
+                                       zero_point,
+                                       num_frame_cnt );
+        }
+      };
+
+      template<>
+      struct Builder<config::Flow> final : public AnimatedBuilder<config::Flow, Builder<config::Flow>> {
+      private:
+        using Base = AnimatedBuilder<config::Flow, Builder<config::Flow>>;
+        friend Base;
+
+      protected:
+        __PGBAR_INLINE_FN io::Stringbuf& build_animation( io::Stringbuf& buffer,
+                                                          types::Size num_frame_cnt ) const
+        {
+          return this->build_flow( buffer, num_frame_cnt );
         }
 
       public:
@@ -6008,7 +6393,7 @@ namespace pgbar {
           if ( this->visual_masks_[utils::as_val( Self::Mask::Ani )] ) {
             if ( !this->prefix_.empty() )
               buffer << constants::blank;
-            this->build_spinner( buffer, num_frame_cnt );
+            this->build_spin( buffer, num_frame_cnt );
             this->try_reset( buffer );
             auto masks = this->visual_masks_;
             if ( masks.reset( utils::as_val( Self::Mask::Ani ) ).any() ) {
@@ -6061,7 +6446,7 @@ namespace pgbar {
             if ( ( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() ) {
               if ( !this->prefix_.empty() )
                 buffer << constants::blank;
-              this->build_spinner( buffer, num_frame_cnt );
+              this->build_spin( buffer, num_frame_cnt );
               this->try_reset( buffer );
             }
             auto masks = this->visual_masks_;
@@ -6754,7 +7139,7 @@ namespace pgbar {
                 throw;
               }
             }
-            if ( this->state_.load( std::memory_order_acquire ) == Base::State::ActivityRefresh )
+            if ( this->state_.load( std::memory_order_acquire ) == State::ActivityRefresh )
               return;
           }
             __PGBAR_FALLTHROUGH;
@@ -6889,6 +7274,7 @@ namespace pgbar {
       __PGBAR_BIND_BEHAVIOUR( config::Block, assets::PlainBar );
       __PGBAR_BIND_BEHAVIOUR( config::Spin, assets::NullableFrameBar );
       __PGBAR_BIND_BEHAVIOUR( config::Sweep, assets::NullableFrameBar );
+      __PGBAR_BIND_BEHAVIOUR( config::Flow, assets::NullableFrameBar );
     } // namespace traits
 
     namespace prefabs {
@@ -6981,6 +7367,14 @@ namespace pgbar {
    */
   template<Channel Outlet = Channel::Stderr, Policy Mode = Policy::Async, Region Area = Region::Fixed>
   using SweepBar = __details::prefabs::BasicBar<config::Sweep, Outlet, Mode, Area>;
+  /**
+   * The indeterminate progress bar.
+   *
+   * It's structure is shown below:
+   * {LeftBorder}{Prefix}{Percent}{Starting}{Filler}{Lead}{Filler}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{Postfix}{RightBorder}
+   */
+  template<Channel Outlet = Channel::Stderr, Policy Mode = Policy::Async, Region Area = Region::Fixed>
+  using FlowBar = __details::prefabs::BasicBar<config::Flow, Outlet, Mode, Area>;
 
   namespace __details {
     namespace assets {
@@ -8805,11 +9199,12 @@ struct std::tuple_size<pgbar::MultiBar<Bs...>> : std::integral_constant<std::siz
 template<std::size_t I, typename... Bs>
 struct std::tuple_element<I, pgbar::MultiBar<Bs...>> : pgbar::__details::traits::TypeAt<I, Bs...> {};
 
+# undef __PGBAR_BIND_BEHAVIOUR
 # undef __PGBAR_BIND_OPTION
 # undef __PGBAR_TRAIT_REGISTER
 
-# undef __PGBAR_EMPTY_CLASS
-# undef __PGBAR_NONEMPTY_CLASS
+# undef __PGBAR_EMPTY_COMPONENT
+# undef __PGBAR_NONEMPTY_COMPONENT
 
 # undef __PGBAR_PACK
 # undef __PGBAR_INHERIT_REGISTER
