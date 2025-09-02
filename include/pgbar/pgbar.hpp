@@ -278,8 +278,8 @@ namespace pgbar {
       // Internal implementation, it should not be used outside of this preprocessing block.
       template<types::Size N>
       struct _MakeIndexSeqHelper {
-        using type =
-          _ConcatSeq_t<typename _MakeIndexSeqHelper<N / 2>::type, typename _MakeIndexSeqHelper<N - N / 2>::type>;
+        using type = _ConcatSeq_t<typename _MakeIndexSeqHelper<N / 2>::type,
+                                  typename _MakeIndexSeqHelper<N - N / 2>::type>;
       };
       template<>
       struct _MakeIndexSeqHelper<0> {
@@ -1110,54 +1110,6 @@ namespace pgbar {
         }
 # endif
         return formatted;
-      }
-
-      /**
-       * Converts RGB color strings to hexidecimal values.
-       *
-       * Always returns 0 if defined `PGBAR_COLORLESS`.
-       *
-       * @throw exception::InvalidArgument
-       * If the size of RGB color string is not 7 or 4, and doesn't begin with character `#`.
-       */
-      __PGBAR_CXX20_CNSTXPR inline types::HexRGB hex2rgb( types::ROStr hex ) noexcept( false )
-      {
-        if ( ( hex.size() != 7 && hex.size() != 4 ) || hex.front() != '#' )
-          throw exception::InvalidArgument( "pgbar: invalid hex color format" );
-
-        for ( types::Size i = 1; i < hex.size(); i++ ) {
-          if ( ( hex[i] < '0' || hex[i] > '9' ) && ( hex[i] < 'A' || hex[i] > 'F' )
-               && ( hex[i] < 'a' || hex[i] > 'f' ) )
-            throw exception::InvalidArgument( "pgbar: invalid hexadecimal letter" );
-        }
-
-# ifdef PGBAR_COLORLESS
-        return {};
-# else
-        std::uint32_t ret = 0;
-        if ( hex.size() == 4 ) {
-          for ( types::Size i = 1; i < hex.size(); ++i ) {
-            ret <<= 4;
-            if ( hex[i] >= '0' && hex[i] <= '9' )
-              ret = ( ( ret | ( hex[i] - '0' ) ) << 4 ) | ( hex[i] - '0' );
-            else if ( hex[i] >= 'A' && hex[i] <= 'F' )
-              ret = ( ( ret | ( hex[i] - 'A' + 10 ) ) << 4 ) | ( hex[i] - 'A' + 10 );
-            else // no need to check whether it's valid or not
-              ret = ( ( ret | ( hex[i] - 'a' + 10 ) ) << 4 ) | ( hex[i] - 'a' + 10 );
-          }
-        } else {
-          for ( types::Size i = 1; i < hex.size(); ++i ) {
-            ret <<= 4;
-            if ( hex[i] >= '0' && hex[i] <= '9' )
-              ret |= hex[i] - '0';
-            else if ( hex[i] >= 'A' && hex[i] <= 'F' )
-              ret |= hex[i] - 'A' + 10;
-            else
-              ret |= hex[i] - 'a' + 10;
-          }
-        }
-        return ret;
-# endif
       }
 
       enum class TxtLayout { Left, Right, Center }; // text layout
@@ -2558,38 +2510,156 @@ namespace pgbar {
         __PGBAR_CXX17_INLINE constexpr types::Char nextline      = '\n';
         __PGBAR_CXX17_INLINE constexpr types::Char linestart     = '\r';
 
-        /**
-         * Convert a hexidecimal RGB color value to an ANSI escape code.
-         *
-         * Return nothing if defined `PGBAR_COLORLESS`.
-         */
-        inline types::String rgb2ansi( types::HexRGB rgb )
-# ifdef PGBAR_COLORLESS
-          noexcept( std::is_nothrow_default_constructible<types::String>::value )
-        {
-          return {};
-        }
-# else
-          noexcept( false )
-        {
-          if ( rgb == __PGBAR_DEFAULT )
-            return types::String( escodes::fontreset );
+        class RGBColor {
+          using Self = RGBColor;
 
-          switch ( rgb & 0x00FFFFFF ) { // discard the high 8 bits
-          case __PGBAR_BLACK:   return "\x1B[30m";
-          case __PGBAR_RED:     return "\x1B[31m";
-          case __PGBAR_GREEN:   return "\x1B[32m";
-          case __PGBAR_YELLOW:  return "\x1B[33m";
-          case __PGBAR_BLUE:    return "\x1B[34m";
-          case __PGBAR_MAGENTA: return "\x1B[35m";
-          case __PGBAR_CYAN:    return "\x1B[36m";
-          case __PGBAR_WHITE:   return "\x1B[37m";
-          default:
-            return "\x1B[38;2;" + utils::format( ( rgb >> 16 ) & 0xFF ) + ';'
-                 + utils::format( ( rgb >> 8 ) & 0xFF ) + ';' + utils::format( rgb & 0xFF ) + 'm';
-          }
-        }
+          std::array<char, 17> sgr_; // Select Graphic Rendition
+          std::uint8_t length_;
+
+          static __PGBAR_INLINE_FN __PGBAR_CXX23_CNSTXPR types::Char* to_char( types::Char* first,
+                                                                               types::Char* last,
+                                                                               std::uint8_t value ) noexcept
+          {
+# if __PGBAR_CXX17
+            auto result = std::to_chars( first, last, value );
+            __PGBAR_TRUST( result.ec == std::errc() );
+            return result.ptr;
+# else
+            types::Size offset = 1;
+            if ( value >= 100 ) {
+              __PGBAR_TRUST( last - first >= 3 );
+              first[0] = '0' + value / 100;
+              first[1] = '0' + ( value / 10 % 10 );
+              first[2] = '0' + ( value % 10 );
+              offset += 2;
+            } else if ( value >= 10 ) {
+              __PGBAR_TRUST( last - first >= 2 );
+              first[0] = '0' + value / 10;
+              first[1] = '0' + ( value % 10 );
+              offset += 1;
+            } else
+              first[0] = '0' + value;
+            __PGBAR_TRUST( last - first >= 1 );
+            return first + offset;
 # endif
+          }
+
+          __PGBAR_CXX23_CNSTXPR void from_hex( types::HexRGB hex_val ) & noexcept
+          {
+# ifndef PGBAR_COLORLESS
+            length_ = 1;
+            if ( hex_val == __PGBAR_DEFAULT ) {
+              sgr_[0] = '0';
+              return;
+            }
+
+            length_ = 2;
+            sgr_[0] = '3';
+            switch ( hex_val & 0x00FFFFFF ) { // discard the high 8 bits
+            case __PGBAR_BLACK:   sgr_[1] = '0'; break;
+            case __PGBAR_RED:     sgr_[1] = '1'; break;
+            case __PGBAR_GREEN:   sgr_[1] = '2'; break;
+            case __PGBAR_YELLOW:  sgr_[1] = '3'; break;
+            case __PGBAR_BLUE:    sgr_[1] = '4'; break;
+            case __PGBAR_MAGENTA: sgr_[1] = '5'; break;
+            case __PGBAR_CYAN:    sgr_[1] = '6'; break;
+            case __PGBAR_WHITE:   sgr_[1] = '7'; break;
+            default:              {
+              sgr_[1] = '8', sgr_[2] = ';', sgr_[3] = '2', sgr_[4] = ';';
+              auto tail = to_char( sgr_.data() + 5, sgr_.data() + sgr_.size(), ( hex_val >> 16 ) & 0xFF );
+              *tail     = ';';
+              tail      = to_char( tail + 1, sgr_.data() + sgr_.size(), ( hex_val >> 8 ) & 0xFF );
+              *tail     = ';';
+              tail      = to_char( tail + 1, sgr_.data() + sgr_.size(), hex_val & 0xFF );
+              length_   = static_cast<std::uint8_t>( tail - sgr_.data() );
+            } break;
+            }
+# endif
+          }
+          __PGBAR_CXX23_CNSTXPR void from_str( types::ROStr hex_str ) &
+          {
+            if ( ( hex_str.size() != 7 && hex_str.size() != 4 ) || hex_str.front() != '#' )
+              throw exception::InvalidArgument( "pgbar: invalid hex color format" );
+
+            for ( types::Size i = 1; i < hex_str.size(); i++ ) {
+              if ( ( hex_str[i] < '0' || hex_str[i] > '9' ) && ( hex_str[i] < 'A' || hex_str[i] > 'F' )
+                   && ( hex_str[i] < 'a' || hex_str[i] > 'f' ) )
+                throw exception::InvalidArgument( "pgbar: invalid hexadecimal letter" );
+            }
+
+# ifndef PGBAR_COLORLESS
+            std::uint32_t hex_val = 0;
+            if ( hex_str.size() == 4 ) {
+              for ( types::Size i = 1; i < hex_str.size(); ++i ) {
+                hex_val <<= 4;
+                if ( hex_str[i] >= '0' && hex_str[i] <= '9' )
+                  hex_val = ( ( hex_val | ( hex_str[i] - '0' ) ) << 4 ) | ( hex_str[i] - '0' );
+                else if ( hex_str[i] >= 'A' && hex_str[i] <= 'F' )
+                  hex_val = ( ( hex_val | ( hex_str[i] - 'A' + 10 ) ) << 4 ) | ( hex_str[i] - 'A' + 10 );
+                else // no need to check whether it's valid or not
+                  hex_val = ( ( hex_val | ( hex_str[i] - 'a' + 10 ) ) << 4 ) | ( hex_str[i] - 'a' + 10 );
+              }
+            } else {
+              for ( types::Size i = 1; i < hex_str.size(); ++i ) {
+                hex_val <<= 4;
+                if ( hex_str[i] >= '0' && hex_str[i] <= '9' )
+                  hex_val |= hex_str[i] - '0';
+                else if ( hex_str[i] >= 'A' && hex_str[i] <= 'F' )
+                  hex_val |= hex_str[i] - 'A' + 10;
+                else
+                  hex_val |= hex_str[i] - 'a' + 10;
+              }
+            }
+            from_hex( hex_val );
+# endif
+          }
+
+        public:
+          __PGBAR_CXX23_CNSTXPR RGBColor() noexcept { clear(); }
+
+          __PGBAR_CXX23_CNSTXPR RGBColor( types::HexRGB hex_val ) noexcept : RGBColor()
+          {
+            from_hex( hex_val );
+          }
+          __PGBAR_CXX23_CNSTXPR RGBColor( types::ROStr hex_str ) : RGBColor() { from_str( hex_str ); }
+
+          __PGBAR_CXX23_CNSTXPR RGBColor( const Self& lhs ) noexcept = default;
+          __PGBAR_CXX23_CNSTXPR Self& operator=( const Self& lhs ) & = default;
+
+          __PGBAR_CXX23_CNSTXPR Self& operator=( types::HexRGB hex_val ) & noexcept
+          {
+            from_hex( hex_val );
+            return *this;
+          }
+          __PGBAR_CXX23_CNSTXPR Self& operator=( types::ROStr hex_str ) &
+          {
+            from_str( hex_str );
+            return *this;
+          }
+
+          __PGBAR_INLINE_FN __PGBAR_CXX23_CNSTXPR void clear() noexcept
+          {
+            std::fill( sgr_.begin(), sgr_.end(), '\0' );
+            length_ = 0;
+          }
+
+          __PGBAR_CXX23_CNSTXPR void swap( RGBColor& lhs ) noexcept
+          {
+            std::swap( sgr_, lhs.sgr_ );
+            std::swap( length_, lhs.length_ );
+          }
+          __PGBAR_CXX23_CNSTXPR friend void swap( RGBColor& a, RGBColor& b ) noexcept { a.swap( b ); }
+
+          __PGBAR_INLINE_FN friend io::Stringbuf& operator<<( io::Stringbuf& buf, const Self& col )
+          {
+# ifndef PGBAR_COLORLESS
+            return buf.append( '\x1B' )
+              .append( '[' )
+              .append( col.sgr_.data(), col.sgr_.data() + col.length_ )
+              .append( 'm' );
+# endif
+          }
+        };
       } // namespace escodes
 
       template<Channel Outlet>
@@ -3800,141 +3870,144 @@ namespace pgbar {
 
 # undef __PGBAR_OPTIONS
 # if __PGBAR_CXX20
-#  define __PGBAR_OPTIONS( StructName, ValueType, ParamName )                                \
-    /**                                                                                      \
-     * @throw exception::InvalidArgument                                                     \
-     *                                                                                       \
-     * If the passed parameter is not coding in UTF-8.                                       \
-     */                                                                                      \
-    __PGBAR_CXX20_CNSTXPR StructName( __details::types::String ParamName )                   \
-      : __details::wrappers::OptionWrapper<ValueType>( ValueType( std::move( ParamName ) ) ) \
-    {}                                                                                       \
-    StructName( std::u8string_view ParamName )                                               \
-      : __details::wrappers::OptionWrapper<ValueType>( ValueType( std::move( ParamName ) ) ) \
+#  define __PGBAR_OPTIONS( StructName, ParamName )                         \
+    /**                                                                    \
+     * @throw exception::InvalidArgument                                   \
+     *                                                                     \
+     * If the passed parameter is not coding in UTF-8.                     \
+     */                                                                    \
+    __PGBAR_CXX20_CNSTXPR StructName( __details::types::String ParamName ) \
+      : __details::wrappers::OptionWrapper<__details::charcodes::U8Raw>(   \
+          __details::charcodes::U8Raw( std::move( ParamName ) ) )          \
+    {}                                                                     \
+    StructName( std::u8string_view ParamName )                             \
+      : __details::wrappers::OptionWrapper<__details::charcodes::U8Raw>(   \
+          __details::charcodes::U8Raw( std::move( ParamName ) ) )          \
     {}
 # else
-#  define __PGBAR_OPTIONS( StructName, ValueType, ParamName )                                \
-    __PGBAR_CXX20_CNSTXPR StructName( __details::types::String ParamName )                   \
-      : __details::wrappers::OptionWrapper<ValueType>( ValueType( std::move( ParamName ) ) ) \
+#  define __PGBAR_OPTIONS( StructName, ParamName )                         \
+    __PGBAR_CXX20_CNSTXPR StructName( __details::types::String ParamName ) \
+      : __details::wrappers::OptionWrapper<__details::charcodes::U8Raw>(   \
+          __details::charcodes::U8Raw( std::move( ParamName ) ) )          \
     {}
 # endif
 
     // A wrapper that stores the characters of the filler in the bar indicator.
     struct Filler : __PGBAR_BASE( __details::charcodes::U8Raw ) {
-      __PGBAR_OPTIONS( Filler, __details::charcodes::U8Raw, _filler )
+      __PGBAR_OPTIONS( Filler, _filler )
     };
 
     // A wrapper that stores the characters of the remains in the bar indicator.
     struct Remains : __PGBAR_BASE( __details::charcodes::U8Raw ) {
-      __PGBAR_OPTIONS( Remains, __details::charcodes::U8Raw, _remains )
+      __PGBAR_OPTIONS( Remains, _remains )
     };
 
     // A wrapper that stores characters located to the left of the bar indicator.
     struct Starting : __PGBAR_BASE( __details::charcodes::U8Raw ) {
-      __PGBAR_OPTIONS( Starting, __details::charcodes::U8Raw, _starting )
+      __PGBAR_OPTIONS( Starting, _starting )
     };
 
     // A wrapper that stores characters located to the right of the bar indicator.
     struct Ending : __PGBAR_BASE( __details::charcodes::U8Raw ) {
-      __PGBAR_OPTIONS( Ending, __details::charcodes::U8Raw, _ending )
+      __PGBAR_OPTIONS( Ending, _ending )
     };
 
     // A wrapper that stores the prefix text.
     struct Prefix : __PGBAR_BASE( __details::charcodes::U8Raw ) {
-      __PGBAR_OPTIONS( Prefix, __details::charcodes::U8Raw, _prefix )
+      __PGBAR_OPTIONS( Prefix, _prefix )
     };
 
     // A wrapper that stores the postfix text.
     struct Postfix : __PGBAR_BASE( __details::charcodes::U8Raw ) {
-      __PGBAR_OPTIONS( Postfix, __details::charcodes::U8Raw, _postfix )
+      __PGBAR_OPTIONS( Postfix, _postfix )
     };
 
     // A wrapper that stores the `true` message text.
     struct TrueMesg : __PGBAR_BASE( __details::charcodes::U8Raw ) {
-      __PGBAR_OPTIONS( TrueMesg, __details::charcodes::U8Raw, _true_mesg )
+      __PGBAR_OPTIONS( TrueMesg, _true_mesg )
     };
 
     // A wrapper that stores the `false` message text.
     struct FalseMesg : __PGBAR_BASE( __details::charcodes::U8Raw ) {
-      __PGBAR_OPTIONS( FalseMesg, __details::charcodes::U8Raw, _false_mesg )
+      __PGBAR_OPTIONS( FalseMesg, _false_mesg )
     };
 
     // A wrapper that stores the separator component used to separate different infomation.
     struct Divider : __PGBAR_BASE( __details::charcodes::U8Raw ) {
-      __PGBAR_OPTIONS( Divider, __details::charcodes::U8Raw, _divider )
+      __PGBAR_OPTIONS( Divider, _divider )
     };
 
     // A wrapper that stores the border component located to the left of the whole indicator.
     struct LeftBorder : __PGBAR_BASE( __details::charcodes::U8Raw ) {
-      __PGBAR_OPTIONS( LeftBorder, __details::charcodes::U8Raw, _l_border )
+      __PGBAR_OPTIONS( LeftBorder, _l_border )
     };
 
     // A wrapper that stores the border component located to the right of the whole indicator.
     struct RightBorder : __PGBAR_BASE( __details::charcodes::U8Raw ) {
-      __PGBAR_OPTIONS( RightBorder, __details::charcodes::U8Raw, _r_border )
+      __PGBAR_OPTIONS( RightBorder, _r_border )
     };
 
 # undef __PGBAR_OPTIONS
-# define __PGBAR_OPTIONS( StructName, ValueType, ParamName )                                   \
- private:                                                                                      \
-   using Base = __details::wrappers::OptionWrapper<ValueType>;                                 \
-                                                                                               \
- public:                                                                                       \
-   StructName( __details::types::ROStr ParamName )                                             \
-     : Base( __details::console::escodes::rgb2ansi( __details::utils::hex2rgb( ParamName ) ) ) \
-   {}                                                                                          \
-   StructName( __details::types::HexRGB ParamName )                                            \
-     : Base( __details::console::escodes::rgb2ansi( ParamName ) )                              \
+# define __PGBAR_OPTIONS( StructName, ParamName )                                          \
+ private:                                                                                  \
+   using Base = __details::wrappers::OptionWrapper<__details::console::escodes::RGBColor>; \
+                                                                                           \
+ public:                                                                                   \
+   __PGBAR_CXX23_CNSTXPR StructName( __details::types::ROStr ParamName )                   \
+     : Base( __details::console::escodes::RGBColor( ParamName ) )                          \
+   {}                                                                                      \
+   __PGBAR_CXX23_CNSTXPR StructName( __details::types::HexRGB ParamName )                  \
+     : Base( __details::console::escodes::RGBColor( ParamName ) )                          \
    {}
 
     // A wrapper that stores the prefix text color.
-    struct PrefixColor : __PGBAR_BASE( __details::types::String ) {
-      __PGBAR_OPTIONS( PrefixColor, __details::types::String, _prfx_color )
+    struct PrefixColor : __PGBAR_BASE( __details::console::escodes::RGBColor ) {
+      __PGBAR_OPTIONS( PrefixColor, _prfx_color )
     };
 
     // A wrapper that stores the postfix text color.
-    struct PostfixColor : __PGBAR_BASE( __details::types::String ) {
-      __PGBAR_OPTIONS( PostfixColor, __details::types::String, _pstfx_color )
+    struct PostfixColor : __PGBAR_BASE( __details::console::escodes::RGBColor ) {
+      __PGBAR_OPTIONS( PostfixColor, _pstfx_color )
     };
 
     // A wrapper that stores the `true` message text color.
-    struct TrueColor : __PGBAR_BASE( __details::types::String ) {
-      __PGBAR_OPTIONS( TrueColor, __details::types::String, _true_color )
+    struct TrueColor : __PGBAR_BASE( __details::console::escodes::RGBColor ) {
+      __PGBAR_OPTIONS( TrueColor, _true_color )
     };
 
     // A wrapper that stores the `false` message text color.
-    struct FalseColor : __PGBAR_BASE( __details::types::String ) {
-      __PGBAR_OPTIONS( FalseColor, __details::types::String, _false_color )
+    struct FalseColor : __PGBAR_BASE( __details::console::escodes::RGBColor ) {
+      __PGBAR_OPTIONS( FalseColor, _false_color )
     };
 
     // A wrapper that stores the color of component located to the left of the bar indicator.
-    struct StartColor : __PGBAR_BASE( __details::types::String ) {
-      __PGBAR_OPTIONS( StartColor, __details::types::String, _start_color )
+    struct StartColor : __PGBAR_BASE( __details::console::escodes::RGBColor ) {
+      __PGBAR_OPTIONS( StartColor, _start_color )
     };
 
     // A wrapper that stores the color of component located to the right of the bar indicator.
-    struct EndColor : __PGBAR_BASE( __details::types::String ) {
-      __PGBAR_OPTIONS( EndColor, __details::types::String, _end_color )
+    struct EndColor : __PGBAR_BASE( __details::console::escodes::RGBColor ) {
+      __PGBAR_OPTIONS( EndColor, _end_color )
     };
 
     // A wrapper that stores the color of the filler in the bar indicator.
-    struct FillerColor : __PGBAR_BASE( __details::types::String ) {
-      __PGBAR_OPTIONS( FillerColor, __details::types::String, _filler_color )
+    struct FillerColor : __PGBAR_BASE( __details::console::escodes::RGBColor ) {
+      __PGBAR_OPTIONS( FillerColor, _filler_color )
     };
 
     // A wrapper that stores the color of the remains in the bar indicator.
-    struct RemainsColor : __PGBAR_BASE( __details::types::String ) {
-      __PGBAR_OPTIONS( RemainsColor, __details::types::String, _remains_color )
+    struct RemainsColor : __PGBAR_BASE( __details::console::escodes::RGBColor ) {
+      __PGBAR_OPTIONS( RemainsColor, _remains_color )
     };
 
     // A wrapper that stores the color of the lead in the bar indicator.
-    struct LeadColor : __PGBAR_BASE( __details::types::String ) {
-      __PGBAR_OPTIONS( LeadColor, __details::types::String, _lead_color )
+    struct LeadColor : __PGBAR_BASE( __details::console::escodes::RGBColor ) {
+      __PGBAR_OPTIONS( LeadColor, _lead_color )
     };
 
     // A wrapper that stores the color of the whole infomation indicator.
-    struct InfoColor : __PGBAR_BASE( __details::types::String ) {
-      __PGBAR_OPTIONS( InfoColor, __details::types::String, _info_color )
+    struct InfoColor : __PGBAR_BASE( __details::console::escodes::RGBColor ) {
+      __PGBAR_OPTIONS( InfoColor, _info_color )
     };
 
 # undef __PGBAR_OPTIONS
@@ -4069,17 +4142,19 @@ namespace pgbar {
         enum class Mask : std::uint8_t { Colored = 0, Bolded };
         std::bitset<2> fonts_;
 
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& try_dye( io::Stringbuf& buffer,
-                                                                        types::ROStr ansi_color ) const
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& try_dye(
+          io::Stringbuf& buffer,
+          const console::escodes::RGBColor& rgb ) const
         {
           if ( fonts_[utils::as_val( Mask::Colored )] )
-            buffer << ansi_color;
+            buffer << rgb;
           return buffer;
         }
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& try_style( io::Stringbuf& buffer,
-                                                                          types::ROStr ansi_color ) const
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& try_style(
+          io::Stringbuf& buffer,
+          const console::escodes::RGBColor& rgb ) const
         {
-          return try_dye( buffer, ansi_color )
+          return try_dye( buffer, rgb )
               << ( fonts_[utils::as_val( Mask::Bolded )] ? console::escodes::fontbold : "" );
         }
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& try_reset( io::Stringbuf& buffer ) const
@@ -4206,7 +4281,7 @@ namespace pgbar {
       class Frames : public Base {
         friend __PGBAR_INLINE_FN void unpacker( Frames& cfg, option::LeadColor&& val ) noexcept
         {
-          cfg.lead_col_ = std::move( val.value() );
+          cfg.lead_col_ = val.value();
         }
         friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( Frames& cfg,
                                                                       option::Lead&& val ) noexcept
@@ -4229,8 +4304,8 @@ namespace pgbar {
         }
 
       protected:
-        types::String lead_col_;
         std::vector<charcodes::U8Text> lead_;
+        console::escodes::RGBColor lead_col_;
         types::Size len_longest_lead_;
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::Size fixed_len_frames()
@@ -4299,7 +4374,7 @@ namespace pgbar {
 
       protected:
         charcodes::U8Raw filler_;
-        types::String filler_col_;
+        console::escodes::RGBColor filler_col_;
 
       public:
         __PGBAR_CXX20_CNSTXPR Filler() = default;
@@ -4354,8 +4429,8 @@ namespace pgbar {
 # undef __PGBAR_UNPAKING
 
       protected:
-        types::String remains_col_;
         charcodes::U8Raw remains_;
+        console::escodes::RGBColor remains_col_;
 
       public:
         __PGBAR_CXX20_CNSTXPR Remains() = default;
@@ -4455,7 +4530,7 @@ namespace pgbar {
       protected:
         types::Size bar_length_;
         charcodes::U8Raw starting_, ending_;
-        types::String start_col_, end_col_;
+        console::escodes::RGBColor start_col_, end_col_;
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::Size fixed_len_bar() const noexcept
         {
@@ -4702,8 +4777,6 @@ namespace pgbar {
 
           this->try_reset( buffer );
           this->try_dye( buffer, this->start_col_ ) << this->starting_;
-          this->try_reset( buffer );
-          this->try_dye( buffer, this->filler_col_ );
 
           if ( !this->lead_.empty() ) {
             const auto& current_lead = this->lead_[num_frame_cnt % this->lead_.size()];
@@ -4729,20 +4802,28 @@ namespace pgbar {
               const auto len_right_fill = this->bar_length_ - ( len_left_fill + current_lead.width() );
               __PGBAR_ASSERT( len_left_fill + len_right_fill + current_lead.width() == this->bar_length_ );
 
-              buffer.append( this->filler_, len_left_fill / this->filler_.width() )
+              this->try_reset( buffer );
+              this->try_dye( buffer, this->filler_col_ )
+                .append( this->filler_, len_left_fill / this->filler_.width() )
                 .append( constants::blank, len_left_fill % this->filler_.width() );
-              this->try_reset( buffer ).append( this->lead_col_ ).append( current_lead );
-              this->try_reset( buffer )
-                .append( this->filler_col_ )
+
+              this->try_reset( buffer );
+              this->try_dye( buffer, this->lead_col_ ).append( current_lead );
+
+              this->try_reset( buffer );
+              this->try_dye( buffer, this->filler_col_ )
                 .append( constants::blank, len_right_fill % this->filler_.width() )
                 .append( this->filler_, len_right_fill / this->filler_.width() );
             } else
               buffer.append( constants::blank, this->bar_length_ );
           } else if ( this->filler_.empty() )
             buffer.append( constants::blank, this->bar_length_ );
-          else
-            buffer.append( this->filler_, this->bar_length_ / this->filler_.width() )
+          else {
+            this->try_reset( buffer );
+            this->try_dye( buffer, this->filler_col_ )
+              .append( this->filler_, this->bar_length_ / this->filler_.width() )
               .append( constants::blank, this->bar_length_ % this->filler_.width() );
+          }
 
           this->try_reset( buffer );
           return this->try_dye( buffer, this->end_col_ ) << this->ending_;
@@ -4783,9 +4864,11 @@ namespace pgbar {
                 this->try_dye( buffer, this->filler_col_ )
                   .append( this->filler_, virtual_point / this->filler_.width() )
                   .append( constants::blank, virtual_point % this->filler_.width() );
-                this->try_reset( buffer ).append( this->lead_col_ ).append( current_lead );
-                this->try_reset( buffer )
-                  .append( this->filler_col_ )
+                this->try_reset( buffer );
+                this->try_dye( buffer, this->lead_col_ ).append( current_lead );
+
+                this->try_reset( buffer );
+                this->try_dye( buffer, this->filler_col_ )
                   .append( constants::blank, len_right_fill % this->filler_.width() )
                   .append( this->filler_, len_right_fill / this->filler_.width() );
               } else {
@@ -4797,8 +4880,9 @@ namespace pgbar {
                 this->try_dye( buffer, this->filler_col_ )
                   .append( constants::blank, len_left_fill % this->filler_.width() )
                   .append( this->filler_, len_left_fill / this->filler_.width() );
-                this->try_reset( buffer )
-                  .append( this->lead_col_ )
+
+                this->try_reset( buffer );
+                this->try_dye( buffer, this->lead_col_ )
                   .append( division.first[0], division.first[1] )
                   .append( constants::blank, len_vacancy - division.second.first );
               }
@@ -4834,13 +4918,8 @@ namespace pgbar {
 # undef __PGBAR_UNPAKING
 
       protected:
-        types::String prfx_col_;
-        types::String true_col_;
-        types::String false_col_;
-
-        charcodes::U8Raw prefix_;
-        charcodes::U8Raw true_mesg_;
-        charcodes::U8Raw false_mesg_;
+        charcodes::U8Raw prefix_, true_mesg_, false_mesg_;
+        console::escodes::RGBColor prfx_col_, true_col_, false_col_;
 
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& build_prefix( io::Stringbuf& buffer ) const
         {
@@ -4952,8 +5031,8 @@ namespace pgbar {
 # undef __PGBAR_UNPAKING
 
       protected:
-        types::String pstfx_col_;
         charcodes::U8Raw postfix_;
+        console::escodes::RGBColor pstfx_col_;
 
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& build_postfix( io::Stringbuf& buffer ) const
         {
@@ -5026,9 +5105,9 @@ namespace pgbar {
 # undef __PGBAR_UNPAKING
 
       protected:
-        types::String info_col_;
         charcodes::U8Raw divider_;
         charcodes::U8Raw l_border_, r_border_;
+        console::escodes::RGBColor info_col_;
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::Size fixed_len_segment(
           types::Size num_column ) const noexcept
@@ -5626,7 +5705,7 @@ namespace pgbar {
                    traits::AllOf<traits::Not<traits::Duplicated<traits::TypeList<Args...>>>,
                                  traits::Exist<PermittedSet, Args>...>::value>::type>
 # endif
-        BasicConfig( Args... args )
+        __PGBAR_CXX23_CNSTXPR BasicConfig( Args... args )
         {
           static_cast<Derived*>( this )->template initialize<traits::TypeSet<Args...>>();
           (void)std::initializer_list<char> { ( unpacker( *this, std::move( args ) ), '\0' )... };
@@ -5859,11 +5938,11 @@ namespace pgbar {
 
     public:
       using Base::Base;
-      __PGBAR_CXX23_CNSTXPR Line( const Line& )              = default;
-      __PGBAR_CXX23_CNSTXPR Line( Line&& )                   = default;
-      __PGBAR_CXX23_CNSTXPR Line& operator=( const Line& ) & = default;
-      __PGBAR_CXX23_CNSTXPR Line& operator=( Line&& ) &      = default;
-      __PGBAR_CXX20_CNSTXPR ~Line()                          = default;
+      Line( const Line& )              = default;
+      Line( Line&& )                   = default;
+      Line& operator=( const Line& ) & = default;
+      Line& operator=( Line&& ) &      = default;
+      __PGBAR_CXX20_CNSTXPR ~Line()    = default;
     };
 
     class Block : public __details::prefabs::BasicConfig<__details::assets::BlockIndic, Block> {
@@ -5907,11 +5986,11 @@ namespace pgbar {
 
     public:
       using Base::Base;
-      __PGBAR_CXX23_CNSTXPR Block( const Block& )              = default;
-      __PGBAR_CXX23_CNSTXPR Block( Block&& )                   = default;
-      __PGBAR_CXX23_CNSTXPR Block& operator=( const Block& ) & = default;
-      __PGBAR_CXX23_CNSTXPR Block& operator=( Block&& ) &      = default;
-      __PGBAR_CXX20_CNSTXPR ~Block()                           = default;
+      Block( const Block& )              = default;
+      Block( Block&& )                   = default;
+      Block& operator=( const Block& ) & = default;
+      Block& operator=( Block&& ) &      = default;
+      __PGBAR_CXX20_CNSTXPR ~Block()     = default;
     };
 
     class Spin : public __details::prefabs::BasicConfig<__details::assets::SpinIndic, Spin> {
@@ -5952,11 +6031,11 @@ namespace pgbar {
 
     public:
       using Base::Base;
-      __PGBAR_CXX23_CNSTXPR Spin( const Spin& )              = default;
-      __PGBAR_CXX23_CNSTXPR Spin( Spin&& )                   = default;
-      __PGBAR_CXX23_CNSTXPR Spin& operator=( const Spin& ) & = default;
-      __PGBAR_CXX23_CNSTXPR Spin& operator=( Spin&& ) &      = default;
-      __PGBAR_CXX20_CNSTXPR ~Spin()                          = default;
+      Spin( const Spin& )              = default;
+      Spin( Spin&& )                   = default;
+      Spin& operator=( const Spin& ) & = default;
+      Spin& operator=( Spin&& ) &      = default;
+      __PGBAR_CXX20_CNSTXPR ~Spin()    = default;
     };
 
     class Sweep : public __details::prefabs::BasicConfig<__details::assets::SweepIndic, Sweep> {
@@ -6002,11 +6081,11 @@ namespace pgbar {
 
     public:
       using Base::Base;
-      __PGBAR_CXX23_CNSTXPR Sweep( const Sweep& )              = default;
-      __PGBAR_CXX23_CNSTXPR Sweep( Sweep&& )                   = default;
-      __PGBAR_CXX23_CNSTXPR Sweep& operator=( const Sweep& ) & = default;
-      __PGBAR_CXX23_CNSTXPR Sweep& operator=( Sweep&& ) &      = default;
-      __PGBAR_CXX20_CNSTXPR ~Sweep()                           = default;
+      Sweep( const Sweep& )              = default;
+      Sweep( Sweep&& )                   = default;
+      Sweep& operator=( const Sweep& ) & = default;
+      Sweep& operator=( Sweep&& ) &      = default;
+      __PGBAR_CXX20_CNSTXPR ~Sweep()     = default;
     };
 
     class Flow : public __details::prefabs::BasicConfig<__details::assets::FlowIndic, Flow> {
@@ -6054,11 +6133,11 @@ namespace pgbar {
 
     public:
       using Base::Base;
-      __PGBAR_CXX23_CNSTXPR Flow( const Flow& )              = default;
-      __PGBAR_CXX23_CNSTXPR Flow( Flow&& )                   = default;
-      __PGBAR_CXX23_CNSTXPR Flow& operator=( const Flow& ) & = default;
-      __PGBAR_CXX23_CNSTXPR Flow& operator=( Flow&& ) &      = default;
-      __PGBAR_CXX20_CNSTXPR ~Flow()                          = default;
+      Flow( const Flow& )              = default;
+      Flow( Flow&& )                   = default;
+      Flow& operator=( const Flow& ) & = default;
+      Flow& operator=( Flow&& ) &      = default;
+      __PGBAR_CXX20_CNSTXPR ~Flow()    = default;
     };
   } // namespace config
 
