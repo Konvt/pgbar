@@ -6908,21 +6908,22 @@ namespace pgbar {
         using Self   = CoreBar;
         using Subcls = Derived<Soul, Outlet, Mode, Area>;
 
-        __PGBAR_INLINE_FN friend void make_frame( Self& self )
+        __PGBAR_INLINE_FN void make_frame()
         {
-          switch ( static_cast<Subcls&>( self ).categorize() ) {
+          switch ( static_cast<Subcls*>( this )->categorize() ) {
           case StateCategory::Awake: {
-            static_cast<Subcls&>( self ).startframe();
+            static_cast<Subcls*>( this )->startframe();
           } break;
           case StateCategory::Refresh: {
-            static_cast<Subcls&>( self ).refreshframe();
+            static_cast<Subcls*>( this )->refreshframe();
           } break;
           case StateCategory::Finish: {
-            static_cast<Subcls&>( self ).endframe();
+            static_cast<Subcls*>( this )->endframe();
           } break;
           default: return;
           }
         }
+        __PGBAR_INLINE_FN friend void make_frame( Self& self ) { self.make_frame(); }
 
       protected:
         enum class StateCategory : std::uint8_t { Stop, Awake, Refresh, Finish };
@@ -7116,6 +7117,7 @@ namespace pgbar {
         using State = typename Base::StateCategory;
         std::atomic<State> state_;
 
+      protected:
         __PGBAR_INLINE_FN void startframe() &
         {
           this->config_.build( io::OStream<Outlet>::itself(),
@@ -7144,7 +7146,6 @@ namespace pgbar {
           this->state_.store( State::Stop, std::memory_order_release );
         }
 
-      protected:
         __PGBAR_INLINE_FN typename Base::StateCategory categorize() const noexcept
         {
           return state_.load( std::memory_order_acquire );
@@ -7244,6 +7245,7 @@ namespace pgbar {
         enum class State : std::uint8_t { Stop, Awake, ProgressRefresh, ActivityRefresh, Finish };
         std::atomic<State> state_;
 
+      protected:
         __PGBAR_INLINE_FN void startframe() &
         {
           __PGBAR_ASSERT( this->task_cnt_ <= this->task_end_ );
@@ -7282,7 +7284,6 @@ namespace pgbar {
           state_.store( State::Stop, std::memory_order_release );
         }
 
-      protected:
         __PGBAR_INLINE_FN typename Base::StateCategory categorize() const noexcept
         {
           switch ( state_.load( std::memory_order_acquire ) ) {
