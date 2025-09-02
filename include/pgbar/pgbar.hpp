@@ -434,7 +434,7 @@ namespace pgbar {
       struct Union<HeadTpSet, TypeSet<T, Ts...>> : Union<Expand_t<HeadTpSet, T>, TypeSet<Ts...>> {};
 
       template<typename HeadTpSet, typename... TailTpSet>
-      struct Coalesce : Union<HeadTpSet, Coalesce<TailTpSet...>> {};
+      struct Coalesce;
       template<typename HeadTpSet, typename... TailTpSet>
       using Coalesce_t = typename Coalesce<HeadTpSet, TailTpSet...>::type;
 
@@ -3760,6 +3760,11 @@ namespace pgbar {
       __PGBAR_OPTIONS( Tasks, std::uint64_t, _num_tasks )
     };
 
+    // A wrapper that stores the flag of direction.
+    struct Reversed : __PGBAR_BASE( bool ) {
+      __PGBAR_OPTIONS( Reversed, bool, _flag )
+    };
+
     // A wrapper that stores the length of the bar indicator, in the character unit.
     struct BarLength : __PGBAR_BASE( __details::types::Size ) {
       __PGBAR_OPTIONS( BarLength, __details::types::Size, _num_char )
@@ -4132,8 +4137,8 @@ namespace pgbar {
       };
 
       template<typename Base, typename Derived>
-      class TaskQuantity : public Base {
-        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( TaskQuantity& cfg,
+      class Countable : public Base {
+        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( Countable& cfg,
                                                                       option::Tasks&& val ) noexcept
         {
           cfg.task_range_ = slice::NumericSpan<std::uint64_t>( val.value() );
@@ -4143,8 +4148,8 @@ namespace pgbar {
         slice::NumericSpan<std::uint64_t> task_range_;
 
       public:
-        constexpr TaskQuantity() = default;
-        __PGBAR_NONEMPTY_COMPONENT( TaskQuantity, __PGBAR_CXX14_CNSTXPR )
+        constexpr Countable() = default;
+        __PGBAR_NONEMPTY_COMPONENT( Countable, __PGBAR_CXX14_CNSTXPR )
 
         // Set the number of tasks, passing in zero is no exception.
         Derived& tasks( std::uint64_t param ) & noexcept
@@ -4160,9 +4165,44 @@ namespace pgbar {
           return task_range_.back();
         }
 
-        __PGBAR_CXX14_CNSTXPR void swap( TaskQuantity& lhs ) noexcept
+        __PGBAR_CXX14_CNSTXPR void swap( Countable& lhs ) noexcept
         {
           task_range_.swap( lhs.task_range_ );
+          Base::swap( lhs );
+        }
+      };
+
+      template<typename Base, typename Derived>
+      class Reversible : public Base {
+        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( Reversible& cfg,
+                                                                      option::Reversed&& val ) noexcept
+        {
+          cfg.reversed_ = val.value();
+        }
+
+      protected:
+        bool reversed_;
+
+      public:
+        constexpr Reversible() = default;
+        __PGBAR_NONEMPTY_COMPONENT( Reversible, __PGBAR_CXX14_CNSTXPR )
+
+        Derived& reverse( bool flag ) & noexcept
+        {
+          std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };
+          unpacker( *this, option::Reversed( flag ) );
+          return static_cast<Derived&>( *this );
+        }
+
+        __PGBAR_NODISCARD bool reverse() const noexcept
+        {
+          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
+          return reversed_;
+        }
+
+        __PGBAR_CXX20_CNSTXPR void swap( Reversible& lhs ) noexcept
+        {
+          std::swap( reversed_, lhs.reversed_ );
           Base::swap( lhs );
         }
       };
@@ -4500,41 +4540,61 @@ namespace pgbar {
           if ( this->bar_length_ == 0 )
             return buffer;
 
+          const auto len_finished = static_cast<types::Size>( std::round( this->bar_length_ * num_percent ) );
+          types::Size len_vacancy = this->bar_length_ - len_finished;
+
           this->try_reset( buffer );
           this->try_dye( buffer, this->start_col_ ) << this->starting_;
-          this->try_reset( buffer );
-          this->try_dye( buffer, this->filler_col_ );
 
-          const auto len_finished = static_cast<types::Size>( std::round( this->bar_length_ * num_percent ) );
-          types::Size len_unfinished = this->bar_length_ - len_finished;
-          __PGBAR_TRUST( len_finished + len_unfinished == this->bar_length_ );
+          if ( !this->reversed_ ) {
+            this->try_reset( buffer );
+            this->try_dye( buffer, this->filler_col_ )
+              .append( this->filler_, len_finished / this->filler_.width() )
+              .append( constants::blank, len_finished % this->filler_.width() );
 
-          // build filler_
-          if ( !this->filler_.empty() && this->filler_.width() <= len_finished ) {
-            const types::Size fill_num  = len_finished / this->filler_.width(),
-                              remaining = len_finished % this->filler_.width();
-            len_unfinished += remaining;
-            buffer.append( this->filler_, fill_num );
-          } else
-            len_unfinished += len_finished;
-          // build lead_
-          this->try_reset( buffer );
-          if ( !this->lead_.empty() ) {
-            num_frame_cnt            = static_cast<types::Size>( num_frame_cnt * this->shift_factor_ );
-            const auto& current_lead = this->lead_[num_frame_cnt % this->lead_.size()];
-            if ( current_lead.width() <= len_unfinished ) {
-              len_unfinished -= current_lead.width();
-              this->try_dye( buffer, this->lead_col_ ) << current_lead;
-              this->try_reset( buffer );
+            if ( !this->lead_.empty() ) {
+              num_frame_cnt =
+                static_cast<types::Size>( num_frame_cnt * this->shift_factor_ ) % this->lead_.size();
+              const auto& current_lead = this->lead_[num_frame_cnt];
+              if ( current_lead.width() <= len_vacancy ) {
+                this->try_reset( buffer );
+                this->try_dye( buffer, this->lead_col_ ).append( current_lead );
+                len_vacancy -= current_lead.width();
+              }
             }
+
+            this->try_reset( buffer );
+            this->try_dye( buffer, this->remains_col_ );
+            buffer.append( constants::blank, len_vacancy % this->remains_.width() )
+              .append( this->remains_, len_vacancy / this->remains_.width() );
+          } else {
+            const auto flag = [this, num_frame_cnt, &len_vacancy]() noexcept {
+              if ( !this->lead_.empty() ) {
+                const auto offset =
+                  static_cast<types::Size>( num_frame_cnt * this->shift_factor_ ) % this->lead_.size();
+                if ( this->lead_[offset].width() <= len_vacancy ) {
+                  len_vacancy -= this->lead_[offset].width();
+                  return true;
+                }
+              }
+              return false;
+            }();
+
+            this->try_reset( buffer );
+            this->try_dye( buffer, this->remains_col_ );
+            buffer.append( constants::blank, len_vacancy % this->remains_.width() )
+              .append( this->remains_, len_vacancy / this->remains_.width() );
+
+            if ( flag ) {
+              this->try_reset( buffer );
+              this->try_dye( buffer, this->lead_col_ ).append( this->lead_[num_frame_cnt] );
+            }
+
+            this->try_reset( buffer );
+            this->try_dye( buffer, this->filler_col_ )
+              .append( this->filler_, len_finished / this->filler_.width() )
+              .append( constants::blank, len_finished % this->filler_.width() );
           }
-          // build remains_
-          this->try_dye( buffer, this->remains_col_ );
-          if ( !this->remains_.empty() && this->remains_.width() <= len_unfinished )
-            buffer.append( this->remains_, len_unfinished / this->remains_.width() )
-              .append( constants::blank, len_unfinished % this->remains_.width() );
-          else
-            buffer.append( constants::blank, len_unfinished );
 
           this->try_reset( buffer );
           return this->try_dye( buffer, this->end_col_ ) << this->ending_;
@@ -4555,31 +4615,56 @@ namespace pgbar {
           if ( this->bar_length_ == 0 )
             return buffer;
 
+          const auto len_finished     = static_cast<types::Size>( this->bar_length_ * num_percent );
+          const types::Float fraction = ( this->bar_length_ * num_percent ) - len_finished;
+          __PGBAR_TRUST( fraction >= 0.0 );
+          __PGBAR_TRUST( fraction <= 1.0 );
+          const auto incomplete_block = static_cast<types::Size>( fraction * this->lead_.size() );
+          __PGBAR_ASSERT( incomplete_block <= this->lead_.size() );
+          types::Size len_vacancy = this->bar_length_ - len_finished;
+
           this->try_reset( buffer );
           this->try_dye( buffer, this->start_col_ ) << this->starting_;
-          this->try_reset( buffer );
 
-          const auto len_finished       = static_cast<types::Size>( this->bar_length_ * num_percent );
-          const types::Float float_part = ( this->bar_length_ * num_percent ) - len_finished;
-          __PGBAR_TRUST( float_part >= 0.0 );
-          __PGBAR_TRUST( float_part <= 1.0 );
-          const auto incomplete_block = static_cast<types::Size>( float_part * this->lead_.size() );
-          __PGBAR_ASSERT( incomplete_block <= this->lead_.size() );
-          const types::Size len_unfinished =
-            this->bar_length_ - len_finished - ( this->bar_length_ != len_finished );
-          __PGBAR_TRUST( len_finished + len_unfinished + 1 == this->bar_length_ );
-
-          this->try_dye( buffer, this->filler_col_ );
-          buffer.append( this->filler_, len_finished );
-
-          if ( !this->lead_.empty() ) {
+          if ( !this->reversed_ ) {
             this->try_reset( buffer );
-            this->try_dye( buffer, this->lead_col_ );
-            buffer.append( this->lead_[incomplete_block], this->bar_length_ != len_finished );
+            this->try_dye( buffer, this->filler_col_ )
+              .append( this->filler_, len_finished / this->filler_.width() )
+              .append( constants::blank, len_finished % this->filler_.width() );
+
+            if ( this->bar_length_ != len_finished && !this->lead_.empty()
+                 && this->lead_[incomplete_block].width() <= len_vacancy ) {
+              this->try_reset( buffer );
+              this->try_dye( buffer, this->lead_col_ ).append( this->lead_[incomplete_block] );
+              len_vacancy -= this->lead_[incomplete_block].width();
+            }
+
+            this->try_reset( buffer );
+            this->try_dye( buffer, this->remains_col_ )
+              .append( constants::blank, len_vacancy % this->remains_.width() )
+              .append( this->remains_, len_vacancy / this->remains_.width() );
+          } else {
+            const auto flag = this->bar_length_ != len_finished && !this->lead_.empty()
+                           && this->lead_[incomplete_block].width() <= len_vacancy;
+            if ( flag )
+              len_vacancy -= this->lead_[incomplete_block].width();
+
+            this->try_reset( buffer );
+            this->try_dye( buffer, this->remains_col_ )
+              .append( this->remains_, len_vacancy / this->remains_.width() )
+              .append( constants::blank, len_vacancy % this->remains_.width() );
+
+            if ( flag ) {
+              this->try_reset( buffer );
+              this->try_dye( buffer, this->lead_col_ ).append( this->lead_[incomplete_block] );
+            }
+
+            this->try_reset( buffer );
+            this->try_dye( buffer, this->filler_col_ )
+              .append( constants::blank, len_finished % this->filler_.width() )
+              .append( this->filler_, len_finished / this->filler_.width() );
           }
 
-          this->try_reset( buffer );
-          this->try_dye( buffer, this->remains_col_ ).append( this->remains_, len_unfinished );
           this->try_reset( buffer );
           return this->try_dye( buffer, this->end_col_ ) << this->ending_;
         }
@@ -4619,6 +4704,7 @@ namespace pgbar {
             return buffer;
 
           num_frame_cnt = static_cast<types::Size>( num_frame_cnt * this->shift_factor_ );
+
           this->try_reset( buffer );
           this->try_dye( buffer, this->start_col_ ) << this->starting_;
           this->try_reset( buffer );
@@ -4681,6 +4767,7 @@ namespace pgbar {
             return buffer;
 
           num_frame_cnt = static_cast<types::Size>( num_frame_cnt * this->shift_factor_ );
+
           this->try_reset( buffer );
           this->try_dye( buffer, this->start_col_ ) << this->starting_;
           this->try_reset( buffer );
@@ -4689,14 +4776,17 @@ namespace pgbar {
             const auto& current_lead = this->lead_[num_frame_cnt % this->lead_.size()];
             if ( current_lead.width() <= this->bar_length_ ) {
               // virtual_point is a value between 0 and this->bar_length - 1
-              const auto virtual_point = num_frame_cnt % this->bar_length_;
-              const auto len_vacancy   = this->bar_length_ - virtual_point - 1;
+              const auto virtual_point = [this, num_frame_cnt]() noexcept {
+                const auto pos = num_frame_cnt % this->bar_length_;
+                return !this->reversed_ ? pos : ( this->bar_length_ - 1 - pos ) % this->bar_length_;
+              }();
+              const auto len_vacancy = this->bar_length_ - virtual_point - 1;
 
               if ( current_lead.width() <= len_vacancy ) {
                 const auto len_right_fill = len_vacancy - current_lead.width();
 
-                this->try_dye( buffer, this->filler_col_ );
-                buffer.append( this->filler_, virtual_point / this->filler_.width() )
+                this->try_dye( buffer, this->filler_col_ )
+                  .append( this->filler_, virtual_point / this->filler_.width() )
                   .append( constants::blank, virtual_point % this->filler_.width() );
                 this->try_reset( buffer ).append( this->lead_col_ ).append( current_lead );
                 this->try_reset( buffer )
@@ -4707,13 +4797,13 @@ namespace pgbar {
                 const auto division      = current_lead.split_by( len_vacancy );
                 const auto len_left_fill = virtual_point - division.second.second;
 
-                buffer.append( this->lead_col_ ).append( division.first[1], division.first[2] );
+                this->try_dye( buffer, this->lead_col_ ).append( division.first[1], division.first[2] );
                 this->try_reset( buffer );
                 this->try_dye( buffer, this->filler_col_ )
                   .append( constants::blank, len_left_fill % this->filler_.width() )
                   .append( this->filler_, len_left_fill / this->filler_.width() );
-                this->try_reset( buffer );
-                buffer.append( this->lead_col_ )
+                this->try_reset( buffer )
+                  .append( this->lead_col_ )
                   .append( division.first[0], division.first[1] )
                   .append( constants::blank, len_vacancy - division.second.first );
               }
@@ -5274,31 +5364,36 @@ namespace pgbar {
       // It will be directly passed to the dependency resolution function as the initial base class.
       __PGBAR_INHERIT_REGISTER( assets::BasicAnimation, , assets::Frames );
 
-      __PGBAR_INHERIT_REGISTER(
-        assets::CharIndic,
-        assets::TaskQuantity,
-        __PGBAR_PACK( assets::BasicAnimation, assets::BasicIndicator, assets::Filler, assets::Remains ) );
-      __PGBAR_INHERIT_REGISTER(
-        assets::BlockIndic,
-        assets::TaskQuantity,
-        __PGBAR_PACK( assets::Frames, assets::BasicIndicator, assets::Filler, assets::Remains ) );
+      __PGBAR_INHERIT_REGISTER( assets::CharIndic,
+                                assets::Countable,
+                                __PGBAR_PACK( assets::Filler,
+                                              assets::Remains,
+                                              assets::BasicAnimation,
+                                              assets::BasicIndicator,
+                                              assets::Reversible ) );
+      __PGBAR_INHERIT_REGISTER( assets::BlockIndic,
+                                assets::Countable,
+                                __PGBAR_PACK( assets::Filler,
+                                              assets::Remains,
+                                              assets::Frames,
+                                              assets::BasicIndicator,
+                                              assets::Reversible ) );
       __PGBAR_INHERIT_REGISTER( assets::SpinIndic, , assets::BasicAnimation );
       __PGBAR_INHERIT_REGISTER( assets::SweepIndic,
                                 ,
-                                __PGBAR_PACK( assets::BasicAnimation,
-                                              assets::BasicIndicator,
-                                              assets::Filler ) );
-      __PGBAR_INHERIT_REGISTER( assets::FlowIndic,
-                                ,
-                                __PGBAR_PACK( assets::BasicAnimation,
-                                              assets::BasicIndicator,
-                                              assets::Filler ) );
+                                __PGBAR_PACK( assets::Filler,
+                                              assets::BasicAnimation,
+                                              assets::BasicIndicator ) );
+      __PGBAR_INHERIT_REGISTER(
+        assets::FlowIndic,
+        ,
+        __PGBAR_PACK( assets::Filler, assets::BasicAnimation, assets::BasicIndicator, assets::Reversible ) );
 
-      __PGBAR_INHERIT_REGISTER( assets::PercentMeter, assets::TaskQuantity, );
-      __PGBAR_INHERIT_REGISTER( assets::SpeedMeter, assets::TaskQuantity, );
-      __PGBAR_INHERIT_REGISTER( assets::CounterMeter, assets::TaskQuantity, );
+      __PGBAR_INHERIT_REGISTER( assets::PercentMeter, assets::Countable, );
+      __PGBAR_INHERIT_REGISTER( assets::SpeedMeter, assets::Countable, );
+      __PGBAR_INHERIT_REGISTER( assets::CounterMeter, assets::Countable, );
 
-      __PGBAR_INHERIT_REGISTER( assets::Timer, assets::TaskQuantity, );
+      __PGBAR_INHERIT_REGISTER( assets::Timer, assets::Countable, );
 
       template<template<typename...> class Component>
       struct OptionFor {
@@ -5314,7 +5409,8 @@ namespace pgbar {
    }
 
       __PGBAR_BIND_OPTION( assets::CoreConfig, option::Colored, option::Bolded );
-      __PGBAR_BIND_OPTION( assets::TaskQuantity, option::Tasks );
+      __PGBAR_BIND_OPTION( assets::Countable, option::Tasks );
+      __PGBAR_BIND_OPTION( assets::Reversible, option::Reversed );
       __PGBAR_BIND_OPTION( assets::Frames, option::Lead, option::LeadColor );
       __PGBAR_BIND_OPTION( assets::Filler, option::Filler, option::FillerColor );
       __PGBAR_BIND_OPTION( assets::Remains, option::Remains, option::RemainsColor );
@@ -5343,7 +5439,8 @@ namespace pgbar {
 
       template<>
       struct OptionFor<assets::CharIndic>
-        : Coalesce<OptionFor_t<assets::TaskQuantity>,
+        : Coalesce<OptionFor_t<assets::Countable>,
+                   OptionFor_t<assets::Reversible>,
                    OptionFor_t<assets::Frames>,
                    OptionFor_t<assets::Filler>,
                    OptionFor_t<assets::Remains>,
@@ -5351,7 +5448,8 @@ namespace pgbar {
                    OptionFor_t<assets::BasicIndicator>> {};
       template<>
       struct OptionFor<assets::BlockIndic>
-        : Coalesce<OptionFor_t<assets::TaskQuantity>,
+        : Coalesce<OptionFor_t<assets::Countable>,
+                   OptionFor_t<assets::Reversible>,
                    OptionFor_t<assets::Frames>,
                    OptionFor_t<assets::Filler>,
                    OptionFor_t<assets::Remains>,
@@ -5359,17 +5457,18 @@ namespace pgbar {
                    OptionFor_t<assets::BasicIndicator>> {};
       template<>
       struct OptionFor<assets::SpinIndic>
-        : Coalesce<OptionFor_t<assets::TaskQuantity>, OptionFor_t<assets::BasicAnimation>> {};
+        : Coalesce<OptionFor_t<assets::Countable>, OptionFor_t<assets::BasicAnimation>> {};
       template<>
       struct OptionFor<assets::SweepIndic>
-        : Coalesce<OptionFor_t<assets::TaskQuantity>,
+        : Coalesce<OptionFor_t<assets::Countable>,
                    OptionFor_t<assets::Frames>,
                    OptionFor_t<assets::Filler>,
                    OptionFor_t<assets::BasicAnimation>,
                    OptionFor_t<assets::BasicIndicator>> {};
       template<>
       struct OptionFor<assets::FlowIndic>
-        : Coalesce<OptionFor_t<assets::TaskQuantity>,
+        : Coalesce<OptionFor_t<assets::Countable>,
+                   OptionFor_t<assets::Reversible>,
                    OptionFor_t<assets::Frames>,
                    OptionFor_t<assets::Filler>,
                    OptionFor_t<assets::BasicAnimation>,
@@ -5727,6 +5826,8 @@ namespace pgbar {
         // The types in the tuple are never repeated.
         static_assert( __details::traits::InstanceOf<ArgSet, __details::traits::TypeSet>::value,
                        "pgbar::config::Line::initialize: Invalid template type" );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Reversed>::value )
+          unpacker( *this, option::Reversed( false ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Shift>::value )
           unpacker( *this, option::Shift( -2 ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Lead>::value )
@@ -5779,6 +5880,8 @@ namespace pgbar {
       {
         static_assert( __details::traits::InstanceOf<ArgSet, __details::traits::TypeSet>::value,
                        "pgbar::config::Block::initialize: Invalid template type" );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Reversed>::value )
+          unpacker( *this, option::Reversed( false ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Lead>::value )
           unpacker( *this, option::Lead( { " ", "▏", "▎", "▍", "▌", "▋", "▊", "▉" } ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::BarLength>::value )
@@ -5920,6 +6023,8 @@ namespace pgbar {
       {
         static_assert( __details::traits::InstanceOf<ArgSet, __details::traits::TypeSet>::value,
                        "pgbar::config::Flow::initialize: Invalid template type" );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Reversed>::value )
+          unpacker( *this, option::Reversed( false ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Shift>::value )
           unpacker( *this, option::Shift( -3 ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Starting>::value )

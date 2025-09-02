@@ -1,9 +1,12 @@
 #include "pgbar/pgbar.hpp"
+#include <chrono>
+#include <thread>
 
 int main()
 {
   pgbar::FlowBar<> flwbar;
-  flwbar.config().style( pgbar::config::Flow::Entire ).tasks( 2147483647 );
-  for ( size_t i = 0; i < 2147483647; ++i )
-    flwbar.tick();
+  flwbar.config().reverse( true );
+  flwbar.tick();
+  std::this_thread::sleep_for( std::chrono::seconds( 20 ) );
+  flwbar.reset();
 }
