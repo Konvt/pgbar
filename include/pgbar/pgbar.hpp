@@ -208,6 +208,26 @@ namespace pgbar {
     };
   } // namespace exception
 
+  // A enum that specifies the type of the output stream.
+  enum class Channel : int {
+# if __PGBAR_UNIX
+    Stdout = STDOUT_FILENO,
+    Stderr = STDERR_FILENO
+# else
+    Stdout = 1,
+    Stderr = 2
+# endif
+  };
+  enum class Policy : std::uint8_t { Async, Sync };
+  enum class Region : std::uint8_t { Fixed, Relative };
+
+  namespace config {
+    void hide_completed( bool flag ) noexcept;
+    __PGBAR_NODISCARD bool hide_completed() noexcept;
+    void disable_styling( bool flag ) noexcept;
+    __PGBAR_NODISCARD bool disable_styling() noexcept;
+  }
+
   namespace __details {
     namespace types {
       using Size   = std::size_t;
@@ -246,32 +266,32 @@ namespace pgbar {
 
       // This is an internal implementation and should not be used outside of this preprocessing block.
       template<typename HeadSeq, typename TailSeq>
-      struct ConcatSeq;
+      struct _ConcatSeq;
       template<typename HeadSeq, typename TailSeq>
-      using ConcatSeq_t = typename ConcatSeq<HeadSeq, TailSeq>::type;
+      using _ConcatSeq_t = typename _ConcatSeq<HeadSeq, TailSeq>::type;
 
       template<types::Size... HeadI, types::Size... TailI>
-      struct ConcatSeq<IndexSeq<HeadI...>, IndexSeq<TailI...>> {
+      struct _ConcatSeq<IndexSeq<HeadI...>, IndexSeq<TailI...>> {
         using type = IndexSeq<HeadI..., ( sizeof...( HeadI ) + TailI )...>;
       };
 
       // Internal implementation, it should not be used outside of this preprocessing block.
       template<types::Size N>
-      struct MakeIndexSeqHelper {
+      struct _MakeIndexSeqHelper {
         using type =
-          ConcatSeq_t<typename MakeIndexSeqHelper<N / 2>::type, typename MakeIndexSeqHelper<N - N / 2>::type>;
+          _ConcatSeq_t<typename _MakeIndexSeqHelper<N / 2>::type, typename _MakeIndexSeqHelper<N - N / 2>::type>;
       };
       template<>
-      struct MakeIndexSeqHelper<0> {
+      struct _MakeIndexSeqHelper<0> {
         using type = IndexSeq<>;
       };
       template<>
-      struct MakeIndexSeqHelper<1> {
+      struct _MakeIndexSeqHelper<1> {
         using type = IndexSeq<0>;
       };
 
       template<types::Size N>
-      using MakeIndexSeq = typename MakeIndexSeqHelper<N>::type;
+      using MakeIndexSeq = typename _MakeIndexSeqHelper<N>::type;
 # endif
 
 # if __PGBAR_CXX17
@@ -729,9 +749,8 @@ namespace pgbar {
        * Otherwise, return the type `T` itself.
        */
       template<typename T>
-      struct IteratorOf
+      struct IteratorOf {
 # if __PGBAR_CXX20
-      {
       private:
         // Provide a default fallback to avoid the problem of the type not existing
         // in the immediate context derivation.
@@ -742,9 +761,7 @@ namespace pgbar {
 
       public:
         using type = decltype( check<T>( 0 ) );
-      };
 # else
-      {
       private:
         template<typename U, typename = void>
         struct has_iterator : std::false_type {};
@@ -790,8 +807,8 @@ namespace pgbar {
 
       public:
         using type = typename _Select<T>::type;
-      };
 # endif
+      };
       // Get the result type of `IteratorOf`.
       template<typename T>
       using IteratorOf_t = typename IteratorOf<T>::type;
@@ -2321,7 +2338,836 @@ namespace pgbar {
         friend void swap( ExceptionBox& a, ExceptionBox& b ) noexcept { a.swap( b ); }
       };
     } // namespace concurrent
+
+    namespace io {
+      // A simple string buffer, unrelated to the `std::stringbuf` in the STL.
+      class Stringbuf {
+        using Self = Stringbuf;
+
+      protected:
+        std::vector<types::Char> buffer_;
+
+      public:
+        __PGBAR_CXX20_CNSTXPR Stringbuf() = default;
+
+        __PGBAR_CXX20_CNSTXPR Stringbuf( const Self& lhs )                           = default;
+        __PGBAR_CXX20_CNSTXPR Stringbuf( Self&& rhs ) noexcept                       = default;
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& operator=( const Self& lhs ) & = default;
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& operator=( Self&& rhs ) &      = default;
+        // Intentional non-virtual destructors.
+        __PGBAR_CXX20_CNSTXPR ~Stringbuf()                                           = default;
+
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR bool empty() const noexcept { return buffer_.empty(); }
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void clear() & noexcept { buffer_.clear(); }
+
+        // Releases the buffer space completely
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void release() noexcept
+        {
+          clear();
+          buffer_.shrink_to_fit();
+        }
+
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& reserve( types::Size capacity ) &
+        {
+          buffer_.reserve( capacity );
+          return *this;
+        }
+
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& append( types::Char info, types::Size __num = 1 ) &
+        {
+          buffer_.insert( buffer_.end(), __num, info );
+          return *this;
+        }
+        template<types::Size N>
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& append( const char ( &info )[N],
+                                                              types::Size __num = 1 ) &
+        {
+          for ( types::Size _ = 0; _ < __num; ++_ )
+            buffer_.insert( buffer_.end(), info, info + N );
+          return *this;
+        }
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& append( types::ROStr info, types::Size __num = 1 ) &
+        {
+          for ( types::Size _ = 0; _ < __num; ++_ )
+            buffer_.insert( buffer_.end(), info.cbegin(), info.cend() );
+          return *this;
+        }
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& append( const charcodes::U8Raw& info,
+                                                              types::Size __num = 1 )
+        {
+          return append( info.str(), __num );
+        }
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& append( const types::Char* head,
+                                                              const types::Char* tail )
+        {
+          if ( head != nullptr && tail != nullptr )
+            buffer_.insert( buffer_.end(), head, tail );
+          return *this;
+        }
+
+        template<typename T>
+        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR typename std::enable_if<
+          traits::AnyOf<std::is_same<typename std::decay<T>::type, types::Char>,
+                        std::is_same<typename std::decay<T>::type, types::String>,
+                        std::is_same<typename std::decay<T>::type, charcodes::U8Raw>>::value,
+          Self&>::type
+          operator<<( Self& stream, T&& info )
+        {
+          return stream.append( std::forward<T>( info ) );
+        }
+        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& operator<<( Self& stream, types::ROStr info )
+        {
+          return stream.append( info );
+        }
+        template<types::Size N>
+        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& operator<<( Self& stream,
+                                                                         const char ( &info )[N] )
+        {
+          return stream.append( info );
+        }
+
+        __PGBAR_CXX20_CNSTXPR void swap( Stringbuf& lhs ) noexcept
+        {
+          __PGBAR_TRUST( this != &lhs );
+          buffer_.swap( lhs.buffer_ );
+        }
+        friend __PGBAR_CXX20_CNSTXPR void swap( Stringbuf& a, Stringbuf& b ) noexcept { a.swap( b ); }
+      };
+
+      template<Channel Outlet>
+      class OStream;
+      template<Channel Outlet>
+      OStream<Outlet>& flush( OStream<Outlet>& stream )
+      {
+        return stream.flush();
+      }
+      template<Channel Outlet>
+      __PGBAR_CXX20_CNSTXPR OStream<Outlet>& release( OStream<Outlet>& stream ) noexcept
+      {
+        stream.release();
+        return stream;
+      }
+
+      /**
+       * A helper output stream that writes the data to `stdout` or `stderr` directly.
+       *
+       * It holds a proprietary buffer
+       * so that don't have to use the common output buffers in the standard library.
+       *
+       * If the local platform is neither `Windows` nor `unix-like`,
+       * the class still uses the method `write` of `std::ostream` in standard library.
+       */
+      template<Channel Outlet>
+      class OStream final : public Stringbuf {
+        using Self = OStream;
+
+        __PGBAR_CXX20_CNSTXPR OStream() = default;
+
+      public:
+        static Self& itself() noexcept( std::is_nothrow_default_constructible<Stringbuf>::value )
+        {
+          static OStream instance;
+          return instance;
+        }
+
+        __PGBAR_CXX20_CNSTXPR OStream( const Self& )           = delete;
+        __PGBAR_CXX20_CNSTXPR Self& operator=( const Self& ) & = delete;
+        // Intentional non-virtual destructors.
+        __PGBAR_CXX20_CNSTXPR ~OStream()                       = default;
+
+        Self& flush() &
+        {
+# if __PGBAR_WIN
+          types::Size total_written = 0;
+          do {
+            DWORD num_written = 0;
+            if __PGBAR_CXX17_CNSTXPR ( Outlet == Channel::Stdout ) {
+              auto h_stdout = GetStdHandle( STD_OUTPUT_HANDLE );
+              if ( h_stdout == INVALID_HANDLE_VALUE )
+                __PGBAR_UNLIKELY throw exception::SystemError(
+                  "pgbar: cannot open the standard output stream" );
+              WriteFile( h_stdout,
+                         buffer_.data() + total_written,
+                         static_cast<DWORD>( buffer_.size() - total_written ),
+                         &num_written,
+                         nullptr );
+            } else {
+              auto h_stderr = GetStdHandle( STD_ERROR_HANDLE );
+              if ( h_stderr == INVALID_HANDLE_VALUE )
+                __PGBAR_UNLIKELY throw exception::SystemError(
+                  "pgbar: cannot open the standard error stream" );
+              WriteFile( h_stderr,
+                         buffer_.data() + total_written,
+                         static_cast<DWORD>( buffer_.size() - total_written ),
+                         &num_written,
+                         nullptr );
+            }
+            if ( num_written <= 0 )
+              break; // ignore it
+            total_written += static_cast<types::Size>( num_written );
+          } while ( total_written < buffer_.size() );
+# elif __PGBAR_UNIX
+          types::Size total_written = 0;
+          do {
+            ssize_t num_written = 0;
+            if __PGBAR_CXX17_CNSTXPR ( Outlet == Channel::Stdout )
+              num_written =
+                write( STDOUT_FILENO, buffer_.data() + total_written, buffer_.size() - total_written );
+            else
+              num_written =
+                write( STDERR_FILENO, buffer_.data() + total_written, buffer_.size() - total_written );
+            if ( errno == EINTR )
+              num_written = num_written < 0 ? 0 : num_written;
+            else if ( num_written < 0 )
+              break;
+            total_written += static_cast<types::Size>( num_written );
+          } while ( total_written < buffer_.size() );
+# else
+          if __PGBAR_CXX17_CNSTXPR ( Outlet == Channel::Stdout )
+            std::cout.write( buffer_.data(), buffer_.size() ).flush();
+          else
+            std::cerr.write( buffer_.data(), buffer_.size() ).flush();
+# endif
+          clear();
+          return *this;
+        }
+
+        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& operator<<( OStream& stream,
+                                                                         OStream& ( *fnptr )(OStream&))
+        {
+          __PGBAR_TRUST( fnptr != nullptr );
+          return fnptr( stream );
+        }
+      };
+    } // namespace io
+
+    namespace console {
+      // escape codes
+      namespace escodes {
+# ifdef PGBAR_COLORLESS
+        __PGBAR_CXX17_INLINE constexpr types::LitStr fontreset = "";
+        __PGBAR_CXX17_INLINE constexpr types::LitStr fontbold  = "";
+# else
+        __PGBAR_CXX17_INLINE constexpr types::LitStr fontreset = "\x1B[0m";
+        __PGBAR_CXX17_INLINE constexpr types::LitStr fontbold  = "\x1B[1m";
+# endif
+        __PGBAR_CXX17_INLINE constexpr types::LitStr savecursor  = "\x1B[s";
+        __PGBAR_CXX17_INLINE constexpr types::LitStr resetcursor = "\x1B[u";
+        __PGBAR_CXX17_INLINE constexpr types::LitStr linewipe    = "\x1B[K";
+        __PGBAR_CXX17_INLINE constexpr types::LitStr prevline    = "\x1b[A";
+        __PGBAR_CXX17_INLINE constexpr types::Char nextline      = '\n';
+        __PGBAR_CXX17_INLINE constexpr types::Char linestart     = '\r';
+
+        /**
+         * Convert a hexidecimal RGB color value to an ANSI escape code.
+         *
+         * Return nothing if defined `PGBAR_COLORLESS`.
+         */
+        inline types::String rgb2ansi( types::HexRGB rgb )
+# ifdef PGBAR_COLORLESS
+          noexcept( std::is_nothrow_default_constructible<types::String>::value )
+        {
+          return {};
+        }
+# else
+          noexcept( false )
+        {
+          if ( rgb == __PGBAR_DEFAULT )
+            return types::String( escodes::fontreset );
+
+          switch ( rgb & 0x00FFFFFF ) { // discard the high 8 bits
+          case __PGBAR_BLACK:   return "\x1B[30m";
+          case __PGBAR_RED:     return "\x1B[31m";
+          case __PGBAR_GREEN:   return "\x1B[32m";
+          case __PGBAR_YELLOW:  return "\x1B[33m";
+          case __PGBAR_BLUE:    return "\x1B[34m";
+          case __PGBAR_MAGENTA: return "\x1B[35m";
+          case __PGBAR_CYAN:    return "\x1B[36m";
+          case __PGBAR_WHITE:   return "\x1B[37m";
+          default:
+            return "\x1B[38;2;" + utils::format( ( rgb >> 16 ) & 0xFF ) + ';'
+                 + utils::format( ( rgb >> 8 ) & 0xFF ) + ';' + utils::format( rgb & 0xFF ) + 'm';
+          }
+        }
+# endif
+      } // namespace escodes
+
+      template<Channel Outlet>
+      class TerminalContext {
+        std::atomic<bool> cache_;
+
+        TerminalContext() noexcept { detect(); }
+
+      public:
+        TerminalContext( const TerminalContext& )              = delete;
+        TerminalContext& operator=( const TerminalContext& ) & = delete;
+        ~TerminalContext()                                     = default;
+
+        static TerminalContext& itself() noexcept
+        {
+          static TerminalContext self;
+          return self;
+        }
+
+        // Detect whether the specified output stream is bound to a terminal.
+        bool detect() noexcept
+        {
+          const bool value = []() noexcept {
+# if defined( PGBAR_INTTY ) || __PGBAR_UNKNOWN
+            return true;
+# elif __PGBAR_WIN
+            HANDLE hConsole;
+            if __PGBAR_CXX17_CNSTXPR ( Outlet == Channel::Stdout )
+              hConsole = GetStdHandle( STD_OUTPUT_HANDLE );
+            else
+              hConsole = GetStdHandle( STD_ERROR_HANDLE );
+            if ( hConsole == INVALID_HANDLE_VALUE )
+              __PGBAR_UNLIKELY return false;
+            return GetFileType( hConsole ) == FILE_TYPE_CHAR;
+# else
+            return isatty( static_cast<int>( Outlet ) );
+# endif
+          }();
+          cache_.store( value, std::memory_order_release );
+          return value;
+        }
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool connected() const noexcept
+        {
+          return cache_.load( std::memory_order_acquire );
+        }
+
+        /**
+         * Enable virtual terminal processing on the specified output channel (Windows only).
+         * Guaranteed to be thread-safe and performed only once.
+         */
+        void enable_vt() const noexcept
+        {
+# if __PGBAR_WIN && defined( ENABLE_VIRTUAL_TERMINAL_PROCESSING )
+          static std::once_flag flag;
+          std::call_once( flag, []() noexcept {
+            HANDLE stream_handle =
+              GetStdHandle( Outlet == Channel::Stderr ? STD_ERROR_HANDLE : STD_OUTPUT_HANDLE );
+            if ( stream_handle == INVALID_HANDLE_VALUE )
+              __PGBAR_UNLIKELY return;
+
+            DWORD mode {};
+            if ( !GetConsoleMode( stream_handle, &mode ) )
+              __PGBAR_UNLIKELY return;
+            mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+            SetConsoleMode( stream_handle, mode );
+          } );
+# endif
+        }
+
+        __PGBAR_NODISCARD types::Size width() noexcept
+        {
+          if ( !detect() )
+            return 0;
+# if __PGBAR_WIN
+          HANDLE hConsole;
+          if __PGBAR_CXX17_CNSTXPR ( Outlet == Channel::Stdout )
+            hConsole = GetStdHandle( STD_OUTPUT_HANDLE );
+          else
+            hConsole = GetStdHandle( STD_ERROR_HANDLE );
+          if ( hConsole != INVALID_HANDLE_VALUE ) {
+            CONSOLE_SCREEN_BUFFER_INFO csbi;
+            if ( GetConsoleScreenBufferInfo( hConsole, &csbi ) )
+              return csbi.srWindow.Right - csbi.srWindow.Left + 1;
+          }
+# elif __PGBAR_UNIX
+          struct winsize ws;
+          auto fd = static_cast<int>( channel );
+          if ( ioctl( fd, TIOCGWINSZ, &ws ) != -1 )
+            return ws.ws_col;
+# endif
+          return 100;
+        }
+      };
+    } // namespace console
+
+    namespace render {
+      template<Channel Tag>
+      class Runner final {
+        using Self = Runner;
+
+        enum class State : std::uint8_t { Dormant, Suspend, Active, Dead };
+        std::atomic<State> state_;
+
+        std::thread td_;
+        concurrent::ExceptionBox box_;
+        mutable std::condition_variable cond_var_;
+        mutable std::mutex mtx_;
+        mutable concurrent::SharedMutex rw_mtx_;
+
+        wrappers::UniqueFunction<void()> task_;
+
+        void launch() & noexcept( false )
+        {
+          console::TerminalContext<Tag>::itself().enable_vt();
+
+          __PGBAR_ASSERT( td_.get_id() == std::thread::id() );
+          state_.store( State::Dormant, std::memory_order_release );
+          try {
+            td_ = std::thread( [this]() {
+              try {
+                while ( state_.load( std::memory_order_acquire ) != State::Dead ) {
+                  switch ( state_.load( std::memory_order_acquire ) ) {
+                  case State::Dormant: __PGBAR_FALLTHROUGH;
+                  case State::Suspend: {
+                    std::unique_lock<std::mutex> lock { mtx_ };
+                    auto expected = State::Suspend;
+                    state_.compare_exchange_strong( expected, State::Dormant, std::memory_order_release );
+                    cond_var_.wait( lock, [this]() noexcept {
+                      return state_.load( std::memory_order_acquire ) != State::Dormant;
+                    } );
+                  } break;
+                  case State::Active: {
+                    task_();
+                  } break;
+                  default: return;
+                  }
+                }
+              } catch ( ... ) {
+                if ( !box_.try_store( std::current_exception() ) ) {
+                  state_.store( State::Dead, std::memory_order_release );
+                  throw;
+                }
+              }
+            } );
+          } catch ( ... ) {
+            state_.store( State::Dead, std::memory_order_release );
+            throw;
+          }
+        }
+
+        // Since the control flow of the child thread has been completely handed over to task_,
+        // this function does not guarantee that the child thread can be closed immediately after being
+        // called.
+        void shutdown() noexcept
+        {
+          state_.store( State::Dead, std::memory_order_release );
+          {
+            std::lock_guard<std::mutex> lock { mtx_ };
+            cond_var_.notify_all();
+          }
+          if ( td_.joinable() )
+            td_.join();
+          td_ = std::thread();
+        }
+
+        Runner() noexcept : state_ { State::Dead } {}
+
+      public:
+        static Self& itself() noexcept
+        {
+          static Self instance;
+          return instance;
+        }
+
+        Runner( const Self& )            = delete;
+        Self& operator=( const Self& ) & = delete;
+        ~Runner() noexcept { shutdown(); }
+
+        void suspend() noexcept
+        {
+          auto expected = State::Active;
+          if ( state_.compare_exchange_strong( expected, State::Suspend, std::memory_order_release ) ) {
+            concurrent::spin_wait(
+              [this]() noexcept { return state_.load( std::memory_order_acquire ) != State::Suspend; } );
+            std::lock_guard<std::mutex> lock { mtx_ };
+            // Ensure that the background thread is truely suspended.
+
+            // Discard the current cycle's captured exception.
+            // Reason: Delaying the exception and throwing it on the next `activate()` call is meaningless,
+            // as it refers to a previous cycle's failure and will no longer be relevant in the new cycle.
+            box_.clear();
+          }
+        }
+        void activate() & noexcept( false )
+        {
+          {
+            std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
+            if ( td_.get_id() == std::thread::id() )
+              launch();
+            else if ( state_.load( std::memory_order_acquire ) == State::Dead ) {
+              shutdown();
+              launch();
+            }
+          }
+
+          // The operations below are all thread safe without locking.
+          // Also, only one thread needs to be able to execute concurrently.
+          box_.rethrow();
+          __PGBAR_ASSERT( state_ != State::Dead );
+          __PGBAR_ASSERT( task_ != nullptr );
+          auto expected = State::Dormant;
+          if ( state_.compare_exchange_strong( expected, State::Active, std::memory_order_release ) ) {
+            std::lock_guard<std::mutex> lock { mtx_ };
+            cond_var_.notify_one();
+          }
+        }
+
+        void appoint() noexcept
+        {
+          suspend();
+          std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
+          task_ = nullptr;
+        }
+        __PGBAR_NODISCARD bool try_appoint( wrappers::UniqueFunction<void()>&& task ) & noexcept( false )
+        {
+          std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
+          if ( task_ != nullptr )
+            return false;
+          // Under normal circumstances, `online() == false` implies that `task_ == nullptr`.
+          __PGBAR_ASSERT( online() == false );
+          task_.swap( task );
+          return true;
+        }
+
+        void drop() noexcept
+        {
+          std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
+          shutdown();
+        }
+        void throw_if() noexcept( false ) { box_.rethrow(); }
+
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool empty() const noexcept
+        {
+          std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
+          return task_ == nullptr;
+        }
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool online() const noexcept
+        {
+          return state_.load( std::memory_order_acquire ) == State::Active;
+        }
+      };
+
+      template<Channel Tag, Policy Mode>
+      class Renderer;
+      template<Channel Tag>
+      class Renderer<Tag, Policy::Sync> final {
+        using Self = Renderer;
+
+        enum class State : std::uint8_t { Dormant, Finish, Active, Quit };
+        std::atomic<State> state_;
+
+        mutable concurrent::SharedMutex rw_mtx_;
+        mutable std::mutex mtx_;
+        mutable std::condition_variable cond_var_;
+
+        wrappers::UniqueFunction<void()> task_;
+
+        Renderer() noexcept : state_ { State::Quit } {}
+
+      public:
+        static Self& itself() noexcept
+        {
+          static Self instance;
+          return instance;
+        }
+        Renderer( const Self& )        = delete;
+        Self& operator=( const Self& ) = delete;
+
+        ~Renderer() noexcept { appoint(); }
+
+        // `activate` guarantees to perform the render task at least once.
+        void activate() & noexcept( false )
+        { /**
+           * Since the rendering function is a state machine,
+           * `activate` must ensure it runs at least once to trigger state transitions.
+           * As asynchronous renderers do not provide an interface that guarantees at-least-once execution,
+           * `activate` must explicitly invoke the rendering function during scheduling.
+           */
+          std::lock_guard<concurrent::SharedMutex> lock1 { rw_mtx_ };
+          // Internal component does not make validity judgments.
+          __PGBAR_ASSERT( task_ != nullptr );
+          __PGBAR_ASSERT( state_ == State::Dormant );
+          Runner<Tag>::itself().activate();
+          task_();
+          // If the rendering task throws some exception, this rendering should be abandoned.
+        }
+
+        void appoint() noexcept
+        {
+          std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
+          // All of codes below are locked to prevent concurrent threads from calling `try_appoint`.
+          if ( task_ != nullptr ) {
+            state_.store( State::Quit, std::memory_order_release );
+            {
+              std::unique_lock<std::mutex> lock { mtx_ };
+              cond_var_.notify_one();
+            }
+            Runner<Tag>::itself().appoint();
+            task_ = nullptr;
+          }
+        }
+        __PGBAR_NODISCARD bool try_appoint( wrappers::UniqueFunction<void()>&& task ) & noexcept( false )
+        {
+          std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
+          if ( task_ != nullptr || !Runner<Tag>::itself().try_appoint( [this]() {
+                 try {
+                   while ( state_.load( std::memory_order_acquire ) != State::Quit ) {
+                     switch ( state_.load( std::memory_order_acquire ) ) {
+                     case State::Dormant: __PGBAR_FALLTHROUGH;
+                     case State::Finish:  {
+                       std::unique_lock<std::mutex> lock { mtx_ };
+                       auto expected = State::Finish;
+                       state_.compare_exchange_strong( expected, State::Dormant, std::memory_order_release );
+                       cond_var_.wait( lock, [this]() noexcept {
+                         return state_.load( std::memory_order_acquire ) != State::Dormant;
+                       } );
+                     } break;
+                     case State::Active: {
+                       {
+                         concurrent::SharedLock<concurrent::SharedMutex> lock1 { rw_mtx_ };
+                         std::lock_guard<std::mutex> lock2 { mtx_ };
+                         task_();
+                       }
+                       auto expected = State::Active;
+                       state_.compare_exchange_strong( expected, State::Finish, std::memory_order_release );
+                     } break;
+                     default: return;
+                     }
+                   }
+                 } catch ( ... ) {
+                   state_.store( State::Quit, std::memory_order_release );
+                   throw;
+                 }
+               } ) )
+            return false;
+          state_.store( State::Dormant, std::memory_order_release );
+          task_.swap( task );
+          return true;
+        }
+
+        // Assume that the task is not empty and execute it once.
+        __PGBAR_INLINE_FN void execute() & noexcept( false )
+        { /**
+           * Although not relevant here,
+           * OStream is called non-atomically for each rendering task,
+           * so it needs to be locked for the entire duration of the rendering task execution.
+
+           * By the way, although the implementation tries to lock the internal component
+           * when it renders the string,
+           * that is a reader lock on the configuration data type of the component that stores the string,
+           * and it does not prevent concurrent threads from simultaneously
+           * trying to concatenate the string in the same OStream.
+           */
+          concurrent::SharedLock<concurrent::SharedMutex> lock1 { rw_mtx_ };
+          std::lock_guard<std::mutex> lock2 { mtx_ }; // Fixed locking order.
+          __PGBAR_ASSERT( task_ != nullptr );
+          task_();
+          /**
+           * In short: The mtx_ here is to prevent multiple progress bars in MultiBar
+           * from concurrently attempting to render strings in synchronous rendering mode;
+           * each of these progress bars will lock itself before rendering,
+           * but they cannot mutually exclusively access the renderer.
+           */
+        }
+        // When the task is not empty, execute at least one task.
+        void attempt() & noexcept
+        {
+          // The lock here is to ensure that only one thread executes the task_ at any given time.
+          // And synchronization semantics require that no call request be dropped.
+          concurrent::SharedLock<concurrent::SharedMutex> lock1 { rw_mtx_ };
+          /**
+           * Here, asynchronous threads and forced state checks are used to achieve synchronous semantics;
+           * this is because task_ is not exception-free,
+           * so if task_ needs to be executed with synchronous semantics in some functions marked as noexcept,
+           * the execution operation needs to be dispatched to another thread.
+           */
+          auto expected = State::Dormant;
+          if ( state_.compare_exchange_strong( expected, State::Active, std::memory_order_release ) ) {
+            {
+              std::lock_guard<std::mutex> lock { mtx_ };
+              cond_var_.notify_one();
+            }
+            concurrent::spin_wait(
+              [this]() noexcept { return state_.load( std::memory_order_acquire ) != State::Active; } );
+            std::lock_guard<std::mutex> lock { mtx_ };
+          }
+        }
+
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool empty() const noexcept
+        {
+          concurrent::SharedLock<concurrent::SharedMutex> lock { rw_mtx_ };
+          return task_ == nullptr;
+        }
+      };
+
+      template<Channel Tag>
+      class Renderer<Tag, Policy::Async> final {
+        using Self = Renderer;
+
+        static std::atomic<types::TimeUnit> _working_interval;
+
+        /**
+         * Unlike synchronous renderers,
+         * asynchronous renderers do not require the background thread to be suspended for a long time,
+         * so the condition variable is simplified away here.
+         */
+        enum class State : std::uint8_t { Awake, Active, Attempt, Quit };
+        std::atomic<State> state_;
+        wrappers::UniqueFunction<void()> task_;
+        mutable concurrent::SharedMutex rw_mtx_;
+
+        Renderer() noexcept : state_ { State::Quit } {}
+
+      public:
+        // Get the current working interval for all threads.
+        __PGBAR_NODISCARD static __PGBAR_INLINE_FN types::TimeUnit working_interval()
+        {
+          return _working_interval.load( std::memory_order_acquire );
+        }
+        // Adjust the thread working interval between this loop and the next loop.
+        static __PGBAR_INLINE_FN void working_interval( types::TimeUnit new_rate )
+        {
+          _working_interval.store( new_rate, std::memory_order_release );
+        }
+
+        static Self& itself() noexcept
+        {
+          static Self instance;
+          return instance;
+        }
+
+        Renderer( const Self& )          = delete;
+        Self& operator=( const Self& ) & = delete;
+        ~Renderer() noexcept { appoint(); }
+
+        void activate() & noexcept( false )
+        {
+          auto expected = State::Quit;
+          if ( state_.compare_exchange_strong( expected, State::Awake, std::memory_order_release ) ) {
+            __PGBAR_ASSERT( task_ != nullptr );
+            auto& renderer = Runner<Tag>::itself();
+            try {
+              renderer.activate();
+            } catch ( ... ) {
+              /**
+               * In Runner::activate, there are only two sources of exceptions,
+               * Runner::launch or the background thread;
+               * in either case, the Runner retains the assigned task,
+               * so the task status is still valid and should be switched back to Quit.
+               */
+              state_.store( State::Quit, std::memory_order_release );
+              throw;
+            }
+            concurrent::spin_wait(
+              [this]() noexcept { return state_.load( std::memory_order_acquire ) != State::Awake; } );
+            renderer.throw_if();
+            // Recheck whether any exceptions have been received in the background thread.
+            // If so, abandon this rendering.
+          }
+        }
+
+        void appoint() noexcept
+        {
+          std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
+          if ( task_ != nullptr ) {
+            state_.store( State::Quit, std::memory_order_release );
+            Runner<Tag>::itself().appoint();
+            task_ = nullptr;
+          }
+        }
+        __PGBAR_NODISCARD bool try_appoint( wrappers::UniqueFunction<void()>&& task ) & noexcept( false )
+        {
+          std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
+          if ( task_ != nullptr || !Runner<Tag>::itself().try_appoint( [this]() {
+                 try {
+                   while ( state_.load( std::memory_order_acquire ) != State::Quit ) {
+                     switch ( state_.load( std::memory_order_acquire ) ) {
+                     case State::Awake: {
+                       task_();
+                       auto expected = State::Awake;
+                       state_.compare_exchange_strong( expected, State::Active, std::memory_order_release );
+                     }
+                       __PGBAR_FALLTHROUGH;
+                     case State::Active: {
+                       task_();
+                       std::this_thread::sleep_for( working_interval() );
+                     } break;
+
+                     case State::Attempt: {
+                       task_();
+                       auto expected = State::Attempt;
+                       state_.compare_exchange_strong( expected, State::Active, std::memory_order_release );
+                     } break;
+
+                     default: return;
+                     }
+                   }
+                 } catch ( ... ) {
+                   state_.store( State::Quit, std::memory_order_release );
+                   throw;
+                 }
+               } ) )
+            return false;
+          state_.store( State::Quit, std::memory_order_release );
+          task_.swap( task );
+          return true;
+        }
+
+        __PGBAR_INLINE_FN void execute() & noexcept { /* Empty implementation */ }
+        __PGBAR_INLINE_FN void attempt() & noexcept
+        {
+          // Each call should not be discarded.
+          std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
+          auto try_update = [this]( State expected ) noexcept {
+            return state_.compare_exchange_strong( expected, State::Attempt, std::memory_order_release );
+          };
+          if ( try_update( State::Awake ) || try_update( State::Active ) )
+            concurrent::spin_wait(
+              [this]() noexcept { return state_.load( std::memory_order_acquire ) != State::Attempt; } );
+        }
+
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool empty() const noexcept
+        {
+          concurrent::SharedLock<concurrent::SharedMutex> lock { rw_mtx_ };
+          return task_ == nullptr;
+        }
+      };
+      template<Channel Tag>
+      std::atomic<types::TimeUnit> Renderer<Tag, Policy::Async>::_working_interval {
+        std::chrono::duration_cast<types::TimeUnit>( std::chrono::milliseconds( 40 ) )
+      };
+    } // namespace render
   } // namespace __details
+
+  class Indicator {
+    static std::atomic<bool> _hide_completed;
+    static std::atomic<bool> _disable_styling;
+
+    friend void config::hide_completed( bool ) noexcept;
+    friend bool config::hide_completed() noexcept;
+    friend void config::disable_styling( bool ) noexcept;
+    friend bool config::disable_styling() noexcept;
+
+  public:
+    Indicator()                                = default;
+    Indicator( const Indicator& )              = delete;
+    Indicator& operator=( const Indicator& ) & = delete;
+    Indicator( Indicator&& )                   = default;
+    Indicator& operator=( Indicator&& ) &      = default;
+    virtual ~Indicator()                       = default;
+
+    virtual void reset() noexcept                          = 0;
+    __PGBAR_NODISCARD virtual bool active() const noexcept = 0;
+
+    // Wait until the indicator is Stop.
+    void wait() const noexcept
+    {
+      __details::concurrent::spin_wait( [this]() noexcept { return !active(); } );
+    }
+    // Wait for the indicator is Stop or timed out.
+    template<class Rep, class Period>
+    __PGBAR_NODISCARD bool wait_for( const std::chrono::duration<Rep, Period>& timeout ) const noexcept
+    {
+      return __details::concurrent::spin_wait_for( [this]() noexcept { return !active(); }, timeout );
+    }
+  };
+  __PGBAR_CXX17_INLINE std::atomic<bool> Indicator::_hide_completed { false };
+  __PGBAR_CXX17_INLINE std::atomic<bool> Indicator::_disable_styling { true };
 
   namespace slice {
     /**
@@ -2878,857 +3724,6 @@ namespace pgbar {
     constexpr __details::types::HexRGB White   = __PGBAR_WHITE;
   } // namespace color
 
-  // A enum that specifies the type of the output stream.
-  enum class Channel : int {
-# if __PGBAR_UNIX
-    Stdout = STDOUT_FILENO,
-    Stderr = STDERR_FILENO
-# else
-    Stdout = 1,
-    Stderr = 2
-# endif
-  };
-  enum class Policy : __details::types::Byte { Async, Sync };
-  enum class Region : __details::types::Byte { Fixed, Relative };
-
-  namespace config {
-    void hide_completed( bool flag ) noexcept;
-    __PGBAR_NODISCARD bool hide_completed() noexcept;
-    void disable_styling( bool flag ) noexcept;
-    __PGBAR_NODISCARD bool disable_styling() noexcept;
-  }
-
-  class Indicator {
-    static std::atomic<bool> _hide_completed;
-    static std::atomic<bool> _disable_styling;
-
-    friend void config::hide_completed( bool ) noexcept;
-    friend bool config::hide_completed() noexcept;
-    friend void config::disable_styling( bool ) noexcept;
-    friend bool config::disable_styling() noexcept;
-
-  public:
-    Indicator()                                = default;
-    Indicator( const Indicator& )              = delete;
-    Indicator& operator=( const Indicator& ) & = delete;
-    Indicator( Indicator&& )                   = default;
-    Indicator& operator=( Indicator&& ) &      = default;
-    virtual ~Indicator()                       = default;
-
-    virtual void reset() noexcept                          = 0;
-    __PGBAR_NODISCARD virtual bool active() const noexcept = 0;
-
-    // Wait until the indicator is Stop.
-    void wait() const noexcept
-    {
-      __details::concurrent::spin_wait( [this]() noexcept { return !active(); } );
-    }
-    // Wait for the indicator is Stop or timed out.
-    template<class Rep, class Period>
-    __PGBAR_NODISCARD bool wait_for( const std::chrono::duration<Rep, Period>& timeout ) const noexcept
-    {
-      return __details::concurrent::spin_wait_for( [this]() noexcept { return !active(); }, timeout );
-    }
-  };
-  __PGBAR_CXX17_INLINE std::atomic<bool> Indicator::_hide_completed { false };
-  __PGBAR_CXX17_INLINE std::atomic<bool> Indicator::_disable_styling { true };
-
-  namespace __details {
-    namespace console {
-      // escape codes
-      namespace escodes {
-# ifdef PGBAR_COLORLESS
-        __PGBAR_CXX17_INLINE constexpr types::LitStr fontreset = "";
-        __PGBAR_CXX17_INLINE constexpr types::LitStr fontbold  = "";
-# else
-        __PGBAR_CXX17_INLINE constexpr types::LitStr fontreset = "\x1B[0m";
-        __PGBAR_CXX17_INLINE constexpr types::LitStr fontbold  = "\x1B[1m";
-# endif
-        __PGBAR_CXX17_INLINE constexpr types::LitStr savecursor  = "\x1B[s";
-        __PGBAR_CXX17_INLINE constexpr types::LitStr resetcursor = "\x1B[u";
-        __PGBAR_CXX17_INLINE constexpr types::LitStr linewipe    = "\x1B[K";
-        __PGBAR_CXX17_INLINE constexpr types::LitStr prevline    = "\x1b[A";
-        __PGBAR_CXX17_INLINE constexpr types::Char nextline      = '\n';
-        __PGBAR_CXX17_INLINE constexpr types::Char linestart     = '\r';
-
-        /**
-         * Convert a hexidecimal RGB color value to an ANSI escape code.
-         *
-         * Return nothing if defined `PGBAR_COLORLESS`.
-         */
-        inline types::String rgb2ansi( types::HexRGB rgb )
-# ifdef PGBAR_COLORLESS
-          noexcept( std::is_nothrow_default_constructible<types::String>::value )
-        {
-          return {};
-        }
-# else
-          noexcept( false )
-        {
-          if ( rgb == __PGBAR_DEFAULT )
-            return types::String( escodes::fontreset );
-
-          switch ( rgb & 0x00FFFFFF ) { // discard the high 8 bits
-          case __PGBAR_BLACK:   return "\x1B[30m";
-          case __PGBAR_RED:     return "\x1B[31m";
-          case __PGBAR_GREEN:   return "\x1B[32m";
-          case __PGBAR_YELLOW:  return "\x1B[33m";
-          case __PGBAR_BLUE:    return "\x1B[34m";
-          case __PGBAR_MAGENTA: return "\x1B[35m";
-          case __PGBAR_CYAN:    return "\x1B[36m";
-          case __PGBAR_WHITE:   return "\x1B[37m";
-          default:
-            return "\x1B[38;2;" + utils::format( ( rgb >> 16 ) & 0xFF ) + ';'
-                 + utils::format( ( rgb >> 8 ) & 0xFF ) + ';' + utils::format( rgb & 0xFF ) + 'm';
-          }
-        }
-# endif
-      } // namespace escodes
-
-      template<Channel Outlet>
-      class TerminalContext {
-        std::atomic<bool> cache_;
-
-        TerminalContext() noexcept { detect(); }
-
-      public:
-        TerminalContext( const TerminalContext& )              = delete;
-        TerminalContext& operator=( const TerminalContext& ) & = delete;
-        ~TerminalContext()                                     = default;
-
-        static TerminalContext& itself() noexcept
-        {
-          static TerminalContext self;
-          return self;
-        }
-
-        // Detect whether the specified output stream is bound to a terminal.
-        bool detect() noexcept
-        {
-          const bool value = []() noexcept {
-# if defined( PGBAR_INTTY ) || __PGBAR_UNKNOWN
-            return true;
-# elif __PGBAR_WIN
-            HANDLE hConsole;
-            if __PGBAR_CXX17_CNSTXPR ( Outlet == Channel::Stdout )
-              hConsole = GetStdHandle( STD_OUTPUT_HANDLE );
-            else
-              hConsole = GetStdHandle( STD_ERROR_HANDLE );
-            if ( hConsole == INVALID_HANDLE_VALUE )
-              __PGBAR_UNLIKELY return false;
-            return GetFileType( hConsole ) == FILE_TYPE_CHAR;
-# else
-            return isatty( static_cast<int>( Outlet ) );
-# endif
-          }();
-          cache_.store( value, std::memory_order_release );
-          return value;
-        }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool connected() const noexcept
-        {
-          return cache_.load( std::memory_order_acquire );
-        }
-
-        /**
-         * Enable virtual terminal processing on the specified output channel (Windows only).
-         * Guaranteed to be thread-safe and performed only once.
-         */
-        void enable_vt() const noexcept
-        {
-# if __PGBAR_WIN && defined( ENABLE_VIRTUAL_TERMINAL_PROCESSING )
-          static std::once_flag flag;
-          std::call_once( flag, []() noexcept {
-            HANDLE stream_handle =
-              GetStdHandle( Outlet == Channel::Stderr ? STD_ERROR_HANDLE : STD_OUTPUT_HANDLE );
-            if ( stream_handle == INVALID_HANDLE_VALUE )
-              __PGBAR_UNLIKELY return;
-
-            DWORD mode {};
-            if ( !GetConsoleMode( stream_handle, &mode ) )
-              __PGBAR_UNLIKELY return;
-            mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
-            SetConsoleMode( stream_handle, mode );
-          } );
-# endif
-        }
-
-        __PGBAR_NODISCARD types::Size width() noexcept
-        {
-          if ( !detect() )
-            return 0;
-# if __PGBAR_WIN
-          HANDLE hConsole;
-          if __PGBAR_CXX17_CNSTXPR ( Outlet == Channel::Stdout )
-            hConsole = GetStdHandle( STD_OUTPUT_HANDLE );
-          else
-            hConsole = GetStdHandle( STD_ERROR_HANDLE );
-          if ( hConsole != INVALID_HANDLE_VALUE ) {
-            CONSOLE_SCREEN_BUFFER_INFO csbi;
-            if ( GetConsoleScreenBufferInfo( hConsole, &csbi ) )
-              return csbi.srWindow.Right - csbi.srWindow.Left + 1;
-          }
-# elif __PGBAR_UNIX
-          struct winsize ws;
-          auto fd = static_cast<int>( channel );
-          if ( ioctl( fd, TIOCGWINSZ, &ws ) != -1 )
-            return ws.ws_col;
-# endif
-          return 100;
-        }
-      };
-    } // namespace console
-
-    namespace io {
-      // A simple string buffer, unrelated to the `std::stringbuf` in the STL.
-      class Stringbuf {
-        using Self = Stringbuf;
-
-      protected:
-        std::vector<types::Char> buffer_;
-
-      public:
-        __PGBAR_CXX20_CNSTXPR Stringbuf() = default;
-
-        __PGBAR_CXX20_CNSTXPR Stringbuf( const Self& lhs )                           = default;
-        __PGBAR_CXX20_CNSTXPR Stringbuf( Self&& rhs ) noexcept                       = default;
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& operator=( const Self& lhs ) & = default;
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& operator=( Self&& rhs ) &      = default;
-        // Intentional non-virtual destructors.
-        __PGBAR_CXX20_CNSTXPR ~Stringbuf()                                           = default;
-
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR bool empty() const noexcept { return buffer_.empty(); }
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void clear() & noexcept { buffer_.clear(); }
-
-        // Releases the buffer space completely
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void release() noexcept
-        {
-          clear();
-          buffer_.shrink_to_fit();
-        }
-
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& reserve( types::Size capacity ) &
-        {
-          buffer_.reserve( capacity );
-          return *this;
-        }
-
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& append( types::Char info, types::Size __num = 1 ) &
-        {
-          buffer_.insert( buffer_.end(), __num, info );
-          return *this;
-        }
-        template<types::Size N>
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& append( const char ( &info )[N],
-                                                              types::Size __num = 1 ) &
-        {
-          for ( types::Size _ = 0; _ < __num; ++_ )
-            buffer_.insert( buffer_.end(), info, info + N );
-          return *this;
-        }
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& append( types::ROStr info, types::Size __num = 1 ) &
-        {
-          for ( types::Size _ = 0; _ < __num; ++_ )
-            buffer_.insert( buffer_.end(), info.cbegin(), info.cend() );
-          return *this;
-        }
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& append( const charcodes::U8Raw& info,
-                                                              types::Size __num = 1 )
-        {
-          return append( info.str(), __num );
-        }
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& append( const types::Char* head,
-                                                              const types::Char* tail )
-        {
-          if ( head != nullptr && tail != nullptr )
-            buffer_.insert( buffer_.end(), head, tail );
-          return *this;
-        }
-
-        template<typename T>
-        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR typename std::enable_if<
-          traits::AnyOf<std::is_same<typename std::decay<T>::type, types::Char>,
-                        std::is_same<typename std::decay<T>::type, types::String>,
-                        std::is_same<typename std::decay<T>::type, charcodes::U8Raw>>::value,
-          Self&>::type
-          operator<<( Self& stream, T&& info )
-        {
-          return stream.append( std::forward<T>( info ) );
-        }
-        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& operator<<( Self& stream, types::ROStr info )
-        {
-          return stream.append( info );
-        }
-        template<types::Size N>
-        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& operator<<( Self& stream,
-                                                                         const char ( &info )[N] )
-        {
-          return stream.append( info );
-        }
-
-        __PGBAR_CXX20_CNSTXPR void swap( Stringbuf& lhs ) noexcept
-        {
-          __PGBAR_TRUST( this != &lhs );
-          buffer_.swap( lhs.buffer_ );
-        }
-        friend __PGBAR_CXX20_CNSTXPR void swap( Stringbuf& a, Stringbuf& b ) noexcept { a.swap( b ); }
-      };
-
-      template<Channel Outlet>
-      class OStream;
-      template<Channel Outlet>
-      OStream<Outlet>& flush( OStream<Outlet>& stream )
-      {
-        return stream.flush();
-      }
-      template<Channel Outlet>
-      __PGBAR_CXX20_CNSTXPR OStream<Outlet>& release( OStream<Outlet>& stream ) noexcept
-      {
-        stream.release();
-        return stream;
-      }
-
-      /**
-       * A helper output stream that writes the data to `stdout` or `stderr` directly.
-       *
-       * It holds a proprietary buffer
-       * so that don't have to use the common output buffers in the standard library.
-       *
-       * If the local platform is neither `Windows` nor `unix-like`,
-       * the class still uses the method `write` of `std::ostream` in standard library.
-       */
-      template<Channel Outlet>
-      class OStream final : public Stringbuf {
-        using Self = OStream;
-
-        __PGBAR_CXX20_CNSTXPR OStream() = default;
-
-      public:
-        static Self& itself() noexcept( std::is_nothrow_default_constructible<Stringbuf>::value )
-        {
-          static OStream instance;
-          return instance;
-        }
-
-        __PGBAR_CXX20_CNSTXPR OStream( const Self& )           = delete;
-        __PGBAR_CXX20_CNSTXPR Self& operator=( const Self& ) & = delete;
-        // Intentional non-virtual destructors.
-        __PGBAR_CXX20_CNSTXPR ~OStream()                       = default;
-
-        Self& flush() &
-        {
-# if __PGBAR_WIN
-          types::Size total_written = 0;
-          do {
-            DWORD num_written = 0;
-            if __PGBAR_CXX17_CNSTXPR ( Outlet == Channel::Stdout ) {
-              auto h_stdout = GetStdHandle( STD_OUTPUT_HANDLE );
-              if ( h_stdout == INVALID_HANDLE_VALUE )
-                __PGBAR_UNLIKELY throw exception::SystemError(
-                  "pgbar: cannot open the standard output stream" );
-              WriteFile( h_stdout,
-                         buffer_.data() + total_written,
-                         static_cast<DWORD>( buffer_.size() - total_written ),
-                         &num_written,
-                         nullptr );
-            } else {
-              auto h_stderr = GetStdHandle( STD_ERROR_HANDLE );
-              if ( h_stderr == INVALID_HANDLE_VALUE )
-                __PGBAR_UNLIKELY throw exception::SystemError(
-                  "pgbar: cannot open the standard error stream" );
-              WriteFile( h_stderr,
-                         buffer_.data() + total_written,
-                         static_cast<DWORD>( buffer_.size() - total_written ),
-                         &num_written,
-                         nullptr );
-            }
-            if ( num_written <= 0 )
-              break; // ignore it
-            total_written += static_cast<types::Size>( num_written );
-          } while ( total_written < buffer_.size() );
-# elif __PGBAR_UNIX
-          types::Size total_written = 0;
-          do {
-            ssize_t num_written = 0;
-            if __PGBAR_CXX17_CNSTXPR ( Outlet == Channel::Stdout )
-              num_written =
-                write( STDOUT_FILENO, buffer_.data() + total_written, buffer_.size() - total_written );
-            else
-              num_written =
-                write( STDERR_FILENO, buffer_.data() + total_written, buffer_.size() - total_written );
-            if ( errno == EINTR )
-              num_written = num_written < 0 ? 0 : num_written;
-            else if ( num_written < 0 )
-              break;
-            total_written += static_cast<types::Size>( num_written );
-          } while ( total_written < buffer_.size() );
-# else
-          if __PGBAR_CXX17_CNSTXPR ( Outlet == Channel::Stdout )
-            std::cout.write( buffer_.data(), buffer_.size() ).flush();
-          else
-            std::cerr.write( buffer_.data(), buffer_.size() ).flush();
-# endif
-          clear();
-          return *this;
-        }
-
-        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& operator<<( OStream& stream,
-                                                                         OStream& ( *fnptr )(OStream&))
-        {
-          __PGBAR_TRUST( fnptr != nullptr );
-          return fnptr( stream );
-        }
-      };
-    } // namespace io
-
-    namespace render {
-      template<Channel Tag>
-      class Runner final {
-        using Self = Runner;
-
-        enum class State : types::Byte { Dormant, Suspend, Active, Dead };
-        std::atomic<State> state_;
-
-        std::thread td_;
-        concurrent::ExceptionBox box_;
-        mutable std::condition_variable cond_var_;
-        mutable std::mutex mtx_;
-        mutable concurrent::SharedMutex rw_mtx_;
-
-        wrappers::UniqueFunction<void()> task_;
-
-        void launch() & noexcept( false )
-        {
-          console::TerminalContext<Tag>::itself().enable_vt();
-
-          __PGBAR_ASSERT( td_.get_id() == std::thread::id() );
-          state_.store( State::Dormant, std::memory_order_release );
-          try {
-            td_ = std::thread( [this]() {
-              try {
-                while ( state_.load( std::memory_order_acquire ) != State::Dead ) {
-                  switch ( state_.load( std::memory_order_acquire ) ) {
-                  case State::Dormant: __PGBAR_FALLTHROUGH;
-                  case State::Suspend: {
-                    std::unique_lock<std::mutex> lock { mtx_ };
-                    auto expected = State::Suspend;
-                    state_.compare_exchange_strong( expected, State::Dormant, std::memory_order_release );
-                    cond_var_.wait( lock, [this]() noexcept {
-                      return state_.load( std::memory_order_acquire ) != State::Dormant;
-                    } );
-                  } break;
-                  case State::Active: {
-                    task_();
-                  } break;
-                  default: return;
-                  }
-                }
-              } catch ( ... ) {
-                if ( !box_.try_store( std::current_exception() ) ) {
-                  state_.store( State::Dead, std::memory_order_release );
-                  throw;
-                }
-              }
-            } );
-          } catch ( ... ) {
-            state_.store( State::Dead, std::memory_order_release );
-            throw;
-          }
-        }
-
-        // Since the control flow of the child thread has been completely handed over to task_,
-        // this function does not guarantee that the child thread can be closed immediately after being
-        // called.
-        void shutdown() noexcept
-        {
-          state_.store( State::Dead, std::memory_order_release );
-          {
-            std::lock_guard<std::mutex> lock { mtx_ };
-            cond_var_.notify_all();
-          }
-          if ( td_.joinable() )
-            td_.join();
-          td_ = std::thread();
-        }
-
-        Runner() noexcept : state_ { State::Dead } {}
-
-      public:
-        static Self& itself() noexcept
-        {
-          static Self instance;
-          return instance;
-        }
-
-        Runner( const Self& )            = delete;
-        Self& operator=( const Self& ) & = delete;
-        ~Runner() noexcept { shutdown(); }
-
-        void suspend() noexcept
-        {
-          auto expected = State::Active;
-          if ( state_.compare_exchange_strong( expected, State::Suspend, std::memory_order_release ) ) {
-            concurrent::spin_wait(
-              [this]() noexcept { return state_.load( std::memory_order_acquire ) != State::Suspend; } );
-            std::lock_guard<std::mutex> lock { mtx_ };
-            // Ensure that the background thread is truely suspended.
-
-            // Discard the current cycle's captured exception.
-            // Reason: Delaying the exception and throwing it on the next `activate()` call is meaningless,
-            // as it refers to a previous cycle's failure and will no longer be relevant in the new cycle.
-            box_.clear();
-          }
-        }
-        void activate() & noexcept( false )
-        {
-          {
-            std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
-            if ( td_.get_id() == std::thread::id() )
-              launch();
-            else if ( state_.load( std::memory_order_acquire ) == State::Dead ) {
-              shutdown();
-              launch();
-            }
-          }
-
-          // The operations below are all thread safe without locking.
-          // Also, only one thread needs to be able to execute concurrently.
-          box_.rethrow();
-          __PGBAR_ASSERT( state_ != State::Dead );
-          __PGBAR_ASSERT( task_ != nullptr );
-          auto expected = State::Dormant;
-          if ( state_.compare_exchange_strong( expected, State::Active, std::memory_order_release ) ) {
-            std::lock_guard<std::mutex> lock { mtx_ };
-            cond_var_.notify_one();
-          }
-        }
-
-        void appoint() noexcept
-        {
-          suspend();
-          std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
-          task_ = nullptr;
-        }
-        __PGBAR_NODISCARD bool try_appoint( wrappers::UniqueFunction<void()>&& task ) & noexcept( false )
-        {
-          std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
-          if ( task_ != nullptr )
-            return false;
-          // Under normal circumstances, `online() == false` implies that `task_ == nullptr`.
-          __PGBAR_ASSERT( online() == false );
-          task_.swap( task );
-          return true;
-        }
-
-        void drop() noexcept
-        {
-          std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
-          shutdown();
-        }
-        void throw_if() noexcept( false ) { box_.rethrow(); }
-
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool empty() const noexcept
-        {
-          std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
-          return task_ == nullptr;
-        }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool online() const noexcept
-        {
-          return state_.load( std::memory_order_acquire ) == State::Active;
-        }
-      };
-
-      template<Channel Tag, Policy Mode>
-      class Renderer;
-      template<Channel Tag>
-      class Renderer<Tag, Policy::Sync> final {
-        using Self = Renderer;
-
-        enum class State : types::Byte { Dormant, Finish, Active, Quit };
-        std::atomic<State> state_;
-
-        mutable concurrent::SharedMutex rw_mtx_;
-        mutable std::mutex mtx_;
-        mutable std::condition_variable cond_var_;
-
-        wrappers::UniqueFunction<void()> task_;
-
-        Renderer() noexcept : state_ { State::Quit } {}
-
-      public:
-        static Self& itself() noexcept
-        {
-          static Self instance;
-          return instance;
-        }
-        Renderer( const Self& )        = delete;
-        Self& operator=( const Self& ) = delete;
-
-        ~Renderer() noexcept { appoint(); }
-
-        // `activate` guarantees to perform the render task at least once.
-        void activate() & noexcept( false )
-        { /**
-           * Since the rendering function is a state machine,
-           * `activate` must ensure it runs at least once to trigger state transitions.
-           * As asynchronous renderers do not provide an interface that guarantees at-least-once execution,
-           * `activate` must explicitly invoke the rendering function during scheduling.
-           */
-          std::lock_guard<concurrent::SharedMutex> lock1 { rw_mtx_ };
-          // Internal component does not make validity judgments.
-          __PGBAR_ASSERT( task_ != nullptr );
-          __PGBAR_ASSERT( state_ == State::Dormant );
-          Runner<Tag>::itself().activate();
-          task_();
-          // If the rendering task throws some exception, this rendering should be abandoned.
-        }
-
-        void appoint() noexcept
-        {
-          std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
-          // All of codes below are locked to prevent concurrent threads from calling `try_appoint`.
-          if ( task_ != nullptr ) {
-            state_.store( State::Quit, std::memory_order_release );
-            {
-              std::unique_lock<std::mutex> lock { mtx_ };
-              cond_var_.notify_one();
-            }
-            Runner<Tag>::itself().appoint();
-            task_ = nullptr;
-          }
-        }
-        __PGBAR_NODISCARD bool try_appoint( wrappers::UniqueFunction<void()>&& task ) & noexcept( false )
-        {
-          std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
-          if ( task_ != nullptr || !Runner<Tag>::itself().try_appoint( [this]() {
-                 try {
-                   while ( state_.load( std::memory_order_acquire ) != State::Quit ) {
-                     switch ( state_.load( std::memory_order_acquire ) ) {
-                     case State::Dormant: __PGBAR_FALLTHROUGH;
-                     case State::Finish:  {
-                       std::unique_lock<std::mutex> lock { mtx_ };
-                       auto expected = State::Finish;
-                       state_.compare_exchange_strong( expected, State::Dormant, std::memory_order_release );
-                       cond_var_.wait( lock, [this]() noexcept {
-                         return state_.load( std::memory_order_acquire ) != State::Dormant;
-                       } );
-                     } break;
-                     case State::Active: {
-                       {
-                         concurrent::SharedLock<concurrent::SharedMutex> lock1 { rw_mtx_ };
-                         std::lock_guard<std::mutex> lock2 { mtx_ };
-                         task_();
-                       }
-                       auto expected = State::Active;
-                       state_.compare_exchange_strong( expected, State::Finish, std::memory_order_release );
-                     } break;
-                     default: return;
-                     }
-                   }
-                 } catch ( ... ) {
-                   state_.store( State::Quit, std::memory_order_release );
-                   throw;
-                 }
-               } ) )
-            return false;
-          state_.store( State::Dormant, std::memory_order_release );
-          task_.swap( task );
-          return true;
-        }
-
-        // Assume that the task is not empty and execute it once.
-        __PGBAR_INLINE_FN void execute() & noexcept( false )
-        { /**
-           * Although not relevant here,
-           * OStream is called non-atomically for each rendering task,
-           * so it needs to be locked for the entire duration of the rendering task execution.
-
-           * By the way, although the implementation tries to lock the internal component
-           * when it renders the string,
-           * that is a reader lock on the configuration data type of the component that stores the string,
-           * and it does not prevent concurrent threads from simultaneously
-           * trying to concatenate the string in the same OStream.
-           */
-          concurrent::SharedLock<concurrent::SharedMutex> lock1 { rw_mtx_ };
-          std::lock_guard<std::mutex> lock2 { mtx_ }; // Fixed locking order.
-          __PGBAR_ASSERT( task_ != nullptr );
-          task_();
-          /**
-           * In short: The mtx_ here is to prevent multiple progress bars in MultiBar
-           * from concurrently attempting to render strings in synchronous rendering mode;
-           * each of these progress bars will lock itself before rendering,
-           * but they cannot mutually exclusively access the renderer.
-           */
-        }
-        // When the task is not empty, execute at least one task.
-        void attempt() & noexcept
-        {
-          // The lock here is to ensure that only one thread executes the task_ at any given time.
-          // And synchronization semantics require that no call request be dropped.
-          concurrent::SharedLock<concurrent::SharedMutex> lock1 { rw_mtx_ };
-          /**
-           * Here, asynchronous threads and forced state checks are used to achieve synchronous semantics;
-           * this is because task_ is not exception-free,
-           * so if task_ needs to be executed with synchronous semantics in some functions marked as noexcept,
-           * the execution operation needs to be dispatched to another thread.
-           */
-          auto expected = State::Dormant;
-          if ( state_.compare_exchange_strong( expected, State::Active, std::memory_order_release ) ) {
-            {
-              std::lock_guard<std::mutex> lock { mtx_ };
-              cond_var_.notify_one();
-            }
-            concurrent::spin_wait(
-              [this]() noexcept { return state_.load( std::memory_order_acquire ) != State::Active; } );
-            std::lock_guard<std::mutex> lock { mtx_ };
-          }
-        }
-
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool empty() const noexcept
-        {
-          concurrent::SharedLock<concurrent::SharedMutex> lock { rw_mtx_ };
-          return task_ == nullptr;
-        }
-      };
-
-      template<Channel Tag>
-      class Renderer<Tag, Policy::Async> final {
-        using Self = Renderer;
-
-        static std::atomic<types::TimeUnit> _working_interval;
-
-        /**
-         * Unlike synchronous renderers,
-         * asynchronous renderers do not require the background thread to be suspended for a long time,
-         * so the condition variable is simplified away here.
-         */
-        enum class State : types::Byte { Awake, Active, Attempt, Quit };
-        std::atomic<State> state_;
-        wrappers::UniqueFunction<void()> task_;
-        mutable concurrent::SharedMutex rw_mtx_;
-
-        Renderer() noexcept : state_ { State::Quit } {}
-
-      public:
-        // Get the current working interval for all threads.
-        __PGBAR_NODISCARD static __PGBAR_INLINE_FN types::TimeUnit working_interval()
-        {
-          return _working_interval.load( std::memory_order_acquire );
-        }
-        // Adjust the thread working interval between this loop and the next loop.
-        static __PGBAR_INLINE_FN void working_interval( types::TimeUnit new_rate )
-        {
-          _working_interval.store( new_rate, std::memory_order_release );
-        }
-
-        static Self& itself() noexcept
-        {
-          static Self instance;
-          return instance;
-        }
-
-        Renderer( const Self& )          = delete;
-        Self& operator=( const Self& ) & = delete;
-        ~Renderer() noexcept { appoint(); }
-
-        void activate() & noexcept( false )
-        {
-          auto expected = State::Quit;
-          if ( state_.compare_exchange_strong( expected, State::Awake, std::memory_order_release ) ) {
-            __PGBAR_ASSERT( task_ != nullptr );
-            auto& renderer = Runner<Tag>::itself();
-            try {
-              renderer.activate();
-            } catch ( ... ) {
-              /**
-               * In Runner::activate, there are only two sources of exceptions,
-               * Runner::launch or the background thread;
-               * in either case, the Runner retains the assigned task,
-               * so the task status is still valid and should be switched back to Quit.
-               */
-              state_.store( State::Quit, std::memory_order_release );
-              throw;
-            }
-            concurrent::spin_wait(
-              [this]() noexcept { return state_.load( std::memory_order_acquire ) != State::Awake; } );
-            renderer.throw_if();
-            // Recheck whether any exceptions have been received in the background thread.
-            // If so, abandon this rendering.
-          }
-        }
-
-        void appoint() noexcept
-        {
-          std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
-          if ( task_ != nullptr ) {
-            state_.store( State::Quit, std::memory_order_release );
-            Runner<Tag>::itself().appoint();
-            task_ = nullptr;
-          }
-        }
-        __PGBAR_NODISCARD bool try_appoint( wrappers::UniqueFunction<void()>&& task ) & noexcept( false )
-        {
-          std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
-          if ( task_ != nullptr || !Runner<Tag>::itself().try_appoint( [this]() {
-                 try {
-                   while ( state_.load( std::memory_order_acquire ) != State::Quit ) {
-                     switch ( state_.load( std::memory_order_acquire ) ) {
-                     case State::Awake: {
-                       task_();
-                       auto expected = State::Awake;
-                       state_.compare_exchange_strong( expected, State::Active, std::memory_order_release );
-                     }
-                       __PGBAR_FALLTHROUGH;
-                     case State::Active: {
-                       task_();
-                       std::this_thread::sleep_for( working_interval() );
-                     } break;
-
-                     case State::Attempt: {
-                       task_();
-                       auto expected = State::Attempt;
-                       state_.compare_exchange_strong( expected, State::Active, std::memory_order_release );
-                     } break;
-
-                     default: return;
-                     }
-                   }
-                 } catch ( ... ) {
-                   state_.store( State::Quit, std::memory_order_release );
-                   throw;
-                 }
-               } ) )
-            return false;
-          state_.store( State::Quit, std::memory_order_release );
-          task_.swap( task );
-          return true;
-        }
-
-        __PGBAR_INLINE_FN void execute() & noexcept { /* Empty implementation */ }
-        __PGBAR_INLINE_FN void attempt() & noexcept
-        {
-          // Each call should not be discarded.
-          std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
-          auto try_update = [this]( State expected ) noexcept {
-            return state_.compare_exchange_strong( expected, State::Attempt, std::memory_order_release );
-          };
-          if ( try_update( State::Awake ) || try_update( State::Active ) )
-            concurrent::spin_wait(
-              [this]() noexcept { return state_.load( std::memory_order_acquire ) != State::Attempt; } );
-        }
-
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool empty() const noexcept
-        {
-          concurrent::SharedLock<concurrent::SharedMutex> lock { rw_mtx_ };
-          return task_ == nullptr;
-        }
-      };
-      template<Channel Tag>
-      std::atomic<types::TimeUnit> Renderer<Tag, Policy::Async>::_working_interval {
-        std::chrono::duration_cast<types::TimeUnit>( std::chrono::milliseconds( 40 ) )
-      };
-    } // namespace render
-  } // namespace __details
-
   namespace option {
     // The purpose of generating code with macros here is to annotate each type and method to provide more
     // friendly IDE access.
@@ -4071,7 +4066,7 @@ namespace pgbar {
 
       protected:
         mutable concurrent::SharedMutex rw_mtx_;
-        enum class Mask : types::Byte { Colored = 0, Bolded };
+        enum class Mask : std::uint8_t { Colored = 0, Bolded };
         std::bitset<2> fonts_;
 
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& try_dye( io::Stringbuf& buffer,
@@ -5579,7 +5574,7 @@ namespace pgbar {
         };
 
       protected:
-        enum class Mask : types::Byte { Per = 0, Ani, Cnt, Sped, Elpsd, Cntdwn };
+        enum class Mask : std::uint8_t { Per = 0, Ani, Cnt, Sped, Elpsd, Cntdwn };
         std::bitset<6> visual_masks_;
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN types::Size common_render_size() const noexcept
@@ -6851,8 +6846,8 @@ namespace pgbar {
         }
 
       protected:
-        enum class StateCategory : types::Byte { Stop, Awake, Refresh, Finish };
-        enum class ResetMode : types::Byte { Failure = false, Success = true, Forced };
+        enum class StateCategory : std::uint8_t { Stop, Awake, Refresh, Finish };
+        enum class ResetMode : std::uint8_t { Failure = false, Success = true, Forced };
 
         render::Builder<Soul> config_;
         mutable std::mutex mtx_;
@@ -7167,7 +7162,7 @@ namespace pgbar {
         friend class CoreBar;
         friend Base;
 
-        enum class State : types::Byte { Stop, Awake, ProgressRefresh, ActivityRefresh, Finish };
+        enum class State : std::uint8_t { Stop, Awake, ProgressRefresh, ActivityRefresh, Finish };
         std::atomic<State> state_;
 
         __PGBAR_INLINE_FN void startframe() &
@@ -7509,7 +7504,7 @@ namespace pgbar {
 
         std::atomic<types::Size> alive_cnt_;
         // cb: CombinedBar
-        enum class State : types::Byte { Stop, Awake, Refresh };
+        enum class State : std::uint8_t { Stop, Awake, Refresh };
         std::atomic<State> state_;
         mutable std::mutex sched_mtx_;
 
@@ -8673,7 +8668,7 @@ namespace pgbar {
           {}
         };
 
-        enum class State : types::Byte { Stop, Awake, Refresh };
+        enum class State : std::uint8_t { Stop, Awake, Refresh };
         std::atomic<State> state_;
         std::vector<Slot> bars_;
 
