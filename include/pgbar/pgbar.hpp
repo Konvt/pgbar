@@ -2747,7 +2747,7 @@ namespace pgbar {
           }
 # elif __PGBAR_UNIX
           struct winsize ws;
-          auto fd = static_cast<int>( channel );
+          auto fd = static_cast<int>( Outlet );
           if ( ioctl( fd, TIOCGWINSZ, &ws ) != -1 )
             return ws.ws_col;
 # endif
@@ -7545,7 +7545,7 @@ namespace pgbar {
   template<Channel Outlet = Channel::Stderr, Policy Mode = Policy::Async, Region Area = Region::Fixed>
   using SpinBar = __details::prefabs::BasicBar<config::Spin, Outlet, Mode, Area>;
   /**
-   * The indeterminate progress bar.
+   * A progress bar with a sweeping indicator, where the lead moves back and forth within the bar area.
    *
    * It's structure is shown below:
    * {LeftBorder}{Prefix}{Percent}{Starting}{Filler}{Lead}{Filler}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{Postfix}{RightBorder}
@@ -7553,7 +7553,7 @@ namespace pgbar {
   template<Channel Outlet = Channel::Stderr, Policy Mode = Policy::Async, Region Area = Region::Fixed>
   using SweepBar = __details::prefabs::BasicBar<config::Sweep, Outlet, Mode, Area>;
   /**
-   * The indeterminate progress bar.
+   * A progress bar with a flowing indicator, where the lead moves in a single direction within the bar area.
    *
    * It's structure is shown below:
    * {LeftBorder}{Prefix}{Percent}{Starting}{Filler}{Lead}{Filler}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{Postfix}{RightBorder}

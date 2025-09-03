@@ -20,35 +20,45 @@
       - [绑定的输出流](#绑定的输出流-1)
       - [渲染策略](#渲染策略-1)
     - [与可迭代类型的交互](#与可迭代类型的交互-1)
-  - [`SweepBar`](#sweepbar)
+  - [`SpinBar`](#spinbar)
     - [交互方式](#交互方式-2)
     - [配置选项](#配置选项-2)
       - [元素构成](#元素构成-2)
-        - [可变的进度条长度](#可变的进度条长度-2)
       - [数据配置](#数据配置-2)
       - [线程安全性](#线程安全性-2)
       - [绑定的输出流](#绑定的输出流-2)
       - [渲染策略](#渲染策略-2)
     - [与可迭代类型的交互](#与可迭代类型的交互-2)
-  - [`SpinBar`](#spinbar)
+  - [`SweepBar`](#sweepbar)
     - [交互方式](#交互方式-3)
     - [配置选项](#配置选项-3)
       - [元素构成](#元素构成-3)
+        - [可变的进度条长度](#可变的进度条长度-2)
       - [数据配置](#数据配置-3)
       - [线程安全性](#线程安全性-3)
       - [绑定的输出流](#绑定的输出流-3)
       - [渲染策略](#渲染策略-3)
     - [与可迭代类型的交互](#与可迭代类型的交互-3)
+  - [`FlowBar`](#flowbar)
+    - [交互方式](#交互方式-4)
+    - [配置选项](#配置选项-4)
+      - [元素构成](#元素构成-4)
+        - [可变的进度条长度](#可变的进度条长度-3)
+      - [数据配置](#数据配置-4)
+      - [线程安全性](#线程安全性-4)
+      - [绑定的输出流](#绑定的输出流-4)
+      - [渲染策略](#渲染策略-4)
+    - [与可迭代类型的交互](#与可迭代类型的交互-4)
 - [进度条合成器](#进度条合成器)
   - [`MultiBar`](#multibar)
-    - [交互方式](#交互方式-4)
+    - [交互方式](#交互方式-5)
     - [辅助函数](#辅助函数)
-    - [渲染策略](#渲染策略-4)
+    - [渲染策略](#渲染策略-5)
     - [元组协议](#元组协议)
   - [`DynamicBar`](#dynamicbar)
-    - [交互方式](#交互方式-5)
+    - [交互方式](#交互方式-6)
     - [辅助函数](#辅助函数-1)
-    - [渲染策略](#渲染策略-5)
+    - [渲染策略](#渲染策略-6)
 - [全局设置](#全局设置)
   - [着色效果](#着色效果)
   - [输出流检测](#输出流检测)
@@ -219,6 +229,7 @@ pgbar::option::Ending;    // 修改进度条块右侧、Counter 左侧的元素
 pgbar::option::Filler;    // 修改已迭代部分的填充字符
 pgbar::option::Lead;      // 修改可变动画部分的各个帧
 pgbar::option::Remains;   // 修改未迭代部分的填充字符
+pgbar::option::Reversed;  // 调整进度条的增长方向（false 表示从左到右）
 pgbar::option::Shift;     // 调整动画部分（Lead）的动画速度
 pgbar::option::BarLength; // 调整进度条的长度
 
@@ -652,6 +663,7 @@ pgbar::option::Ending;    // 修改进度条块右侧、Counter 左侧的元素
 pgbar::option::Lead;      // 修改可变动画部分的各个帧
 pgbar::option::Filler;    // 修改已迭代部分的填充字符
 pgbar::option::Remains;   // 修改未迭代部分的填充字符
+pgbar::option::Reversed;  // 调整进度条的增长方向（false 表示从左到右）
 pgbar::option::BarLength; // 调整进度条的长度
 
 pgbar::option::SpeedUnit; // 修改 Speed 部分的单位
@@ -923,6 +935,404 @@ using namespace std;
 int main()
 {
   pgbar::BlockBar<> bar;
+
+  vector<int> arr1 {
+    0, 1, 2, 3, 4, 5, 6,
+  };
+  int arr2[] { 100, 99, 98, 97, 96, 95, 94, 93, 92, 91 };
+
+  for ( auto& ele : bar.iterate( arr1 ) ) {
+    ele += 1;
+    this_thread::sleep_for( 300ms );
+  }
+  // 数组也没问题
+  bar.iterate( arr2, []( int& ) { this_thread::sleep_for( 300ms ); } );
+}
+```
+
+这类类型实际上是一个“有穷范围”，这意味着它的大小是已知的，而不能是类似 `std::views::iota( 0 )` 一样的无穷序列。
+
+如果满足有穷范围约束，如果使用 C++20，那么 `iterate` 能够正确处理满足约束 `std::ranges::view` 的视图类型的引用生命周期。
+
+- - -
+
+## `SpinBar`
+![spbar](../images/spinbar.gif)
+### 交互方式
+`pgbar::SpinBar` 是一个模板类型；它不关心具体的任务数量，因此不需要为它配置任务数量也能够使用。
+
+如果需要显示具体的任务数量，也可以通过调用 `config().tasks()` 方法并传递参数完成，利用 `pgbar::option::Tasks` 包装类型传递给构造函数同样也行。
+
+```cpp
+#include "pgbar/pgbar.hpp"
+
+int main()
+{
+  {
+    pgbar::SpinBar<> bar;
+    bar.tick(); // no problem
+  }
+  {
+    pgbar::SpinBar<> bar;
+    bar.config().tasks( 200 );
+
+    bar.tick( 20 );    // 前进 20 步
+    bar.tick_to( 50 ); // 将进度设置为 50%
+
+    for ( int i = 0; i < 100; ++i )
+      bar.tick(); // 每次调用仅前进 1 步
+  }
+  {
+    pgbar::SpinBar<> bar { pbar::option::Tasks( 150 ) };
+    bar.tick_to( 20 );  // 将进度设置为 20%
+    bar.tick_to( 130 ); // 超出 100% 的部分会被丢弃，并将进度条进度锁定到 100%
+  }
+}
+```
+
+在一些特别的场景中，如果想要检查进度条运行情况，或是强行终止进度条的运行，那么可以使用 `active()` 和 `reset()` 方法。
+
+注意：因为 `SpinBar` 允许在任务数量为零的情况下启动，因此这种情况下 `SpinBar` 不会知道它应该在什么时候自动停止。
+
+这也意味着如果需要停止一个无任务数量的 `SpinBar`，必须手动调用 `reset()` 方法。
+
+> 也可以让 `SpinBar` 因超出作用域、被析构而停止运行，但并不建议这样做。
+
+```cpp
+#include "pgbar/pgbar.hpp"
+#include <cassert>
+
+int main()
+{
+  pgbar::SpinBar<> bar;
+
+  bar.tick();
+  // 要注意，只有调用一次 tick() 后进度条才开始运行
+  assert( bar.active() );
+
+  assert( bar.progress() == 0 ); // 该方法可以获取进度条当前的迭代数
+  bar.reset();
+  assert( bar.active() == false );
+}
+```
+
+`SpinBar` 是一个 move only 且 swappable 的类型，所以你可以使用另一个对象移动构造，或者与另一个对象交换彼此的配置数据。
+
+```cpp
+{
+  pgbar::SpinBar<> bar1 { /* 传递一些复杂的配置数据 */ };
+  pgbar::SpinBar<> bar2 { std::move( bar1 ) };
+}
+{
+  pgbar::SpinBar<> bar1 { /* 传递一些复杂的配置数据 */ };
+  pgbar::SpinBar<> bar2;
+  bar2.swap( bar1 );
+  // or
+  using std::swap;
+  swap( bar1, bar2 );
+}
+```
+
+但不允许在进度条运行过程中交换或移动对象，否则会导致不可预知的错误。
+
+```cpp
+pgbar::SpinBar<> bar1;
+
+bar1.tick();
+assert( bar1.active() );
+
+// pgbar::SpinBar<> bar2 { std::move( bar1 ) }; No!
+```
+### 配置选项
+正如前面一节中提到的，`SpinBar` 的所有配置操作都需要经由方法 `config()` 完成。
+
+该方法返回的是对内部配置对象的引用，该配置对象的类型可以在 `pgbar::config` 中找到，它是 `pgbar::config::Spin`。
+
+`pgbar::config::Spin` 是一个数据类型，该类型存储了所有用于描述 `SpinBar` 元素的数据成员；它满足可复制、可移动和可交换三个性质。
+
+```cpp
+#include "pgbar/pgbar.hpp"
+
+int main()
+{
+  pgbar::config::Spin cfg1;
+
+  auto cfg2 = cfg1;              // copy
+  auto cfg3 = std::move( cfg1 ); // move
+  cfg3.swap( cfg2 );             // swap
+  // or
+  using std::swap;
+  swap( cfg2, cfg3 );
+}
+```
+#### 元素构成
+`SpinBar` 由以下几种元素组成：
+
+```text
+{LeftBorder}{Prefix}{Lead}{Percent}{Counter}{Speed}{Elapsed}{Countdown}{Postfix}{RightBorder}
+```
+
+其中可以自定义的部分有：`LeftBorder`、`Prefix`、`Lead`、`Speed`、`Postfix` 和 `RightBorder`，它们的功能与名字相同。
+
+这些元素可以直接在 `pgbar::option` 中找到对应的包装类型：
+
+```cpp
+pgbar::option::Style;   // 决定以上元素哪些需要被渲染
+pgbar::option::Colored; // 开关颜色效果
+pgbar::option::Bolded;  // 开关字体加粗效果
+
+pgbar::option::LeftBorder;  // 修改整个进度条左侧的起始边框
+pgbar::option::RightBorder; // 修改整个进度条右侧的终止边框
+
+pgbar::option::Prefix;      // 修改前置描述信息
+pgbar::option::Postfix;     // 修改尾随描述信息
+pgbar::option::TrueMesg;    // 修改进度条结束时，用于替换 Prefix 部分的元素
+pgbar::option::FalseMesg;   // 修改进度条结束时，用于替换 Prefix 部分的元素
+
+pgbar::option::Lead;      // 修改可变动画部分的各个帧
+pgbar::option::Shift;     // 调整动画部分（Lead）的动画速度
+
+pgbar::option::SpeedUnit; // 修改 Speed 部分的单位
+pgbar::option::Magnitude; // 调整 Speed 部分的进位倍率
+
+pgbar::option::Tasks;   // 调整任务数量
+pgbar::option::Divider; // 修改位于两个元素之间的间隔符
+
+pgbar::option::PrefixColor;  // 修改 Prefix 的颜色
+pgbar::option::PostfixColor; // 修改 Postfix 的颜色
+pgbar::option::TrueColor;    // 修改 TrueMesg 的颜色
+pgbar::option::FalseColor;   // 修改 FalseMesg 的颜色
+pgbar::option::LeadColor;    // 修改 Lead 的颜色
+pgbar::option::InfoColor;    // 修改 Divider、Percent、Counter、Speed、Elapsed 和 Countdown 的颜色
+```
+
+> `TrueMesg` 和 `FalseMesg` 可以用来显示进度条迭代的任务执行是否成功，它们可以通过向 `reset()` 方法中传递一个 `bool` 参数实现切换显示；在默认情况下，进度条自行停止、或调用无参的 `reset()` 方法会选中 `TrueMesg`。
+
+`pgbar::option::Style` 的参数可以由 `pgbar::config::Spin` 内的多个静态成员执行位运算得到：
+
+```cpp
+pgbar::SpinBar<> bar { pgbar::option::Style( pgbar::config::Spin::Sped | pgbar::config::Spin::Per
+                                             | pgbar::config::Spin::Elpsd
+                                             | pgbar::config::Spin::Cntdwn ) };
+```
+
+这种方法配置会显得很繁琐，所以 `Spin` 提供了两个辅助方法 `enable()` 和 `disable()` 用于简化以上操作。
+
+```cpp
+pgbar::SpinBar<> bar;
+bar.config().enable().speed().percent().elapsed().countdown();
+// or
+bar.config().enable().entire();
+bar.config().disable().animation().counter();
+// Animation 指的是左侧的动画组件 Lead
+// 并且不是所有元素都可以被关闭，例如 Prefix 就不行
+```
+
+以上元素在 `Spin` 都有同名方法，调用这些方法并向其中传递参数同样能做到修改数据信息。
+#### 数据配置
+`Spin` 有两种数据配置方法：基于包装器类型的可变参数构造，和基于链式调用的流式接口风格。
+
+```cpp
+#include "pgbar/pgbar.hpp"
+
+int main()
+{
+  pgbar::config::Spin config1 {
+    pgbar::option::SpeedUnit( { "B/s", "kiB/s", "MiB/s", "GiB/s" } ),
+    pgbar::option::Magnitude( 1024 ),
+    pgbar::option::InfoColor( "#39C5BB" )
+    // pgbar::option::InfoColor(0x39C5BB) Don't do that!
+  };
+  // 注意：传入相同的包装器类型两次会导致编译错误
+
+  pgbar::config::Spin config2;
+  config2.speed_unit( { "B/s", "kiB/s", "MiB/s", "GiB/s" } )
+    .magnitude( 1024 )
+    .info_color( "#39C5BB" );
+
+  auto config3 = config2; // 构造完毕后也能使用可变模板参数调整
+  config3.set( pgbar::option::Prefix( "Do something" ), pgbar::option::PrefixColor( 0xFFE211 ) );
+}
+```
+
+尽管配置类型可以在进度条运行过程中被修改，但这一概念并不适用于任务数量；也就是说进度条一旦开始运行，它的任务数量就不可中途改变。
+
+```cpp
+#include "pgbar/pgbar.hpp
+
+int main()
+{
+  pgbar::SpinBar<> pbar;
+
+  pbar.config().tasks( 100 );
+  for ( auto i = 0; i < 100; ++i ) {
+    pbar.tick();
+    if ( i == 30 ) // nothing happens
+      pbar.config().tasks( 50 );
+    std::this_thread::sleep_for( std::chrono::milliseconds( 20 ) );
+  }
+}
+```
+#### 线程安全性
+配置类型 `Spin` 的一切方法都是线程安全的，这意味着你可以在进度条运行过程中修改其中的数据。
+
+`SpinBar` 只有 `tick()`、`tick_to()` 和 `reset()` 方法是线程安全的；其余方法，特别是 `iterate()` 是线程不安全的。
+
+这表示进度条允许多个线程同时调用它的 `tick()`、`tick_to()` 和 `reset()` 方法；但这不包括移动赋值、移动构造和交换两个对象，以及 `iterate()` 方法。
+
+并且绝对不应该在进度条运行过程中尝试移动或交换当前对象。
+#### 绑定的输出流
+`SpinBar` 默认向标准错误流 `stderr` 输出字符串；具体绑定的输出流由第一个模板参数定义。
+
+```cpp
+#include "pgbar/pgbar.hpp"
+#include <type_traits>
+
+int main()
+{
+  static_assert( std::is_same<pgbar::SpinBar<>,
+                              pgbar::SpinBar<pgbar::Channel::Stderr>>::value,
+                 "" );
+
+  pgbar::SpinBar<pgbar::Channel::Stdout> bar; // 绑定到 stdout 上
+}
+```
+
+特别需要注意的是，绑定到相同输出流上的对象不允许同时运行，否则会抛出异常 `pgbar::exception::InvalidState`；关于这一点的详细说明见 [FAQ-渲染器设计](#渲染器设计)。
+#### 渲染策略
+`SpinBar` 的渲染调度策略有两种：同步（`pgbar::Policy::Sync`）或异步（`pgbar::Policy::Async`）；不同的调度策略会将渲染行为交给不同的线程执行。
+
+启用异步渲染（默认）时，进度条的渲染由一个后台线程以固定时间间隔自动完成。
+
+而在同步渲染模式下，渲染动作则由每次调用 `tick()` 或 `tick_to()` 的线程执行；每次调用 `tick()` 不仅会更新进度状态，也会立即将最新进度条输出到终端。
+
+具体的渲染策略由第二个模板参数定义。
+
+```cpp
+#include "pgbar/pgbar.hpp"
+#include <type_traits>
+
+int main()
+{
+  static_assert( std::is_same<pgbar::SpinBar<>,
+                              pgbar::SpinBar<pgbar::Channel::Stderr, pgbar::Policy::Async>>::value,
+                 "" );
+
+  pgbar::SpinBar<pgbar::Channel::Stderr, pgbar::Policy::Sync> bar; // 使用同步渲染
+}
+```
+
+无论选择哪种渲染调度策略，进度条在终端的渲染方式都由第三个模板参数 `pgbar::Region` 决定。
+
+该参数有两个可选值：在固定终端区域渲染的 `pgbar::Region::Fixed`（默认值），以及相较于上一次渲染输出位置渲染的 `pgbar::Region::Relative`。
+
+`pgbar::Region::Fixed` 会在渲染开始时选中当前光标所在的终端区域，并在渲染过程中反复擦写这块区域以渲染进度条字符串；在这种情况下，任何向同一输出流写入的信息都会被进度条的下一帧刷新覆盖。
+
+`pgbar::Region::Relative` 则仅根据上一次输出的进度条行数、在下一帧输出前回退适量的行数，并重新输出字符串以覆盖旧内容‘这种情况下，向同一输出流写入信息后，若额外添加适当数量的换行符，那么写入的额外信息能够得到保留。
+
+但如果进度条字符串长度过长，`pgbar::Region::Relative` 会导致错误的终端渲染结果。
+
+> 对于任意一个独立的进度条而言，它的渲染结构共占两行：一行是进度条本身，一行则是空行；
+>
+> 因此使用 `pgbar::Region::Relative` 布局时，如果需要额外再输出信息，就需要在输出后再额外插入两个换行符；
+>
+> 否则由于进度条占据两行结构，后续渲染将错误覆盖已有输出。
+>
+> 示例：
+
+```cpp
+#include "pgbar/pgbar.hpp"
+#include <iostream>
+
+int main()
+{
+  pgbar::SpinBar</* any channel */, /* any policy */, pgbar::Region::Relative> bar;
+  bar.config().tasks( 100 );
+
+  for ( size_t i = 0; i < 95; ++i )
+    bar.tick(); /* do something... */
+
+  // Notice: At least two newlines must be inserted after the output information
+  std::cerr << "Extra log information" << std::endl << std::endl;
+
+  while ( bar.active() )
+    bar.tick();
+}
+```
+### 与可迭代类型的交互
+在处理一些可迭代类型、或者是数值范围的迭代任务时，`pgbar` 提供了一个更简单地迭代手段：`iterate()` 方法。
+
+这个方法的使用与 Python 中的 `range()` 函数类似，它可以同时在由数值指定的范围上，和由可迭代类型划定的范围内进行遍历；具体的任务数量会由 `iterate()` 自己配置。
+
+具体的迭代手段可以是使用 Enhanced-for，也可以像 `std::for_each` 一样传递一个一元函数。
+
+```cpp
+#include "pgbar/pgbar.hpp"
+#include <thread>
+using namespace std;
+
+int main()
+{
+  pgbar::SpinBar<> bar;
+
+  // Iteration range: [100, 0), step: -1
+  for ( auto num : bar.iterate( 100, 0, -1 ) ) {
+    this_thread::sleep_for( 100ms );
+  }
+  // Iteration range: [0.0, -2.0), step: -0.01
+  for ( auto fnum : bar.iterate( -2.0, -0.01 ) ) {
+    this_thread::sleep_for( 100ms );
+  }
+  // Iteration range: [100, 0), step: 1
+  bar.iterate( 100, []( int ) { this_thread::sleep_for( 100ms ); } );
+}
+```
+
+在前两个 Enhanced-for 中，`iterate()` 方法返回的实际上是 `pgbar::slice::ProxySpan`；关于这一类型的介绍可以见[辅助类型-`ProxySpan`](#proxyspan)。
+
+有关数值类型范围的使用，可以见[辅助类型-`NumericSpan`](#numericspan)。
+
+除了在数值范围内工作之外，`SpinBar` 也可以与存在迭代器的类型进行交互，例如 `std::vector` 和原始数组。
+
+```cpp
+#include "pgbar/pgbar.hpp"
+#include <thread>
+#include <vector>
+using namespace std;
+
+int main()
+{
+  pgbar::SpinBar<> bar;
+
+  vector<int> arr1 {
+    0, 1, 2, 3, 4, 5, 6,
+  };
+  int arr2[] { 100, 99, 98, 97, 96, 95, 94, 93, 92, 91 };
+
+  for ( auto& ele : bar.iterate( arr1.begin(), arr1.end() ) ) {
+    ele += 1; // 此处的 ele 是对 vector 内元素的引用
+    this_thread::sleep_for( 300ms );
+  }
+  // 逆序遍历
+  bar.iterate( std::rbegin( arr2 ), std::rend( arr2 ), []( int& ) {
+    this_thread::sleep_for( 300ms );
+  } );
+}
+```
+
+有关可迭代类型的范围划定，可以见[辅助类型-`IterSpan`](#iterspan)。
+
+特别的，如果一个类型满足概念 `std::ranges::sized_range`，那么这个类型还可以以更简单的方式进行遍历；这包括了原始数组。
+
+```cpp
+#include "pgbar/pgbar.hpp"
+#include <thread>
+#include <vector>
+using namespace std;
+
+int main()
+{
+  pgbar::SpinBar<> bar;
 
   vector<int> arr1 {
     0, 1, 2, 3, 4, 5, 6,
@@ -1373,10 +1783,10 @@ int main()
 
 - - -
 
-## `SpinBar`
-![spbar](../images/spinbar.gif)
+## `FlowBar`
+![fwbar](../images/flowbar.gif)
 ### 交互方式
-`pgbar::SpinBar` 是一个模板类型；它不关心具体的任务数量，因此不需要为它配置任务数量也能够使用。
+`pgbar::FlowBar` 是一个模板类型；它不关心具体的任务数量，因此不需要为它配置任务数量也能够使用。
 
 如果需要显示具体的任务数量，也可以通过调用 `config().tasks()` 方法并传递参数完成，利用 `pgbar::option::Tasks` 包装类型传递给构造函数同样也行。
 
@@ -1386,11 +1796,11 @@ int main()
 int main()
 {
   {
-    pgbar::SpinBar<> bar;
+    pgbar::FlowBar<> bar;
     bar.tick(); // no problem
   }
   {
-    pgbar::SpinBar<> bar;
+    pgbar::FlowBar<> bar;
     bar.config().tasks( 200 );
 
     bar.tick( 20 );    // 前进 20 步
@@ -1400,7 +1810,7 @@ int main()
       bar.tick(); // 每次调用仅前进 1 步
   }
   {
-    pgbar::SpinBar<> bar { pbar::option::Tasks( 150 ) };
+    pgbar::FlowBar<> bar { pbar::option::Tasks( 150 ) };
     bar.tick_to( 20 );  // 将进度设置为 20%
     bar.tick_to( 130 ); // 超出 100% 的部分会被丢弃，并将进度条进度锁定到 100%
   }
@@ -1409,11 +1819,11 @@ int main()
 
 在一些特别的场景中，如果想要检查进度条运行情况，或是强行终止进度条的运行，那么可以使用 `active()` 和 `reset()` 方法。
 
-注意：因为 `SpinBar` 允许在任务数量为零的情况下启动，因此这种情况下 `SpinBar` 不会知道它应该在什么时候自动停止。
+注意：因为 `FlowBar` 允许在任务数量为零的情况下启动，因此这种情况下 `FlowBar` 不会知道它应该在什么时候自动停止。
 
-这也意味着如果需要停止一个无任务数量的 `SpinBar`，必须手动调用 `reset()` 方法。
+这也意味着如果需要停止一个无任务数量的 `FlowBar`，必须手动调用 `reset()` 方法。
 
-> 也可以让 `SpinBar` 因超出作用域、被析构而停止运行，但并不建议这样做。
+> 也可以让 `FlowBar` 因超出作用域、被析构而停止运行，但并不建议这样做。
 
 ```cpp
 #include "pgbar/pgbar.hpp"
@@ -1421,7 +1831,7 @@ int main()
 
 int main()
 {
-  pgbar::SpinBar<> bar;
+  pgbar::FlowBar<> bar;
 
   bar.tick();
   // 要注意，只有调用一次 tick() 后进度条才开始运行
@@ -1433,16 +1843,16 @@ int main()
 }
 ```
 
-`SpinBar` 是一个 move only 且 swappable 的类型，所以你可以使用另一个对象移动构造，或者与另一个对象交换彼此的配置数据。
+`FlowBar` 是一个 move only 且 swappable 的类型，所以你可以使用另一个对象移动构造，或者与另一个对象交换彼此的配置数据。
 
 ```cpp
 {
-  pgbar::SpinBar<> bar1 { /* 传递一些复杂的配置数据 */ };
-  pgbar::SpinBar<> bar2 { std::move( bar1 ) };
+  pgbar::FlowBar<> bar1 { /* 传递一些复杂的配置数据 */ };
+  pgbar::FlowBar<> bar2 { std::move( bar1 ) };
 }
 {
-  pgbar::SpinBar<> bar1 { /* 传递一些复杂的配置数据 */ };
-  pgbar::SpinBar<> bar2;
+  pgbar::FlowBar<> bar1 { /* 传递一些复杂的配置数据 */ };
+  pgbar::FlowBar<> bar2;
   bar2.swap( bar1 );
   // or
   using std::swap;
@@ -1453,26 +1863,26 @@ int main()
 但不允许在进度条运行过程中交换或移动对象，否则会导致不可预知的错误。
 
 ```cpp
-pgbar::SpinBar<> bar1;
+pgbar::FlowBar<> bar1;
 
 bar1.tick();
 assert( bar1.active() );
 
-// pgbar::SpinBar<> bar2 { std::move( bar1 ) }; No!
+// pgbar::FlowBar<> bar2 { std::move( bar1 ) }; No!
 ```
 ### 配置选项
-正如前面一节中提到的，`SpinBar` 的所有配置操作都需要经由方法 `config()` 完成。
+正如前面一节中提到的，`FlowBar` 的所有配置操作都需要经由方法 `config()` 完成。
 
-该方法返回的是对内部配置对象的引用，该配置对象的类型可以在 `pgbar::config` 中找到，它是 `pgbar::config::Spin`。
+该方法返回的是对内部配置对象的引用，该配置对象的类型可以在 `pgbar::config` 中找到，它是 `pgbar::config::Flow`。
 
-`pgbar::config::Spin` 是一个数据类型，该类型存储了所有用于描述 `SpinBar` 元素的数据成员；它满足可复制、可移动和可交换三个性质。
+`pgbar::config::Flow` 是一个数据类型，该类型存储了所有用于描述 `FlowBar` 元素的数据成员；它满足可复制、可移动和可交换三个性质。
 
 ```cpp
 #include "pgbar/pgbar.hpp"
 
 int main()
 {
-  pgbar::config::Spin cfg1;
+  pgbar::config::Flow cfg1;
 
   auto cfg2 = cfg1;              // copy
   auto cfg3 = std::move( cfg1 ); // move
@@ -1483,13 +1893,13 @@ int main()
 }
 ```
 #### 元素构成
-`SpinBar` 由以下几种元素组成：
+`FlowBar` 由以下几种元素组成：
 
 ```text
-{LeftBorder}{Prefix}{Lead}{Percent}{Counter}{Speed}{Elapsed}{Countdown}{Postfix}{RightBorder}
+{LeftBorder}{Prefix}{Percent}{Starting}{Filler}{Lead}{Filler}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{Postfix}{RightBorder}
 ```
 
-其中可以自定义的部分有：`LeftBorder`、`Prefix`、`Lead`、`Speed`、`Postfix` 和 `RightBorder`，它们的功能与名字相同。
+其中可以自定义的部分有：`LeftBorder`、`Prefix`、`Starting`、`Filler`、`Lead`、`Ending`、`Speed`、`Postfix` 和 `RightBorder`，它们的功能与名字相同。
 
 这些元素可以直接在 `pgbar::option` 中找到对应的包装类型：
 
@@ -1506,8 +1916,12 @@ pgbar::option::Postfix;     // 修改尾随描述信息
 pgbar::option::TrueMesg;    // 修改进度条结束时，用于替换 Prefix 部分的元素
 pgbar::option::FalseMesg;   // 修改进度条结束时，用于替换 Prefix 部分的元素
 
+pgbar::option::Starting;  // 修改进度条块左侧、Percent 右侧的元素
+pgbar::option::Ending;    // 修改进度条块右侧、Counter 左侧的元素
+pgbar::option::Filler;    // 修改进度条背景的填充字符
 pgbar::option::Lead;      // 修改可变动画部分的各个帧
 pgbar::option::Shift;     // 调整动画部分（Lead）的动画速度
+pgbar::option::BarLength; // 调整进度条的长度
 
 pgbar::option::SpeedUnit; // 修改 Speed 部分的单位
 pgbar::option::Magnitude; // 调整 Speed 部分的进位倍率
@@ -1519,42 +1933,69 @@ pgbar::option::PrefixColor;  // 修改 Prefix 的颜色
 pgbar::option::PostfixColor; // 修改 Postfix 的颜色
 pgbar::option::TrueColor;    // 修改 TrueMesg 的颜色
 pgbar::option::FalseColor;   // 修改 FalseMesg 的颜色
+pgbar::option::StartColor;   // 修改 Starting 的颜色
+pgbar::option::EndColor;     // 修改 Ending 的颜色
+pgbar::option::FillerColor;  // 修改 Filler 的颜色
 pgbar::option::LeadColor;    // 修改 Lead 的颜色
 pgbar::option::InfoColor;    // 修改 Divider、Percent、Counter、Speed、Elapsed 和 Countdown 的颜色
 ```
 
 > `TrueMesg` 和 `FalseMesg` 可以用来显示进度条迭代的任务执行是否成功，它们可以通过向 `reset()` 方法中传递一个 `bool` 参数实现切换显示；在默认情况下，进度条自行停止、或调用无参的 `reset()` 方法会选中 `TrueMesg`。
 
-`pgbar::option::Style` 的参数可以由 `pgbar::config::Spin` 内的多个静态成员执行位运算得到：
+`pgbar::option::Style` 的参数可以由 `pgbar::config::Flow` 内的多个静态成员执行位运算得到：
 
 ```cpp
-pgbar::SpinBar<> bar { pgbar::option::Style( pgbar::config::Spin::Sped | pgbar::config::Spin::Per
-                                             | pgbar::config::Spin::Elpsd
-                                             | pgbar::config::Spin::Cntdwn ) };
+pgbar::FlowBar<> bar { pgbar::option::Style( pgbar::config::Flow::Sped | pgbar::config::Flow::Per
+                                              | pgbar::config::Flow::Elpsd
+                                              | pgbar::config::Flow::Cntdwn ) };
 ```
 
-这种方法配置会显得很繁琐，所以 `Spin` 提供了两个辅助方法 `enable()` 和 `disable()` 用于简化以上操作。
+这种方法配置会显得很繁琐，所以 `Flow` 提供了两个辅助方法 `enable()` 和 `disable()` 用于简化以上操作。
 
 ```cpp
-pgbar::SpinBar<> bar;
+pgbar::FlowBar<> bar;
 bar.config().enable().speed().percent().elapsed().countdown();
 // or
 bar.config().enable().entire();
 bar.config().disable().animation().counter();
-// Animation 指的是左侧的动画组件 Lead
+// Animation 指的是单向移动的进度条
 // 并且不是所有元素都可以被关闭，例如 Prefix 就不行
 ```
 
-以上元素在 `Spin` 都有同名方法，调用这些方法并向其中传递参数同样能做到修改数据信息。
+以上元素在 `Flow` 都有同名方法，调用这些方法并向其中传递参数同样能做到修改数据信息。
+##### 可变的进度条长度
+在元素 `Starting` 和 `Ending` 中间部分的是被称作 `Animation` 的扫描进度条（不包括 `Starting` 和 `Ending`），这个扫描进度条的长度是可变的。
+
+每个进度条都有一个默认的初始长度（30 字符），如果希望进度条能够填满一个终端行，或者进度条太长需要缩窄，就需要使用到 `bar_length()` 方法或 `pgbar::option::BarLength` 包装器更改进度指示器的长度。
+
+对于后者，直接使用对应的接口调整参数即可；而前者则需要一个辅助方法获取除了进度指示器之外部分的长度，才能正确计算得到恰好能让进度条占满一行的长度。
+
+这个方法就是 `config().fixed_length()`。
+
+```cpp
+pgbar::FlowBar<> bar;
+assert( bar.config().bar_length() == 30 );  // 默认值
+assert( bar.config().fixed_length() != 0 ); // 具体值取决于数据成员的内容
+```
+
+具体的终端行宽度（以字符为单位）可以使用 `pgbar::config::terminal_width()` 获取；如果传递的输出流不指向实际终端设备，那么返回值为 0。
+
+> 如果运行平台既不是 Windows 也不是 unix-like，那么该函数只会返回一个固定值 100。
+
+```cpp
+assert( pgbar::config::terminal_width( pgbar::Channel::Stdout ) > bar.config().fixed_length() );
+bar.bar_length( pgbar::config::terminal_width( pgbar::Channel::Stdout ) - bar.config().fixed_length() );
+// 此时进度条恰能填满一行
+```
 #### 数据配置
-`Spin` 有两种数据配置方法：基于包装器类型的可变参数构造，和基于链式调用的流式接口风格。
+`Flow` 有两种数据配置方法：基于包装器类型的可变参数构造，和基于链式调用的流式接口风格。
 
 ```cpp
 #include "pgbar/pgbar.hpp"
 
 int main()
 {
-  pgbar::config::Spin config1 {
+  pgbar::config::Flow config1 {
     pgbar::option::SpeedUnit( { "B/s", "kiB/s", "MiB/s", "GiB/s" } ),
     pgbar::option::Magnitude( 1024 ),
     pgbar::option::InfoColor( "#39C5BB" )
@@ -1562,7 +2003,7 @@ int main()
   };
   // 注意：传入相同的包装器类型两次会导致编译错误
 
-  pgbar::config::Spin config2;
+  pgbar::config::Flow config2;
   config2.speed_unit( { "B/s", "kiB/s", "MiB/s", "GiB/s" } )
     .magnitude( 1024 )
     .info_color( "#39C5BB" );
@@ -1579,7 +2020,7 @@ int main()
 
 int main()
 {
-  pgbar::SpinBar<> pbar;
+  pgbar::FlowBar<> pbar;
 
   pbar.config().tasks( 100 );
   for ( auto i = 0; i < 100; ++i ) {
@@ -1591,15 +2032,15 @@ int main()
 }
 ```
 #### 线程安全性
-配置类型 `Spin` 的一切方法都是线程安全的，这意味着你可以在进度条运行过程中修改其中的数据。
+配置类型 `Flow` 的一切方法都是线程安全的，这意味着你可以在进度条运行过程中修改其中的数据。
 
-`SpinBar` 只有 `tick()`、`tick_to()` 和 `reset()` 方法是线程安全的；其余方法，特别是 `iterate()` 是线程不安全的。
+`FlowBar` 只有 `tick()`、`tick_to()` 和 `reset()` 方法是线程安全的；其余方法，特别是 `iterate()` 是线程不安全的。
 
 这表示进度条允许多个线程同时调用它的 `tick()`、`tick_to()` 和 `reset()` 方法；但这不包括移动赋值、移动构造和交换两个对象，以及 `iterate()` 方法。
 
 并且绝对不应该在进度条运行过程中尝试移动或交换当前对象。
 #### 绑定的输出流
-`SpinBar` 默认向标准错误流 `stderr` 输出字符串；具体绑定的输出流由第一个模板参数定义。
+`FlowBar` 默认向标准错误流 `stderr` 输出字符串；具体绑定的输出流由第一个模板参数定义。
 
 ```cpp
 #include "pgbar/pgbar.hpp"
@@ -1607,17 +2048,17 @@ int main()
 
 int main()
 {
-  static_assert( std::is_same<pgbar::SpinBar<>,
-                              pgbar::SpinBar<pgbar::Channel::Stderr>>::value,
+  static_assert( std::is_same<pgbar::FlowBar<>,
+                              pgbar::FlowBar<pgbar::Channel::Stderr>>::value,
                  "" );
 
-  pgbar::SpinBar<pgbar::Channel::Stdout> bar; // 绑定到 stdout 上
+  pgbar::FlowBar<pgbar::Channel::Stdout> bar; // 绑定到 stdout 上
 }
 ```
 
 特别需要注意的是，绑定到相同输出流上的对象不允许同时运行，否则会抛出异常 `pgbar::exception::InvalidState`；关于这一点的详细说明见 [FAQ-渲染器设计](#渲染器设计)。
 #### 渲染策略
-`SpinBar` 的渲染调度策略有两种：同步（`pgbar::Policy::Sync`）或异步（`pgbar::Policy::Async`）；不同的调度策略会将渲染行为交给不同的线程执行。
+`FlowBar` 的渲染调度策略有两种：同步（`pgbar::Policy::Sync`）或异步（`pgbar::Policy::Async`）；不同的调度策略会将渲染行为交给不同的线程执行。
 
 启用异步渲染（默认）时，进度条的渲染由一个后台线程以固定时间间隔自动完成。
 
@@ -1631,11 +2072,11 @@ int main()
 
 int main()
 {
-  static_assert( std::is_same<pgbar::SpinBar<>,
-                              pgbar::SpinBar<pgbar::Channel::Stderr, pgbar::Policy::Async>>::value,
+  static_assert( std::is_same<pgbar::FlowBar<>,
+                              pgbar::FlowBar<pgbar::Channel::Stderr, pgbar::Policy::Async>>::value,
                  "" );
 
-  pgbar::SpinBar<pgbar::Channel::Stderr, pgbar::Policy::Sync> bar; // 使用同步渲染
+  pgbar::FlowBar<pgbar::Channel::Stderr, pgbar::Policy::Sync> bar; // 使用同步渲染
 }
 ```
 
@@ -1663,7 +2104,7 @@ int main()
 
 int main()
 {
-  pgbar::SpinBar</* any channel */, /* any policy */, pgbar::Region::Relative> bar;
+  pgbar::FlowBar</* any channel */, /* any policy */, pgbar::Region::Relative> bar;
   bar.config().tasks( 100 );
 
   for ( size_t i = 0; i < 95; ++i )
@@ -1690,7 +2131,7 @@ using namespace std;
 
 int main()
 {
-  pgbar::SpinBar<> bar;
+  pgbar::FlowBar<> bar;
 
   // Iteration range: [100, 0), step: -1
   for ( auto num : bar.iterate( 100, 0, -1 ) ) {
@@ -1700,7 +2141,7 @@ int main()
   for ( auto fnum : bar.iterate( -2.0, -0.01 ) ) {
     this_thread::sleep_for( 100ms );
   }
-  // Iteration range: [100, 0), step: 1
+  // Iteration range: [0, 100), step: 1
   bar.iterate( 100, []( int ) { this_thread::sleep_for( 100ms ); } );
 }
 ```
@@ -1709,7 +2150,7 @@ int main()
 
 有关数值类型范围的使用，可以见[辅助类型-`NumericSpan`](#numericspan)。
 
-除了在数值范围内工作之外，`SpinBar` 也可以与存在迭代器的类型进行交互，例如 `std::vector` 和原始数组。
+除了在数值范围内工作之外，`FlowBar` 也可以与存在迭代器的类型进行交互，例如 `std::vector` 和原始数组。
 
 ```cpp
 #include "pgbar/pgbar.hpp"
@@ -1719,7 +2160,7 @@ using namespace std;
 
 int main()
 {
-  pgbar::SpinBar<> bar;
+  pgbar::FlowBar<> bar;
 
   vector<int> arr1 {
     0, 1, 2, 3, 4, 5, 6,
@@ -1749,7 +2190,7 @@ using namespace std;
 
 int main()
 {
-  pgbar::SpinBar<> bar;
+  pgbar::FlowBar<> bar;
 
   vector<int> arr1 {
     0, 1, 2, 3, 4, 5, 6,
