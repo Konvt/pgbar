@@ -3871,6 +3871,7 @@ namespace pgbar {
 # undef __PGBAR_OPTIONS
 # if __PGBAR_CXX20
 #  define __PGBAR_OPTIONS( StructName, ParamName )                         \
+    __PGBAR_CXX20_CNSTXPR StructName() = default;                          \
     /**                                                                    \
      * @throw exception::InvalidArgument                                   \
      *                                                                     \
@@ -3885,10 +3886,11 @@ namespace pgbar {
           __details::charcodes::U8Raw( std::move( ParamName ) ) )          \
     {}
 # else
-#  define __PGBAR_OPTIONS( StructName, ParamName )                         \
-    __PGBAR_CXX20_CNSTXPR StructName( __details::types::String ParamName ) \
-      : __details::wrappers::OptionWrapper<__details::charcodes::U8Raw>(   \
-          __details::charcodes::U8Raw( std::move( ParamName ) ) )          \
+#  define __PGBAR_OPTIONS( StructName, ParamName )                                   \
+    __PGBAR_CXX20_CNSTXPR StructName() =                                             \
+      default __PGBAR_CXX20_CNSTXPR StructName( __details::types::String ParamName ) \
+      : __details::wrappers::OptionWrapper<__details::charcodes::U8Raw>(             \
+          __details::charcodes::U8Raw( std::move( ParamName ) ) )                    \
     {}
 # endif
 
@@ -3953,6 +3955,7 @@ namespace pgbar {
    using Base = __details::wrappers::OptionWrapper<__details::console::escodes::RGBColor>; \
                                                                                            \
  public:                                                                                   \
+   __PGBAR_CXX23_CNSTXPR StructName() = default;                                           \
    __PGBAR_CXX23_CNSTXPR StructName( __details::types::ROStr ParamName )                   \
      : Base( __details::console::escodes::RGBColor( ParamName ) )                          \
    {}                                                                                      \
@@ -4070,6 +4073,7 @@ namespace pgbar {
       using Base = __details::wrappers::OptionWrapper<std::vector<__details::charcodes::U8Text>>;
 
     public:
+      __PGBAR_CXX20_CNSTXPR Lead() = default;
       /**
        * @throw exception::InvalidArgument
        *
