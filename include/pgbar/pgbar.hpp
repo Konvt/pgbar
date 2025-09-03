@@ -2653,11 +2653,12 @@ namespace pgbar {
           __PGBAR_INLINE_FN friend io::Stringbuf& operator<<( io::Stringbuf& buf, const Self& col )
           {
 # ifndef PGBAR_COLORLESS
-            return buf.append( '\x1B' )
+            buf.append( '\x1B' )
               .append( '[' )
               .append( col.sgr_.data(), col.sgr_.data() + col.length_ )
               .append( 'm' );
 # endif
+            return buf;
           }
         };
       } // namespace escodes
@@ -3886,11 +3887,11 @@ namespace pgbar {
           __details::charcodes::U8Raw( std::move( ParamName ) ) )          \
     {}
 # else
-#  define __PGBAR_OPTIONS( StructName, ParamName )                                   \
-    __PGBAR_CXX20_CNSTXPR StructName() =                                             \
-      default __PGBAR_CXX20_CNSTXPR StructName( __details::types::String ParamName ) \
-      : __details::wrappers::OptionWrapper<__details::charcodes::U8Raw>(             \
-          __details::charcodes::U8Raw( std::move( ParamName ) ) )                    \
+#  define __PGBAR_OPTIONS( StructName, ParamName )                         \
+    __PGBAR_CXX20_CNSTXPR StructName() = default;                          \
+    __PGBAR_CXX20_CNSTXPR StructName( __details::types::String ParamName ) \
+      : __details::wrappers::OptionWrapper<__details::charcodes::U8Raw>(   \
+          __details::charcodes::U8Raw( std::move( ParamName ) ) )          \
     {}
 # endif
 
@@ -4860,7 +4861,7 @@ namespace pgbar {
                 const auto pos = num_frame_cnt % this->bar_length_;
                 return !this->reversed_ ? pos : ( this->bar_length_ - 1 - pos ) % this->bar_length_;
               }();
-              const auto len_vacancy = this->bar_length_ - virtual_point - 1;
+              const auto len_vacancy = this->bar_length_ - virtual_point;
 
               if ( current_lead.width() <= len_vacancy ) {
                 const auto len_right_fill = len_vacancy - current_lead.width();
