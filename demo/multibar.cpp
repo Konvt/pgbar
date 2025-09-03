@@ -35,7 +35,7 @@ int main()
     mbar.tick<0>();
     for ( size_t i = 0; i < 30000; ++i ) {
       mbar.tick<1>();
-      this_thread::sleep_for( chrono::microseconds( uniform_int_distribution<>( 800, 1300 )( rd ) ) );
+      this_thread::sleep_for( chrono::microseconds( uniform_int_distribution<>( 1, 1025 )( rd ) ) );
     }
     mbar.tick<0>();
   } );
@@ -43,7 +43,7 @@ int main()
     mt19937 rd { random_device {}() };
     mbar.tick<0>();
     mbar.iterate<2>( 10000, [&rd]( int ) {
-      this_thread::sleep_for( chrono::milliseconds( uniform_int_distribution<>( 1, 8 )( rd ) ) );
+      this_thread::sleep_for( chrono::microseconds( uniform_int_distribution<>( 10, 1100 )( rd ) ) );
     } );
     mbar.tick<0>();
   } );
@@ -51,7 +51,7 @@ int main()
     mt19937 rd { random_device {}() };
     mbar.tick<0>();
     for ( auto _ : mbar.iterate<3>( 80000 ) )
-      this_thread::sleep_for( chrono::microseconds( uniform_int_distribution<>( 700, 1100 )( rd ) ) );
+      this_thread::sleep_for( chrono::microseconds( uniform_int_distribution<>( 1, 1005 )( rd ) ) );
     mbar.tick<0>();
   } );
 
