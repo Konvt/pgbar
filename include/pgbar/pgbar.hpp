@@ -1175,7 +1175,7 @@ namespace pgbar {
       protected:
         T data_;
 
-        constexpr OptionWrapper() = default;
+        constexpr OptionWrapper() noexcept( std::is_nothrow_default_constructible<T>::value ) : data_ {} {};
         constexpr OptionWrapper( T&& data ) noexcept( std::is_nothrow_move_constructible<T>::value )
           : data_ { std::move( data ) }
         {}
@@ -3801,39 +3801,42 @@ namespace pgbar {
 # define __PGBAR_BASE( ValueType ) \
  public                            \
    __details::wrappers::OptionWrapper<ValueType>
-# define __PGBAR_OPTIONS( StructName, ValueType, ParamName )                   \
+# define __PGBAR_OPTION( StructName, ValueType, ParamName )                    \
    constexpr StructName( ValueType ParamName ) noexcept                        \
      : __details::wrappers::OptionWrapper<ValueType>( std::move( ParamName ) ) \
    {}
+# define __PGBAR_NULLABLE_OPTION( StructName, ValueType, ParamName ) \
+   constexpr StructName() = default;                                 \
+   __PGBAR_OPTION( StructName, ValueType, ParamName )
 
     // A wrapper that stores the value of the bit option setting.
     struct Style : __PGBAR_BASE( __details::types::Byte ) {
-      __PGBAR_OPTIONS( Style, __details::types::Byte, _settings )
+      __PGBAR_NULLABLE_OPTION( Style, __details::types::Byte, _settings )
     };
 
     // A wrapper that stores the value of the color effect setting.
     struct Colored : __PGBAR_BASE( bool ) {
-      __PGBAR_OPTIONS( Colored, bool, _enable )
+      __PGBAR_NULLABLE_OPTION( Colored, bool, _enable )
     };
 
     // A wrapper that stores the value of the font boldness setting.
     struct Bolded : __PGBAR_BASE( bool ) {
-      __PGBAR_OPTIONS( Bolded, bool, _enable )
+      __PGBAR_NULLABLE_OPTION( Bolded, bool, _enable )
     };
 
     // A wrapper that stores the number of tasks.
     struct Tasks : __PGBAR_BASE( std::uint64_t ) {
-      __PGBAR_OPTIONS( Tasks, std::uint64_t, _num_tasks )
+      __PGBAR_OPTION( Tasks, std::uint64_t, _num_tasks )
     };
 
     // A wrapper that stores the flag of direction.
     struct Reversed : __PGBAR_BASE( bool ) {
-      __PGBAR_OPTIONS( Reversed, bool, _flag )
+      __PGBAR_NULLABLE_OPTION( Reversed, bool, _flag )
     };
 
     // A wrapper that stores the length of the bar indicator, in the character unit.
     struct BarLength : __PGBAR_BASE( __details::types::Size ) {
-      __PGBAR_OPTIONS( BarLength, __details::types::Size, _num_char )
+      __PGBAR_OPTION( BarLength, __details::types::Size, _num_char )
     };
 
     /**
@@ -3850,7 +3853,7 @@ namespace pgbar {
      * The effective range is between -128 (slowest) and 127 (fastest).
      */
     struct Shift : __PGBAR_BASE( std::int8_t ) {
-      __PGBAR_OPTIONS( Shift, std::int8_t, _shift_factor )
+      __PGBAR_OPTION( Shift, std::int8_t, _shift_factor )
     };
 
     /**
@@ -3866,12 +3869,13 @@ namespace pgbar {
      * - Typical usage: 1000 (decimal) or 1024 (binary) scaling.
      */
     struct Magnitude : __PGBAR_BASE( std::uint16_t ) {
-      __PGBAR_OPTIONS( Magnitude, std::uint16_t, _magnitude )
+      __PGBAR_OPTION( Magnitude, std::uint16_t, _magnitude )
     };
 
-# undef __PGBAR_OPTIONS
+# undef __PGBAR_NULLABLE_OPTION
+# undef __PGBAR_OPTION
 # if __PGBAR_CXX20
-#  define __PGBAR_OPTIONS( StructName, ParamName )                         \
+#  define __PGBAR_OPTION( StructName, ParamName )                          \
     __PGBAR_CXX20_CNSTXPR StructName() = default;                          \
     /**                                                                    \
      * @throw exception::InvalidArgument                                   \
@@ -3887,7 +3891,7 @@ namespace pgbar {
           __details::charcodes::U8Raw( std::move( ParamName ) ) )          \
     {}
 # else
-#  define __PGBAR_OPTIONS( StructName, ParamName )                         \
+#  define __PGBAR_OPTION( StructName, ParamName )                          \
     __PGBAR_CXX20_CNSTXPR StructName() = default;                          \
     __PGBAR_CXX20_CNSTXPR StructName( __details::types::String ParamName ) \
       : __details::wrappers::OptionWrapper<__details::charcodes::U8Raw>(   \
@@ -3897,61 +3901,61 @@ namespace pgbar {
 
     // A wrapper that stores the characters of the filler in the bar indicator.
     struct Filler : __PGBAR_BASE( __details::charcodes::U8Raw ) {
-      __PGBAR_OPTIONS( Filler, _filler )
+      __PGBAR_OPTION( Filler, _filler )
     };
 
     // A wrapper that stores the characters of the remains in the bar indicator.
     struct Remains : __PGBAR_BASE( __details::charcodes::U8Raw ) {
-      __PGBAR_OPTIONS( Remains, _remains )
+      __PGBAR_OPTION( Remains, _remains )
     };
 
     // A wrapper that stores characters located to the left of the bar indicator.
     struct Starting : __PGBAR_BASE( __details::charcodes::U8Raw ) {
-      __PGBAR_OPTIONS( Starting, _starting )
+      __PGBAR_OPTION( Starting, _starting )
     };
 
     // A wrapper that stores characters located to the right of the bar indicator.
     struct Ending : __PGBAR_BASE( __details::charcodes::U8Raw ) {
-      __PGBAR_OPTIONS( Ending, _ending )
+      __PGBAR_OPTION( Ending, _ending )
     };
 
     // A wrapper that stores the prefix text.
     struct Prefix : __PGBAR_BASE( __details::charcodes::U8Raw ) {
-      __PGBAR_OPTIONS( Prefix, _prefix )
+      __PGBAR_OPTION( Prefix, _prefix )
     };
 
     // A wrapper that stores the postfix text.
     struct Postfix : __PGBAR_BASE( __details::charcodes::U8Raw ) {
-      __PGBAR_OPTIONS( Postfix, _postfix )
+      __PGBAR_OPTION( Postfix, _postfix )
     };
 
     // A wrapper that stores the `true` message text.
     struct TrueMesg : __PGBAR_BASE( __details::charcodes::U8Raw ) {
-      __PGBAR_OPTIONS( TrueMesg, _true_mesg )
+      __PGBAR_OPTION( TrueMesg, _true_mesg )
     };
 
     // A wrapper that stores the `false` message text.
     struct FalseMesg : __PGBAR_BASE( __details::charcodes::U8Raw ) {
-      __PGBAR_OPTIONS( FalseMesg, _false_mesg )
+      __PGBAR_OPTION( FalseMesg, _false_mesg )
     };
 
     // A wrapper that stores the separator component used to separate different infomation.
     struct Divider : __PGBAR_BASE( __details::charcodes::U8Raw ) {
-      __PGBAR_OPTIONS( Divider, _divider )
+      __PGBAR_OPTION( Divider, _divider )
     };
 
     // A wrapper that stores the border component located to the left of the whole indicator.
     struct LeftBorder : __PGBAR_BASE( __details::charcodes::U8Raw ) {
-      __PGBAR_OPTIONS( LeftBorder, _l_border )
+      __PGBAR_OPTION( LeftBorder, _l_border )
     };
 
     // A wrapper that stores the border component located to the right of the whole indicator.
     struct RightBorder : __PGBAR_BASE( __details::charcodes::U8Raw ) {
-      __PGBAR_OPTIONS( RightBorder, _r_border )
+      __PGBAR_OPTION( RightBorder, _r_border )
     };
 
-# undef __PGBAR_OPTIONS
-# define __PGBAR_OPTIONS( StructName, ParamName )                                          \
+# undef __PGBAR_OPTION
+# define __PGBAR_OPTION( StructName, ParamName )                                           \
  private:                                                                                  \
    using Base = __details::wrappers::OptionWrapper<__details::console::escodes::RGBColor>; \
                                                                                            \
@@ -3966,55 +3970,55 @@ namespace pgbar {
 
     // A wrapper that stores the prefix text color.
     struct PrefixColor : __PGBAR_BASE( __details::console::escodes::RGBColor ) {
-      __PGBAR_OPTIONS( PrefixColor, _prfx_color )
+      __PGBAR_OPTION( PrefixColor, _prfx_color )
     };
 
     // A wrapper that stores the postfix text color.
     struct PostfixColor : __PGBAR_BASE( __details::console::escodes::RGBColor ) {
-      __PGBAR_OPTIONS( PostfixColor, _pstfx_color )
+      __PGBAR_OPTION( PostfixColor, _pstfx_color )
     };
 
     // A wrapper that stores the `true` message text color.
     struct TrueColor : __PGBAR_BASE( __details::console::escodes::RGBColor ) {
-      __PGBAR_OPTIONS( TrueColor, _true_color )
+      __PGBAR_OPTION( TrueColor, _true_color )
     };
 
     // A wrapper that stores the `false` message text color.
     struct FalseColor : __PGBAR_BASE( __details::console::escodes::RGBColor ) {
-      __PGBAR_OPTIONS( FalseColor, _false_color )
+      __PGBAR_OPTION( FalseColor, _false_color )
     };
 
     // A wrapper that stores the color of component located to the left of the bar indicator.
     struct StartColor : __PGBAR_BASE( __details::console::escodes::RGBColor ) {
-      __PGBAR_OPTIONS( StartColor, _start_color )
+      __PGBAR_OPTION( StartColor, _start_color )
     };
 
     // A wrapper that stores the color of component located to the right of the bar indicator.
     struct EndColor : __PGBAR_BASE( __details::console::escodes::RGBColor ) {
-      __PGBAR_OPTIONS( EndColor, _end_color )
+      __PGBAR_OPTION( EndColor, _end_color )
     };
 
     // A wrapper that stores the color of the filler in the bar indicator.
     struct FillerColor : __PGBAR_BASE( __details::console::escodes::RGBColor ) {
-      __PGBAR_OPTIONS( FillerColor, _filler_color )
+      __PGBAR_OPTION( FillerColor, _filler_color )
     };
 
     // A wrapper that stores the color of the remains in the bar indicator.
     struct RemainsColor : __PGBAR_BASE( __details::console::escodes::RGBColor ) {
-      __PGBAR_OPTIONS( RemainsColor, _remains_color )
+      __PGBAR_OPTION( RemainsColor, _remains_color )
     };
 
     // A wrapper that stores the color of the lead in the bar indicator.
     struct LeadColor : __PGBAR_BASE( __details::console::escodes::RGBColor ) {
-      __PGBAR_OPTIONS( LeadColor, _lead_color )
+      __PGBAR_OPTION( LeadColor, _lead_color )
     };
 
     // A wrapper that stores the color of the whole infomation indicator.
     struct InfoColor : __PGBAR_BASE( __details::console::escodes::RGBColor ) {
-      __PGBAR_OPTIONS( InfoColor, _info_color )
+      __PGBAR_OPTION( InfoColor, _info_color )
     };
 
-# undef __PGBAR_OPTIONS
+# undef __PGBAR_OPTION
 
     /**
      * A wrapper that stores ordered units for information rate formatting (e.g. B/s, kB/s).
@@ -4108,7 +4112,7 @@ namespace pgbar {
 # endif
     };
 
-# undef __PGBAR_OPTIONS
+# undef __PGBAR_OPTION
 # undef __PGBAR_BASE
   } // namespace option
 
