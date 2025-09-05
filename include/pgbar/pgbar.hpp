@@ -1519,11 +1519,16 @@ namespace pgbar {
     namespace charcodes {
       // A type of wrapper that stores the mapping between Unicode code chart and character width.
       class CodeChart final {
+      public:
+        // At present, the width of each utf character will not exceed 3.
+        using RenderWidth = std::uint8_t;
+
+      private:
         types::UCodePoint start_, end_;
-        types::Size width_;
+        RenderWidth width_;
 
       public:
-        constexpr CodeChart( types::UCodePoint start, types::UCodePoint end, types::Size width ) noexcept
+        constexpr CodeChart( types::UCodePoint start, types::UCodePoint end, RenderWidth width ) noexcept
           : start_ { start }, end_ { end }, width_ { width }
         {          // This is an internal component, so we assume the arguments are always valid.
 # if __PGBAR_CXX14 // C++11 requires the constexpr ctor should have an empty function body.
@@ -1540,7 +1545,7 @@ namespace pgbar {
           return start_ <= codepoint && codepoint <= end_;
         }
         // Return the character width of this Unicode code chart.
-        __PGBAR_NODISCARD constexpr types::Size width() const noexcept { return width_; }
+        __PGBAR_NODISCARD constexpr RenderWidth width() const noexcept { return width_; }
         // Return the size of this range of Unicode code chart.
         __PGBAR_NODISCARD constexpr types::UCodePoint size() const noexcept { return end_ - start_ + 1; }
         // Return the start Unicode code point of this code chart.
@@ -1640,10 +1645,10 @@ namespace pgbar {
              { 0xFFF80, 0xFFFFF, 2 }, { 0x10FF80, 0x10FFFF, 2 } }
           };
         }
-        __PGBAR_NODISCARD static __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::Size char_width(
+        __PGBAR_NODISCARD static __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR CodeChart::RenderWidth char_width(
           types::UCodePoint codepoint ) noexcept
         {
-          constexpr auto charts = code_charts();
+          constexpr const auto charts = code_charts();
           __PGBAR_ASSERT( std::is_sorted( charts.cbegin(), charts.cend() ) );
           // Compare with the `if-else` version, here we can search for code points with O(logn).
           const auto itr = std::lower_bound( charts.cbegin(), charts.cend(), codepoint );
@@ -1668,7 +1673,7 @@ namespace pgbar {
             const auto startpoint = raw_u8_str + i;
             __PGBAR_TRUST( startpoint >= raw_u8_str );
             auto parsed = next_char( startpoint, std::distance( startpoint, u8_str.data() + u8_str.size() ) );
-            width += char_width( parsed.first );
+            width += static_cast<types::Size>( char_width( parsed.first ) );
             i += parsed.second;
           }
           return width;
@@ -1814,14 +1819,14 @@ namespace pgbar {
 
       protected:
         // The starting offset (in byte) of each utf-8 character and its width.
-        std::vector<std::pair<types::Size, types::Size>> chars_;
+        std::vector<std::pair<types::Size, CodeChart::RenderWidth>> chars_;
 
       public:
         __PGBAR_NODISCARD static __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR
-          std::vector<std::pair<types::Size, types::Size>>
+          std::vector<std::pair<types::Size, CodeChart::RenderWidth>>
           parse_char( types::ROStr u8_str )
         {
-          std::vector<std::pair<types::Size, types::Size>> characters;
+          std::vector<std::pair<types::Size, CodeChart::RenderWidth>> characters;
           const auto raw_u8_str = u8_str.data();
           for ( types::Size i = 0; i < u8_str.size(); ) {
             const auto startpoint = raw_u8_str + i;
@@ -1839,13 +1844,13 @@ namespace pgbar {
         __PGBAR_CXX20_CNSTXPR explicit U8Text( types::String u8_bytes ) : U8Text()
         {
           chars_ = parse_char( u8_bytes );
-          width_ =
-            std::accumulate( chars_.cbegin(),
-                             chars_.cend(),
-                             types::Size {},
-                             []( types::Size acc, const std::pair<types::Size, types::Size>& ch ) noexcept {
-                               return acc + ch.second;
-                             } );
+          width_ = std::accumulate(
+            chars_.cbegin(),
+            chars_.cend(),
+            types::Size {},
+            []( types::Size acc, const std::pair<types::Size, CodeChart::RenderWidth>& ch ) noexcept {
+              return acc + static_cast<types::Size>( ch.second );
+            } );
           bytes_ = std::move( u8_bytes );
         }
         __PGBAR_CXX20_CNSTXPR U8Text( const Self& )            = default;
@@ -1859,13 +1864,13 @@ namespace pgbar {
           auto new_chars = parse_char( u8_bytes );
           auto new_bytes = types::String( u8_bytes );
           chars_.swap( new_chars );
-          width_ =
-            std::accumulate( chars_.cbegin(),
-                             chars_.cend(),
-                             types::Size {},
-                             []( types::Size acc, const std::pair<types::Size, types::Size>& ch ) noexcept {
-                               return acc + ch.second;
-                             } );
+          width_ = std::accumulate(
+            chars_.cbegin(),
+            chars_.cend(),
+            types::Size {},
+            []( types::Size acc, const std::pair<types::Size, CodeChart::RenderWidth>& ch ) noexcept {
+              return acc + static_cast<types::Size>( ch.second );
+            } );
           bytes_.swap( new_bytes );
           return *this;
         }
@@ -1874,13 +1879,13 @@ namespace pgbar {
           auto new_chars = parse_char( u8_bytes );
           std::swap( chars_, new_chars );
           chars_.swap( new_chars );
-          width_ =
-            std::accumulate( chars_.cbegin(),
-                             chars_.cend(),
-                             types::Size {},
-                             []( types::Size acc, const std::pair<types::Size, types::Size>& ch ) noexcept {
-                               return acc + ch.second;
-                             } );
+          width_ = std::accumulate(
+            chars_.cbegin(),
+            chars_.cend(),
+            types::Size {},
+            []( types::Size acc, const std::pair<types::Size, CodeChart::RenderWidth>& ch ) noexcept {
+              return acc + static_cast<types::Size>( ch.second );
+            } );
           bytes_.swap( u8_bytes );
           return *this;
         }
@@ -1942,8 +1947,9 @@ namespace pgbar {
           std::transform( b.chars_.cbegin(),
                           b.chars_.cend(),
                           a.chars_.begin() + num_a_char,
-                          [&a]( const std::pair<types::Size, types::Size>& ch ) noexcept {
-                            return std::make_pair( ch.first + a.size(), ch.second );
+                          [&a]( const std::pair<types::Size, CodeChart::RenderWidth>& ch ) noexcept {
+                            return std::make_pair( ch.first + a.size(),
+                                                   static_cast<types::Size>( ch.second ) );
                           } );
           a.bytes_.append( b.bytes_ );
           a.width_ += b.width_;
@@ -1963,20 +1969,21 @@ namespace pgbar {
           std::transform( b.chars_.cbegin(),
                           b.chars_.cend(),
                           new_chars.begin() + num_a_char,
-                          [&a]( const std::pair<types::Size, types::Size>& ch ) noexcept {
-                            return std::make_pair( ch.first + a.size(), ch.second );
+                          [&a]( const std::pair<types::Size, CodeChart::RenderWidth>& ch ) noexcept {
+                            return std::make_pair( ch.first + a.size(),
+                                                   static_cast<types::Size>( ch.second ) );
                           } );
           a.append( b.bytes_ );
           U8Text ret;
           ret.bytes_ = std::move( a );
           ret.chars_ = std::move( new_chars );
-          ret.width_ =
-            std::accumulate( ret.chars_.cbegin(),
-                             ret.chars_.cend(),
-                             types::Size {},
-                             []( types::Size acc, const std::pair<types::Size, types::Size>& ch ) noexcept {
-                               return acc + ch.second;
-                             } );
+          ret.width_ = std::accumulate(
+            ret.chars_.cbegin(),
+            ret.chars_.cend(),
+            types::Size {},
+            []( types::Size acc, const std::pair<types::Size, CodeChart::RenderWidth>& ch ) noexcept {
+              return acc + static_cast<types::Size>( ch.second );
+            } );
           return ret;
         }
         __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( types::ROStr a,
@@ -1993,18 +2000,19 @@ namespace pgbar {
           std::transform( a.chars_.cbegin(),
                           a.chars_.cend(),
                           new_chars.begin() + num_b_char,
-                          [&b]( const std::pair<types::Size, types::Size>& ch ) noexcept {
-                            return std::make_pair( ch.first + b.size(), ch.second );
+                          [&b]( const std::pair<types::Size, CodeChart::RenderWidth>& ch ) noexcept {
+                            return std::make_pair( ch.first + b.size(),
+                                                   static_cast<types::Size>( ch.second ) );
                           } );
           a.bytes_.append( b );
           a.chars_ = std::move( new_chars );
-          a.width_ =
-            std::accumulate( a.chars_.cbegin(),
-                             a.chars_.cend(),
-                             types::Size {},
-                             []( types::Size acc, const std::pair<types::Size, types::Size>& ch ) noexcept {
-                               return acc + ch.second;
-                             } );
+          a.width_ = std::accumulate(
+            a.chars_.cbegin(),
+            a.chars_.cend(),
+            types::Size {},
+            []( types::Size acc, const std::pair<types::Size, CodeChart::RenderWidth>& ch ) noexcept {
+              return acc + static_cast<types::Size>( ch.second );
+            } );
           return a;
         }
         __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( const Self& a,
@@ -2039,13 +2047,13 @@ namespace pgbar {
           auto new_bytes = types::String( u8_sv.size(), '\0' );
           std::copy( u8_sv.cbegin(), u8_sv.cend(), new_bytes.begin() );
           chars_ = parse_char( new_bytes );
-          width_ =
-            std::accumulate( chars_.cbegin(),
-                             chars_.cend(),
-                             types::Size {},
-                             []( types::Size acc, const std::pair<types::Size, types::Size>& ch ) noexcept {
-                               return acc + ch.second;
-                             } );
+          width_ = std::accumulate(
+            chars_.cbegin(),
+            chars_.cend(),
+            types::Size {},
+            []( types::Size acc, const std::pair<types::Size, CodeChart::RenderWidth>& ch ) noexcept {
+              return acc + static_cast<types::Size>( ch.second );
+            } );
           bytes_ = std::move( new_bytes );
         }
 # endif
@@ -2513,7 +2521,7 @@ namespace pgbar {
         class RGBColor {
           using Self = RGBColor;
 
-          std::array<char, 17> sgr_; // Select Graphic Rendition
+          std::array<types::Char, 17> sgr_; // Select Graphic Rendition
           std::uint8_t length_;
 
           static __PGBAR_INLINE_FN __PGBAR_CXX23_CNSTXPR types::Char* to_char( types::Char* first,
