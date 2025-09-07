@@ -10,6 +10,7 @@
       - [Output stream](#output-stream)
       - [Rendering strategy](#rendering-strategy)
     - [Interaction with iterable types](#interaction-with-iterable-types)
+    - [Custom callback](#custom-callback)
   - [`BlockBar`](#blockbar)
     - [How to use](#how-to-use-1)
     - [Configuration](#configuration-1)
@@ -20,6 +21,7 @@
       - [Output stream](#output-stream-1)
       - [Rendering strategy](#rendering-strategy-1)
     - [Interaction with iterable types](#interaction-with-iterable-types-1)
+    - [Custom callback](#custom-callback-1)
   - [`SpinBar`](#spinbar)
     - [How to use](#how-to-use-2)
     - [Configuration](#configuration-2)
@@ -29,6 +31,7 @@
       - [Output stream](#output-stream-2)
       - [Rendering strategy](#rendering-strategy-2)
     - [Interaction with iterable types](#interaction-with-iterable-types-2)
+    - [Custom callback](#custom-callback-2)
   - [`SweepBar`](#sweepbar)
     - [How to use](#how-to-use-3)
     - [Configuration](#configuration-3)
@@ -39,6 +42,7 @@
       - [Output stream](#output-stream-3)
       - [Rendering strategy](#rendering-strategy-3)
     - [Interaction with iterable types](#interaction-with-iterable-types-3)
+    - [Custom callback](#custom-callback-3)
   - [`FlowBar`](#flowbar)
     - [How to use](#how-to-use-4)
     - [Configuration](#configuration-4)
@@ -49,6 +53,7 @@
       - [Output stream](#output-stream-4)
       - [Rendering strategy](#rendering-strategy-4)
     - [Interaction with iterable types](#interaction-with-iterable-types-4)
+    - [Custom callback](#custom-callback-4)
 - [Progress Bar Synthesizer](#progress-bar-synthesizer)
   - [`MultiBar`](#multibar)
     - [How to use](#how-to-use-5)
@@ -221,8 +226,6 @@ pgbar::option::RightBorder; // Modify the end border to the right of the entire 
 
 pgbar::option::Prefix;      // Modify the pre-description information
 pgbar::option::Postfix;     // Modify the post-description information
-pgbar::option::TrueMesg;    // Modify the element used to replace the Prefix section when the progress bar ends
-pgbar::option::FalseMesg;   // Modify the element used to replace the Prefix section when the progress bar ends
 
 pgbar::option::Starting;  // Modify the elements left of the progress bar and right of Percent
 pgbar::option::Ending;    // Modify the elements right of the progress bar and left of the Counter
@@ -241,8 +244,6 @@ pgbar::option::Divider; // Modifies the divider between two elements
 
 pgbar::option::PrefixColor;  // Modify the color of Prefix
 pgbar::option::PostfixColor; // Modify the color of Postfix
-pgbar::option::TrueColor;    // Modify the color of TrueMesg
-pgbar::option::FalseColor;   // Modify the color of FalseMesg
 pgbar::option::StartColor;   // Modify the color of Starting
 pgbar::option::EndColor;     // Modify the color of Ending
 pgbar::option::FillerColor;  // Modify the color of Filler
@@ -250,8 +251,6 @@ pgbar::option::RemainsColor; // Modify the color of Remains
 pgbar::option::LeadColor;    // Modify the color of Lead
 pgbar::option::InfoColor;    // Modify the color of Divider, Percent, Counter, Speed, Elapsed and Countdown
 ```
-
-> `TrueMesg` and `FalseMesg` can be used to display whether the task of progress bar iteration is successfully executed. They can be switched by passing a `bool` parameter to the `reset()` method; By default, the progress bar stops on its own, or calling the `reset()` method without arguments selects `TrueMesg`.
 
 The argument to `pgbar::option::Style` can be obtained by a bit operation performed by multiple static members of `pgbar::config::Line`:
 
@@ -522,6 +521,40 @@ int main()
 This type of range is actually a "finite range", which means its size is known and it cannot be an infinite sequence like `std::views::iota(0)`.
 
 If the finite range constraint is satisfied and C++20 is used, then `iterate` can correctly handle the reference lifetime of view types that satisfy the constraint `std::ranges::view`.
+### Custom callback
+The `ProgressBar` provides an `action()` method to receive or clear a function callback of type `void()`.
+
+This callback will be invoked when the progress bar type calls the `reset()` method and before the progress bar rendering is terminated (the return value of the `active()` function switches from `true` to `false`).
+
+Similarly, if the progress bar runs normally and terminates normally, the progress bar type will internally call the `reset()` method by itself. At this point, the callback function will still be called before the progress bar terminates.
+
+`ProgressBar` provides `operator|` and `operator|=` overloads for `action()`.
+
+```cpp
+#include "pgbar/pgbar.hpp"
+using namespace std;
+
+int main()
+{
+  pgbar::ProgressBar<> bar;
+  bool flag = true;
+  auto callback = [&]() {
+    if ( flag )
+      bar.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
+    else
+      bar.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
+  };
+
+  bar.action( callback );
+  // or
+  bar |= callback;
+  // or
+  bar | callback;
+  callback | bar;
+}
+```
+
+The type of the callback function passed must satisfy `std::is_move_constructible`; and **should not** call any methods other than `config()` and `progress()` within the callback, otherwise it will lead to a *deadlock*.
 
 - - -
 
@@ -655,8 +688,6 @@ pgbar::option::RightBorder; // Modify the end border to the right of the entire 
 
 pgbar::option::Prefix;      // Modify the pre-description information
 pgbar::option::Postfix;     // Modify the post-description information
-pgbar::option::TrueMesg;    // Modify the element used to replace the Prefix section when the progress bar ends
-pgbar::option::FalseMesg;   // Modify the element used to replace the Prefix section when the progress bar ends
 
 pgbar::option::Starting;  // Modify the elements left of the progress bar and right of Percent
 pgbar::option::Ending;    // Modify the elements right of the progress bar and left of the Counter
@@ -674,8 +705,6 @@ pgbar::option::Divider; // Modifies the divider between two elements
 
 pgbar::option::PrefixColor;  // Modify the color of Prefix
 pgbar::option::PostfixColor; // Modify the color of Postfix
-pgbar::option::TrueColor;    // Modify the color of TrueMesg
-pgbar::option::FalseColor;   // Modify the color of FalseMesg
 pgbar::option::StartColor;   // Modify the color of Starting
 pgbar::option::EndColor;     // Modify the color of Ending
 pgbar::option::FillerColor;  // Modify the color of Filler
@@ -683,8 +712,6 @@ pgbar::option::RemainsColor; // Modify the color of Remains
 pgbar::option::LeadColor;    // Modify the color of Lead
 pgbar::option::InfoColor;    // Modify the color of Divider, Percent, Counter, Speed, Elapsed and Countdown
 ```
-
-> `TrueMesg` and `FalseMesg` can be used to display whether the task of progress bar iteration is successfully executed. They can be switched by passing a `bool` parameter to the `reset()` method; By default, the progress bar stops on its own, or calling the `reset()` method without arguments selects `TrueMesg`.
 
 The argument to `pgbar::option::Style` can be obtained by a bit operation performed by multiple static members of `pgbar::config::Block`:
 
@@ -953,6 +980,40 @@ int main()
 This type of range is actually a "finite range", which means its size is known and it cannot be an infinite sequence like `std::views::iota(0)`.
 
 If the finite range constraint is satisfied and C++20 is used, then `iterate` can correctly handle the reference lifetime of view types that satisfy the constraint `std::ranges::view`.
+### Custom callback
+The `BlockBar` provides an `action()` method to receive or clear a function callback of type `void()`.
+
+This callback will be invoked when the progress bar type calls the `reset()` method and before the progress bar rendering is terminated (the return value of the `active()` function switches from `true` to `false`).
+
+Similarly, if the progress bar runs normally and terminates normally, the progress bar type will internally call the `reset()` method by itself. At this point, the callback function will still be called before the progress bar terminates.
+
+`BlockBar` provides `operator|` and `operator|=` overloads for `action()`.
+
+```cpp
+#include "pgbar/pgbar.hpp"
+using namespace std;
+
+int main()
+{
+  pgbar::BlockBar<> bar;
+  bool flag = true;
+  auto callback = [&]() {
+    if ( flag )
+      bar.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
+    else
+      bar.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
+  };
+
+  bar.action( callback );
+  // or
+  bar |= callback;
+  // or
+  bar | callback;
+  callback | bar;
+}
+```
+
+The type of the callback function passed must satisfy `std::is_move_constructible`; and **should not** call any methods other than `config()` and `progress()` within the callback, otherwise it will lead to a *deadlock*.
 
 - - -
 
@@ -1086,8 +1147,6 @@ pgbar::option::RightBorder; // Modify the end border to the right of the entire 
 
 pgbar::option::Prefix;      // Modify the pre-description information
 pgbar::option::Postfix;     // Modify the post-description information
-pgbar::option::TrueMesg;    // Modify the element used to replace the Prefix section when the progress bar ends
-pgbar::option::FalseMesg;   // Modify the element used to replace the Prefix section when the progress bar ends
 
 pgbar::option::Lead;      // Modify the frames of the animation section
 pgbar::option::Shift;     // Adjust the animation speed of the animation section (Lead)
@@ -1100,13 +1159,9 @@ pgbar::option::Divider; // Modifies the divider between two elements
 
 pgbar::option::PrefixColor;  // Modify the color of Prefix
 pgbar::option::PostfixColor; // Modify the color of Postfix
-pgbar::option::TrueColor;    // Modify the color of TrueMesg
-pgbar::option::FalseColor;   // Modify the color of FalseMesg
 pgbar::option::LeadColor;    // Modify the color of Lead
 pgbar::option::InfoColor;    // Modify the color of Divider, Percent, Counter, Speed, Elapsed and Countdown
 ```
-
-> `TrueMesg` and `FalseMesg` can be used to display whether the task of progress bar iteration is successfully executed. They can be switched by passing a `bool` parameter to the `reset()` method; By default, the progress bar stops on its own, or calling the `reset()` method without arguments selects `TrueMesg`.
 
 The argument to `pgbar::option::Style` can be obtained by a bit operation performed by multiple static members of `pgbar::config::Spin`:
 
@@ -1351,6 +1406,40 @@ int main()
 This type of range is actually a "finite range", which means its size is known and it cannot be an infinite sequence like `std::views::iota(0)`.
 
 If the finite range constraint is satisfied and C++20 is used, then `iterate` can correctly handle the reference lifetime of view types that satisfy the constraint `std::ranges::view`.
+### Custom callback
+The `SpinBar` provides an `action()` method to receive or clear a function callback of type `void()`.
+
+This callback will be invoked when the progress bar type calls the `reset()` method and before the progress bar rendering is terminated (the return value of the `active()` function switches from `true` to `false`).
+
+Similarly, if the progress bar runs normally and terminates normally, the progress bar type will internally call the `reset()` method by itself. At this point, the callback function will still be called before the progress bar terminates.
+
+`SpinBar` provides `operator|` and `operator|=` overloads for `action()`.
+
+```cpp
+#include "pgbar/pgbar.hpp"
+using namespace std;
+
+int main()
+{
+  pgbar::SpinBar<> bar;
+  bool flag = true;
+  auto callback = [&]() {
+    if ( flag )
+      bar.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
+    else
+      bar.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
+  };
+
+  bar.action( callback );
+  // or
+  bar |= callback;
+  // or
+  bar | callback;
+  callback | bar;
+}
+```
+
+The type of the callback function passed must satisfy `std::is_move_constructible`; and **should not** call any methods other than `config()` and `progress()` within the callback, otherwise it will lead to a *deadlock*.
 
 - - -
 
@@ -1484,8 +1573,6 @@ pgbar::option::RightBorder; // Modify the end border to the right of the entire 
 
 pgbar::option::Prefix;      // Modify the pre-description information
 pgbar::option::Postfix;     // Modify the post-description information
-pgbar::option::TrueMesg;    // Modify the element used to replace the Prefix section when the progress bar ends
-pgbar::option::FalseMesg;   // Modify the element used to replace the Prefix section when the progress bar ends
 
 pgbar::option::Starting;  // Modify the elements left of the progress bar and right of Percent
 pgbar::option::Ending;    // Modify the elements right of the progress bar and left of the Counter
@@ -1502,16 +1589,12 @@ pgbar::option::Divider; // Modifies the divider between two elements
 
 pgbar::option::PrefixColor;  // Modify the color of Prefix
 pgbar::option::PostfixColor; // Modify the color of Postfix
-pgbar::option::TrueColor;    // Modify the color of TrueMesg
-pgbar::option::FalseColor;   // Modify the color of FalseMesg
 pgbar::option::StartColor;   // Modify the color of Starting
 pgbar::option::EndColor;     // Modify the color of Ending
 pgbar::option::FillerColor;  // Modify the color of Filler
 pgbar::option::LeadColor;    // Modify the color of Lead
 pgbar::option::InfoColor;    // Modify the color of Divider, Percent, Counter, Speed, Elapsed and Countdown
 ```
-
-> `TrueMesg` and `FalseMesg` can be used to display whether the task of progress bar iteration is successfully executed. They can be switched by passing a `bool` parameter to the `reset()` method; By default, the progress bar stops on its own, or calling the `reset()` method without arguments selects `TrueMesg`.
 
 The argument to `pgbar::option::Style` can be obtained by a bit operation performed by multiple static members of `pgbar::config::SweepBar`:
 
@@ -1779,6 +1862,40 @@ int main()
 This type of range is actually a "finite range", which means its size is known and it cannot be an infinite sequence like `std::views::iota(0)`.
 
 If the finite range constraint is satisfied and C++20 is used, then `iterate` can correctly handle the reference lifetime of view types that satisfy the constraint `std::ranges::view`.
+### Custom callback
+The `SweepBar` provides an `action()` method to receive or clear a function callback of type `void()`.
+
+This callback will be invoked when the progress bar type calls the `reset()` method and before the progress bar rendering is terminated (the return value of the `active()` function switches from `true` to `false`).
+
+Similarly, if the progress bar runs normally and terminates normally, the progress bar type will internally call the `reset()` method by itself. At this point, the callback function will still be called before the progress bar terminates.
+
+`SweepBar` provides `operator|` and `operator|=` overloads for `action()`.
+
+```cpp
+#include "pgbar/pgbar.hpp"
+using namespace std;
+
+int main()
+{
+  pgbar::SweepBar<> bar;
+  bool flag = true;
+  auto callback = [&]() {
+    if ( flag )
+      bar.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
+    else
+      bar.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
+  };
+
+  bar.action( callback );
+  // or
+  bar |= callback;
+  // or
+  bar | callback;
+  callback | bar;
+}
+```
+
+The type of the callback function passed must satisfy `std::is_move_constructible`; and **should not** call any methods other than `config()` and `progress()` within the callback, otherwise it will lead to a *deadlock*.
 
 - - -
 
@@ -1912,8 +2029,6 @@ pgbar::option::RightBorder; // Modify the end border to the right of the entire 
 
 pgbar::option::Prefix;      // Modify the pre-description information
 pgbar::option::Postfix;     // Modify the post-description information
-pgbar::option::TrueMesg;    // Modify the element used to replace the Prefix section when the progress bar ends
-pgbar::option::FalseMesg;   // Modify the element used to replace the Prefix section when the progress bar ends
 
 pgbar::option::Starting;  // Modify the elements left of the progress bar and right of Percent
 pgbar::option::Ending;    // Modify the elements right of the progress bar and left of the Counter
@@ -1930,16 +2045,12 @@ pgbar::option::Divider; // Modifies the divider between two elements
 
 pgbar::option::PrefixColor;  // Modify the color of Prefix
 pgbar::option::PostfixColor; // Modify the color of Postfix
-pgbar::option::TrueColor;    // Modify the color of TrueMesg
-pgbar::option::FalseColor;   // Modify the color of FalseMesg
 pgbar::option::StartColor;   // Modify the color of Starting
 pgbar::option::EndColor;     // Modify the color of Ending
 pgbar::option::FillerColor;  // Modify the color of Filler
 pgbar::option::LeadColor;    // Modify the color of Lead
 pgbar::option::InfoColor;    // Modify the color of Divider, Percent, Counter, Speed, Elapsed and Countdown
 ```
-
-> `TrueMesg` and `FalseMesg` can be used to display whether the task of progress bar iteration is successfully executed. They can be switched by passing a `bool` parameter to the `reset()` method; By default, the progress bar stops on its own, or calling the `reset()` method without arguments selects `TrueMesg`.
 
 The argument to `pgbar::option::Style` can be obtained by a bit operation performed by multiple static members of `pgbar::config::FlowBar`:
 
@@ -2207,6 +2318,40 @@ int main()
 This type of range is actually a "finite range", which means its size is known and it cannot be an infinite sequence like `std::views::iota(0)`.
 
 If the finite range constraint is satisfied and C++20 is used, then `iterate` can correctly handle the reference lifetime of view types that satisfy the constraint `std::ranges::view`.
+### Custom callback
+The `FlowBar` provides an `action()` method to receive or clear a function callback of type `void()`.
+
+This callback will be invoked when the progress bar type calls the `reset()` method and before the progress bar rendering is terminated (the return value of the `active()` function switches from `true` to `false`).
+
+Similarly, if the progress bar runs normally and terminates normally, the progress bar type will internally call the `reset()` method by itself. At this point, the callback function will still be called before the progress bar terminates.
+
+`FlowBar` provides `operator|` and `operator|=` overloads for `action()`.
+
+```cpp
+#include "pgbar/pgbar.hpp"
+using namespace std;
+
+int main()
+{
+  pgbar::FlowBar<> bar;
+  bool flag = true;
+  auto callback = [&]() {
+    if ( flag )
+      bar.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
+    else
+      bar.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
+  };
+
+  bar.action( callback );
+  // or
+  bar |= callback;
+  // or
+  bar | callback;
+  callback | bar;
+}
+```
+
+The type of the callback function passed must satisfy `std::is_move_constructible`; and **should not** call any methods other than `config()` and `progress()` within the callback, otherwise it will lead to a *deadlock*.
 
 - - -
 
@@ -2801,11 +2946,39 @@ int main()
 ## The tick count should be the same as the total number of tasks
 The progress bar type in `pgbar` launches when any `tick()` method is called for the first time.  It automatically stops when the number of completed tasks generated by calling `tick()` exactly reaches the predetermined number of tasks.
 
-Therefore, the user must ensure that the cumulative number of tasks generated by any call to `tick()` in `pgbar` strictly equals the predetermined number of tasks.
+Meanwhile, `pgbar` ensures that all calls to the `tick()` and `reset()` methods within the same task cycle (from the first `tick()` to the last `tick()`) are thread-safe.
 
-If the number of calls is too high, it may cause the progress bar object to restart unexpectedly; if it is too low, it may result in the progress bar not stopping correctly.
+However, if the total number of calls to `tick()` exceeds the total number of tasks, this guarantee will be invalid:
 
-> Even if the progress bar keeps running due to the inconsistency between the tick count and the total number of tasks, it will be forcibly terminated because it exceeds its lifecycle and is destructed.
+```cpp
+#include "pgbar/pgbar.hpp"
+#include <chrono>
+#include <thread>
+#include <vector>
+using namespace std;
+
+int main()
+{
+  pgbar::ProgressBar<> bar;
+  bar.config().tasks( 1000 );
+
+  vector<thread> pool;
+  pool.emplace_back( [&]() {
+    for ( size_t i = 0; i < 500; ++i )
+      bar.tick();
+  } );
+  pool.emplace_back( [&]() {
+    this_thread::sleep_for( chrono::milliseconds( 200 ) );
+    bar.tick( 700 );
+  } );
+  pool.emplace_back( [&]() {
+    this_thread::sleep_for( chrono::milliseconds( 100 ) );
+    bar.tick_to( 80 );
+  } );
+}
+```
+
+In the above code, the two threads cumulatively called `tick()` more than the predetermined task count of `1000`. Therefore, the excess `(500 + 700 + 1000 * 0.8) - 1000 = 1000` calls are not thread-safe and may either be discarded or normally counted into the counter for the next round of progress bar operation.
 
 ## Life cycle of the progress bar object
 The lifecycle of each progress bar object is subject to the C++ standard object lifecycle mechanism:
@@ -2814,7 +2987,7 @@ The lifecycle of each progress bar object is subject to the C++ standard object 
 
 The life cycle issue is mentioned here because the progress bar, while being destructed, immediately terminates regardless of the current iteration progress.
 
-This forced termination is different from calling the `reset()` method to stop: the `reset()` method allows the progress bar to stop, depending on the passed parameter, with a pre-defined `TrueMesg` or `FalseMesg` to replace the contents of the element `Prefix` at the location; Destruction-induced terminations do not perform this process, but immediately close the global renderer associated with it and clean up the resources.
+This forced termination is different from calling the `reset()` method to stop: the `reset()` method allows the progress bar to call a callback function (if passed in advance) just before it stops, while the termination caused by destruction does not go through this process. Instead, it immediately closes the associated global renderer and cleans up resources.
 
 A progress bar that is stopped by destructing does not append any more information to the terminal, so this can cause some confusion in terminal rendering.
 

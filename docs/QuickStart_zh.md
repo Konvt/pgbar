@@ -10,6 +10,7 @@
       - [绑定的输出流](#绑定的输出流)
       - [渲染策略](#渲染策略)
     - [与可迭代类型的交互](#与可迭代类型的交互)
+    - [自定义回调函数](#自定义回调函数)
   - [`BlockBar`](#blockbar)
     - [交互方式](#交互方式-1)
     - [配置选项](#配置选项-1)
@@ -20,6 +21,7 @@
       - [绑定的输出流](#绑定的输出流-1)
       - [渲染策略](#渲染策略-1)
     - [与可迭代类型的交互](#与可迭代类型的交互-1)
+    - [自定义回调函数](#自定义回调函数-1)
   - [`SpinBar`](#spinbar)
     - [交互方式](#交互方式-2)
     - [配置选项](#配置选项-2)
@@ -29,6 +31,7 @@
       - [绑定的输出流](#绑定的输出流-2)
       - [渲染策略](#渲染策略-2)
     - [与可迭代类型的交互](#与可迭代类型的交互-2)
+    - [自定义回调函数](#自定义回调函数-2)
   - [`SweepBar`](#sweepbar)
     - [交互方式](#交互方式-3)
     - [配置选项](#配置选项-3)
@@ -39,6 +42,7 @@
       - [绑定的输出流](#绑定的输出流-3)
       - [渲染策略](#渲染策略-3)
     - [与可迭代类型的交互](#与可迭代类型的交互-3)
+    - [自定义回调函数](#自定义回调函数-3)
   - [`FlowBar`](#flowbar)
     - [交互方式](#交互方式-4)
     - [配置选项](#配置选项-4)
@@ -49,6 +53,7 @@
       - [绑定的输出流](#绑定的输出流-4)
       - [渲染策略](#渲染策略-4)
     - [与可迭代类型的交互](#与可迭代类型的交互-4)
+    - [自定义回调函数](#自定义回调函数-4)
 - [进度条合成器](#进度条合成器)
   - [`MultiBar`](#multibar)
     - [交互方式](#交互方式-5)
@@ -221,8 +226,6 @@ pgbar::option::RightBorder; // 修改整个进度条右侧的终止边框
 
 pgbar::option::Prefix;      // 修改前置描述信息
 pgbar::option::Postfix;     // 修改尾随描述信息
-pgbar::option::TrueMesg;    // 修改进度条结束时，用于替换 Prefix 部分的元素
-pgbar::option::FalseMesg;   // 修改进度条结束时，用于替换 Prefix 部分的元素
 
 pgbar::option::Starting;  // 修改进度条块左侧、Percent 右侧的元素
 pgbar::option::Ending;    // 修改进度条块右侧、Counter 左侧的元素
@@ -241,8 +244,6 @@ pgbar::option::Divider; // 修改位于两个元素之间的间隔符
 
 pgbar::option::PrefixColor;  // 修改 Prefix 的颜色
 pgbar::option::PostfixColor; // 修改 Postfix 的颜色
-pgbar::option::TrueColor;    // 修改 TrueMesg 的颜色
-pgbar::option::FalseColor;   // 修改 FalseMesg 的颜色
 pgbar::option::StartColor;   // 修改 Starting 的颜色
 pgbar::option::EndColor;     // 修改 Ending 的颜色
 pgbar::option::FillerColor;  // 修改 Filler 的颜色
@@ -250,8 +251,6 @@ pgbar::option::RemainsColor; // 修改 Remains 的颜色
 pgbar::option::LeadColor;    // 修改 Lead 的颜色
 pgbar::option::InfoColor;    // 修改 Divider、Percent、Counter、Speed、Elapsed 和 Countdown 的颜色
 ```
-
-> `TrueMesg` 和 `FalseMesg` 可以用来显示进度条迭代的任务执行是否成功，它们可以通过向 `reset()` 方法中传递一个 `bool` 参数实现切换显示；在默认情况下，进度条自行停止、或调用无参的 `reset()` 方法会选中 `TrueMesg`。
 
 `pgbar::option::Style` 的参数可以由 `pgbar::config::Line` 内的多个静态成员执行位运算得到：
 
@@ -522,6 +521,40 @@ int main()
 这类类型实际上是一个“有穷范围”，这意味着它的大小是已知的，而不能是类似 `std::views::iota( 0 )` 一样的无穷序列。
 
 如果满足有穷范围约束，如果使用 C++20，那么 `iterate` 能够正确处理满足约束 `std::ranges::view` 的视图类型的引用生命周期。
+### 自定义回调函数
+`ProgressBar` 提供了一个 `action()` 方法，以接收或清除一个 `void()` 类型的函数回调。
+
+该回调会在进度条类型调用 `reset()` 方法时、终止进度条渲染（`active()` 函数返回值从 `true` 切换为 `false`）之前被调用。
+
+同样的，如果进度条正常运行且正常终止，那么进度条类型会在内部自己调用 `reset()` 方法，此时回调函数依然会在进度条终止之前被调用。
+
+`ProgressBar` 为 `action()` 提供了 `operator|` 和 `operator|=` 重载。
+
+```cpp
+#include "pgbar/pgbar.hpp"
+using namespace std;
+
+int main()
+{
+  pgbar::ProgressBar<> bar;
+  bool flag = true;
+  auto callback = [&]() {
+    if ( flag )
+      bar.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
+    else
+      bar.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
+  };
+
+  bar.action( callback );
+  // or
+  bar |= callback;
+  // or
+  bar | callback;
+  callback | bar;
+}
+```
+
+传递的回调函数类型必须满足 `std::is_move_constructible`；并且**不应该**在回调内部调用除了 `config()` 和 `progress()` 之外的方法，否则会导致*死锁*。
 
 - - -
 
@@ -655,8 +688,6 @@ pgbar::option::RightBorder; // 修改整个进度条右侧的终止边框
 
 pgbar::option::Prefix;      // 修改前置描述信息
 pgbar::option::Postfix;     // 修改尾随描述信息
-pgbar::option::TrueMesg;    // 修改进度条结束时，用于替换 Prefix 部分的元素
-pgbar::option::FalseMesg;   // 修改进度条结束时，用于替换 Prefix 部分的元素
 
 pgbar::option::Starting;  // 修改进度条块左侧、Percent 右侧的元素
 pgbar::option::Ending;    // 修改进度条块右侧、Counter 左侧的元素
@@ -674,8 +705,6 @@ pgbar::option::Divider; // 修改位于两个元素之间的间隔符
 
 pgbar::option::PrefixColor;  // 修改 Prefix 的颜色
 pgbar::option::PostfixColor; // 修改 Postfix 的颜色
-pgbar::option::TrueColor;    // 修改 TrueMesg 的颜色
-pgbar::option::FalseColor;   // 修改 FalseMesg 的颜色
 pgbar::option::StartColor;   // 修改 Starting 的颜色
 pgbar::option::EndColor;     // 修改 Ending 的颜色
 pgbar::option::FillerColor;  // 修改 Filler 的颜色
@@ -683,8 +712,6 @@ pgbar::option::RemainsColor; // 修改 Remains 的颜色
 pgbar::option::LeadColor;    // 修改 Lead 的颜色
 pgbar::option::InfoColor;    // 修改 Divider、Percent、Counter、Speed、Elapsed 和 Countdown 的颜色
 ```
-
-> `TrueMesg` 和 `FalseMesg` 可以用来显示进度条迭代的任务执行是否成功，它们可以通过向 `reset()` 方法中传递一个 `bool` 参数实现切换显示；在默认情况下，进度条自行停止、或调用无参的 `reset()` 方法会选中 `TrueMesg`。
 
 `pgbar::option::Style` 的参数可以由 `pgbar::config::Block` 内的多个静态成员执行位运算得到：
 
@@ -953,6 +980,40 @@ int main()
 这类类型实际上是一个“有穷范围”，这意味着它的大小是已知的，而不能是类似 `std::views::iota( 0 )` 一样的无穷序列。
 
 如果满足有穷范围约束，如果使用 C++20，那么 `iterate` 能够正确处理满足约束 `std::ranges::view` 的视图类型的引用生命周期。
+### 自定义回调函数
+`BlockBar` 提供了一个 `action()` 方法，以接收或清除一个 `void()` 类型的函数回调。
+
+该回调会在进度条类型调用 `reset()` 方法时、终止进度条渲染（`active()` 函数返回值从 `true` 切换为 `false`）之前被调用。
+
+同样的，如果进度条正常运行且正常终止，那么进度条类型会在内部自己调用 `reset()` 方法，此时回调函数依然会在进度条终止之前被调用。
+
+`BlockBar` 为 `action()` 提供了 `operator|` 和 `operator|=` 重载。
+
+```cpp
+#include "pgbar/pgbar.hpp"
+using namespace std;
+
+int main()
+{
+  pgbar::BlockBar<> bar;
+  bool flag = true;
+  auto callback = [&]() {
+    if ( flag )
+      bar.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
+    else
+      bar.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
+  };
+
+  bar.action( callback );
+  // or
+  bar |= callback;
+  // or
+  bar | callback;
+  callback | bar;
+}
+```
+
+传递的回调函数类型必须满足 `std::is_move_constructible`；并且**不应该**在回调内部调用除了 `config()` 和 `progress()` 之外的方法，否则会导致*死锁*。
 
 - - -
 
@@ -1086,8 +1147,6 @@ pgbar::option::RightBorder; // 修改整个进度条右侧的终止边框
 
 pgbar::option::Prefix;      // 修改前置描述信息
 pgbar::option::Postfix;     // 修改尾随描述信息
-pgbar::option::TrueMesg;    // 修改进度条结束时，用于替换 Prefix 部分的元素
-pgbar::option::FalseMesg;   // 修改进度条结束时，用于替换 Prefix 部分的元素
 
 pgbar::option::Lead;      // 修改可变动画部分的各个帧
 pgbar::option::Shift;     // 调整动画部分（Lead）的动画速度
@@ -1100,13 +1159,9 @@ pgbar::option::Divider; // 修改位于两个元素之间的间隔符
 
 pgbar::option::PrefixColor;  // 修改 Prefix 的颜色
 pgbar::option::PostfixColor; // 修改 Postfix 的颜色
-pgbar::option::TrueColor;    // 修改 TrueMesg 的颜色
-pgbar::option::FalseColor;   // 修改 FalseMesg 的颜色
 pgbar::option::LeadColor;    // 修改 Lead 的颜色
 pgbar::option::InfoColor;    // 修改 Divider、Percent、Counter、Speed、Elapsed 和 Countdown 的颜色
 ```
-
-> `TrueMesg` 和 `FalseMesg` 可以用来显示进度条迭代的任务执行是否成功，它们可以通过向 `reset()` 方法中传递一个 `bool` 参数实现切换显示；在默认情况下，进度条自行停止、或调用无参的 `reset()` 方法会选中 `TrueMesg`。
 
 `pgbar::option::Style` 的参数可以由 `pgbar::config::Spin` 内的多个静态成员执行位运算得到：
 
@@ -1351,6 +1406,40 @@ int main()
 这类类型实际上是一个“有穷范围”，这意味着它的大小是已知的，而不能是类似 `std::views::iota( 0 )` 一样的无穷序列。
 
 如果满足有穷范围约束，如果使用 C++20，那么 `iterate` 能够正确处理满足约束 `std::ranges::view` 的视图类型的引用生命周期。
+### 自定义回调函数
+`SpinBar` 提供了一个 `action()` 方法，以接收或清除一个 `void()` 类型的函数回调。
+
+该回调会在进度条类型调用 `reset()` 方法时、终止进度条渲染（`active()` 函数返回值从 `true` 切换为 `false`）之前被调用。
+
+同样的，如果进度条正常运行且正常终止，那么进度条类型会在内部自己调用 `reset()` 方法，此时回调函数依然会在进度条终止之前被调用。
+
+`SpinBar` 为 `action()` 提供了 `operator|` 和 `operator|=` 重载。
+
+```cpp
+#include "pgbar/pgbar.hpp"
+using namespace std;
+
+int main()
+{
+  pgbar::SpinBar<> bar;
+  bool flag = true;
+  auto callback = [&]() {
+    if ( flag )
+      bar.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
+    else
+      bar.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
+  };
+
+  bar.action( callback );
+  // or
+  bar |= callback;
+  // or
+  bar | callback;
+  callback | bar;
+}
+```
+
+传递的回调函数类型必须满足 `std::is_move_constructible`；并且**不应该**在回调内部调用除了 `config()` 和 `progress()` 之外的方法，否则会导致*死锁*。
 
 - - -
 
@@ -1484,8 +1573,6 @@ pgbar::option::RightBorder; // 修改整个进度条右侧的终止边框
 
 pgbar::option::Prefix;      // 修改前置描述信息
 pgbar::option::Postfix;     // 修改尾随描述信息
-pgbar::option::TrueMesg;    // 修改进度条结束时，用于替换 Prefix 部分的元素
-pgbar::option::FalseMesg;   // 修改进度条结束时，用于替换 Prefix 部分的元素
 
 pgbar::option::Starting;  // 修改进度条块左侧、Percent 右侧的元素
 pgbar::option::Ending;    // 修改进度条块右侧、Counter 左侧的元素
@@ -1502,16 +1589,12 @@ pgbar::option::Divider; // 修改位于两个元素之间的间隔符
 
 pgbar::option::PrefixColor;  // 修改 Prefix 的颜色
 pgbar::option::PostfixColor; // 修改 Postfix 的颜色
-pgbar::option::TrueColor;    // 修改 TrueMesg 的颜色
-pgbar::option::FalseColor;   // 修改 FalseMesg 的颜色
 pgbar::option::StartColor;   // 修改 Starting 的颜色
 pgbar::option::EndColor;     // 修改 Ending 的颜色
 pgbar::option::FillerColor;  // 修改 Filler 的颜色
 pgbar::option::LeadColor;    // 修改 Lead 的颜色
 pgbar::option::InfoColor;    // 修改 Divider、Percent、Counter、Speed、Elapsed 和 Countdown 的颜色
 ```
-
-> `TrueMesg` 和 `FalseMesg` 可以用来显示进度条迭代的任务执行是否成功，它们可以通过向 `reset()` 方法中传递一个 `bool` 参数实现切换显示；在默认情况下，进度条自行停止、或调用无参的 `reset()` 方法会选中 `TrueMesg`。
 
 `pgbar::option::Style` 的参数可以由 `pgbar::config::Sweep` 内的多个静态成员执行位运算得到：
 
@@ -1780,6 +1863,40 @@ int main()
 这类类型实际上是一个“有穷范围”，这意味着它的大小是已知的，而不能是类似 `std::views::iota( 0 )` 一样的无穷序列。
 
 如果满足有穷范围约束，如果使用 C++20，那么 `iterate` 能够正确处理满足约束 `std::ranges::view` 的视图类型的引用生命周期。
+### 自定义回调函数
+`SweepBar` 提供了一个 `action()` 方法，以接收或清除一个 `void()` 类型的函数回调。
+
+该回调会在进度条类型调用 `reset()` 方法时、终止进度条渲染（`active()` 函数返回值从 `true` 切换为 `false`）之前被调用。
+
+同样的，如果进度条正常运行且正常终止，那么进度条类型会在内部自己调用 `reset()` 方法，此时回调函数依然会在进度条终止之前被调用。
+
+`SweepBar` 为 `action()` 提供了 `operator|` 和 `operator|=` 重载。
+
+```cpp
+#include "pgbar/pgbar.hpp"
+using namespace std;
+
+int main()
+{
+  pgbar::SweepBar<> bar;
+  bool flag = true;
+  auto callback = [&]() {
+    if ( flag )
+      bar.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
+    else
+      bar.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
+  };
+
+  bar.action( callback );
+  // or
+  bar |= callback;
+  // or
+  bar | callback;
+  callback | bar;
+}
+```
+
+传递的回调函数类型必须满足 `std::is_move_constructible`；并且**不应该**在回调内部调用除了 `config()` 和 `progress()` 之外的方法，否则会导致*死锁*。
 
 - - -
 
@@ -1913,8 +2030,6 @@ pgbar::option::RightBorder; // 修改整个进度条右侧的终止边框
 
 pgbar::option::Prefix;      // 修改前置描述信息
 pgbar::option::Postfix;     // 修改尾随描述信息
-pgbar::option::TrueMesg;    // 修改进度条结束时，用于替换 Prefix 部分的元素
-pgbar::option::FalseMesg;   // 修改进度条结束时，用于替换 Prefix 部分的元素
 
 pgbar::option::Starting;  // 修改进度条块左侧、Percent 右侧的元素
 pgbar::option::Ending;    // 修改进度条块右侧、Counter 左侧的元素
@@ -1931,16 +2046,12 @@ pgbar::option::Divider; // 修改位于两个元素之间的间隔符
 
 pgbar::option::PrefixColor;  // 修改 Prefix 的颜色
 pgbar::option::PostfixColor; // 修改 Postfix 的颜色
-pgbar::option::TrueColor;    // 修改 TrueMesg 的颜色
-pgbar::option::FalseColor;   // 修改 FalseMesg 的颜色
 pgbar::option::StartColor;   // 修改 Starting 的颜色
 pgbar::option::EndColor;     // 修改 Ending 的颜色
 pgbar::option::FillerColor;  // 修改 Filler 的颜色
 pgbar::option::LeadColor;    // 修改 Lead 的颜色
 pgbar::option::InfoColor;    // 修改 Divider、Percent、Counter、Speed、Elapsed 和 Countdown 的颜色
 ```
-
-> `TrueMesg` 和 `FalseMesg` 可以用来显示进度条迭代的任务执行是否成功，它们可以通过向 `reset()` 方法中传递一个 `bool` 参数实现切换显示；在默认情况下，进度条自行停止、或调用无参的 `reset()` 方法会选中 `TrueMesg`。
 
 `pgbar::option::Style` 的参数可以由 `pgbar::config::Flow` 内的多个静态成员执行位运算得到：
 
@@ -2209,6 +2320,40 @@ int main()
 这类类型实际上是一个“有穷范围”，这意味着它的大小是已知的，而不能是类似 `std::views::iota( 0 )` 一样的无穷序列。
 
 如果满足有穷范围约束，如果使用 C++20，那么 `iterate` 能够正确处理满足约束 `std::ranges::view` 的视图类型的引用生命周期。
+### 自定义回调函数
+`FlowBar` 提供了一个 `action()` 方法，以接收或清除一个 `void()` 类型的函数回调。
+
+该回调会在进度条类型调用 `reset()` 方法时、终止进度条渲染（`active()` 函数返回值从 `true` 切换为 `false`）之前被调用。
+
+同样的，如果进度条正常运行且正常终止，那么进度条类型会在内部自己调用 `reset()` 方法，此时回调函数依然会在进度条终止之前被调用。
+
+`FlowBar` 为 `action()` 提供了 `operator|` 和 `operator|=` 重载。
+
+```cpp
+#include "pgbar/pgbar.hpp"
+using namespace std;
+
+int main()
+{
+  pgbar::FlowBar<> bar;
+  bool flag = true;
+  auto callback = [&]() {
+    if ( flag )
+      bar.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
+    else
+      bar.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
+  };
+
+  bar.action( callback );
+  // or
+  bar |= callback;
+  // or
+  bar | callback;
+  callback | bar;
+}
+```
+
+传递的回调函数类型必须满足 `std::is_move_constructible`；并且**不应该**在回调内部调用除了 `config()` 和 `progress()` 之外的方法，否则会导致*死锁*。
 
 - - -
 
@@ -2801,11 +2946,39 @@ int main()
 ## 更新计数与任务总数一致性
 `pgbar` 中的进度条类型会在第一次调用任意一个 `tick()` 方法时启动，在调用 `tick()` 所产生的已完成任务数量恰好达到预定任务数量时，进度条类型就会自动停止。
 
-因此，`pgbar` 需要由用户自己确保：调用任意 `tick()` 所产生的累计任务数量严格等于预定任务数量。
+同时，`pgbar` 保证在同一个任务周期内（从第一个 `tick()` 开始到最后一个 `tick()` 为止），所有对 `tick()`、`reset()` 方法的调用都是线程安全的。
 
-如果调用次数过多，那么有可能会导致进度条对象的意外重启；过少则可能会导致进度条没有正确停止。
+但如果总计调用 `tick()` 的次数超过了任务总数，这一保证会失效：
 
-> 即使进度条因为更新计数与任务总数不一致而持续运行，它也会因为超出生命周期被析构而强制终止。
+```cpp
+#include "pgbar/pgbar.hpp"
+#include <chrono>
+#include <thread>
+#include <vector>
+using namespace std;
+
+int main()
+{
+  pgbar::ProgressBar<> bar;
+  bar.config().tasks( 1000 );
+
+  vector<thread> pool;
+  pool.emplace_back( [&]() {
+    for ( size_t i = 0; i < 500; ++i )
+      bar.tick();
+  } );
+  pool.emplace_back( [&]() {
+    this_thread::sleep_for( chrono::milliseconds( 200 ) );
+    bar.tick( 700 );
+  } );
+  pool.emplace_back( [&]() {
+    this_thread::sleep_for( chrono::milliseconds( 100 ) );
+    bar.tick_to( 80 );
+  } );
+}
+```
+
+在上述代码中，两个线程累计调用 `tick()` 的次数超过了预定任务数 `1000`，因此多余的 `( 500 + 700 + 1000 * 0.8 ) - 1000 = 1000` 次调用不受线程安全保障，它们既可能被丢弃、也可能正常计入下一轮进度条运行时的计数器中。
 
 ## 进度条对象的生命周期
 每个进度条对象的生命周期都服从于 C++ 标准的对象生命周期机制：
@@ -2814,7 +2987,7 @@ int main()
 
 这里之所以提及生命周期问题，是因为进度条在被析构过程中，会无视当前迭代进度立即终止运行。
 
-这种强制性终止与调用 `reset()` 方法停止不同：`reset()` 方法允许进度条在停止时，根据传递的参数，使用预先定义好的 `TrueMesg` 或 `FalseMesg` 替换元素 `Prefix` 所在位置的内容；而析构导致的终止则不会执行这个过程，而是立即关闭与之关联的全局渲染器并清理资源。
+这种强制性终止与调用 `reset()` 方法停止不同：`reset()` 方法允许进度条在即将停止之前，调用（可能）预先传递的回调函数；而析构导致的终止则不会执行这个过程，只会立即关闭与之关联的全局渲染器并清理资源。
 
 因析构而停止的进度条不会向终端再追加任何信息，因此这可能会导致一定程度上的终端渲染混乱。
 
