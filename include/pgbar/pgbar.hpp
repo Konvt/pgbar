@@ -1216,18 +1216,6 @@ namespace pgbar {
         union alignas( std::max_align_t ) AnyFn {
           Data buf_[sizeof( void* ) * 2];
           Data* dptr_;
-
-          template<typename T>
-          Data* aligned_location() const noexcept
-          {
-            static_assert( ( sizeof( AnyFn::buf_ ) >= sizeof( T ) + alignof( T ) - 1 ),
-                           "pgbar::__details::wrappers::FnStorageBlock: type is too large" );
-            void* ptr         = const_cast<void*>( static_cast<const void*>( buf_ ) );
-            std::size_t space = sizeof( buf_ );
-            Data* offset      = static_cast<Data*>( std::align( alignof( T ), sizeof( T ), ptr, space ) );
-            __PGBAR_TRUST( offset != nullptr );
-            return offset;
-          }
         };
         struct VTable final {
           const typename Derived::Invoker invoke;
@@ -1239,9 +1227,10 @@ namespace pgbar {
         };
 
         template<typename T>
-        using Inlinable = traits::AllOf<
-          std::integral_constant<bool, ( sizeof( AnyFn::buf_ ) >= sizeof( T ) + alignof( T ) - 1 )>,
-          std::is_nothrow_move_constructible<T>>;
+        using Inlinable = traits::AllOf<std::is_nothrow_move_constructible<T>,
+                                        std::integral_constant<bool,
+                                                               ( sizeof( AnyFn::buf_ ) >= sizeof( T )
+                                                                 && alignof( AnyFn ) >= alignof( T ) )>>;
 
         const VTable* vtable_;
         AnyFn callee_;
@@ -1252,13 +1241,13 @@ namespace pgbar {
         template<typename T>
         static __PGBAR_CXX14_CNSTXPR void destroy_inline( AnyFn& fn ) noexcept
         {
-          const auto ptr = utils::launder_as<T>( fn.template aligned_location<T>() );
+          const auto ptr = utils::launder_as<T>( &fn.buf_ );
           ptr->~T();
         }
         template<typename T>
         static __PGBAR_CXX14_CNSTXPR void move_inline( AnyFn& dst, AnyFn& src ) noexcept
         {
-          new ( &dst ) T( std::move( *utils::launder_as<T>( src.template aligned_location<T>() ) ) );
+          new ( &dst ) T( std::move( *utils::launder_as<T>( &src.buf_ ) ) );
           destroy_inline<T>( src );
         }
 
@@ -1284,9 +1273,10 @@ namespace pgbar {
         static __PGBAR_INLINE_FN typename std::enable_if<Inlinable<typename std::decay<F>::type>::value>::type
           store_fn( const VTable*( &vtable ), AnyFn& any, F&& fn ) noexcept
         {
-          using T              = typename std::decay<F>::type;
-          const auto _location = new ( any.template aligned_location<T>() ) T( std::forward<F>( fn ) );
-          __PGBAR_TRUST( static_cast<void*>( _location ) == static_cast<void*>( &any ) );
+          using T             = typename std::decay<F>::type;
+          const auto location = new ( &any.buf_ ) T( std::forward<F>( fn ) );
+          __PGBAR_TRUST( static_cast<void*>( location ) == static_cast<void*>( &any.buf_ ) );
+          (void)location;
           vtable = &table_inline<T>();
         }
         template<typename F>
@@ -1305,8 +1295,9 @@ namespace pgbar {
 
           const auto location = new ( dptr.get() ) T( std::forward<F>( fn ) );
           __PGBAR_ASSERT( static_cast<void*>( location ) == dptr.get() );
+          (void)location;
 
-          any.dptr_ = dptr.release();
+          any.dptr_ = static_cast<Data*>( dptr.release() );
           vtable    = &table_dynamic<T>();
         }
 
@@ -1440,26 +1431,26 @@ namespace pgbar {
         }
 
       protected:
-        using Invoker = R ( * )( Fn_t<AnyFn>&, Param_t<Args>... )
+        using Invoker = R ( * )( const AnyFn&, Param_t<Args>... )
 #  if __PGBAR_CXX17
           noexcept( Noexcept )
 #  endif
           ;
 
-        static __PGBAR_CXX14_CNSTXPR R invoke_null( Fn_t<AnyFn>&, Param_t<Args>... ) noexcept( Noexcept )
+        static __PGBAR_CXX14_CNSTXPR R invoke_null( const AnyFn&, Param_t<Args>... ) noexcept( Noexcept )
         {
           __PGBAR_UNREACHABLE;
           // The standard says this should trigger an undefined behavior.
         }
         template<typename T>
-        static __PGBAR_CXX14_CNSTXPR R invoke_inline( Fn_t<AnyFn>& fn, Param_t<Args>... args )
+        static __PGBAR_CXX14_CNSTXPR R invoke_inline( const AnyFn& fn, Param_t<Args>... args )
           noexcept( Noexcept )
         {
-          const auto ptr = utils::launder_as<Fn_t<T>>( fn.template aligned_location<T>() );
+          const auto ptr = utils::launder_as<Fn_t<T>>( ( &const_cast<AnyFn&>( fn ).buf_ ) );
           return utils::invoke( forward_as<CrefInfo>( *ptr ), std::forward<Args>( args )... );
         }
         template<typename T>
-        static __PGBAR_CXX14_CNSTXPR R invoke_dynamic( Fn_t<AnyFn>& fn, Param_t<Args>... args )
+        static __PGBAR_CXX14_CNSTXPR R invoke_dynamic( const AnyFn& fn, Param_t<Args>... args )
           noexcept( Noexcept )
         {
           const auto dptr = utils::launder_as<Fn_t<T>>( fn.dptr_ );
@@ -3884,6 +3875,11 @@ namespace pgbar {
 # undef __PGBAR_OPTION
 # if __PGBAR_CXX20
 #  define __PGBAR_OPTION( StructName, ParamName )                          \
+  private:                                                                 \
+    using Data = __details::charcodes::U8Raw;                              \
+    using Base = __details::wrappers::OptionWrapper<Data>;                 \
+                                                                           \
+  public:                                                                  \
     __PGBAR_CXX20_CNSTXPR StructName() = default;                          \
     /**                                                                    \
      * @throw exception::InvalidArgument                                   \
@@ -3891,13 +3887,9 @@ namespace pgbar {
      * If the passed parameter is not coding in UTF-8.                     \
      */                                                                    \
     __PGBAR_CXX20_CNSTXPR StructName( __details::types::String ParamName ) \
-      : __details::wrappers::OptionWrapper<__details::charcodes::U8Raw>(   \
-          __details::charcodes::U8Raw( std::move( ParamName ) ) )          \
+      : Base( Data( std::move( ParamName ) ) )                             \
     {}                                                                     \
-    StructName( std::u8string_view ParamName )                             \
-      : __details::wrappers::OptionWrapper<__details::charcodes::U8Raw>(   \
-          __details::charcodes::U8Raw( std::move( ParamName ) ) )          \
-    {}
+    StructName( std::u8string_view ParamName ) : Base( Data( std::move( ParamName ) ) ) {}
 # else
 #  define __PGBAR_OPTION( StructName, ParamName )                          \
     __PGBAR_CXX20_CNSTXPR StructName() = default;                          \
@@ -3937,16 +3929,6 @@ namespace pgbar {
       __PGBAR_OPTION( Postfix, _postfix )
     };
 
-    // A wrapper that stores the `true` message text.
-    struct TrueMesg : __PGBAR_BASE( __details::charcodes::U8Raw ) {
-      __PGBAR_OPTION( TrueMesg, _true_mesg )
-    };
-
-    // A wrapper that stores the `false` message text.
-    struct FalseMesg : __PGBAR_BASE( __details::charcodes::U8Raw ) {
-      __PGBAR_OPTION( FalseMesg, _false_mesg )
-    };
-
     // A wrapper that stores the separator component used to separate different infomation.
     struct Divider : __PGBAR_BASE( __details::charcodes::U8Raw ) {
       __PGBAR_OPTION( Divider, _divider )
@@ -3963,18 +3945,15 @@ namespace pgbar {
     };
 
 # undef __PGBAR_OPTION
-# define __PGBAR_OPTION( StructName, ParamName )                                           \
- private:                                                                                  \
-   using Base = __details::wrappers::OptionWrapper<__details::console::escodes::RGBColor>; \
-                                                                                           \
- public:                                                                                   \
-   __PGBAR_CXX23_CNSTXPR StructName() = default;                                           \
-   __PGBAR_CXX23_CNSTXPR StructName( __details::types::ROStr ParamName )                   \
-     : Base( __details::console::escodes::RGBColor( ParamName ) )                          \
-   {}                                                                                      \
-   __PGBAR_CXX23_CNSTXPR StructName( __details::types::HexRGB ParamName )                  \
-     : Base( __details::console::escodes::RGBColor( ParamName ) )                          \
-   {}
+# define __PGBAR_OPTION( StructName, ParamName )                                                        \
+ private:                                                                                               \
+   using Data = __details::console::escodes::RGBColor;                                                  \
+   using Base = __details::wrappers::OptionWrapper<Data>;                                               \
+                                                                                                        \
+ public:                                                                                                \
+   __PGBAR_CXX23_CNSTXPR StructName() = default;                                                        \
+   __PGBAR_CXX23_CNSTXPR StructName( __details::types::ROStr ParamName ) : Base( Data( ParamName ) ) {} \
+   __PGBAR_CXX23_CNSTXPR StructName( __details::types::HexRGB ParamName ) : Base( Data( ParamName ) ) {}
 
     // A wrapper that stores the prefix text color.
     struct PrefixColor : __PGBAR_BASE( __details::console::escodes::RGBColor ) {
@@ -3984,16 +3963,6 @@ namespace pgbar {
     // A wrapper that stores the postfix text color.
     struct PostfixColor : __PGBAR_BASE( __details::console::escodes::RGBColor ) {
       __PGBAR_OPTION( PostfixColor, _pstfx_color )
-    };
-
-    // A wrapper that stores the `true` message text color.
-    struct TrueColor : __PGBAR_BASE( __details::console::escodes::RGBColor ) {
-      __PGBAR_OPTION( TrueColor, _true_color )
-    };
-
-    // A wrapper that stores the `false` message text color.
-    struct FalseColor : __PGBAR_BASE( __details::console::escodes::RGBColor ) {
-      __PGBAR_OPTION( FalseColor, _false_color )
     };
 
     // A wrapper that stores the color of component located to the left of the bar indicator.
@@ -4927,16 +4896,12 @@ namespace pgbar {
      cfg.MemberName = std::move( val.value() );                                                       \
    }
         __PGBAR_UNPAKING( Prefix, prefix_, __PGBAR_CXX20_CNSTXPR )
-        __PGBAR_UNPAKING( TrueMesg, true_mesg_, __PGBAR_CXX20_CNSTXPR )
-        __PGBAR_UNPAKING( FalseMesg, false_mesg_, __PGBAR_CXX20_CNSTXPR )
         __PGBAR_UNPAKING( PrefixColor, prfx_col_, )
-        __PGBAR_UNPAKING( TrueColor, true_col_, )
-        __PGBAR_UNPAKING( FalseColor, false_col_, )
 # undef __PGBAR_UNPAKING
 
       protected:
-        charcodes::U8Raw prefix_, true_mesg_, false_mesg_;
-        console::escodes::RGBColor prfx_col_, true_col_, false_col_;
+        charcodes::U8Raw prefix_;
+        console::escodes::RGBColor prfx_col_;
 
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& build_prefix( io::Stringbuf& buffer ) const
         {
@@ -4945,20 +4910,11 @@ namespace pgbar {
           this->try_reset( buffer );
           return this->try_style( buffer, prfx_col_ ) << prefix_;
         }
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& build_prefix( io::Stringbuf& buffer,
-                                                                             bool final_mesg ) const
-        {
-          if ( ( final_mesg ? true_mesg_ : false_mesg_ ).empty() )
-            return build_prefix( buffer );
-          this->try_reset( buffer );
-          return this->try_style( buffer, final_mesg ? true_col_ : false_col_ )
-              << ( final_mesg ? true_mesg_ : false_mesg_ );
-        }
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::Size fixed_len_prefix()
           const noexcept
         {
-          return ( std::max )( ( std::max )( true_mesg_.width(), false_mesg_.width() ), prefix_.width() );
+          return prefix_.width();
         }
 
       public:
@@ -4976,28 +4932,9 @@ namespace pgbar {
          * If the passed parameters are not coding in UTF-8.
          */
         Derived& prefix( types::String _prefix ) & { __PGBAR_METHOD( Prefix, _prefix, std::move ); }
-        /**
-         * @throw exception::InvalidArgument
-         *
-         * If the passed parameters are not coding in UTF-8.
-         */
-        Derived& true_mesg( types::String _true_mesg ) &
-        {
-          __PGBAR_METHOD( TrueMesg, _true_mesg, std::move );
-        }
-        /**
-         * @throw exception::InvalidArgument
-         *
-         * If the passed parameters are not coding in UTF-8.
-         */
-        Derived& false_mesg( types::String _false_mesg ) &
-        {
-          __PGBAR_METHOD( FalseMesg, _false_mesg, std::move );
-        }
+
 # if __PGBAR_CXX20
         Derived& prefix( std::u8string_view _prefix ) & { __PGBAR_METHOD( Prefix, _prefix, ); }
-        Derived& true_mesg( std::u8string_view _true_mesg ) & { __PGBAR_METHOD( TrueMesg, _true_mesg, ); }
-        Derived& false_mesg( std::u8string_view _false_mesg ) & { __PGBAR_METHOD( FalseMesg, _false_mesg, ); }
 # endif
 
         Derived& prefix_color( types::HexRGB _prfx_color ) & { __PGBAR_METHOD( PrefixColor, _prfx_color, ); }
@@ -5007,31 +4944,13 @@ namespace pgbar {
          * If the passed parameters is not a valid RGB color string.
          */
         Derived& prefix_color( types::ROStr _prfx_color ) & { __PGBAR_METHOD( PrefixColor, _prfx_color, ); }
-        Derived& true_color( types::HexRGB _true_color ) & { __PGBAR_METHOD( TrueColor, _true_color, ); }
-        /**
-         * @throw exception::InvalidArgument
-         *
-         * If the passed parameters is not a valid RGB color string.
-         */
-        Derived& true_color( types::ROStr _true_color ) & { __PGBAR_METHOD( TrueColor, _true_color, ); }
-        Derived& false_color( types::HexRGB _false_color ) & { __PGBAR_METHOD( FalseColor, _false_color, ); }
-        /**
-         * @throw exception::InvalidArgument
-         *
-         * If the passed parameters is not a valid RGB color string.
-         */
-        Derived& false_color( types::ROStr _false_color ) & { __PGBAR_METHOD( FalseColor, _false_color, ); }
 
 # undef __PGBAR_METHOD
 
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void swap( Prefix& lhs ) noexcept
         {
           prfx_col_.swap( lhs.prfx_col_ );
-          true_col_.swap( lhs.true_col_ );
-          false_col_.swap( lhs.false_col_ );
           prefix_.swap( lhs.prefix_ );
-          true_mesg_.swap( lhs.true_mesg_ );
-          false_mesg_.swap( lhs.false_mesg_ );
           Base::swap( lhs );
         }
       };
@@ -5512,13 +5431,7 @@ namespace pgbar {
                            option::StartColor,
                            option::EndColor,
                            option::BarLength );
-      __PGBAR_BIND_OPTION( assets::Prefix,
-                           option::Prefix,
-                           option::TrueMesg,
-                           option::FalseMesg,
-                           option::PrefixColor,
-                           option::TrueColor,
-                           option::FalseColor );
+      __PGBAR_BIND_OPTION( assets::Prefix, option::Prefix, option::PrefixColor );
       __PGBAR_BIND_OPTION( assets::Postfix, option::Postfix, option::PostfixColor );
       __PGBAR_BIND_OPTION( assets::Segment,
                            option::Divider,
@@ -5692,8 +5605,7 @@ namespace pgbar {
                + this->fixed_len_segment( this->visual_masks_.count()
                                           - ( this->visual_masks_[utils::as_val( Mask::Cntdwn )]
                                               && this->visual_masks_[utils::as_val( Mask::Elpsd )] )
-                                          + ( !this->true_mesg_.empty() || !this->false_mesg_.empty()
-                                              || !this->prefix_.empty() || !this->postfix_.empty() ) );
+                                          + ( !this->prefix_.empty() || !this->postfix_.empty() ) );
         }
 
       public:
@@ -6040,9 +5952,7 @@ namespace pgbar {
       {
         return this->common_render_size()
              + ( this->visual_masks_[__details::utils::as_val( Base::Mask::Ani )]
-                   ? this->fixed_len_frames()
-                       + ( ( this->true_mesg_.empty() || this->false_mesg_.empty() )
-                           && !this->prefix_.empty() )
+                   ? this->fixed_len_frames() + ( !this->prefix_.empty() )
                    : 0 );
       }
 
@@ -6283,63 +6193,6 @@ namespace pgbar {
           }
           return this->try_reset( buffer );
         }
-        template<typename... Args>
-        __PGBAR_INLINE_FN io::Stringbuf& indirect_build(
-          io::Stringbuf& buffer,
-          std::uint64_t num_task_done,
-          std::uint64_t num_all_tasks,
-          types::Float num_percent,
-          bool final_mesg,
-          const std::chrono::steady_clock::time_point& zero_point,
-          Args&&... args ) const
-        {
-          if ( ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty()
-                 || !this->postfix_.empty() )
-               || this->visual_masks_.any() ) {
-            this->try_style( buffer, this->info_col_ );
-            buffer << this->l_border_;
-          }
-
-          this->build_prefix( buffer, final_mesg );
-          this->try_reset( buffer );
-          if ( this->visual_masks_.any() )
-            this->try_style( buffer, this->info_col_ );
-          if ( ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty() )
-               && ( this->visual_masks_.any() || !this->postfix_.empty() ) )
-            buffer << constants::blank;
-          if ( this->visual_masks_[utils::as_val( Self::Mask::Per )] ) {
-            buffer << this->build_percent( num_percent );
-            auto masks = this->visual_masks_;
-            if ( masks.reset( utils::as_val( Self::Mask::Per ) ).any() )
-              buffer << this->divider_;
-          }
-          if ( this->visual_masks_[utils::as_val( Self::Mask::Ani )] ) {
-            static_cast<const Impl*>( this )->build_animation( buffer, std::forward<Args>( args )... );
-            this->try_reset( buffer );
-            auto masks = this->visual_masks_;
-            if ( masks.reset( utils::as_val( Self::Mask::Ani ) )
-                   .reset( utils::as_val( Self::Mask::Per ) )
-                   .any() ) {
-              this->try_style( buffer, this->info_col_ );
-              buffer << this->divider_;
-            }
-          }
-          this->common_build( buffer, num_task_done, num_all_tasks, zero_point );
-
-          if ( !this->postfix_.empty()
-               && ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty()
-                    || !this->prefix_.empty() ) )
-            buffer << constants::blank;
-          this->build_postfix( buffer );
-          this->try_reset( buffer );
-          if ( ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty()
-                 || !this->postfix_.empty() )
-               || this->visual_masks_.any() ) {
-            this->try_style( buffer, this->info_col_ );
-            buffer << this->r_border_;
-          }
-          return this->try_reset( buffer );
-        }
 
       public:
         using Base::Base;
@@ -6383,27 +6236,6 @@ namespace pgbar {
                                        num_percent,
                                        num_frame_cnt );
         }
-        __PGBAR_INLINE_FN io::Stringbuf& build(
-          io::Stringbuf& buffer,
-          types::Size num_frame_cnt,
-          std::uint64_t num_task_done,
-          std::uint64_t num_all_tasks,
-          bool final_mesg,
-          const std::chrono::steady_clock::time_point& zero_point ) const
-        {
-          __PGBAR_TRUST( num_task_done <= num_all_tasks );
-          const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
-
-          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          return this->indirect_build( buffer,
-                                       num_task_done,
-                                       num_all_tasks,
-                                       num_percent,
-                                       final_mesg,
-                                       zero_point,
-                                       num_percent,
-                                       num_frame_cnt );
-        }
       };
 
       template<>
@@ -6434,25 +6266,6 @@ namespace pgbar {
           concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
           return this
             ->indirect_build( buffer, num_task_done, num_all_tasks, num_percent, zero_point, num_percent );
-        }
-        __PGBAR_INLINE_FN io::Stringbuf& build(
-          io::Stringbuf& buffer,
-          std::uint64_t num_task_done,
-          std::uint64_t num_all_tasks,
-          bool final_mesg,
-          const std::chrono::steady_clock::time_point& zero_point ) const
-        {
-          __PGBAR_TRUST( num_task_done <= num_all_tasks );
-          const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
-
-          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          return this->indirect_build( buffer,
-                                       num_task_done,
-                                       num_all_tasks,
-                                       num_percent,
-                                       final_mesg,
-                                       zero_point,
-                                       num_percent );
         }
       };
 
@@ -6486,26 +6299,6 @@ namespace pgbar {
           return this
             ->indirect_build( buffer, num_task_done, num_all_tasks, num_percent, zero_point, num_frame_cnt );
         }
-        __PGBAR_INLINE_FN io::Stringbuf& build(
-          io::Stringbuf& buffer,
-          types::Size num_frame_cnt,
-          std::uint64_t num_task_done,
-          std::uint64_t num_all_tasks,
-          bool final_mesg,
-          const std::chrono::steady_clock::time_point& zero_point ) const
-        {
-          __PGBAR_TRUST( num_task_done <= num_all_tasks );
-          const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
-
-          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          return this->indirect_build( buffer,
-                                       num_task_done,
-                                       num_all_tasks,
-                                       num_percent,
-                                       final_mesg,
-                                       zero_point,
-                                       num_frame_cnt );
-        }
       };
 
       template<>
@@ -6537,26 +6330,6 @@ namespace pgbar {
           concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
           return this
             ->indirect_build( buffer, num_task_done, num_all_tasks, num_percent, zero_point, num_frame_cnt );
-        }
-        __PGBAR_INLINE_FN io::Stringbuf& build(
-          io::Stringbuf& buffer,
-          types::Size num_frame_cnt,
-          std::uint64_t num_task_done,
-          std::uint64_t num_all_tasks,
-          bool final_mesg,
-          const std::chrono::steady_clock::time_point& zero_point ) const
-        {
-          __PGBAR_TRUST( num_task_done <= num_all_tasks );
-          const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
-
-          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          return this->indirect_build( buffer,
-                                       num_task_done,
-                                       num_all_tasks,
-                                       num_percent,
-                                       final_mesg,
-                                       zero_point,
-                                       num_frame_cnt );
         }
       };
 
@@ -6617,77 +6390,29 @@ namespace pgbar {
           }
           return this->try_reset( buffer );
         }
-        __PGBAR_INLINE_FN io::Stringbuf& build(
-          io::Stringbuf& buffer,
-          types::Size num_frame_cnt,
-          std::uint64_t num_task_done,
-          std::uint64_t num_all_tasks,
-          bool final_mesg,
-          const std::chrono::steady_clock::time_point& zero_point ) const
-        {
-          __PGBAR_TRUST( num_task_done <= num_all_tasks );
-          const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
-
-          concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          if ( ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty()
-                 || !this->postfix_.empty() )
-               || this->visual_masks_.any() ) {
-            this->try_style( buffer, this->info_col_ );
-            buffer << this->l_border_;
-          }
-
-          this->build_prefix( buffer, final_mesg );
-          this->try_reset( buffer );
-          if ( this->visual_masks_[utils::as_val( Self::Mask::Ani )] ) {
-            if ( ( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() ) {
-              if ( !this->prefix_.empty() )
-                buffer << constants::blank;
-              this->build_spin( buffer, num_frame_cnt );
-              this->try_reset( buffer );
-            }
-            auto masks = this->visual_masks_;
-            if ( masks.reset( utils::as_val( Self::Mask::Ani ) ).any() ) {
-              this->try_style( buffer, this->info_col_ );
-              buffer << this->divider_;
-            }
-          }
-          if ( this->visual_masks_[utils::as_val( Self::Mask::Per )] ) {
-            buffer << this->build_percent( num_percent );
-            auto masks = this->visual_masks_;
-            if ( masks.reset( utils::as_val( Self::Mask::Ani ) )
-                   .reset( utils::as_val( Self::Mask::Per ) )
-                   .any() )
-              buffer << this->divider_;
-          }
-          this->common_build( buffer, num_task_done, num_all_tasks, zero_point );
-
-          if ( !this->postfix_.empty()
-               && ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty()
-                    || this->visual_masks_.any() ) )
-            buffer << this->divider_;
-          this->build_postfix( buffer );
-          this->try_reset( buffer );
-          if ( ( !( final_mesg ? this->true_mesg_ : this->false_mesg_ ).empty() || !this->prefix_.empty()
-                 || !this->postfix_.empty() )
-               || this->visual_masks_.any() ) {
-            this->try_style( buffer, this->info_col_ );
-            buffer << this->r_border_;
-          }
-          return this->try_reset( buffer );
-        }
       };
     } // namespace render
 
     namespace assets {
       template<typename Base, typename Derived>
       class TaskCounter : public Base {
+        // Throws the exception::InvalidState if current object is active.
+        __PGBAR_INLINE_FN void throw_if_active() &
+        {
+          if ( this->active() )
+            __PGBAR_UNLIKELY throw exception::InvalidState(
+              "pgbar: try to iterate using a running progress bar" );
+        }
+
       protected:
         std::atomic<std::uint64_t> task_cnt_;
         std::uint64_t task_end_;
 
       public:
-        constexpr TaskCounter() noexcept( std::is_nothrow_default_constructible<Base>::value )
-          : task_cnt_ { 0 }
+        template<typename... Args>
+        constexpr TaskCounter( Args&&... args )
+          noexcept( std::is_nothrow_constructible<Base, Args...>::value )
+          : Base( std::forward<Args>( args )... ), task_cnt_ { 0 }
         {}
         __PGBAR_CXX14_CNSTXPR TaskCounter( TaskCounter&& rhs ) noexcept : Base( std::move( rhs ) )
         {
@@ -6698,7 +6423,7 @@ namespace pgbar {
           Base::operator=( std::move( rhs ) );
           return *this;
         }
-        __PGBAR_CXX20_CNSTXPR virtual ~TaskCounter() = default;
+        __PGBAR_CXX20_CNSTXPR ~TaskCounter() = default;
 
         // Get the progress of the task.
         __PGBAR_NODISCARD std::uint64_t progress() const noexcept
@@ -6723,6 +6448,7 @@ namespace pgbar {
           iterate( N startpoint, N endpoint, N step ) &
         { // default parameter will cause ambiguous overloads
           // so we have to write them all
+          throw_if_active();
           return {
             { startpoint, endpoint, step },
             static_cast<Derived&>( *this )
@@ -6751,6 +6477,7 @@ namespace pgbar {
 # endif
           iterate( N endpoint, N step ) &
         {
+          throw_if_active();
           return {
             { {}, endpoint, step },
             static_cast<Derived&>( *this )
@@ -6781,6 +6508,7 @@ namespace pgbar {
 # endif
           iterate( N startpoint, N endpoint ) &
         {
+          throw_if_active();
           return {
             { startpoint, endpoint, 1 },
             static_cast<Derived&>( *this )
@@ -6810,6 +6538,7 @@ namespace pgbar {
 # endif
           iterate( N endpoint ) &
         {
+          throw_if_active();
           return {
             { {}, endpoint, 1 },
             static_cast<Derived&>( *this )
@@ -6841,6 +6570,7 @@ namespace pgbar {
           iterate( I startpoint, I endpoint ) & noexcept(
             traits::AnyOf<std::is_pointer<I>, std::is_nothrow_move_constructible<I>>::value )
         {
+          throw_if_active();
           return {
             { std::move( startpoint ), std::move( endpoint ) },
             static_cast<Derived&>( *this )
@@ -6874,6 +6604,7 @@ namespace pgbar {
 # endif
           iterate( R& container ) &
         {
+          throw_if_active();
           return { { container }, static_cast<Derived&>( *this ) };
         }
 # if __PGBAR_CXX20
@@ -6881,6 +6612,7 @@ namespace pgbar {
           requires( traits::is_bounded_range<R>::value && std::ranges::view<R> )
         __PGBAR_NODISCARD __PGBAR_CXX17_CNSTXPR slice::ProxySpan<R, Derived> iterate( R view ) &
         {
+          throw_if_active();
           return { std::move( view ), static_cast<Derived&>( *this ) };
         }
 # endif
@@ -6905,10 +6637,11 @@ namespace pgbar {
         types::Size idx_frame_;
 
       public:
+        using Base::Base;
         constexpr FrameCounter()                                          = default;
         constexpr FrameCounter( FrameCounter&& )                          = default;
         __PGBAR_CXX14_CNSTXPR FrameCounter& operator=( FrameCounter&& ) & = default;
-        __PGBAR_CXX20_CNSTXPR virtual ~FrameCounter()                     = default;
+        __PGBAR_CXX20_CNSTXPR ~FrameCounter()                             = default;
       };
 
       template<typename Base, typename Derived>
@@ -6944,13 +6677,11 @@ namespace pgbar {
 
       protected:
         enum class StateCategory : std::uint8_t { Stop, Awake, Refresh, Finish };
-        enum class ResetMode : std::uint8_t { Failure = false, Success = true, Forced };
 
         render::Builder<Soul> config_;
         mutable std::mutex mtx_;
 
         std::chrono::steady_clock::time_point zero_point_;
-        bool final_mesg_;
 
         // An extension point that performs global resource cleanup related to the progress bar semantics
         // themselves.
@@ -7038,18 +6769,22 @@ namespace pgbar {
           Base::operator=( std::move( rhs ) );
           return *this;
         }
-        virtual ~CoreBar() noexcept { static_cast<Subcls*>( this )->do_reset( ResetMode::Forced ); }
+        ~CoreBar() noexcept
+        {
+          std::lock_guard<std::mutex> lock { mtx_ };
+          static_cast<Subcls*>( this )->do_reset( true );
+        }
 
         __PGBAR_NODISCARD bool active() const noexcept final
         {
           return static_cast<const Subcls*>( this )->categorize() != StateCategory::Stop;
         }
-        void reset( bool final_mesg ) noexcept
+        void reset() noexcept final
         {
-          static_cast<Subcls*>( this )->do_reset( static_cast<ResetMode>( final_mesg ) );
+          std::lock_guard<std::mutex> lock { mtx_ };
+          static_cast<Subcls*>( this )->do_reset();
           __PGBAR_ASSERT( active() == false );
         }
-        void reset() noexcept final { reset( true ); }
 
         Soul& config() & noexcept { return config_; }
         const Soul& config() const& noexcept { return config_; }
@@ -7065,6 +6800,118 @@ namespace pgbar {
         }
         friend __PGBAR_CXX20_CNSTXPR void swap( CoreBar& a, CoreBar& b ) noexcept { a.swap( b ); }
       };
+
+      template<typename Base, typename Derived>
+      class ReactiveBar : public Base {
+        using Self = ReactiveBar;
+# if __PGBAR_CXX20
+#  define __PGBAR_ACTIONABLE                   \
+    ( !std::is_null_pointer_v<std::decay_t<F>> \
+      && std::is_constructible_v<wrappers::UniqueFunction<void()>, F> )
+# else
+        template<typename F, typename Ret>
+        using Actionable = typename std::enable_if<
+          traits::AllOf<traits::Not<std::is_null_pointer<typename std::decay<F>::type>>,
+                        std::is_constructible<wrappers::UniqueFunction<void()>, F>>::value,
+          Ret>::type;
+# endif
+
+      protected:
+        wrappers::UniqueFunction<void()> hook_;
+
+      public:
+        using Base::Base;
+        constexpr ReactiveBar( Self&& rhs ) noexcept : Base( std::move( rhs ) ) {}
+        __PGBAR_CXX14_CNSTXPR Self& operator=( Self&& rhs ) & noexcept
+        {
+          Base::operator=( std::move( rhs ) );
+          return *this;
+        }
+        __PGBAR_CXX20_CNSTXPR ~ReactiveBar() = default;
+
+        template<typename F>
+# if __PGBAR_CXX20
+          requires __PGBAR_ACTIONABLE
+        Derived&
+# else
+        Actionable<F, Derived&>
+# endif
+          action( F&& fn ) & noexcept(
+            std::is_nothrow_assignable<wrappers::UniqueFunction<void()>, F>::value )
+        {
+          std::lock_guard<std::mutex> lock { this->mtx_ };
+          hook_ = std::forward<F>( fn );
+          return static_cast<Derived&>( *this );
+        }
+        Derived& action() noexcept
+        {
+          std::lock_guard<std::mutex> lock { this->mtx_ };
+          hook_.reset();
+          return static_cast<Derived&>( *this );
+        }
+
+        template<typename F>
+# if __PGBAR_CXX20
+          requires __PGBAR_ACTIONABLE
+        friend Derived&
+# else
+        friend Actionable<F, Derived&>
+# endif
+          operator|=( Self& bar, F&& fn )
+            noexcept( std::is_nothrow_assignable<wrappers::UniqueFunction<void()>, F>::value )
+        {
+          return bar.action( std::forward<F>( fn ) );
+        }
+        template<typename F>
+# if __PGBAR_CXX20
+          requires __PGBAR_ACTIONABLE
+        friend Derived&
+# else
+        friend Actionable<F, Derived&>
+# endif
+          operator|( Self& bar, F&& fn )
+            noexcept( std::is_nothrow_assignable<wrappers::UniqueFunction<void()>, F>::value )
+        {
+          return bar.action( std::forward<F>( fn ) );
+        }
+        template<typename F>
+# if __PGBAR_CXX20
+          requires __PGBAR_ACTIONABLE
+        friend Derived&
+# else
+        friend Actionable<F, Derived&>
+# endif
+          operator|( F&& fn, Self& bar )
+            noexcept( std::is_nothrow_assignable<wrappers::UniqueFunction<void()>, F>::value )
+        {
+          return bar.action( std::forward<F>( fn ) );
+        }
+        template<typename F>
+# if __PGBAR_CXX20
+          requires __PGBAR_ACTIONABLE
+        friend Derived&&
+# else
+        friend Actionable<F, Derived&&>
+# endif
+          operator|( Self&& bar, F&& fn )
+            noexcept( std::is_nothrow_assignable<wrappers::UniqueFunction<void()>, F>::value )
+        {
+          return std::move( bar.action( std::forward<F>( fn ) ) );
+        }
+        template<typename F>
+# if __PGBAR_CXX20
+          requires __PGBAR_ACTIONABLE
+        friend Derived&&
+# else
+        friend Actionable<F, Derived&&>
+# endif
+          operator|( F&& fn, Self&& bar )
+            noexcept( std::is_nothrow_assignable<wrappers::UniqueFunction<void()>, F>::value )
+        {
+          return std::move( bar.action( std::forward<F>( fn ) ) );
+        }
+      };
+# undef __PGBAR_ACTIONABLE
 
       template<typename Base, typename Derived>
       class TickableBar : public Base {
@@ -7129,7 +6976,8 @@ namespace pgbar {
         using Self = PlainBar;
         template<typename, typename>
         friend class CoreBar;
-        friend Base;
+        template<typename, typename>
+        friend class TickableBar;
 
         using State = typename Base::StateCategory;
         std::atomic<State> state_;
@@ -7137,10 +6985,7 @@ namespace pgbar {
       protected:
         __PGBAR_INLINE_FN void startframe() &
         {
-          this->config_.build( io::OStream<Outlet>::itself(),
-                               this->task_cnt_.load( std::memory_order_acquire ),
-                               this->task_end_,
-                               this->zero_point_ );
+          refreshframe();
           auto expected = State::Awake;
           this->state_.compare_exchange_strong( expected, State::Refresh, std::memory_order_release );
         }
@@ -7155,11 +7000,7 @@ namespace pgbar {
         __PGBAR_INLINE_FN void endframe() &
         {
           __PGBAR_ASSERT( this->task_cnt_ <= this->task_end_ );
-          this->config_.build( io::OStream<Outlet>::itself(),
-                               this->task_cnt_.load( std::memory_order_acquire ),
-                               this->task_end_,
-                               this->final_mesg_,
-                               this->zero_point_ );
+          refreshframe();
           this->state_.store( State::Stop, std::memory_order_release );
         }
 
@@ -7168,28 +7009,22 @@ namespace pgbar {
           return state_.load( std::memory_order_acquire );
         }
 
-        __PGBAR_INLINE_FN void do_reset( typename Base::ResetMode mode ) noexcept
+        __PGBAR_INLINE_FN void do_reset( bool forced = false ) noexcept
         {
-          std::lock_guard<std::mutex> lock { this->mtx_ };
           if ( this->active() ) {
-            switch ( mode ) {
-            case Base::ResetMode::Forced: {
-              state_.store( State::Stop, std::memory_order_release );
-            } break;
-            default: {
-              this->final_mesg_ = static_cast<bool>( mode );
-              auto try_update   = [this]( State expected ) noexcept {
-                return state_.compare_exchange_strong( expected, State::Finish, std::memory_order_release );
-              };
-              try_update( State::Awake ) || try_update( State::Refresh );
-            } break;
+            if ( forced )
+              __PGBAR_UNLIKELY state_.store( State::Stop, std::memory_order_release );
+            else {
+              if ( this->hook_ )
+                this->hook_();
+              state_.store( State::Finish, std::memory_order_release );
             }
-            this->do_halt( mode == Base::ResetMode::Forced );
+            this->do_halt( forced );
           } else
             state_.store( State::Stop, std::memory_order_release );
         }
         template<typename F>
-        __PGBAR_INLINE_FN void do_tick( F&& action ) & noexcept( false )
+        __PGBAR_INLINE_FN void do_tick( F&& ticker ) & noexcept( false )
         {
           switch ( state_.load( std::memory_order_acquire ) ) {
           case State::Stop:  __PGBAR_FALLTHROUGH;
@@ -7213,11 +7048,18 @@ namespace pgbar {
               }
             }
           }
+            __PGBAR_FALLTHROUGH;
           case State::Refresh: {
-            action();
+            ticker();
 
             if ( this->task_cnt_.load( std::memory_order_acquire ) >= this->task_end_ )
-              __PGBAR_UNLIKELY do_reset( Base::ResetMode::Success );
+              __PGBAR_UNLIKELY
+              {
+                if ( this->mtx_.try_lock() ) {
+                  std::lock_guard<std::mutex> lock { this->mtx_, std::adopt_lock };
+                  do_reset();
+                }
+              }
             else if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Sync )
               render::Renderer<Outlet, Mode>::itself().execute();
           } break;
@@ -7241,7 +7083,7 @@ namespace pgbar {
           Base::operator=( std::move( rhs ) );
           return *this;
         }
-        virtual ~PlainBar() = default;
+        ~PlainBar() = default;
       };
 
       template<typename Base, typename Derived>
@@ -7257,7 +7099,8 @@ namespace pgbar {
         using Subcls = Derived<Soul, Outlet, Mode, A>;
         template<typename, typename>
         friend class CoreBar;
-        friend Base;
+        template<typename, typename>
+        friend class TickableBar;
 
         enum class State : std::uint8_t { Stop, Awake, ProgressRefresh, ActivityRefresh, Finish };
         std::atomic<State> state_;
@@ -7265,13 +7108,8 @@ namespace pgbar {
       protected:
         __PGBAR_INLINE_FN void startframe() &
         {
-          __PGBAR_ASSERT( this->task_cnt_ <= this->task_end_ );
           this->idx_frame_ = 0;
-          this->config_.build( io::OStream<Outlet>::itself(),
-                               this->idx_frame_,
-                               this->task_cnt_.load( std::memory_order_acquire ),
-                               this->task_end_,
-                               this->zero_point_ );
+          refreshframe();
           auto expected = State::Awake;
           state_.compare_exchange_strong( expected,
                                           this->task_end_ == 0 ? State::ActivityRefresh
@@ -7296,7 +7134,6 @@ namespace pgbar {
                                this->idx_frame_,
                                this->task_cnt_.load( std::memory_order_acquire ),
                                this->task_end_,
-                               this->final_mesg_,
                                this->zero_point_ );
           state_.store( State::Stop, std::memory_order_release );
         }
@@ -7314,7 +7151,7 @@ namespace pgbar {
         }
 
         template<typename F>
-        __PGBAR_INLINE_FN void do_tick( F&& action ) & noexcept( false )
+        __PGBAR_INLINE_FN void do_tick( F&& ticker ) & noexcept( false )
         {
           switch ( this->state_.load( std::memory_order_acquire ) ) {
           case State::Stop:  __PGBAR_FALLTHROUGH;
@@ -7341,10 +7178,16 @@ namespace pgbar {
           }
             __PGBAR_FALLTHROUGH;
           case State::ProgressRefresh: {
-            action();
+            ticker();
 
             if ( this->task_cnt_.load( std::memory_order_acquire ) >= this->task_end_ )
-              __PGBAR_UNLIKELY do_reset( Base::ResetMode::Success );
+              __PGBAR_UNLIKELY
+              {
+                if ( this->mtx_.try_lock() ) {
+                  std::lock_guard<std::mutex> lock { this->mtx_, std::adopt_lock };
+                  do_reset();
+                }
+              }
             else if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Sync )
               render::Renderer<Outlet, Mode>::itself().execute();
           } break;
@@ -7357,24 +7200,17 @@ namespace pgbar {
           default: __PGBAR_UNREACHABLE;
           }
         }
-        __PGBAR_INLINE_FN void do_reset( typename Base::ResetMode mode ) noexcept
+        __PGBAR_INLINE_FN void do_reset( bool forced = false ) noexcept
         {
-          std::lock_guard<std::mutex> lock { this->mtx_ };
           if ( this->active() ) {
-            switch ( mode ) {
-            case Base::ResetMode::Forced: {
-              state_.store( State::Stop, std::memory_order_release );
-            } break;
-            default: {
-              this->final_mesg_ = static_cast<bool>( mode );
-              auto try_update   = [this]( State expected ) noexcept {
-                return state_.compare_exchange_strong( expected, State::Finish, std::memory_order_release );
-              };
-              try_update( State::Awake ) || try_update( State::ProgressRefresh )
-                || try_update( State::ActivityRefresh );
-            } break;
+            if ( forced )
+              __PGBAR_UNLIKELY state_.store( State::Stop, std::memory_order_release );
+            else {
+              if ( this->hook_ )
+                this->hook_();
+              state_.store( State::Finish, std::memory_order_release );
             }
-            this->do_halt( mode == Base::ResetMode::Forced );
+            this->do_halt( forced );
           } else
             state_.store( State::Stop, std::memory_order_release );
         }
@@ -7393,7 +7229,7 @@ namespace pgbar {
           Base::operator=( std::move( rhs ) );
           return *this;
         }
-        virtual ~FrameBar() = default;
+        ~FrameBar() = default;
       };
 
       template<typename Base, typename Derived>
@@ -7417,7 +7253,7 @@ namespace pgbar {
         using Base::Base;
         constexpr BoundedFrameBar( BoundedFrameBar&& )                          = default;
         __PGBAR_CXX14_CNSTXPR BoundedFrameBar& operator=( BoundedFrameBar&& ) & = default;
-        __PGBAR_CXX20_CNSTXPR virtual ~BoundedFrameBar()                        = default;
+        __PGBAR_CXX20_CNSTXPR ~BoundedFrameBar()                                = default;
       };
 
       template<typename Base, typename Derived>
@@ -7437,16 +7273,21 @@ namespace pgbar {
         using Base::Base;
         constexpr NullableFrameBar( NullableFrameBar&& )                          = default;
         __PGBAR_CXX14_CNSTXPR NullableFrameBar& operator=( NullableFrameBar&& ) & = default;
-        __PGBAR_CXX20_CNSTXPR virtual ~NullableFrameBar()                         = default;
+        __PGBAR_CXX20_CNSTXPR ~NullableFrameBar()                                 = default;
       };
     } // namespace assets
 
     namespace traits {
-      __PGBAR_INHERIT_REGISTER( assets::TickableBar, , __PGBAR_PACK( assets::CoreBar, assets::TaskCounter ) );
-      __PGBAR_INHERIT_REGISTER( assets::PlainBar, , assets::TickableBar );
+      __PGBAR_INHERIT_REGISTER( assets::ReactiveBar, assets::CoreBar, );
+      __PGBAR_INHERIT_REGISTER( assets::TickableBar, , assets::TaskCounter );
+      __PGBAR_INHERIT_REGISTER( assets::PlainBar,
+                                ,
+                                __PGBAR_PACK( assets::ReactiveBar, assets::TickableBar ) );
       __PGBAR_INHERIT_REGISTER( assets::FrameBar,
                                 ,
-                                __PGBAR_PACK( assets::TickableBar, assets::FrameCounter ) );
+                                __PGBAR_PACK( assets::ReactiveBar,
+                                              assets::TickableBar,
+                                              assets::FrameCounter ) );
       __PGBAR_INHERIT_REGISTER( assets::BoundedFrameBar, , assets::FrameBar );
       __PGBAR_INHERIT_REGISTER( assets::NullableFrameBar, , assets::FrameBar );
 
@@ -7770,9 +7611,7 @@ namespace pgbar {
         void halt() noexcept
         {
           if ( online() && !__details::render::Renderer<Outlet, Mode>::itself().empty() )
-            (void)std::initializer_list<char> {
-              ( this->ElementAt_t<Tags>::do_reset( ElementAt_t<Tags>::ResetMode::Forced ), '\0' )...
-            };
+            (void)std::initializer_list<char> { ( this->ElementAt_t<Tags>::do_reset( true ), '\0' )... };
           __PGBAR_ASSERT( alive_cnt_ == 0 );
           __PGBAR_ASSERT( online() == false );
         }
@@ -7959,9 +7798,9 @@ namespace pgbar {
       at<Pos>().tick_to( percentage );
     }
     template<__details::types::Size Pos>
-    __PGBAR_INLINE_FN void reset( bool final_mesg = true )
+    __PGBAR_INLINE_FN void reset()
     {
-      at<Pos>().reset( final_mesg );
+      at<Pos>().reset();
     }
     template<__details::types::Size Pos>
     __PGBAR_INLINE_FN void wait() const noexcept
@@ -9023,7 +8862,7 @@ namespace pgbar {
          */
         virtual ~SharedBar() noexcept { halt(); }
 
-        void halt() noexcept { this->do_reset( Base::ResetMode::Forced ); }
+        void halt() noexcept { this->do_reset( true ); }
       };
     } // namespace prefabs
   } // namespace __details
@@ -9337,7 +9176,7 @@ namespace pgbar {
       __PGBAR_UNLIKELY return {};
     else if ( count < sizeof...( Configs ) )
       __PGBAR_UNLIKELY throw exception::InvalidArgument(
-        "pgbar: the number of arguments mismatch with the provided count" );
+        "pgbar: the number of configs mismatch with the provided count" );
 
     DynamicBar<Outlet, Mode, Area> factory;
     std::vector<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>> products;
@@ -9377,7 +9216,7 @@ namespace pgbar {
       __PGBAR_UNLIKELY return {};
     else if ( count < sizeof...( Configs ) )
       __PGBAR_UNLIKELY throw exception::InvalidArgument(
-        "pgbar: the number of arguments mismatch with the provided count" );
+        "pgbar: the number of bars mismatch with the provided count" );
 
     DynamicBar<Outlet, Mode, Area> factory;
     std::vector<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>> products;

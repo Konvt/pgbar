@@ -12,44 +12,55 @@ int main()
 #endif
 
   auto bar =
-    pgbar::make_multi( pgbar::config::Line( pgbar::option::Prefix( "Eating something...." ),
+    pgbar::make_multi( pgbar::config::Line( pgbar::option::Prefix( "  Eating something...." ),
                                             pgbar::option::Filler( "⠇" ),
                                             pgbar::option::Lead( { "⠈", "⠐", "⠠", "⢀", "⡀", "⠄", "⠂", "⠁" } ),
                                             pgbar::option::Shift( 1 ),
-                                            pgbar::option::TrueMesg( "✔ Mission Accomplished" ),
-                                            pgbar::option::TrueColor( pgbar::color::Green ),
-                                            pgbar::option::FalseMesg( "❌ Mission failed" ),
-                                            pgbar::option::FalseColor( pgbar::color::Red ),
                                             pgbar::option::InfoColor( "#7D7" ) ),
-                       pgbar::config::Block( pgbar::option::Prefix( "Picking something..." ),
+                       pgbar::config::Block( pgbar::option::Prefix( "  Picking something..." ),
                                              pgbar::option::Filler( "⠿" ),
                                              pgbar::option::Lead( { " ", "⠄", "⠆", "⠇", "⠧", "⠷" } ),
-                                             pgbar::option::TrueMesg( "✔ Mission Complete" ),
-                                             pgbar::option::TrueColor( pgbar::color::Green ),
-                                             pgbar::option::FalseMesg( "❌ Mission failed" ),
-                                             pgbar::option::FalseColor( pgbar::color::Red ),
                                              pgbar::option::InfoColor( "#7BD" ) ),
-                       pgbar::config::Sweep( pgbar::option::Prefix( "Doing something....." ),
+                       pgbar::config::Sweep( pgbar::option::Prefix( "  Doing something....." ),
                                              pgbar::option::Filler( "." ),
                                              pgbar::option::Lead( "·" ),
                                              pgbar::option::InfoColor( "#26B4EB" ) ) );
 
   vector<thread> pool;
-  pool.emplace_back( [&bar]() {
+  pool.emplace_back( [&]() {
+    bool flag = true;
+    bar.at<0>() |= [&]() {
+      auto& self = bar.at<0>();
+      if ( flag )
+        self.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
+      else
+        self.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
+    };
+
     mt19937 rd { random_device {}() };
     bar.iterate<0>( 50000, [&rd]( int ) {
-      this_thread::sleep_for( chrono::microseconds( uniform_int_distribution<int>( 700, 1100 )( rd ) ) );
+      this_thread::sleep_for( chrono::microseconds( uniform_int_distribution<int>( 1, 1025 )( rd ) ) );
     } );
   } );
-  pool.emplace_back( [&bar]() {
+  pool.emplace_back( [&]() {
+    bool flag = true;
+    bar.at<1>() |= [&]() {
+      auto& self = bar.at<1>();
+      if ( flag )
+        self.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
+      else
+        self.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
+    };
+
     mt19937 rd { random_device {}() };
     bar.config<1>().tasks( 10000 );
     const size_t terminate_val = 5000 + uniform_int_distribution<int>( 10, 1000 )( rd );
     for ( size_t i = 0; i < terminate_val; ++i ) {
       bar.tick<1>();
-      this_thread::sleep_for( chrono::microseconds( uniform_int_distribution<int>( 1100, 3000 )( rd ) ) );
+      this_thread::sleep_for( chrono::microseconds( uniform_int_distribution<int>( 1, 1105 )( rd ) ) );
     }
-    bar.reset<1>( false );
+    flag = false;
+    bar.reset<1>();
   } );
   bar.tick<2>();
 
