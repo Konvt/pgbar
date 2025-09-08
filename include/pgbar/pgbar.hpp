@@ -1802,6 +1802,25 @@ namespace pgbar {
           std::copy( bytes_.cbegin(), bytes_.cend(), ret.begin() );
           return ret;
         }
+
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( std::u8string_view a,
+                                                                                         const Self& b )
+        {
+          return Self( a ) + b;
+        }
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN Self operator+( Self&& a, std::u8string_view b )
+        {
+          const auto new_width =
+            render_width( { reinterpret_cast<const types::Char*>( b.data() ),
+                            reinterpret_cast<const types::Char*>( b.data() + b.size() ) } );
+          std::copy( b.cbegin(), b.cend(), std::back_inserter( a.bytes_ ) );
+          a.width_ += new_width;
+          return a;
+        }
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN Self operator+( const Self& a, std::u8string_view b )
+        {
+          return Self( a ) + b;
+        }
 # endif
       };
 
@@ -2046,6 +2065,40 @@ namespace pgbar {
               return acc + static_cast<types::Size>( ch.second );
             } );
           bytes_ = std::move( new_bytes );
+        }
+
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( std::u8string_view a,
+                                                                                         const Self& b )
+        {
+          return Self( a ) + b;
+        }
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN Self operator+( Self&& a, std::u8string_view b )
+        {
+          auto new_chars        = parse_char( { reinterpret_cast<const types::Char*>( b.data() ),
+                                                reinterpret_cast<const types::Char*>( b.data() + b.size() ) } );
+          const auto num_b_char = new_chars.size();
+          new_chars.resize( new_chars.size() + a.chars_.size() );
+          std::transform( a.chars_.cbegin(),
+                          a.chars_.cend(),
+                          new_chars.begin() + num_b_char,
+                          [&b]( const std::pair<types::Size, CodeChart::RenderWidth>& ch ) noexcept {
+                            return std::make_pair( ch.first + b.size(),
+                                                   static_cast<types::Size>( ch.second ) );
+                          } );
+          std::copy( b.cbegin(), b.cend(), std::back_inserter( a.bytes_ ) );
+          a.chars_ = std::move( new_chars );
+          a.width_ = std::accumulate(
+            a.chars_.cbegin(),
+            a.chars_.cend(),
+            types::Size {},
+            []( types::Size acc, const std::pair<types::Size, CodeChart::RenderWidth>& ch ) noexcept {
+              return acc + static_cast<types::Size>( ch.second );
+            } );
+          return a;
+        }
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN Self operator+( const Self& a, std::u8string_view b )
+        {
+          return Self( a ) + b;
         }
 # endif
       };
@@ -2438,12 +2491,12 @@ namespace pgbar {
           return *this;
         }
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& append( const charcodes::U8Raw& info,
-                                                              types::Size __num = 1 )
+                                                              types::Size __num = 1 ) &
         {
           return append( info.str(), __num );
         }
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& append( const types::Char* head,
-                                                              const types::Char* tail )
+                                                              const types::Char* tail ) &
         {
           if ( head != nullptr && tail != nullptr )
             buffer_.insert( buffer_.end(), head, tail );
@@ -2477,6 +2530,21 @@ namespace pgbar {
           buffer_.swap( lhs.buffer_ );
         }
         friend __PGBAR_CXX20_CNSTXPR void swap( Stringbuf& a, Stringbuf& b ) noexcept { a.swap( b ); }
+
+# if __PGBAR_CXX20
+        __PGBAR_INLINE_FN Self& append( std::u8string_view info, types::Size __num = 1 ) &
+        {
+          while ( __num-- )
+            buffer_.insert( buffer_.end(),
+                            reinterpret_cast<const types::Char*>( info.data() ),
+                            reinterpret_cast<const types::Char*>( info.data() + info.size() ) );
+          return *this;
+        }
+        friend __PGBAR_INLINE_FN Self& operator<<( Self& stream, std::u8string_view info )
+        {
+          return stream.append( info );
+        }
+# endif
       };
 
       template<Channel Outlet>
@@ -4206,8 +4274,10 @@ namespace pgbar {
           io::Stringbuf& buffer,
           const console::escodes::RGBColor& rgb ) const
         {
-          return try_dye( buffer, rgb )
-              << ( fonts_[utils::as_val( Mask::Bolded )] ? console::escodes::fontbold : "" );
+          try_dye( buffer, rgb );
+          if ( fonts_[utils::as_val( Mask::Bolded )] )
+            buffer << console::escodes::fontbold;
+          return buffer;
         }
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& try_reset( io::Stringbuf& buffer ) const
         {
@@ -5182,7 +5252,7 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class PercentMeter : public Base {
-# define __PGBAR_DEFAULT_PERCENT " --.--%"
+# define __PGBAR_DEFAULT_PERCENT u8" --.--%"
         static constexpr types::Size _fixed_length = sizeof( __PGBAR_DEFAULT_PERCENT ) - 1;
 
       protected:
@@ -5192,7 +5262,12 @@ namespace pgbar {
           __PGBAR_TRUST( num_percent <= 1.0 );
 
           if ( num_percent <= 0.0 )
+# if __PGBAR_CXX20
+            __PGBAR_UNLIKELY return { reinterpret_cast<const types::Char*>( __PGBAR_DEFAULT_PERCENT ),
+                                      _fixed_length };
+# else
             __PGBAR_UNLIKELY return { __PGBAR_DEFAULT_PERCENT, _fixed_length };
+# endif
 
           auto str = utils::format( num_percent * 100.0, 2 );
           str.push_back( '%' );
@@ -5226,7 +5301,7 @@ namespace pgbar {
           cfg.magnitude_ = val.value();
         }
 
-# define __PGBAR_DEFAULT_SPEED "   inf "
+# define __PGBAR_DEFAULT_SPEED u8"   inf "
         static constexpr types::Size _fixed_length = sizeof( __PGBAR_DEFAULT_SPEED ) - 1;
 
       protected:
@@ -5241,7 +5316,7 @@ namespace pgbar {
           __PGBAR_TRUST( num_task_done <= num_all_tasks );
           if ( num_all_tasks == 0 )
             __PGBAR_UNLIKELY return utils::format<utils::TxtLayout::Right>( _fixed_length + len_longest_unit_,
-                                                                            "-- " + units_.front() );
+                                                                            u8"-- " + units_.front() );
 
           const auto seconds_passed    = std::chrono::duration<types::Float>( time_passed ).count();
           // zero or negetive is invalid
@@ -5358,8 +5433,8 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class Timer : public Base {
-# define __PGBAR_DEFAULT_TIMER "--:--:--"
-# define __PGBAR_TIMER_SEGMENT " < "
+# define __PGBAR_DEFAULT_TIMER u8"--:--:--"
+# define __PGBAR_TIMER_SEGMENT u8" < "
         static constexpr types::Size _fixed_length = sizeof( __PGBAR_DEFAULT_TIMER ) - 1;
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN types::String time_formatter( types::TimeUnit duration ) const
@@ -5396,7 +5471,11 @@ namespace pgbar {
         {
           __PGBAR_TRUST( num_task_done <= num_all_tasks );
           if ( num_task_done == 0 || num_all_tasks == 0 )
+# if __PGBAR_CXX20
+            return { reinterpret_cast<const types::Char*>( __PGBAR_DEFAULT_TIMER ), _fixed_length };
+# else
             return { __PGBAR_DEFAULT_TIMER, _fixed_length };
+# endif
 
           auto time_per_task = time_passed / num_task_done;
           if ( time_per_task.count() == 0 )
@@ -5405,7 +5484,11 @@ namespace pgbar {
           const auto remaining_tasks = num_all_tasks - num_task_done;
           // overflow check
           if ( remaining_tasks > ( std::numeric_limits<std::int64_t>::max )() / time_per_task.count() )
+# if __PGBAR_CXX20
+            return { reinterpret_cast<const types::Char*>( __PGBAR_DEFAULT_TIMER ), _fixed_length };
+# else
             return { __PGBAR_DEFAULT_TIMER, _fixed_length };
+# endif
           else
             return time_formatter( time_per_task * remaining_tasks );
         }
@@ -5900,23 +5983,23 @@ namespace pgbar {
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Shift>::value )
           unpacker( *this, option::Shift( -2 ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Lead>::value )
-          unpacker( *this, option::Lead( ">" ) );
+          unpacker( *this, option::Lead( u8">" ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Starting>::value )
-          unpacker( *this, option::Starting( "[" ) );
+          unpacker( *this, option::Starting( u8"[" ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Ending>::value )
-          unpacker( *this, option::Ending( "]" ) );
+          unpacker( *this, option::Ending( u8"]" ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::BarLength>::value )
           unpacker( *this, option::BarLength( 30 ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Filler>::value )
-          unpacker( *this, option::Filler( "=" ) );
+          unpacker( *this, option::Filler( u8"=" ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Remains>::value )
-          unpacker( *this, option::Remains( " " ) );
+          unpacker( *this, option::Remains( u8" " ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Divider>::value )
-          unpacker( *this, option::Divider( " | " ) );
+          unpacker( *this, option::Divider( u8" | " ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::InfoColor>::value )
           unpacker( *this, option::InfoColor( color::Cyan ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::SpeedUnit>::value )
-          unpacker( *this, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
+          unpacker( *this, option::SpeedUnit( { u8"Hz", u8"kHz", u8"MHz", u8"GHz" } ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Magnitude>::value )
           unpacker( *this, option::Magnitude( 1000 ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Style>::value )
@@ -5952,19 +6035,19 @@ namespace pgbar {
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Reversed>::value )
           unpacker( *this, option::Reversed( false ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Lead>::value )
-          unpacker( *this, option::Lead( { " ", "▏", "▎", "▍", "▌", "▋", "▊", "▉" } ) );
+          unpacker( *this, option::Lead( { u8" ", u8"▏", u8"▎", u8"▍", u8"▌", u8"▋", u8"▊", u8"▉" } ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::BarLength>::value )
           unpacker( *this, option::BarLength( 30 ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Filler>::value )
-          unpacker( *this, option::Filler( "█" ) );
+          unpacker( *this, option::Filler( u8"█" ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Remains>::value )
-          unpacker( *this, option::Remains( " " ) );
+          unpacker( *this, option::Remains( u8" " ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Divider>::value )
-          unpacker( *this, option::Divider( " | " ) );
+          unpacker( *this, option::Divider( u8" | " ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::InfoColor>::value )
           unpacker( *this, option::InfoColor( color::Cyan ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::SpeedUnit>::value )
-          unpacker( *this, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
+          unpacker( *this, option::SpeedUnit( { u8"Hz", u8"kHz", u8"MHz", u8"GHz" } ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Magnitude>::value )
           unpacker( *this, option::Magnitude( 1000 ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Style>::value )
@@ -6000,13 +6083,13 @@ namespace pgbar {
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Shift>::value )
           unpacker( *this, option::Shift( -3 ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Lead>::value )
-          unpacker( *this, option::Lead( { "/", "-", "\\", "|" } ) );
+          unpacker( *this, option::Lead( { u8"/", u8"-", u8"\\", u8"|" } ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Divider>::value )
-          unpacker( *this, option::Divider( " | " ) );
+          unpacker( *this, option::Divider( u8" | " ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::InfoColor>::value )
           unpacker( *this, option::InfoColor( color::Cyan ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::SpeedUnit>::value )
-          unpacker( *this, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
+          unpacker( *this, option::SpeedUnit( { u8"Hz", u8"kHz", u8"MHz", u8"GHz" } ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Magnitude>::value )
           unpacker( *this, option::Magnitude( 1000 ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Style>::value )
@@ -6043,21 +6126,21 @@ namespace pgbar {
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Shift>::value )
           unpacker( *this, option::Shift( -3 ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Starting>::value )
-          unpacker( *this, option::Starting( "[" ) );
+          unpacker( *this, option::Starting( u8"[" ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Ending>::value )
-          unpacker( *this, option::Ending( "]" ) );
+          unpacker( *this, option::Ending( u8"]" ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::BarLength>::value )
           unpacker( *this, option::BarLength( 30 ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Filler>::value )
-          unpacker( *this, option::Filler( "-" ) );
+          unpacker( *this, option::Filler( u8"-" ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Lead>::value )
-          unpacker( *this, option::Lead( "<=>" ) );
+          unpacker( *this, option::Lead( u8"<=>" ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Divider>::value )
-          unpacker( *this, option::Divider( " | " ) );
+          unpacker( *this, option::Divider( u8" | " ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::InfoColor>::value )
           unpacker( *this, option::InfoColor( color::Cyan ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::SpeedUnit>::value )
-          unpacker( *this, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
+          unpacker( *this, option::SpeedUnit( { u8"Hz", u8"kHz", u8"MHz", u8"GHz" } ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Magnitude>::value )
           unpacker( *this, option::Magnitude( 1000 ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Style>::value )
@@ -6095,21 +6178,21 @@ namespace pgbar {
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Shift>::value )
           unpacker( *this, option::Shift( -3 ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Starting>::value )
-          unpacker( *this, option::Starting( "[" ) );
+          unpacker( *this, option::Starting( u8"[" ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Ending>::value )
-          unpacker( *this, option::Ending( "]" ) );
+          unpacker( *this, option::Ending( u8"]" ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::BarLength>::value )
           unpacker( *this, option::BarLength( 30 ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Filler>::value )
-          unpacker( *this, option::Filler( " " ) );
+          unpacker( *this, option::Filler( u8" " ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Lead>::value )
-          unpacker( *this, option::Lead( "====" ) );
+          unpacker( *this, option::Lead( u8"====" ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Divider>::value )
-          unpacker( *this, option::Divider( " | " ) );
+          unpacker( *this, option::Divider( u8" | " ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::InfoColor>::value )
           unpacker( *this, option::InfoColor( color::Cyan ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::SpeedUnit>::value )
-          unpacker( *this, option::SpeedUnit( { "Hz", "kHz", "MHz", "GHz" } ) );
+          unpacker( *this, option::SpeedUnit( { u8"Hz", u8"kHz", u8"MHz", u8"GHz" } ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Magnitude>::value )
           unpacker( *this, option::Magnitude( 1000 ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Style>::value )
