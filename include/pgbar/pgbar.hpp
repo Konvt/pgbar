@@ -2290,6 +2290,100 @@ namespace pgbar {
       };
     } // namespace concurrent
 
+    namespace console {
+      template<Channel Outlet>
+      class TerminalContext {
+        std::atomic<bool> cache_;
+
+        TerminalContext() noexcept { detect(); }
+
+      public:
+        TerminalContext( const TerminalContext& )              = delete;
+        TerminalContext& operator=( const TerminalContext& ) & = delete;
+        ~TerminalContext()                                     = default;
+
+        static TerminalContext& itself() noexcept
+        {
+          static TerminalContext self;
+          return self;
+        }
+
+        // Detect whether the specified output stream is bound to a terminal.
+        bool detect() noexcept
+        {
+          const bool value = []() noexcept {
+# if defined( PGBAR_INTTY ) || __PGBAR_UNKNOWN
+            return true;
+# elif __PGBAR_WIN
+            HANDLE hConsole;
+            if __PGBAR_CXX17_CNSTXPR ( Outlet == Channel::Stdout )
+              hConsole = GetStdHandle( STD_OUTPUT_HANDLE );
+            else
+              hConsole = GetStdHandle( STD_ERROR_HANDLE );
+            if ( hConsole == INVALID_HANDLE_VALUE )
+              __PGBAR_UNLIKELY return false;
+            return GetFileType( hConsole ) == FILE_TYPE_CHAR;
+# else
+            return isatty( static_cast<int>( Outlet ) );
+# endif
+          }();
+          cache_.store( value, std::memory_order_release );
+          return value;
+        }
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool connected() const noexcept
+        {
+          return cache_.load( std::memory_order_acquire );
+        }
+
+        /**
+         * Enable virtual terminal processing on the specified output channel (Windows only).
+         * Guaranteed to be thread-safe and performed only once.
+         */
+        void enable_vt() const noexcept
+        {
+# if __PGBAR_WIN && defined( ENABLE_VIRTUAL_TERMINAL_PROCESSING )
+          static std::once_flag flag;
+          std::call_once( flag, []() noexcept {
+            HANDLE stream_handle =
+              GetStdHandle( Outlet == Channel::Stderr ? STD_ERROR_HANDLE : STD_OUTPUT_HANDLE );
+            if ( stream_handle == INVALID_HANDLE_VALUE )
+              __PGBAR_UNLIKELY return;
+
+            DWORD mode {};
+            if ( !GetConsoleMode( stream_handle, &mode ) )
+              __PGBAR_UNLIKELY return;
+            mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+            SetConsoleMode( stream_handle, mode );
+          } );
+# endif
+        }
+
+        __PGBAR_NODISCARD types::Size width() noexcept
+        {
+          if ( !detect() )
+            return 0;
+# if __PGBAR_WIN
+          HANDLE hConsole;
+          if __PGBAR_CXX17_CNSTXPR ( Outlet == Channel::Stdout )
+            hConsole = GetStdHandle( STD_OUTPUT_HANDLE );
+          else
+            hConsole = GetStdHandle( STD_ERROR_HANDLE );
+          if ( hConsole != INVALID_HANDLE_VALUE ) {
+            CONSOLE_SCREEN_BUFFER_INFO csbi;
+            if ( GetConsoleScreenBufferInfo( hConsole, &csbi ) )
+              return csbi.srWindow.Right - csbi.srWindow.Left + 1;
+          }
+# elif __PGBAR_UNIX
+          struct winsize ws;
+          auto fd = static_cast<int>( Outlet );
+          if ( ioctl( fd, TIOCGWINSZ, &ws ) != -1 )
+            return ws.ws_col;
+# endif
+          return 100;
+        }
+      };
+    } // namespace console
+
     namespace io {
       // A simple string buffer, unrelated to the `std::stringbuf` in the STL.
       class Stringbuf {
@@ -2412,6 +2506,11 @@ namespace pgbar {
       class OStream final : public Stringbuf {
         using Self = OStream;
 
+# if __PGBAR_WIN
+        std::vector<WCHAR> wb_buffer_;
+        std::vector<types::Char> localized_;
+# endif
+
         __PGBAR_CXX20_CNSTXPR OStream() = default;
 
       public:
@@ -2421,12 +2520,7 @@ namespace pgbar {
           return instance;
         }
 
-        __PGBAR_CXX20_CNSTXPR OStream( const Self& )           = delete;
-        __PGBAR_CXX20_CNSTXPR Self& operator=( const Self& ) & = delete;
-        // Intentional non-virtual destructors.
-        __PGBAR_CXX20_CNSTXPR ~OStream()                       = default;
-
-        Self& flush() &
+        static void writeout( const std::vector<types::Char>& bytes )
         {
 # if __PGBAR_WIN
           types::Size total_written = 0;
@@ -2438,8 +2532,8 @@ namespace pgbar {
                 __PGBAR_UNLIKELY throw exception::SystemError(
                   "pgbar: cannot open the standard output stream" );
               WriteFile( h_stdout,
-                         buffer_.data() + total_written,
-                         static_cast<DWORD>( buffer_.size() - total_written ),
+                         bytes.data() + total_written,
+                         static_cast<DWORD>( bytes.size() - total_written ),
                          &num_written,
                          nullptr );
             } else {
@@ -2448,36 +2542,100 @@ namespace pgbar {
                 __PGBAR_UNLIKELY throw exception::SystemError(
                   "pgbar: cannot open the standard error stream" );
               WriteFile( h_stderr,
-                         buffer_.data() + total_written,
-                         static_cast<DWORD>( buffer_.size() - total_written ),
+                         bytes.data() + total_written,
+                         static_cast<DWORD>( bytes.size() - total_written ),
                          &num_written,
                          nullptr );
             }
             if ( num_written <= 0 )
               break; // ignore it
             total_written += static_cast<types::Size>( num_written );
-          } while ( total_written < buffer_.size() );
+          } while ( total_written < bytes.size() );
 # elif __PGBAR_UNIX
           types::Size total_written = 0;
           do {
             ssize_t num_written = 0;
             if __PGBAR_CXX17_CNSTXPR ( Outlet == Channel::Stdout )
               num_written =
-                write( STDOUT_FILENO, buffer_.data() + total_written, buffer_.size() - total_written );
+                write( STDOUT_FILENO, bytes.data() + total_written, bytes.size() - total_written );
             else
               num_written =
-                write( STDERR_FILENO, buffer_.data() + total_written, buffer_.size() - total_written );
+                write( STDERR_FILENO, bytes.data() + total_written, bytes.size() - total_written );
             if ( errno == EINTR )
               num_written = num_written < 0 ? 0 : num_written;
             else if ( num_written < 0 )
               break;
             total_written += static_cast<types::Size>( num_written );
-          } while ( total_written < buffer_.size() );
+          } while ( total_written < bytes.size() );
 # else
           if __PGBAR_CXX17_CNSTXPR ( Outlet == Channel::Stdout )
-            std::cout.write( buffer_.data(), buffer_.size() ).flush();
+            std::cout.write( bytes.data(), bytes.size() ).flush();
           else
-            std::cerr.write( buffer_.data(), buffer_.size() ).flush();
+            std::cerr.write( bytes.data(), bytes.size() ).flush();
+# endif
+        }
+
+        __PGBAR_CXX20_CNSTXPR OStream( const Self& )           = delete;
+        __PGBAR_CXX20_CNSTXPR Self& operator=( const Self& ) & = delete;
+        // Intentional non-virtual destructors.
+        __PGBAR_CXX20_CNSTXPR ~OStream()                       = default;
+
+        // Releases the buffer space completely
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void release() noexcept
+        {
+          Stringbuf::release();
+# if __PGBAR_WIN
+          wb_buffer_.clear();
+          wb_buffer_.shrink_to_fit();
+          localized_.clear();
+          localized_.shrink_to_fit();
+# endif
+        }
+
+        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void clear() & noexcept
+        {
+          Stringbuf::clear();
+          wb_buffer_.clear();
+          localized_.clear();
+        }
+
+        __PGBAR_INLINE_FN Self& flush() &
+        {
+          if ( this->buffer_.empty() )
+            return *this;
+# if __PGBAR_WIN
+          const auto codepage = GetConsoleOutputCP();
+          if ( !console::TerminalContext<Outlet>::itself().connected() || codepage == CP_UTF8 ) {
+            writeout( this->buffer_ );
+            return *this;
+          }
+
+          const auto wlen =
+            MultiByteToWideChar( CP_UTF8, 0, buffer_.data(), static_cast<int>( buffer_.size() ), nullptr, 0 );
+          __PGBAR_ASSERT( wlen > 0 );
+          wb_buffer_.resize( static_cast<types::Size>( wlen ) );
+          MultiByteToWideChar( CP_UTF8,
+                               0,
+                               buffer_.data(),
+                               static_cast<int>( buffer_.size() ),
+                               wb_buffer_.data(),
+                               wlen );
+
+          const auto mblen =
+            WideCharToMultiByte( codepage, 0, wb_buffer_.data(), wlen, nullptr, 0, nullptr, nullptr );
+          __PGBAR_ASSERT( mblen > 0 );
+          localized_.resize( static_cast<types::Size>( mblen ) );
+          WideCharToMultiByte( codepage,
+                               0,
+                               wb_buffer_.data(),
+                               wlen,
+                               localized_.data(),
+                               mblen,
+                               nullptr,
+                               nullptr );
+          writeout( localized_ );
+# else
+          writeout( this->buffer_ );
 # endif
           clear();
           return *this;
@@ -2661,98 +2819,6 @@ namespace pgbar {
           }
         };
       } // namespace escodes
-
-      template<Channel Outlet>
-      class TerminalContext {
-        std::atomic<bool> cache_;
-
-        TerminalContext() noexcept { detect(); }
-
-      public:
-        TerminalContext( const TerminalContext& )              = delete;
-        TerminalContext& operator=( const TerminalContext& ) & = delete;
-        ~TerminalContext()                                     = default;
-
-        static TerminalContext& itself() noexcept
-        {
-          static TerminalContext self;
-          return self;
-        }
-
-        // Detect whether the specified output stream is bound to a terminal.
-        bool detect() noexcept
-        {
-          const bool value = []() noexcept {
-# if defined( PGBAR_INTTY ) || __PGBAR_UNKNOWN
-            return true;
-# elif __PGBAR_WIN
-            HANDLE hConsole;
-            if __PGBAR_CXX17_CNSTXPR ( Outlet == Channel::Stdout )
-              hConsole = GetStdHandle( STD_OUTPUT_HANDLE );
-            else
-              hConsole = GetStdHandle( STD_ERROR_HANDLE );
-            if ( hConsole == INVALID_HANDLE_VALUE )
-              __PGBAR_UNLIKELY return false;
-            return GetFileType( hConsole ) == FILE_TYPE_CHAR;
-# else
-            return isatty( static_cast<int>( Outlet ) );
-# endif
-          }();
-          cache_.store( value, std::memory_order_release );
-          return value;
-        }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool connected() const noexcept
-        {
-          return cache_.load( std::memory_order_acquire );
-        }
-
-        /**
-         * Enable virtual terminal processing on the specified output channel (Windows only).
-         * Guaranteed to be thread-safe and performed only once.
-         */
-        void enable_vt() const noexcept
-        {
-# if __PGBAR_WIN && defined( ENABLE_VIRTUAL_TERMINAL_PROCESSING )
-          static std::once_flag flag;
-          std::call_once( flag, []() noexcept {
-            HANDLE stream_handle =
-              GetStdHandle( Outlet == Channel::Stderr ? STD_ERROR_HANDLE : STD_OUTPUT_HANDLE );
-            if ( stream_handle == INVALID_HANDLE_VALUE )
-              __PGBAR_UNLIKELY return;
-
-            DWORD mode {};
-            if ( !GetConsoleMode( stream_handle, &mode ) )
-              __PGBAR_UNLIKELY return;
-            mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
-            SetConsoleMode( stream_handle, mode );
-          } );
-# endif
-        }
-
-        __PGBAR_NODISCARD types::Size width() noexcept
-        {
-          if ( !detect() )
-            return 0;
-# if __PGBAR_WIN
-          HANDLE hConsole;
-          if __PGBAR_CXX17_CNSTXPR ( Outlet == Channel::Stdout )
-            hConsole = GetStdHandle( STD_OUTPUT_HANDLE );
-          else
-            hConsole = GetStdHandle( STD_ERROR_HANDLE );
-          if ( hConsole != INVALID_HANDLE_VALUE ) {
-            CONSOLE_SCREEN_BUFFER_INFO csbi;
-            if ( GetConsoleScreenBufferInfo( hConsole, &csbi ) )
-              return csbi.srWindow.Right - csbi.srWindow.Left + 1;
-          }
-# elif __PGBAR_UNIX
-          struct winsize ws;
-          auto fd = static_cast<int>( Outlet );
-          if ( ioctl( fd, TIOCGWINSZ, &ws ) != -1 )
-            return ws.ws_col;
-# endif
-          return 100;
-        }
-      };
     } // namespace console
 
     namespace render {

@@ -7,21 +7,17 @@ using namespace std;
 
 int main()
 {
-#if _WIN32
-  system( "chcp 65001" );
-#endif
-
   auto bar =
-    pgbar::make_multi( pgbar::config::Line( pgbar::option::Prefix( "  Eating something...." ),
+    pgbar::make_multi( pgbar::config::Line( pgbar::option::Prefix( "Eating something...." ),
                                             pgbar::option::Filler( "⠇" ),
                                             pgbar::option::Lead( { "⠈", "⠐", "⠠", "⢀", "⡀", "⠄", "⠂", "⠁" } ),
                                             pgbar::option::Shift( 1 ),
                                             pgbar::option::InfoColor( "#7D7" ) ),
-                       pgbar::config::Block( pgbar::option::Prefix( "  Picking something..." ),
+                       pgbar::config::Block( pgbar::option::Prefix( "Picking something..." ),
                                              pgbar::option::Filler( "⠿" ),
                                              pgbar::option::Lead( { " ", "⠄", "⠆", "⠇", "⠧", "⠷" } ),
                                              pgbar::option::InfoColor( "#7BD" ) ),
-                       pgbar::config::Sweep( pgbar::option::Prefix( "  Doing something....." ),
+                       pgbar::config::Sweep( pgbar::option::Prefix( "Doing something....." ),
                                              pgbar::option::Filler( "." ),
                                              pgbar::option::Lead( "·" ),
                                              pgbar::option::InfoColor( "#26B4EB" ) ) );
