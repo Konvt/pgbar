@@ -2993,12 +2993,17 @@ int main()
 
 ## Unicode 支持
 `pgbar` 默认所有传入的字符串都以 UTF-8 格式编码；使用任何不以 UTF-8 编码的字符串都会有以下四种结果：
+
 1. 被认为是不完整的 UTF-8 字符串，并抛出 `pgbar::exception::InvalidArgument` 异常；
 2. 被认为是部分字节存在错误的破损 UTF-8 字符串，同样抛出 `pgbar::exception::InvalidArgument` 异常；
 3. 被认为是非标准的 UTF-8 字符串，行为同上；
 4. 被错误认为是 UTF-8 字符串，无异常抛出。
 
-`pgbar` 仅处理有关字符类型的 Unicode 编码，并不会在运行时主动更改终端编码环境；用户（也就是你）必须自行确保当前终端的字符集编码使用的是 UTF-8。
+`pgbar` 仅处理有关字符类型的 Unicode 编码，并不会在运行时主动更改终端编码环境。
+
+但如果程序运行在 Windows 上，那么 `pgbar` 会在输出流绑定到终端时、于输出字符串之前，将内部的 UTF-8 字符串经过 winapi 转换为对应终端代码页编码的字符，然后再输出；此时即使不改变终端编码环境也能看到正常的字符输出。
+
+> `pgbar` 不保证对应 UTF-8 字符在该终端编码环境下有正确的字体映射。
 
 如果使用的 C++ 标准在 C++20 以上，那么 `pgbar` 也能接受标准库的 `std::u8string` 和 `std::u8string_view` 等类型；但不会在 C++20 之外的标准接受字面量 UTF-8 字符串，也就是这种类型：`u8"This is a UTF-8 literal string"`.
 
