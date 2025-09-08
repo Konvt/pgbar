@@ -6,10 +6,6 @@ using namespace std;
 
 int main()
 {
-#if _WIN32
-  system( "chcp 65001" );
-#endif
-
   auto mbar = pgbar::make_multi(
     pgbar::config::Flow( pgbar::option::Style( pgbar::config::Flow::Entire ),
                          pgbar::option::Filler( "━" ),
