@@ -240,8 +240,11 @@ namespace pgbar {
       using ROStr  = typename std::add_lvalue_reference<typename std::add_const<String>::type>::type;
       using LitStr = typename std::add_pointer<typename std::add_const<Char>::type>::type;
 # endif
-      // a constant string type
-      using ConstStr   = typename std::add_const<typename std::decay<ROStr>::type>::type;
+# if __PGBAR_CXX20
+      using LitU8 = std::u8string_view;
+# else
+      using LitU8 = LitStr;
+# endif
       using HexRGB     = std::uint32_t;
       using UCodePoint = char32_t; // Unicode code point
       using Float      = double;
@@ -1245,7 +1248,7 @@ namespace pgbar {
           ptr->~T();
         }
         template<typename T>
-        static __PGBAR_CXX14_CNSTXPR void move_inline( AnyFn& dst, AnyFn& src ) noexcept
+        static void move_inline( AnyFn& dst, AnyFn& src ) noexcept
         {
           new ( &dst ) T( std::move( *utils::launder_as<T>( &src.buf_ ) ) );
           destroy_inline<T>( src );
@@ -1321,7 +1324,7 @@ namespace pgbar {
           return tbl;
         }
 
-        constexpr FnStorageBlock() noexcept : vtable_ { &table_null() } {}
+        __PGBAR_CXX23_CNSTXPR FnStorageBlock() noexcept : vtable_ { &table_null() } {}
 
         __PGBAR_INLINE_FN __PGBAR_CXX23_CNSTXPR void reset() noexcept
         {
@@ -1330,8 +1333,7 @@ namespace pgbar {
           vtable_ = &table_null();
         }
         template<typename F>
-        __PGBAR_INLINE_FN __PGBAR_CXX23_CNSTXPR void reset( F&& fn )
-          noexcept( Inlinable<typename std::decay<F>::type>::value )
+        __PGBAR_INLINE_FN void reset( F&& fn ) noexcept( Inlinable<typename std::decay<F>::type>::value )
         {
           const VTable* vtable = nullptr;
           AnyFn tmp;
@@ -1342,8 +1344,6 @@ namespace pgbar {
         }
 
       public:
-        FnStorageBlock( const FnStorageBlock& )              = delete;
-        FnStorageBlock& operator=( const FnStorageBlock& ) & = delete;
         __PGBAR_CXX23_CNSTXPR FnStorageBlock( FnStorageBlock&& rhs ) noexcept : vtable_ { rhs.vtable_ }
         {
           __PGBAR_TRUST( rhs.vtable_ != nullptr );
@@ -1362,7 +1362,7 @@ namespace pgbar {
         }
         __PGBAR_CXX23_CNSTXPR ~FnStorageBlock() noexcept { reset(); }
 
-        __PGBAR_CXX14_CNSTXPR void swap( FnStorageBlock& lhs ) noexcept
+        __PGBAR_CXX23_CNSTXPR void swap( FnStorageBlock& lhs ) noexcept
         {
           __PGBAR_TRUST( vtable_ != nullptr );
           __PGBAR_TRUST( lhs.vtable_ != nullptr );
@@ -1372,7 +1372,7 @@ namespace pgbar {
           vtable_->move( lhs.callee_, tmp );
           std::swap( vtable_, lhs.vtable_ );
         }
-        __PGBAR_CXX14_CNSTXPR friend void swap( FnStorageBlock& a, FnStorageBlock& b ) noexcept
+        __PGBAR_CXX23_CNSTXPR friend void swap( FnStorageBlock& a, FnStorageBlock& b ) noexcept
         {
           return a.swap( b );
         }
@@ -1457,7 +1457,9 @@ namespace pgbar {
           return utils::invoke( forward_as<CrefInfo>( *dptr ), std::forward<Args>( args )... );
         }
 
-        constexpr FnInvokeBlock() = default;
+        constexpr FnInvokeBlock()                                           = default;
+        constexpr FnInvokeBlock( FnInvokeBlock&& )                          = default;
+        __PGBAR_CXX14_CNSTXPR FnInvokeBlock& operator=( FnInvokeBlock&& ) & = default;
       };
 
       // A simplified implementation of std::move_only_function
@@ -1469,36 +1471,40 @@ namespace pgbar {
         using Base = FnStorageBlock<UniqueFunction>;
 
       public:
-        constexpr UniqueFunction() = default;
+        UniqueFunction( const UniqueFunction& )              = delete;
+        UniqueFunction& operator=( const UniqueFunction& ) & = delete;
+
+        constexpr UniqueFunction()                                            = default;
+        constexpr UniqueFunction( UniqueFunction&& )                          = default;
+        __PGBAR_CXX14_CNSTXPR UniqueFunction& operator=( UniqueFunction&& ) & = default;
+
         constexpr UniqueFunction( std::nullptr_t ) noexcept : UniqueFunction() {}
         template<typename F,
                  typename = typename std::enable_if<
                    traits::AllOf<std::is_constructible<typename std::decay<F>::type, F>,
                                  traits::Invocable_r<R, F, Args...>>::value>::type>
-        __PGBAR_CXX23_CNSTXPR UniqueFunction( F&& fn )
-          noexcept( Base::template Inlinable<typename std::decay<F>::type>::value )
+        UniqueFunction( F&& fn ) noexcept( Base::template Inlinable<typename std::decay<F>::type>::value )
         {
           Base::store_fn( this->vtable_, this->callee_, std::forward<F>( fn ) );
         }
         // In C++11, `std::in_place_type` does not exist, and we will not use it either.
         // Therefore, we do not provide an overloaded constructor for this type here.
         template<typename F>
-        __PGBAR_CXX23_CNSTXPR
-          typename std::enable_if<traits::AllOf<std::is_constructible<typename std::decay<F>::type, F>,
-                                                traits::Invocable_r<R, F, Args...>>::value,
-                                  UniqueFunction&>::type
+        typename std::enable_if<traits::AllOf<std::is_constructible<typename std::decay<F>::type, F>,
+                                              traits::Invocable_r<R, F, Args...>>::value,
+                                UniqueFunction&>::type
           operator=( F&& fn ) & noexcept( Base::template Inlinable<typename std::decay<F>::type>::value )
         {
           this->reset( std::forward<F>( fn ) );
           return *this;
         }
-        UniqueFunction& operator=( std::nullptr_t ) noexcept
+        __PGBAR_CXX23_CNSTXPR UniqueFunction& operator=( std::nullptr_t ) noexcept
         {
           this->reset();
           return *this;
         }
 
-        __PGBAR_CXX23_CNSTXPR R operator()( Args... args )
+        R operator()( Args... args )
         {
           __PGBAR_TRUST( this->vtable_ != nullptr );
           return ( *this->vtable_->invoke )( this->callee_, std::forward<Args>( args )... );
@@ -1785,7 +1791,7 @@ namespace pgbar {
         static_assert( sizeof( char8_t ) == sizeof( char ),
                        "pgbar::__details::chaset::U8Raw: Unexpected type size mismatch" );
 
-        __PGBAR_CXX20_CNSTXPR explicit U8Raw( std::u8string_view u8_sv ) : U8Raw()
+        __PGBAR_CXX20_CNSTXPR explicit U8Raw( types::LitU8 u8_sv ) : U8Raw()
         {
           auto new_bytes = types::String( u8_sv.size(), '\0' );
           std::copy( u8_sv.cbegin(), u8_sv.cend(), new_bytes.begin() );
@@ -1802,7 +1808,7 @@ namespace pgbar {
         }
 
         __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::String operator+(
-          std::u8string_view a,
+          types::LitU8 a,
           const Self& b )
         {
           types::String tmp;
@@ -1810,14 +1816,13 @@ namespace pgbar {
           std::copy( a.cbegin(), a.cend(), std::back_inserter( tmp ) );
           return std::move( tmp ) + b.bytes_;
         }
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN types::String operator+( Self&& a, std::u8string_view b )
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN types::String operator+( Self&& a, types::LitU8 b )
         {
           a.bytes_.reserve( a.bytes_.size() + b.size() );
           std::copy( b.cbegin(), b.cend(), std::back_inserter( a.bytes_ ) );
           return std::move( a.bytes_ );
         }
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN types::String operator+( const Self& a,
-                                                                            std::u8string_view b )
+        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN types::String operator+( const Self& a, types::LitU8 b )
         {
           auto tmp = a.bytes_;
           tmp.reserve( a.bytes_.size() + b.size() );
@@ -1904,13 +1909,13 @@ namespace pgbar {
         }
 
         __PGBAR_CXX20_CNSTXPR void clear()
-          noexcept( noexcept( U8Raw::clear() ) && noexcept( chars_.clear() ) )
+          noexcept( noexcept( std::declval<U8Raw&>().clear() ) && noexcept( chars_.clear() ) )
         {
           U8Raw::clear();
           chars_.clear();
         }
         __PGBAR_CXX20_CNSTXPR void shrink_to_fit()
-          noexcept( noexcept( U8Raw::shrink_to_fit() ) && noexcept( chars_.shrink_to_fit() ) )
+          noexcept( noexcept( std::declval<U8Raw&>().shrink_to_fit() ) && noexcept( chars_.shrink_to_fit() ) )
         {
           U8Raw::shrink_to_fit();
           chars_.shrink_to_fit();
@@ -1970,7 +1975,7 @@ namespace pgbar {
         }
 
 # if __PGBAR_CXX20
-        __PGBAR_CXX20_CNSTXPR explicit U8Text( std::u8string_view u8_sv ) : U8Text()
+        __PGBAR_CXX20_CNSTXPR explicit U8Text( types::LitU8 u8_sv ) : U8Text()
         {
           auto new_bytes = types::String( u8_sv.size(), '\0' );
           std::copy( u8_sv.cbegin(), u8_sv.cend(), new_bytes.begin() );
@@ -2268,7 +2273,7 @@ namespace pgbar {
          */
         void enable_vt() const noexcept
         {
-# if __PGBAR_WIN && defined( ENABLE_VIRTUAL_TERMINAL_PROCESSING )
+# if __PGBAR_WIN && !defined( PGBAR_COLORLESS ) && defined( ENABLE_VIRTUAL_TERMINAL_PROCESSING )
           static std::once_flag flag;
           std::call_once( flag, []() noexcept {
             HANDLE stream_handle =
@@ -2406,13 +2411,13 @@ namespace pgbar {
         friend __PGBAR_CXX20_CNSTXPR void swap( Stringbuf& a, Stringbuf& b ) noexcept { a.swap( b ); }
 
 # if __PGBAR_CXX20
-        __PGBAR_INLINE_FN Self& append( std::u8string_view info, types::Size __num = 1 ) &
+        __PGBAR_INLINE_FN Self& append( types::LitU8 info, types::Size __num = 1 ) &
         {
           while ( __num-- )
             buffer_.insert( buffer_.end(), info.data(), info.data() + info.size() );
           return *this;
         }
-        friend __PGBAR_INLINE_FN Self& operator<<( Self& stream, std::u8string_view info )
+        friend __PGBAR_INLINE_FN Self& operator<<( Self& stream, types::LitU8 info )
         {
           return stream.append( info );
         }
@@ -2520,16 +2525,14 @@ namespace pgbar {
         // Intentional non-virtual destructors.
         __PGBAR_CXX20_CNSTXPR ~OStream()                       = default;
 
-        // Releases the buffer space completely
+# if __PGBAR_WIN
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void release() noexcept
         {
           Stringbuf::release();
-# if __PGBAR_WIN
           wb_buffer_.clear();
           wb_buffer_.shrink_to_fit();
           localized_.clear();
           localized_.shrink_to_fit();
-# endif
         }
 
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void clear() & noexcept
@@ -2538,6 +2541,7 @@ namespace pgbar {
           wb_buffer_.clear();
           localized_.clear();
         }
+# endif
 
         __PGBAR_INLINE_FN Self& flush() &
         {
@@ -2594,18 +2598,18 @@ namespace pgbar {
       // escape codes
       namespace escodes {
 # ifdef PGBAR_COLORLESS
-        __PGBAR_CXX17_INLINE constexpr types::LitStr fontreset = "";
-        __PGBAR_CXX17_INLINE constexpr types::LitStr fontbold  = "";
+        __PGBAR_CXX17_INLINE constexpr types::LitU8 fontreset = u8"";
+        __PGBAR_CXX17_INLINE constexpr types::LitU8 fontbold  = u8"";
 # else
-        __PGBAR_CXX17_INLINE constexpr types::LitStr fontreset = "\x1B[0m";
-        __PGBAR_CXX17_INLINE constexpr types::LitStr fontbold  = "\x1B[1m";
+        __PGBAR_CXX17_INLINE constexpr types::LitU8 fontreset = u8"\x1B[0m";
+        __PGBAR_CXX17_INLINE constexpr types::LitU8 fontbold  = u8"\x1B[1m";
 # endif
-        __PGBAR_CXX17_INLINE constexpr types::LitStr savecursor  = "\x1B[s";
-        __PGBAR_CXX17_INLINE constexpr types::LitStr resetcursor = "\x1B[u";
-        __PGBAR_CXX17_INLINE constexpr types::LitStr linewipe    = "\x1B[K";
-        __PGBAR_CXX17_INLINE constexpr types::LitStr prevline    = "\x1b[A";
-        __PGBAR_CXX17_INLINE constexpr types::Char nextline      = '\n';
-        __PGBAR_CXX17_INLINE constexpr types::Char linestart     = '\r';
+        __PGBAR_CXX17_INLINE constexpr types::LitU8 savecursor  = u8"\x1B[s";
+        __PGBAR_CXX17_INLINE constexpr types::LitU8 resetcursor = u8"\x1B[u";
+        __PGBAR_CXX17_INLINE constexpr types::LitU8 linewipe    = u8"\x1B[K";
+        __PGBAR_CXX17_INLINE constexpr types::LitU8 prevline    = u8"\x1b[A";
+        __PGBAR_CXX17_INLINE constexpr types::Char nextline     = '\n';
+        __PGBAR_CXX17_INLINE constexpr types::Char linestart    = '\r';
 
         class RGBColor {
           using Self = RGBColor;
@@ -3895,7 +3899,7 @@ namespace pgbar {
     __PGBAR_CXX20_CNSTXPR StructName( __details::types::String ParamName ) \
       : Base( Data( std::move( ParamName ) ) )                             \
     {}                                                                     \
-    StructName( std::u8string_view ParamName ) : Base( Data( std::move( ParamName ) ) ) {}
+    StructName( __details::types::LitU8 ParamName ) : Base( Data( std::move( ParamName ) ) ) {}
 # else
 #  define __PGBAR_OPTION( StructName, ParamName )                          \
     __PGBAR_CXX20_CNSTXPR StructName() = default;                          \
@@ -4046,11 +4050,13 @@ namespace pgbar {
        * The given each unit will be treated as 1,000 times greater than the previous one
        * (from left to right).
        */
-      __PGBAR_CXX20_CNSTXPR SpeedUnit( std::array<std::u8string_view, 4> _units )
+      __PGBAR_CXX20_CNSTXPR SpeedUnit( std::array<__details::types::LitU8, 4> _units )
       {
-        std::transform( _units.cbegin(), _units.cend(), data_.begin(), []( const std::u8string_view& ele ) {
-          return __details::charcodes::U8Raw( ele );
-        } );
+        std::transform(
+          _units.cbegin(),
+          _units.cend(),
+          data_.begin(),
+          []( const __details::types::LitU8& ele ) { return __details::charcodes::U8Raw( ele ); } );
       }
 # endif
     };
@@ -4084,14 +4090,15 @@ namespace pgbar {
         : Base( { __details::charcodes::U8Text( std::move( _lead ) ) } )
       {}
 # if __PGBAR_CXX20
-      __PGBAR_CXX20_CNSTXPR Lead( const std::vector<std::u8string_view>& _leads )
+      __PGBAR_CXX20_CNSTXPR Lead( const std::vector<__details::types::LitU8>& _leads )
       {
-        std::transform( _leads.cbegin(),
-                        _leads.cend(),
-                        std::back_inserter( data_ ),
-                        []( const std::u8string_view& ele ) { return __details::charcodes::U8Text( ele ); } );
+        std::transform(
+          _leads.cbegin(),
+          _leads.cend(),
+          std::back_inserter( data_ ),
+          []( const __details::types::LitU8& ele ) { return __details::charcodes::U8Text( ele ); } );
       }
-      Lead( const std::u8string_view& _lead ) : Base( { __details::charcodes::U8Text( _lead ) } ) {}
+      Lead( const __details::types::LitU8& _lead ) : Base( { __details::charcodes::U8Text( _lead ) } ) {}
 # endif
     };
 
@@ -4330,8 +4337,8 @@ namespace pgbar {
          */
         Derived& lead( types::String _lead ) & { __PGBAR_METHOD( Lead, _lead, std::move ); }
 # if __PGBAR_CXX20
-        Derived& lead( const std::vector<std::u8string_view>& _leads ) & { __PGBAR_METHOD( Lead, _leads, ); }
-        Derived& lead( std::u8string_view _lead ) & { __PGBAR_METHOD( Lead, _lead, ); }
+        Derived& lead( const std::vector<types::LitU8>& _leads ) & { __PGBAR_METHOD( Lead, _leads, ); }
+        Derived& lead( types::LitU8 _lead ) & { __PGBAR_METHOD( Lead, _lead, ); }
 # endif
 
         // Set the color of the component `lead`.
@@ -4386,7 +4393,7 @@ namespace pgbar {
          */
         Derived& filler( types::String _filler ) & { __PGBAR_METHOD( Filler, _filler, std::move ); }
 # if __PGBAR_CXX20
-        Derived& filler( std::u8string_view _filler ) & { __PGBAR_METHOD( Filler, _filler, ); }
+        Derived& filler( types::LitU8 _filler ) & { __PGBAR_METHOD( Filler, _filler, ); }
 # endif
         Derived& filler_color( types::HexRGB _filler_color ) &
         {
@@ -4456,7 +4463,7 @@ namespace pgbar {
          */
         Derived& remains( types::String _remains ) & { __PGBAR_METHOD( Remains, _remains, std::move ); }
 # if __PGBAR_CXX20
-        Derived& remains( std::u8string_view _remains ) & { __PGBAR_METHOD( Remains, _remains, ); }
+        Derived& remains( types::LitU8 _remains ) & { __PGBAR_METHOD( Remains, _remains, ); }
 # endif
 # undef __PGBAR_METHOD
 
@@ -4553,8 +4560,8 @@ namespace pgbar {
          */
         Derived& ending( types::String _ending ) & { __PGBAR_METHOD( Ending, _ending, std::move ); }
 # if __PGBAR_CXX20
-        Derived& starting( std::u8string_view _starting ) & { __PGBAR_METHOD( Starting, _starting, ); }
-        Derived& ending( std::u8string_view _ending ) & { __PGBAR_METHOD( Ending, _ending, ); }
+        Derived& starting( types::LitU8 _starting ) & { __PGBAR_METHOD( Starting, _starting, ); }
+        Derived& ending( types::LitU8 _ending ) & { __PGBAR_METHOD( Ending, _ending, ); }
 # endif
 
         Derived& start_color( types::HexRGB _start_color ) & { __PGBAR_METHOD( StartColor, _start_color, ); }
@@ -4942,7 +4949,7 @@ namespace pgbar {
         Derived& prefix( types::String _prefix ) & { __PGBAR_METHOD( Prefix, _prefix, std::move ); }
 
 # if __PGBAR_CXX20
-        Derived& prefix( std::u8string_view _prefix ) & { __PGBAR_METHOD( Prefix, _prefix, ); }
+        Derived& prefix( types::LitU8 _prefix ) & { __PGBAR_METHOD( Prefix, _prefix, ); }
 # endif
 
         Derived& prefix_color( types::HexRGB _prfx_color ) & { __PGBAR_METHOD( PrefixColor, _prfx_color, ); }
@@ -5008,7 +5015,7 @@ namespace pgbar {
          */
         Derived& postfix( types::String _postfix ) & { __PGBAR_METHOD( Postfix, _postfix, std::move ); }
 # if __PGBAR_CXX20
-        Derived& postfix( std::u8string_view _postfix ) & { __PGBAR_METHOD( Postfix, _postfix, ); }
+        Derived& postfix( types::LitU8 _postfix ) & { __PGBAR_METHOD( Postfix, _postfix, ); }
 # endif
 
         Derived& postfix_color( types::HexRGB _pstfx_color ) &
@@ -5097,9 +5104,9 @@ namespace pgbar {
           __PGBAR_METHOD( RightBorder, _r_border, std::move );
         }
 # if __PGBAR_CXX20
-        Derived& divider( std::u8string_view _divider ) & { __PGBAR_METHOD( Divider, _divider, ); }
-        Derived& left_border( std::u8string_view _l_border ) & { __PGBAR_METHOD( LeftBorder, _l_border, ); }
-        Derived& right_border( std::u8string_view _r_border ) & { __PGBAR_METHOD( RightBorder, _r_border, ); }
+        Derived& divider( types::LitU8 _divider ) & { __PGBAR_METHOD( Divider, _divider, ); }
+        Derived& left_border( types::LitU8 _l_border ) & { __PGBAR_METHOD( LeftBorder, _l_border, ); }
+        Derived& right_border( types::LitU8 _r_border ) & { __PGBAR_METHOD( RightBorder, _r_border, ); }
 # endif
 
         Derived& info_color( types::HexRGB _info_color ) & { __PGBAR_METHOD( InfoColor, _info_color, ); }
@@ -5137,8 +5144,8 @@ namespace pgbar {
 # if __PGBAR_CXX20
             __PGBAR_UNLIKELY
             {
-              constexpr std::u8string_view tmp = __PGBAR_DEFAULT_PERCENT;
-              auto ret                         = types::String( tmp.size(), '\0' );
+              constexpr types::LitU8 tmp = __PGBAR_DEFAULT_PERCENT;
+              auto ret                   = types::String( tmp.size(), '\0' );
               std::copy( tmp.cbegin(), tmp.cend(), ret.begin() );
               return ret;
             }
@@ -5255,10 +5262,7 @@ namespace pgbar {
          * The given each unit will be treated as 1,000 times greater than the previous one
          * (from left to right).
          */
-        Derived& speed_unit( std::array<std::u8string_view, 4> _units ) &
-        {
-          __PGBAR_METHOD( SpeedUnit, _units );
-        }
+        Derived& speed_unit( std::array<types::LitU8, 4> _units ) & { __PGBAR_METHOD( SpeedUnit, _units ); }
 # endif
 
         /**
@@ -5350,8 +5354,8 @@ namespace pgbar {
           if ( num_task_done == 0 || num_all_tasks == 0 )
 # if __PGBAR_CXX20
           {
-            constexpr std::u8string_view tmp = __PGBAR_DEFAULT_TIMER;
-            auto ret                         = types::String( tmp.size(), '\0' );
+            constexpr types::LitU8 tmp = __PGBAR_DEFAULT_TIMER;
+            auto ret                   = types::String( tmp.size(), '\0' );
             std::copy( tmp.cbegin(), tmp.cend(), ret.begin() );
             return ret;
           }
@@ -5368,8 +5372,8 @@ namespace pgbar {
           if ( remaining_tasks > ( std::numeric_limits<std::int64_t>::max )() / time_per_task.count() )
 # if __PGBAR_CXX20
           {
-            constexpr std::u8string_view tmp = __PGBAR_DEFAULT_TIMER;
-            auto ret                         = types::String( tmp.size(), '\0' );
+            constexpr types::LitU8 tmp = __PGBAR_DEFAULT_TIMER;
+            auto ret                   = types::String( tmp.size(), '\0' );
             std::copy( tmp.cbegin(), tmp.cend(), ret.begin() );
             return ret;
           }
@@ -5922,11 +5926,22 @@ namespace pgbar {
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Reversed>::value )
           unpacker( *this, option::Reversed( false ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Lead>::value )
-          unpacker( *this, option::Lead( { u8" ", u8"▏", u8"▎", u8"▍", u8"▌", u8"▋", u8"▊", u8"▉" } ) );
+          unpacker( *this,
+                    option::Lead( { u8" ",
+                                    u8"\u258F",
+                                    u8"\u258E",
+                                    u8"\u258D",
+                                    u8"\u258C",
+                                    u8"\u258B",
+                                    u8"\u258A",
+                                    u8"\u2589" } ) );
+        // In some editing environments,
+        // directly writing character literals can lead to very strange encoding conversion errors.
+        // Therefore, here we use Unicode code points to directly specify the required characters.
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::BarLength>::value )
           unpacker( *this, option::BarLength( 30 ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Filler>::value )
-          unpacker( *this, option::Filler( u8"█" ) );
+          unpacker( *this, option::Filler( u8"\u2588" ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Remains>::value )
           unpacker( *this, option::Remains( u8" " ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Divider>::value )
@@ -6674,10 +6689,14 @@ namespace pgbar {
 
       public:
         using Base::Base;
-        constexpr FrameCounter()                                          = default;
-        constexpr FrameCounter( FrameCounter&& )                          = default;
-        __PGBAR_CXX14_CNSTXPR FrameCounter& operator=( FrameCounter&& ) & = default;
-        __PGBAR_CXX20_CNSTXPR ~FrameCounter()                             = default;
+        constexpr FrameCounter() = default;
+        constexpr FrameCounter( FrameCounter&& rhs ) noexcept : Base( std::move( rhs ) ) {}
+        __PGBAR_CXX14_CNSTXPR FrameCounter& operator=( FrameCounter&& rhs ) & noexcept
+        {
+          Base::operator=( std::move( rhs ) );
+          return *this;
+        }
+        __PGBAR_CXX20_CNSTXPR ~FrameCounter() = default;
       };
 
       template<typename Base, typename Derived>
@@ -6791,10 +6810,10 @@ namespace pgbar {
         }
 
       public:
-        CoreBar( Soul&& config ) noexcept : config_ { std::move( config ) } {}
-
         CoreBar( const Self& )           = delete;
         Self& operator=( const Self& ) & = delete;
+
+        CoreBar( Soul&& config ) noexcept : config_ { std::move( config ) } {}
         CoreBar( Self&& rhs ) noexcept( std::is_nothrow_move_constructible<Base>::value )
           : Base( std::move( rhs ) ), config_ { std::move( rhs.config_ ) }
         {}
@@ -6856,6 +6875,9 @@ namespace pgbar {
         wrappers::UniqueFunction<void()> hook_;
 
       public:
+        ReactiveBar( const Self& )       = delete;
+        Self& operator=( const Self& ) & = delete;
+
         using Base::Base;
         constexpr ReactiveBar( Self&& rhs ) noexcept : Base( std::move( rhs ) ) {}
         __PGBAR_CXX14_CNSTXPR Self& operator=( Self&& rhs ) & noexcept
@@ -7105,12 +7127,12 @@ namespace pgbar {
         }
 
       public:
+        PlainBar( const Self& )          = delete;
+        Self& operator=( const Self& ) & = delete;
+
         PlainBar( Soul&& config ) noexcept( std::is_nothrow_constructible<Base, Soul&&>::value )
           : Base( std::move( config ) ), state_ { State::Stop }
         {}
-
-        PlainBar( const PlainBar& )          = delete;
-        Self& operator=( const PlainBar& ) & = delete;
         PlainBar( Self&& rhs ) noexcept( std::is_nothrow_move_constructible<Base>::value )
           : Base( std::move( rhs ) ), state_ { State::Stop }
         {}
@@ -7252,11 +7274,12 @@ namespace pgbar {
         }
 
       public:
+        FrameBar( const Self& )          = delete;
+        Self& operator=( const Self& ) & = delete;
+
         FrameBar( Soul&& config ) noexcept( std::is_nothrow_constructible<Base, Soul&&>::value )
           : Base( std::move( config ) ), state_ { State::Stop }
         {}
-        FrameBar( const Self& )          = delete;
-        Self& operator=( const Self& ) & = delete;
         FrameBar( Self&& rhs ) noexcept( std::is_nothrow_move_constructible<Base>::value )
           : Base( std::move( rhs ) ), state_ { State::Stop }
         {}
