@@ -2993,12 +2993,17 @@ A progress bar that is stopped by destructing does not append any more informati
 
 ## Unicode support
 `pgbar` defaults to encoding all incoming strings in UTF-8 format; Using any string that is not encoded in UTF-8 will have the following four results:
+
 1. Is considered incomplete UTF-8 string, and throw `pgbar::exception::InvalidArgument` exception;
 2. Is considered to be part of the breakage of the byte error UTF-8 string, also throw `pgbar::exception::InvalidArgument` exception;
 3. Is considered non-standard UTF-8 string and behaves as above;
 4. Incorrectly considered to be a UTF-8 string, no exception is thrown.
 
-`pgbar` only handles Unicode encodings for character types and does not actively change the terminal encoding environment at run time; The user (that is, you) must ensure that the current terminal's character set encoding uses UTF-8.
+`pgbar` only handles Unicode encodings for character types and does not actively change the terminal encoding environment at run time。
+
+However, if the program is running on Windows, `pgbar` will convert the internal UTF-8 string into the corresponding terminal codepage encoded characters through winapi before outputting the string when the output stream is bound to the terminal, and then output it. At this point, normal character output can be seen even without changing the terminal encoding environment.
+
+> `pgbar` does not guarantee that the corresponding UTF-8 characters have the correct font mapping in this terminal encoding environment.
 
 If the C++ standard is above C++20, `pgbar` will also accept the standard library types `std::u8string` and `std::u8string_view`. But standards other than C++20 do not accept literal UTF-8 strings, which is of this type: `u8"This is a UTF-8 literal string"`.
 
