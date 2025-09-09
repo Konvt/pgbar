@@ -2709,7 +2709,7 @@ int main()
 
 尝试传递错误的十六进制颜色代码字符串会导致异常 `pgbar::exception::InvalidArgument` 抛出。
 
-对于一些不支持着色效果的终端，`pgbar` 允许使用宏开关 `PGBAR_COLORLESS` 关闭全局的 RGB 支持；但这不会影响传入错误的 RGB 字符串时，抛出异常 `pgbar::exception::InvalidArgument` 的行为。
+对于一些不支持着色效果的终端，`pgbar` 允许使用宏开关 `PGBAR_NOCOLOR` 关闭全局的 RGB 支持；但这不会影响传入错误的 RGB 字符串时，抛出异常 `pgbar::exception::InvalidArgument` 的行为。
 
 除此之外，每个独立进度条的配置类型都允许使用方法 `colored()` 单独关闭该对象的着色效果。
 

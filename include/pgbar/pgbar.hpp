@@ -2224,19 +2224,20 @@ namespace pgbar {
 
     namespace console {
       template<Channel Outlet>
-      class TerminalContext {
+      class TermContext {
         std::atomic<bool> cache_;
 
-        TerminalContext() noexcept { detect(); }
+        TermContext() noexcept { detect(); }
 
       public:
-        TerminalContext( const TerminalContext& )              = delete;
-        TerminalContext& operator=( const TerminalContext& ) & = delete;
-        ~TerminalContext()                                     = default;
+        TermContext( const TermContext& )              = delete;
+        TermContext& operator=( const TermContext& ) & = delete;
 
-        static TerminalContext& itself() noexcept
+        ~TermContext() = default;
+
+        static TermContext& itself() noexcept
         {
-          static TerminalContext self;
+          static TermContext self;
           return self;
         }
 
@@ -2271,9 +2272,9 @@ namespace pgbar {
          * Enable virtual terminal processing on the specified output channel (Windows only).
          * Guaranteed to be thread-safe and performed only once.
          */
-        void enable_vt() const noexcept
+        void virtual_term() const noexcept
         {
-# if __PGBAR_WIN && !defined( PGBAR_COLORLESS ) && defined( ENABLE_VIRTUAL_TERMINAL_PROCESSING )
+# if __PGBAR_WIN && !defined( PGBAR_NOCOLOR ) && defined( ENABLE_VIRTUAL_TERMINAL_PROCESSING )
           static std::once_flag flag;
           std::call_once( flag, []() noexcept {
             HANDLE stream_handle =
@@ -2359,13 +2360,13 @@ namespace pgbar {
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& append( const char ( &info )[N],
                                                               types::Size __num = 1 ) &
         {
-          for ( types::Size _ = 0; _ < __num; ++_ )
+          while ( __num-- )
             buffer_.insert( buffer_.end(), info, info + N );
           return *this;
         }
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& append( types::ROStr info, types::Size __num = 1 ) &
         {
-          for ( types::Size _ = 0; _ < __num; ++_ )
+          while ( __num-- )
             buffer_.insert( buffer_.end(), info.cbegin(), info.cend() );
           return *this;
         }
@@ -2549,7 +2550,7 @@ namespace pgbar {
             return *this;
 # if __PGBAR_WIN
           const auto codepage = GetConsoleOutputCP();
-          if ( !console::TerminalContext<Outlet>::itself().connected() || codepage == CP_UTF8 ) {
+          if ( !console::TermContext<Outlet>::itself().connected() || codepage == CP_UTF8 ) {
             writeout( this->buffer_ );
             return *this;
           }
@@ -2597,7 +2598,7 @@ namespace pgbar {
     namespace console {
       // escape codes
       namespace escodes {
-# ifdef PGBAR_COLORLESS
+# ifdef PGBAR_NOCOLOR
         __PGBAR_CXX17_INLINE constexpr types::LitU8 fontreset = u8"";
         __PGBAR_CXX17_INLINE constexpr types::LitU8 fontbold  = u8"";
 # else
@@ -2647,7 +2648,7 @@ namespace pgbar {
 
           __PGBAR_CXX23_CNSTXPR void from_hex( types::HexRGB hex_val ) & noexcept
           {
-# ifndef PGBAR_COLORLESS
+# ifndef PGBAR_NOCOLOR
             length_ = 1;
             if ( hex_val == __PGBAR_DEFAULT ) {
               sgr_[0] = '0';
@@ -2688,7 +2689,7 @@ namespace pgbar {
                 throw exception::InvalidArgument( "pgbar: invalid hexadecimal letter" );
             }
 
-# ifndef PGBAR_COLORLESS
+# ifndef PGBAR_NOCOLOR
             std::uint32_t hex_val = 0;
             if ( hex_str.size() == 4 ) {
               for ( types::Size i = 1; i < hex_str.size(); ++i ) {
@@ -2753,7 +2754,7 @@ namespace pgbar {
 
           __PGBAR_INLINE_FN friend io::Stringbuf& operator<<( io::Stringbuf& buf, const Self& col )
           {
-# ifndef PGBAR_COLORLESS
+# ifndef PGBAR_NOCOLOR
             buf.append( '\x1B' )
               .append( '[' )
               .append( col.sgr_.data(), col.sgr_.data() + col.length_ )
@@ -2783,7 +2784,7 @@ namespace pgbar {
 
         void launch() & noexcept( false )
         {
-          console::TerminalContext<Tag>::itself().enable_vt();
+          console::TermContext<Tag>::itself().virtual_term();
 
           __PGBAR_ASSERT( td_.get_id() == std::thread::id() );
           state_.store( State::Dormant, std::memory_order_release );
@@ -5807,15 +5808,15 @@ namespace pgbar {
     __PGBAR_NODISCARD inline bool intty( Channel channel ) noexcept
     {
       if ( channel == Channel::Stdout )
-        return __details::console::TerminalContext<Channel::Stdout>::itself().detect();
-      return __details::console::TerminalContext<Channel::Stderr>::itself().detect();
+        return __details::console::TermContext<Channel::Stdout>::itself().detect();
+      return __details::console::TermContext<Channel::Stderr>::itself().detect();
     }
 
     __PGBAR_NODISCARD inline __details::types::Size terminal_width( Channel channel ) noexcept
     {
       if ( channel == Channel::Stdout )
-        return __details::console::TerminalContext<Channel::Stdout>::itself().width();
-      return __details::console::TerminalContext<Channel::Stderr>::itself().width();
+        return __details::console::TermContext<Channel::Stdout>::itself().width();
+      return __details::console::TermContext<Channel::Stderr>::itself().width();
     }
 
     using TimeUnit = __details::types::TimeUnit;
@@ -6757,7 +6758,7 @@ namespace pgbar {
           if ( !executor.try_appoint( [this]() {
                  // No exceptions are caught here, this should be done by the thread manager.
                  auto& ostream    = io::OStream<Outlet>::itself();
-                 const auto istty = console::TerminalContext<Outlet>::itself().connected();
+                 const auto istty = console::TermContext<Outlet>::itself().connected();
                  switch ( static_cast<Subcls*>( this )->categorize() ) {
                  case StateCategory::Awake: {
                    if __PGBAR_CXX17_CNSTXPR ( Area == Region::Fixed )
@@ -7517,7 +7518,7 @@ namespace pgbar {
         {
           __PGBAR_ASSERT( online() );
           auto& ostream        = io::OStream<Outlet>::itself();
-          const auto istty     = console::TerminalContext<Outlet>::itself().connected();
+          const auto istty     = console::TermContext<Outlet>::itself().connected();
           const auto hide_done = config::hide_completed();
           if ( at<Pos>().active() ) {
             auto new_val = active_mask_.load( std::memory_order_acquire );
@@ -7571,7 +7572,7 @@ namespace pgbar {
           if ( state_.load( std::memory_order_acquire ) == State::Stop ) {
             if ( !executor.try_appoint( [this]() {
                    auto& ostream    = io::OStream<Outlet>::itself();
-                   const auto istty = console::TerminalContext<Outlet>::itself().connected();
+                   const auto istty = console::TermContext<Outlet>::itself().connected();
                    switch ( state_.load( std::memory_order_acquire ) ) {
                    case State::Awake: {
                      active_mask_.store( {}, std::memory_order_release );
@@ -8652,6 +8653,7 @@ namespace pgbar {
           void ( *halt_ )( Indicator* ) noexcept;
           void ( *render_ )( Indicator* );
           std::weak_ptr<Indicator> target_;
+          // active_ merely indicates whether the current object has been rendered
           bool active_;
 
           template<typename Config>
@@ -8667,35 +8669,52 @@ namespace pgbar {
         std::atomic<State> state_;
         std::vector<Slot> bars_;
 
-        std::atomic<types::Size> num_discarded_line_;
+        // If Area is equal to Region::Fixed,
+        // the variable represents the number of lines that need to be discarded;
+        // If Area is equal to Region::Relative,
+        // the variable represents the number of nextlines output last time.
+        std::atomic<types::Size> num_modified_line_;
         mutable concurrent::SharedMutex res_mtx_;
         mutable std::mutex sched_mtx_;
 
         void do_render() &
         {
           auto& ostream        = io::OStream<Outlet>::itself();
-          const auto istty     = console::TerminalContext<Outlet>::itself().connected();
+          const auto istty     = console::TermContext<Outlet>::itself().connected();
           const auto hide_done = config::hide_completed();
           for ( types::Size i = 0; i < bars_.size(); ++i ) {
             auto bar_ptr = bars_[i].target_.lock();
 
-            if ( bar_ptr != nullptr && bars_[i].render_ != nullptr && bar_ptr->active() ) {
+            // If bars_[i].render_ is equal to nullptr,
+            // indicating that the i-th object has stopped and is still valid.
+            if ( bar_ptr != nullptr && bars_[i].render_ != nullptr ) {
               bars_[i].active_ = true;
               if ( istty )
                 ostream << console::escodes::linewipe;
               ( *bars_[i].render_ )( bar_ptr.get() );
 
-              if ( !bar_ptr->active() && istty && hide_done ) {
-                bars_[i].active_ = false;
-                ostream << console::escodes::linestart;
+              if ( !bar_ptr->active() ) {
+                bars_[i].render_ = nullptr;
+                if ( istty && hide_done ) {
+                  bars_[i].active_ = false;
+                  ostream << console::escodes::linestart;
+                }
               }
             }
-            if ( bars_[i].active_ && ( !( istty && hide_done ) || bar_ptr != nullptr ) )
+
+            // If bar_[i] stops working due to destruction, the bar_ptr is equal to nullptr.
+            // At this point, the pop() method cannot find the corresponding element in bar_;
+            // So here, it can only be determined whether the object has been destructed
+            // by checking if bar_ptr is equal to nullptr.
+            if ( bars_[i].active_ && bar_ptr != nullptr ) {
               ostream << console::escodes::nextline;
+              if __PGBAR_CXX17_CNSTXPR ( Area == Region::Relative )
+                num_modified_line_.fetch_add( 1, std::memory_order_relaxed );
+            }
             if ( istty ) {
               if ( hide_done )
                 ostream << console::escodes::linewipe;
-            } else if ( bars_[i].render_ == nullptr || bar_ptr == nullptr || !bar_ptr->active() )
+            } else if ( bars_[i].render_ == nullptr || bar_ptr == nullptr )
               bars_[i].active_ = false;
           }
         }
@@ -8706,8 +8725,9 @@ namespace pgbar {
           auto itr = std::find_if( bars_.cbegin(), bars_.cend(), []( const Slot& slot ) noexcept {
             return slot.render_ != nullptr && !slot.target_.expired();
           } );
-          num_discarded_line_.fetch_add( std::distance( bars_.cbegin(), itr ), std::memory_order_release );
-          bars_.erase( bars_.cbegin(), std::move( itr ) );
+          bars_.erase( bars_.cbegin(), itr );
+          if __PGBAR_CXX17_CNSTXPR ( Area == Region::Fixed )
+            num_modified_line_.fetch_add( std::distance( bars_.cbegin(), itr ), std::memory_order_release );
         }
 
       public:
@@ -8747,7 +8767,7 @@ namespace pgbar {
           if ( activate_flag ) {
             if ( !executor.try_appoint( [this]() {
                    auto& ostream        = io::OStream<Outlet>::itself();
-                   const auto istty     = console::TerminalContext<Outlet>::itself().connected();
+                   const auto istty     = console::TermContext<Outlet>::itself().connected();
                    const auto hide_done = config::hide_completed();
                    switch ( state_.load( std::memory_order_acquire ) ) {
                    case State::Awake: {
@@ -8770,23 +8790,20 @@ namespace pgbar {
                          if __PGBAR_CXX17_CNSTXPR ( Area == Region::Fixed ) {
                            ostream << console::escodes::resetcursor;
                            if ( !hide_done ) {
-                             const auto num_discarded = num_discarded_line_.load( std::memory_order_acquire );
-                             if ( num_discarded != 0 ) {
+                             const auto num_discarded = num_modified_line_.load( std::memory_order_acquire );
+                             if ( num_discarded > 0 ) {
                                ostream.append( console::escodes::nextline, num_discarded )
                                  .append( console::escodes::savecursor );
-                               num_discarded_line_.fetch_sub( num_discarded, std::memory_order_release );
+                               num_modified_line_.fetch_sub( num_discarded, std::memory_order_release );
                              }
                            }
-                         } else
+                         } else {
                            ostream
                              .append( console::escodes::prevline,
-                                      std::count_if( bars_.cbegin(),
-                                                     bars_.cend(),
-                                                     [hide_done]( const Slot& slot ) noexcept {
-                                                       return slot.active_
-                                                           && ( !hide_done || !slot.target_.expired() );
-                                                     } ) )
+                                      num_modified_line_.load( std::memory_order_relaxed ) )
                              .append( console::escodes::linestart );
+                           num_modified_line_.store( 0, std::memory_order_relaxed );
+                         }
                        }
                        do_render();
                      }
@@ -8798,7 +8815,7 @@ namespace pgbar {
               __PGBAR_UNLIKELY throw exception::InvalidState(
                 "pgbar: another progress bar instance is already running" );
             io::OStream<Outlet>::itself() << io::release;
-            num_discarded_line_.store( 0, std::memory_order_relaxed );
+            num_modified_line_.store( 0, std::memory_order_relaxed );
             state_.store( State::Awake, std::memory_order_release );
             try {
               {
