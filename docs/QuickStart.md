@@ -2715,7 +2715,7 @@ int main()
 
 Try to pass the wrong hexadecimal color code strings can throw an exception `pgbar::exception::InvalidArgument`.
 
-For some terminals that do not support coloring effects, `pgbar` allows the use of macro switches `PGBAR_COLORLESS` to turn off global RGB support; But this will not affect the incoming error RGB string, throw an exception `pgbar::exception::InvalidArgument` behavior.
+For some terminals that do not support coloring effects, `pgbar` allows the use of macro switches `PGBAR_NOCOLOR` to turn off global RGB support; But this will not affect the incoming error RGB string, throw an exception `pgbar::exception::InvalidArgument` behavior.
 
 In addition, the configuration type of each sole progress bar allows the method `colored()` to be used to turn off the coloring effect of the object individually.
 
