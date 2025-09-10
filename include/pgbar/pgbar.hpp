@@ -6908,21 +6908,22 @@ namespace pgbar {
           wrappers::UniqueFunction<void( Derived& )> on_self_;
           std::uint8_t nil_;
 
+          template<typename T>
+          static __PGBAR_INLINE_FN void destroy_at( T& obj ) noexcept
+          {
+            obj.~T();
+          }
+
           constexpr Callback() noexcept : nil_ {} {}
           __PGBAR_CXX23_CNSTXPR ~Callback() noexcept {}
         } hook_;
         enum class Tag : std::uint8_t { Nil, Nullary, Unary } tag_;
 
-        __PGBAR_INLINE_FN __PGBAR_CXX23_CNSTXPR void deconstruct() noexcept
+        __PGBAR_INLINE_FN __PGBAR_CXX23_CNSTXPR void destroy() noexcept
         {
           switch ( tag_ ) {
-#if __PGBAR_CXX23
-          case Tag::Nullary: hook_.on_.~move_only_function(); break;
-          case Tag::Unary:   hook_.on_self_.~move_only_function(); break;
-#else
-          case Tag::Nullary: hook_.on_.~UniqueFunction(); break;
-          case Tag::Unary:   hook_.on_self_.~UniqueFunction(); break;
-#endif
+          case Tag::Nullary: Callback::destroy_at( hook_.on_ ); break;
+          case Tag::Unary:   Callback::destroy_at( hook_.on_self_ ); break;
 
           case Tag::Nil: __PGBAR_FALLTHROUGH;
           default:       break;
@@ -6933,7 +6934,7 @@ namespace pgbar {
 
         __PGBAR_INLINE_FN void move_to( ReactiveBar& lhs ) & noexcept
         {
-          lhs.deconstruct();
+          lhs.destroy();
           switch ( tag_ ) {
           case Tag::Nullary:
             new ( std::addressof( lhs.hook_.on_ ) )
@@ -6948,7 +6949,7 @@ namespace pgbar {
           default:       break;
           }
           lhs.tag_ = tag_;
-          deconstruct();
+          destroy();
         }
 
       protected:
@@ -6982,7 +6983,7 @@ namespace pgbar {
           rhs.move_to( *this );
           return *this;
         }
-        __PGBAR_CXX23_CNSTXPR ~ReactiveBar() noexcept { deconstruct(); }
+        __PGBAR_CXX23_CNSTXPR ~ReactiveBar() noexcept { destroy(); }
 
         template<typename F>
 # if __PGBAR_CXX20
@@ -7026,7 +7027,7 @@ namespace pgbar {
         Derived& action() noexcept
         {
           std::lock_guard<std::mutex> lock { this->mtx_ };
-          deconstruct();
+          destroy();
           return static_cast<Derived&>( *this );
         }
 
@@ -7213,7 +7214,7 @@ namespace pgbar {
             };
             if ( percentage <= 100 ) {
               const auto target = static_cast<std::uint64_t>( this->task_end_ * percentage * 0.01 );
-              __PGBAR_ASSERT( target <= task_end_ );
+              __PGBAR_ASSERT( target <= this->task_end_ );
               updater( target );
             } else
               updater( this->task_end_ );
@@ -7689,6 +7690,273 @@ namespace pgbar {
    */
   template<Channel Outlet = Channel::Stderr, Policy Mode = Policy::Async, Region Area = Region::Fixed>
   using FlowBar = __details::prefabs::BasicBar<config::Flow, Outlet, Mode, Area>;
+
+  template<typename Bar, typename N, typename F, typename... Options>
+# if __PGBAR_CXX20
+    requires( __details::traits::is_iterable_bar<Bar>::value
+              && std::is_constructible_v<Bar, Options...> && std::is_arithmetic_v<N> )
+  __PGBAR_INLINE_FN void
+# else
+  __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<__details::traits::is_iterable_bar<Bar>,
+                                                                     std::is_constructible<Bar, Options...>,
+                                                                     std::is_arithmetic<N>>::value>::type
+# endif
+    iterate( N startpoint, N endpoint, N step, F&& unary_fn, Options&&... options )
+  {
+    auto bar = Bar( std::forward<Options>( options )... );
+    bar.iterate( startpoint, endpoint, step, std::forward<F>( unary_fn ) );
+  }
+  template<typename Config,
+           Channel Outlet = Channel::Stderr,
+           Policy Mode    = Policy::Async,
+           Region Area    = Region::Fixed,
+           typename N,
+           typename F,
+           typename... Options>
+# if __PGBAR_CXX20
+    requires(
+      __details::traits::is_config<Config>::value
+      && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
+      && std::is_constructible_v<Config, Options...> && std::is_arithmetic_v<N> )
+  __PGBAR_INLINE_FN void
+# else
+  __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
+    __details::traits::is_config<Config>,
+    __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
+    std::is_constructible<Config, Options...>,
+    std::is_arithmetic<N>>::value>::type
+# endif
+    iterate( N startpoint, N endpoint, N step, F&& unary_fn, Options&&... options )
+  {
+    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>(
+      startpoint,
+      endpoint,
+      step,
+      std::forward<F>( unary_fn ),
+      Config( std::forward<Options>( options )... ) );
+  }
+
+  template<typename Bar, typename N, typename F, typename... Options>
+# if __PGBAR_CXX20
+    requires( __details::traits::is_iterable_bar<Bar>::value
+              && std::is_constructible_v<Bar, Options...> && std::is_floating_point_v<N> )
+  __PGBAR_INLINE_FN void
+# else
+  __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<__details::traits::is_iterable_bar<Bar>,
+                                                                     std::is_constructible<Bar, Options...>,
+                                                                     std::is_floating_point<N>>::value>::type
+# endif
+    iterate( N endpoint, N step, F&& unary_fn, Options&&... options )
+  {
+    auto bar = Bar( std::forward<Options>( options )... );
+    bar.iterate( endpoint, step, std::forward<F>( unary_fn ) );
+  }
+  template<typename Config,
+           Channel Outlet = Channel::Stderr,
+           Policy Mode    = Policy::Async,
+           Region Area    = Region::Fixed,
+           typename N,
+           typename F,
+           typename... Options>
+# if __PGBAR_CXX20
+    requires(
+      __details::traits::is_config<Config>::value
+      && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
+      && std::is_constructible_v<Config, Options...> && std::is_floating_point_v<N> )
+  __PGBAR_INLINE_FN void
+# else
+  __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
+    __details::traits::is_config<Config>,
+    __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
+    std::is_constructible<Config, Options...>,
+    std::is_floating_point<N>>::value>::type
+# endif
+    iterate( N endpoint, N step, F&& unary_fn, Options&&... options )
+  {
+    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>(
+      endpoint,
+      step,
+      std::forward<F>( unary_fn ),
+      Config( std::forward<Options>( options )... ) );
+  }
+
+  template<typename Bar, typename N, typename F, typename... Options>
+# if __PGBAR_CXX20
+    requires( __details::traits::is_iterable_bar<Bar>::value
+              && std::is_constructible_v<Bar, Options...> && std::is_integral_v<N> )
+  __PGBAR_INLINE_FN void
+# else
+  __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<__details::traits::is_iterable_bar<Bar>,
+                                                                     std::is_constructible<Bar, Options...>,
+                                                                     std::is_integral<N>>::value>::type
+# endif
+    iterate( N startpoint, N endpoint, F&& unary_fn, Options&&... options )
+  {
+    auto bar = Bar( std::forward<Options>( options )... );
+    bar.iterate( startpoint, endpoint, std::forward<F>( unary_fn ) );
+  }
+  template<typename Config,
+           Channel Outlet = Channel::Stderr,
+           Policy Mode    = Policy::Async,
+           Region Area    = Region::Fixed,
+           typename N,
+           typename F,
+           typename... Options>
+# if __PGBAR_CXX20
+    requires(
+      __details::traits::is_config<Config>::value
+      && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
+      && std::is_constructible_v<Config, Options...> && std::is_integral_v<N> )
+  __PGBAR_INLINE_FN void
+# else
+  __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
+    __details::traits::is_config<Config>,
+    __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
+    std::is_constructible<Config, Options...>,
+    std::is_integral<N>>::value>::type
+# endif
+    iterate( N startpoint, N endpoint, F&& unary_fn, Options&&... options )
+  {
+    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>(
+      startpoint,
+      endpoint,
+      std::forward<F>( unary_fn ),
+      Config( std::forward<Options>( options )... ) );
+  }
+
+  template<typename Bar, typename N, typename F, typename... Options>
+# if __PGBAR_CXX20
+    requires( __details::traits::is_iterable_bar<Bar>::value
+              && std::is_constructible_v<Bar, Options...> && std::is_integral_v<N> )
+  __PGBAR_INLINE_FN void
+# else
+  __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<__details::traits::is_iterable_bar<Bar>,
+                                                                     std::is_constructible<Bar, Options...>,
+                                                                     std::is_integral<N>>::value>::type
+# endif
+    iterate( N endpoint, F&& unary_fn, Options&&... options )
+  {
+    auto bar = Bar( std::forward<Options>( options )... );
+    bar.iterate( endpoint, std::forward<F>( unary_fn ) );
+  }
+  template<typename Config,
+           Channel Outlet = Channel::Stderr,
+           Policy Mode    = Policy::Async,
+           Region Area    = Region::Fixed,
+           typename N,
+           typename F,
+           typename... Options>
+# if __PGBAR_CXX20
+    requires(
+      __details::traits::is_config<Config>::value
+      && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
+      && std::is_constructible_v<Config, Options...> && std::is_integral_v<N> )
+  __PGBAR_INLINE_FN void
+# else
+  __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
+    __details::traits::is_config<Config>,
+    __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
+    std::is_constructible<Config, Options...>,
+    std::is_integral<N>>::value>::type
+# endif
+    iterate( N endpoint, F&& unary_fn, Options&&... options )
+  {
+    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>(
+      endpoint,
+      std::forward<F>( unary_fn ),
+      Config( std::forward<Options>( options )... ) );
+  }
+
+  template<typename Bar, typename I, typename F, typename... Options>
+# if __PGBAR_CXX20
+    requires( __details::traits::is_sized_iterator<I>::value && __details::traits::is_iterable_bar<Bar>::value
+              && std::is_constructible_v<Bar, Options...> )
+  __PGBAR_INLINE_FN void
+# else
+  __PGBAR_INLINE_FN typename std::enable_if<
+    __details::traits::AllOf<__details::traits::is_sized_iterator<I>,
+                             __details::traits::is_iterable_bar<Bar>,
+                             std::is_constructible<Bar, Options...>,
+                             __details::traits::Not<std::is_arithmetic<I>>>::value>::type
+# endif
+    iterate( I startpoint, I endpoint, F&& unary_fn, Options&&... options )
+  {
+    auto bar = Bar( std::forward<Options>( options )... );
+    bar.iterate( std::move( startpoint ), std::move( endpoint ), std::forward<F>( unary_fn ) );
+  }
+  template<typename Config,
+           Channel Outlet = Channel::Stderr,
+           Policy Mode    = Policy::Async,
+           Region Area    = Region::Fixed,
+           typename I,
+           typename F,
+           typename... Options>
+# if __PGBAR_CXX20
+    requires(
+      __details::traits::is_sized_iterator<I>::value && __details::traits::is_config<Config>::value
+      && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
+      && std::is_constructible_v<Config, Options...> )
+  __PGBAR_INLINE_FN void
+# else
+  __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
+    __details::traits::is_sized_iterator<I>,
+    __details::traits::is_config<Config>,
+    __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
+    std::is_constructible<Config, Options...>,
+    __details::traits::Not<std::is_arithmetic<I>>>::value>::type
+# endif
+    iterate( I startpoint, I endpoint, F&& unary_fn, Options&&... options )
+  {
+    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>(
+      std::move( startpoint ),
+      std::move( endpoint ),
+      std::forward<F>( unary_fn ),
+      Config( std::forward<Options>( options )... ) );
+  }
+
+  template<typename Bar, class R, typename F, typename... Options>
+# if __PGBAR_CXX20
+    requires( __details::traits::is_bounded_range<R>::value && __details::traits::is_iterable_bar<Bar>::value
+              && std::is_constructible_v<Bar, Options...> )
+  __PGBAR_INLINE_FN void
+# else
+  __PGBAR_INLINE_FN
+    typename std::enable_if<__details::traits::AllOf<__details::traits::is_bounded_range<R>,
+                                                     __details::traits::is_iterable_bar<Bar>,
+                                                     std::is_constructible<Bar, Options...>>::value>::type
+# endif
+    iterate( R&& range, F&& unary_fn, Options&&... options )
+  {
+    auto bar = Bar( std::forward<Options>( options )... );
+    bar.iterate( std::forward<R>( range ), std::forward<F>( unary_fn ) );
+  }
+  template<typename Config,
+           Channel Outlet = Channel::Stderr,
+           Policy Mode    = Policy::Async,
+           Region Area    = Region::Fixed,
+           class R,
+           typename F,
+           typename... Options>
+# if __PGBAR_CXX20
+    requires(
+      __details::traits::is_bounded_range<R>::value && __details::traits::is_config<Config>::value
+      && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
+      && std::is_constructible_v<Config, Options...> )
+  __PGBAR_INLINE_FN void
+# else
+  __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
+    __details::traits::is_bounded_range<R>,
+    __details::traits::is_config<Config>,
+    __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
+    std::is_constructible<Config, Options...>>::value>::type
+# endif
+    iterate( R&& range, F&& unary_fn, Options&&... options )
+  {
+    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>(
+      std::forward<R>( range ),
+      std::forward<F>( unary_fn ),
+      Config( std::forward<Options>( options )... ) );
+  }
 
   namespace __details {
     namespace assets {
@@ -8394,273 +8662,6 @@ namespace pgbar {
     return { std::move( bars )... };
   }
 
-  template<typename Bar, typename N, typename F, typename... Options>
-# if __PGBAR_CXX20
-    requires( __details::traits::is_iterable_bar<Bar>::value
-              && std::is_constructible_v<Bar, Options...> && std::is_arithmetic_v<N> )
-  __PGBAR_INLINE_FN void
-# else
-  __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<__details::traits::is_iterable_bar<Bar>,
-                                                                     std::is_constructible<Bar, Options...>,
-                                                                     std::is_arithmetic<N>>::value>::type
-# endif
-    iterate( N startpoint, N endpoint, N step, F&& unary_fn, Options&&... options )
-  {
-    auto bar = Bar( std::forward<Options>( options )... );
-    bar.iterate( startpoint, endpoint, step, std::forward<F>( unary_fn ) );
-  }
-  template<typename Config,
-           Channel Outlet = Channel::Stderr,
-           Policy Mode    = Policy::Async,
-           Region Area    = Region::Fixed,
-           typename N,
-           typename F,
-           typename... Options>
-# if __PGBAR_CXX20
-    requires(
-      __details::traits::is_config<Config>::value
-      && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
-      && std::is_constructible_v<Config, Options...> && std::is_arithmetic_v<N> )
-  __PGBAR_INLINE_FN void
-# else
-  __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
-    __details::traits::is_config<Config>,
-    __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
-    std::is_constructible<Config, Options...>,
-    std::is_arithmetic<N>>::value>::type
-# endif
-    iterate( N startpoint, N endpoint, N step, F&& unary_fn, Options&&... options )
-  {
-    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>(
-      startpoint,
-      endpoint,
-      step,
-      std::forward<F>( unary_fn ),
-      Config( std::forward<Options>( options )... ) );
-  }
-
-  template<typename Bar, typename N, typename F, typename... Options>
-# if __PGBAR_CXX20
-    requires( __details::traits::is_iterable_bar<Bar>::value
-              && std::is_constructible_v<Bar, Options...> && std::is_floating_point_v<N> )
-  __PGBAR_INLINE_FN void
-# else
-  __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<__details::traits::is_iterable_bar<Bar>,
-                                                                     std::is_constructible<Bar, Options...>,
-                                                                     std::is_floating_point<N>>::value>::type
-# endif
-    iterate( N endpoint, N step, F&& unary_fn, Options&&... options )
-  {
-    auto bar = Bar( std::forward<Options>( options )... );
-    bar.iterate( endpoint, step, std::forward<F>( unary_fn ) );
-  }
-  template<typename Config,
-           Channel Outlet = Channel::Stderr,
-           Policy Mode    = Policy::Async,
-           Region Area    = Region::Fixed,
-           typename N,
-           typename F,
-           typename... Options>
-# if __PGBAR_CXX20
-    requires(
-      __details::traits::is_config<Config>::value
-      && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
-      && std::is_constructible_v<Config, Options...> && std::is_floating_point_v<N> )
-  __PGBAR_INLINE_FN void
-# else
-  __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
-    __details::traits::is_config<Config>,
-    __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
-    std::is_constructible<Config, Options...>,
-    std::is_floating_point<N>>::value>::type
-# endif
-    iterate( N endpoint, N step, F&& unary_fn, Options&&... options )
-  {
-    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>(
-      endpoint,
-      step,
-      std::forward<F>( unary_fn ),
-      Config( std::forward<Options>( options )... ) );
-  }
-
-  template<typename Bar, typename N, typename F, typename... Options>
-# if __PGBAR_CXX20
-    requires( __details::traits::is_iterable_bar<Bar>::value
-              && std::is_constructible_v<Bar, Options...> && std::is_integral_v<N> )
-  __PGBAR_INLINE_FN void
-# else
-  __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<__details::traits::is_iterable_bar<Bar>,
-                                                                     std::is_constructible<Bar, Options...>,
-                                                                     std::is_integral<N>>::value>::type
-# endif
-    iterate( N startpoint, N endpoint, F&& unary_fn, Options&&... options )
-  {
-    auto bar = Bar( std::forward<Options>( options )... );
-    bar.iterate( startpoint, endpoint, std::forward<F>( unary_fn ) );
-  }
-  template<typename Config,
-           Channel Outlet = Channel::Stderr,
-           Policy Mode    = Policy::Async,
-           Region Area    = Region::Fixed,
-           typename N,
-           typename F,
-           typename... Options>
-# if __PGBAR_CXX20
-    requires(
-      __details::traits::is_config<Config>::value
-      && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
-      && std::is_constructible_v<Config, Options...> && std::is_integral_v<N> )
-  __PGBAR_INLINE_FN void
-# else
-  __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
-    __details::traits::is_config<Config>,
-    __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
-    std::is_constructible<Config, Options...>,
-    std::is_integral<N>>::value>::type
-# endif
-    iterate( N startpoint, N endpoint, F&& unary_fn, Options&&... options )
-  {
-    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>(
-      startpoint,
-      endpoint,
-      std::forward<F>( unary_fn ),
-      Config( std::forward<Options>( options )... ) );
-  }
-
-  template<typename Bar, typename N, typename F, typename... Options>
-# if __PGBAR_CXX20
-    requires( __details::traits::is_iterable_bar<Bar>::value
-              && std::is_constructible_v<Bar, Options...> && std::is_integral_v<N> )
-  __PGBAR_INLINE_FN void
-# else
-  __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<__details::traits::is_iterable_bar<Bar>,
-                                                                     std::is_constructible<Bar, Options...>,
-                                                                     std::is_integral<N>>::value>::type
-# endif
-    iterate( N endpoint, F&& unary_fn, Options&&... options )
-  {
-    auto bar = Bar( std::forward<Options>( options )... );
-    bar.iterate( endpoint, std::forward<F>( unary_fn ) );
-  }
-  template<typename Config,
-           Channel Outlet = Channel::Stderr,
-           Policy Mode    = Policy::Async,
-           Region Area    = Region::Fixed,
-           typename N,
-           typename F,
-           typename... Options>
-# if __PGBAR_CXX20
-    requires(
-      __details::traits::is_config<Config>::value
-      && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
-      && std::is_constructible_v<Config, Options...> && std::is_integral_v<N> )
-  __PGBAR_INLINE_FN void
-# else
-  __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
-    __details::traits::is_config<Config>,
-    __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
-    std::is_constructible<Config, Options...>,
-    std::is_integral<N>>::value>::type
-# endif
-    iterate( N endpoint, F&& unary_fn, Options&&... options )
-  {
-    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>(
-      endpoint,
-      std::forward<F>( unary_fn ),
-      Config( std::forward<Options>( options )... ) );
-  }
-
-  template<typename Bar, typename I, typename F, typename... Options>
-# if __PGBAR_CXX20
-    requires( __details::traits::is_sized_iterator<I>::value && __details::traits::is_iterable_bar<Bar>::value
-              && std::is_constructible_v<Bar, Options...> )
-  __PGBAR_INLINE_FN void
-# else
-  __PGBAR_INLINE_FN typename std::enable_if<
-    __details::traits::AllOf<__details::traits::is_sized_iterator<I>,
-                             __details::traits::is_iterable_bar<Bar>,
-                             std::is_constructible<Bar, Options...>,
-                             __details::traits::Not<std::is_arithmetic<I>>>::value>::type
-# endif
-    iterate( I startpoint, I endpoint, F&& unary_fn, Options&&... options )
-  {
-    auto bar = Bar( std::forward<Options>( options )... );
-    bar.iterate( std::move( startpoint ), std::move( endpoint ), std::forward<F>( unary_fn ) );
-  }
-  template<typename Config,
-           Channel Outlet = Channel::Stderr,
-           Policy Mode    = Policy::Async,
-           Region Area    = Region::Fixed,
-           typename I,
-           typename F,
-           typename... Options>
-# if __PGBAR_CXX20
-    requires(
-      __details::traits::is_sized_iterator<I>::value && __details::traits::is_config<Config>::value
-      && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
-      && std::is_constructible_v<Config, Options...> )
-  __PGBAR_INLINE_FN void
-# else
-  __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
-    __details::traits::is_sized_iterator<I>,
-    __details::traits::is_config<Config>,
-    __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
-    std::is_constructible<Config, Options...>,
-    __details::traits::Not<std::is_arithmetic<I>>>::value>::type
-# endif
-    iterate( I startpoint, I endpoint, F&& unary_fn, Options&&... options )
-  {
-    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>(
-      std::move( startpoint ),
-      std::move( endpoint ),
-      std::forward<F>( unary_fn ),
-      Config( std::forward<Options>( options )... ) );
-  }
-
-  template<typename Bar, class R, typename F, typename... Options>
-# if __PGBAR_CXX20
-    requires( __details::traits::is_bounded_range<R>::value && __details::traits::is_iterable_bar<Bar>::value
-              && std::is_constructible_v<Bar, Options...> )
-  __PGBAR_INLINE_FN void
-# else
-  __PGBAR_INLINE_FN
-    typename std::enable_if<__details::traits::AllOf<__details::traits::is_bounded_range<R>,
-                                                     __details::traits::is_iterable_bar<Bar>,
-                                                     std::is_constructible<Bar, Options...>>::value>::type
-# endif
-    iterate( R&& range, F&& unary_fn, Options&&... options )
-  {
-    auto bar = Bar( std::forward<Options>( options )... );
-    bar.iterate( std::forward<R>( range ), std::forward<F>( unary_fn ) );
-  }
-  template<typename Config,
-           Channel Outlet = Channel::Stderr,
-           Policy Mode    = Policy::Async,
-           Region Area    = Region::Fixed,
-           class R,
-           typename F,
-           typename... Options>
-# if __PGBAR_CXX20
-    requires(
-      __details::traits::is_bounded_range<R>::value && __details::traits::is_config<Config>::value
-      && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
-      && std::is_constructible_v<Config, Options...> )
-  __PGBAR_INLINE_FN void
-# else
-  __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
-    __details::traits::is_bounded_range<R>,
-    __details::traits::is_config<Config>,
-    __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
-    std::is_constructible<Config, Options...>>::value>::type
-# endif
-    iterate( R&& range, F&& unary_fn, Options&&... options )
-  {
-    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>(
-      std::forward<R>( range ),
-      std::forward<F>( unary_fn ),
-      Config( std::forward<Options>( options )... ) );
-  }
-
   namespace slice {
     /**
      * A range that contains a bar object and an unidirectional abstract range,
@@ -8682,21 +8683,21 @@ namespace pgbar {
       R itr_range_;
 
 # if __PGBAR_CXX20
-      using Stnl = std::ranges::sentinel_t<R>;
+      using Sntnl = std::ranges::sentinel_t<R>;
 # elif __PGBAR_CXX17
-      using Stnl = __details::traits::IteratorOf_t<R>;
+      using Sntnl = __details::traits::IteratorOf_t<R>;
 # endif
 
     public:
       class iterator;
 # if __PGBAR_CXX17
       class sentinel {
-        Stnl end_;
+        Sntnl end_;
         friend class iterator;
 
       public:
         constexpr sentinel() = default;
-        constexpr sentinel( Stnl&& end ) noexcept( std::is_nothrow_move_constructible<Stnl>::value )
+        constexpr sentinel( Sntnl&& end ) noexcept( std::is_nothrow_move_constructible<Sntnl>::value )
           : end_ { std::move( end ) }
         {}
       };
@@ -9459,9 +9460,9 @@ namespace pgbar {
   {
     if ( count == 0 )
       __PGBAR_UNLIKELY return {};
-    else if ( count != sizeof...( Objs ) )
+    else if ( count < sizeof...( Objs ) )
       __PGBAR_UNLIKELY throw exception::InvalidArgument(
-        "pgbar: the number of arguments mismatch with the provided count" );
+        "pgbar: the number of provided objects exceeds the specified count" );
 
     DynamicBar<Bar::Sink, Bar::Strategy, Bar::Layout> factory;
     std::vector<std::unique_ptr<Bar>> products;
@@ -9499,9 +9500,9 @@ namespace pgbar {
   {
     if ( count == 0 )
       __PGBAR_UNLIKELY return {};
-    else if ( count != sizeof...( Configs ) )
+    else if ( count < sizeof...( Configs ) )
       __PGBAR_UNLIKELY throw exception::InvalidArgument(
-        "pgbar: the number of configs mismatch with the provided count" );
+        "pgbar: the number of provided configs exceeds the specified count" );
 
     DynamicBar<Outlet, Mode, Area> factory;
     std::vector<std::unique_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>> products;
@@ -9539,9 +9540,9 @@ namespace pgbar {
   {
     if ( count == 0 )
       __PGBAR_UNLIKELY return {};
-    else if ( count != sizeof...( Configs ) )
+    else if ( count < sizeof...( Configs ) )
       __PGBAR_UNLIKELY throw exception::InvalidArgument(
-        "pgbar: the number of bars mismatch with the provided count" );
+        "pgbar: the number of provided bars exceeds the specified count" );
 
     DynamicBar<Outlet, Mode, Area> factory;
     std::vector<std::unique_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>> products;
