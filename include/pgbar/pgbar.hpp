@@ -1475,6 +1475,7 @@ namespace pgbar {
         constexpr FnInvokeBlock()                                           = default;
         constexpr FnInvokeBlock( FnInvokeBlock&& )                          = default;
         __PGBAR_CXX14_CNSTXPR FnInvokeBlock& operator=( FnInvokeBlock&& ) & = default;
+        __PGBAR_CXX23_CNSTXPR ~FnInvokeBlock()                              = default;
       };
 
       // A simplified implementation of std::move_only_function
@@ -1492,6 +1493,7 @@ namespace pgbar {
         constexpr UniqueFunction()                                            = default;
         constexpr UniqueFunction( UniqueFunction&& )                          = default;
         __PGBAR_CXX14_CNSTXPR UniqueFunction& operator=( UniqueFunction&& ) & = default;
+        __PGBAR_CXX23_CNSTXPR ~UniqueFunction()                               = default;
 
         constexpr UniqueFunction( std::nullptr_t ) noexcept : UniqueFunction() {}
         template<typename F,
@@ -2563,6 +2565,9 @@ namespace pgbar {
         {
           if ( this->buffer_.empty() )
             return *this;
+          writeout( this->buffer_ );
+
+          /*
 # if __PGBAR_WIN
           const auto codepage = GetConsoleOutputCP();
           if ( !console::TermContext<Outlet>::itself().connected() || codepage == CP_UTF8 ) {
@@ -2596,7 +2601,7 @@ namespace pgbar {
           writeout( localized_ );
 # else
           writeout( this->buffer_ );
-# endif
+# endif*/
           clear();
           return *this;
         }
@@ -3265,7 +3270,7 @@ namespace pgbar {
     Indicator& operator=( Indicator&& ) &      = default;
     virtual ~Indicator()                       = default;
 
-    virtual void reset() noexcept                          = 0;
+    virtual void reset()                                   = 0;
     __PGBAR_NODISCARD virtual bool active() const noexcept = 0;
 
     // Wait until the indicator is Stop.
@@ -6850,7 +6855,6 @@ namespace pgbar {
         {}
         Self& operator=( Self&& rhs ) & noexcept( std::is_nothrow_move_assignable<Base>::value )
         {
-          __PGBAR_TRUST( this != &rhs );
           config_ = std::move( rhs.config_ );
           Base::operator=( std::move( rhs ) );
           return *this;
@@ -6865,7 +6869,7 @@ namespace pgbar {
         {
           return static_cast<const Subcls*>( this )->categorize() != StateCategory::Stop;
         }
-        void reset() noexcept final
+        void reset() final
         {
           std::lock_guard<std::mutex> lock { mtx_ };
           static_cast<Subcls*>( this )->do_reset();
@@ -6878,129 +6882,273 @@ namespace pgbar {
 
         __PGBAR_CXX20_CNSTXPR void swap( CoreBar& lhs ) noexcept
         {
-          __PGBAR_TRUST( this != &lhs );
-          __PGBAR_ASSERT( active() == false );
-          __PGBAR_ASSERT( active() == false );
           Base::swap( lhs );
           config_.swap( lhs.config_ );
         }
-        friend __PGBAR_CXX20_CNSTXPR void swap( CoreBar& a, CoreBar& b ) noexcept { a.swap( b ); }
       };
 
       template<typename Base, typename Derived>
       class ReactiveBar : public Base {
         using Self = ReactiveBar;
-# if __PGBAR_CXX20
-#  define __PGBAR_ACTIONABLE                   \
-    ( !std::is_null_pointer_v<std::decay_t<F>> \
-      && std::is_constructible_v<wrappers::UniqueFunction<void()>, F> )
-# else
-        template<typename F, typename Ret>
-        using Actionable = typename std::enable_if<
-          traits::AllOf<traits::Not<std::is_null_pointer<typename std::decay<F>::type>>,
-                        std::is_constructible<wrappers::UniqueFunction<void()>, F>>::value,
-          Ret>::type;
-# endif
+
+        union Callback {
+          wrappers::UniqueFunction<void()> on_;
+          wrappers::UniqueFunction<void( Derived& )> on_self_;
+          std::uint8_t nil_;
+
+          constexpr Callback() noexcept : nil_ {} {}
+          __PGBAR_CXX23_CNSTXPR ~Callback() noexcept {}
+        } hook_;
+        enum class Tag : std::uint8_t { Nil, Nullary, Unary } tag_;
+
+        __PGBAR_INLINE_FN void deconstruct() noexcept
+        {
+          switch ( tag_ ) {
+          case Tag::Nullary: hook_.on_.~UniqueFunction(); break;
+          case Tag::Unary:   hook_.on_self_.~UniqueFunction(); break;
+
+          case Tag::Nil: __PGBAR_FALLTHROUGH;
+          default:       break;
+          }
+          hook_.nil_ = 0;
+          tag_       = Tag::Nil;
+        }
+
+        __PGBAR_INLINE_FN void move_to( ReactiveBar& lhs ) & noexcept
+        {
+          lhs.deconstruct();
+          switch ( tag_ ) {
+          case Tag::Nullary:
+            new ( &lhs.hook_.on_ ) wrappers::UniqueFunction<void()>( std::move( hook_.on_ ) );
+            break;
+          case Tag::Unary:
+            new ( &lhs.hook_.on_self_ )
+              wrappers::UniqueFunction<void( Derived& )>( std::move( hook_.on_self_ ) );
+            break;
+
+          case Tag::Nil: __PGBAR_FALLTHROUGH;
+          default:       break;
+          }
+          lhs.tag_ = tag_;
+          deconstruct();
+        }
 
       protected:
-        wrappers::UniqueFunction<void()> hook_;
+        __PGBAR_INLINE_FN void react() &
+        {
+          switch ( tag_ ) {
+          case Tag::Nullary: hook_.on_(); break;
+          case Tag::Unary:   hook_.on_self_( static_cast<Derived&>( *this ) ); break;
+
+          case Tag::Nil: __PGBAR_FALLTHROUGH;
+          default:       break;
+          }
+        }
 
       public:
         ReactiveBar( const Self& )       = delete;
         Self& operator=( const Self& ) & = delete;
 
         using Base::Base;
-        constexpr ReactiveBar( Self&& rhs ) noexcept : Base( std::move( rhs ) ) {}
-        __PGBAR_CXX14_CNSTXPR Self& operator=( Self&& rhs ) & noexcept
+        ReactiveBar( Self&& rhs ) noexcept : Base( std::move( rhs ) )
+        {
+          std::lock_guard<std::mutex> lock { this->mtx_ };
+          rhs.move_to( *this );
+        }
+        Self& operator=( Self&& rhs ) & noexcept
         {
           Base::operator=( std::move( rhs ) );
+          std::lock( this->mtx_, rhs.mtx_ );
+          std::lock_guard<std::mutex> lock1 { this->mtx_, std::adopt_lock };
+          std::lock_guard<std::mutex> lock2 { rhs.mtx_, std::adopt_lock };
+          rhs.move_to( *this );
           return *this;
         }
-        __PGBAR_CXX20_CNSTXPR ~ReactiveBar() = default;
+        __PGBAR_CXX23_CNSTXPR ~ReactiveBar() noexcept { deconstruct(); }
 
         template<typename F>
 # if __PGBAR_CXX20
-          requires __PGBAR_ACTIONABLE
+          requires( !std::is_null_pointer_v<std::decay_t<F>>
+                    && std::is_constructible_v<wrappers::UniqueFunction<void()>, F> )
         Derived&
 # else
-        Actionable<F, Derived&>
+        typename std::enable_if<
+          traits::AllOf<traits::Not<std::is_null_pointer<typename std::decay<F>::type>>,
+                        std::is_constructible<wrappers::UniqueFunction<void()>, F>>::value,
+          Derived&>::type
 # endif
           action( F&& fn ) & noexcept(
             std::is_nothrow_assignable<wrappers::UniqueFunction<void()>, F>::value )
         {
           std::lock_guard<std::mutex> lock { this->mtx_ };
-          hook_ = std::forward<F>( fn );
+          new ( &hook_.on_ ) wrappers::UniqueFunction<void()>( std::forward<F>( fn ) );
+          tag_ = Tag::Nullary;
+          return static_cast<Derived&>( *this );
+        }
+        template<typename F>
+# if __PGBAR_CXX20
+          requires( !std::is_null_pointer_v<std::decay_t<F>>
+                    && std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F> )
+        Derived&
+# else
+        typename std::enable_if<
+          traits::AllOf<traits::Not<std::is_null_pointer<typename std::decay<F>::type>>,
+                        std::is_constructible<wrappers::UniqueFunction<void( Derived& )>, F>>::value,
+          Derived&>::type
+# endif
+          action( F&& fn ) & noexcept(
+            std::is_nothrow_assignable<wrappers::UniqueFunction<void( Derived& )>, F>::value )
+        {
+          std::lock_guard<std::mutex> lock { this->mtx_ };
+          new ( &hook_.on_ ) wrappers::UniqueFunction<void( Derived& )>( std::forward<F>( fn ) );
+          tag_ = Tag::Unary;
           return static_cast<Derived&>( *this );
         }
         Derived& action() noexcept
         {
           std::lock_guard<std::mutex> lock { this->mtx_ };
-          hook_.reset();
+          deconstruct();
           return static_cast<Derived&>( *this );
         }
 
         template<typename F>
 # if __PGBAR_CXX20
-          requires __PGBAR_ACTIONABLE
-        friend Derived&
+          requires( !std::is_null_pointer_v<std::decay_t<F>>
+                    && (std::is_constructible_v<wrappers::UniqueFunction<void()>, F>
+                        || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F>))
+        __PGBAR_INLINE_FN friend Derived&
 # else
-        friend Actionable<F, Derived&>
+        __PGBAR_INLINE_FN friend typename std::enable_if<
+          traits::AllOf<
+            traits::Not<std::is_null_pointer<typename std::decay<F>::type>>,
+            traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F>,
+                          std::is_constructible<wrappers::UniqueFunction<void( Derived& )>, F>>>::value,
+          Derived&>::type
 # endif
-          operator|=( Self& bar, F&& fn )
-            noexcept( std::is_nothrow_assignable<wrappers::UniqueFunction<void()>, F>::value )
+          operator|=( Self& bar, F&& fn ) noexcept( noexcept( bar.action( std::forward<F>( fn ) ) ) )
         {
           return bar.action( std::forward<F>( fn ) );
         }
         template<typename F>
 # if __PGBAR_CXX20
-          requires __PGBAR_ACTIONABLE
-        friend Derived&
+          requires( !std::is_null_pointer_v<std::decay_t<F>>
+                    && (std::is_constructible_v<wrappers::UniqueFunction<void()>, F>
+                        || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F>))
+        __PGBAR_INLINE_FN friend Derived&
 # else
-        friend Actionable<F, Derived&>
+        __PGBAR_INLINE_FN friend typename std::enable_if<
+          traits::AllOf<
+            traits::Not<std::is_null_pointer<typename std::decay<F>::type>>,
+            traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F>,
+                          std::is_constructible<wrappers::UniqueFunction<void( Derived& )>, F>>>::value,
+          Derived&>::type
 # endif
-          operator|( Self& bar, F&& fn )
-            noexcept( std::is_nothrow_assignable<wrappers::UniqueFunction<void()>, F>::value )
+          operator|( Self& bar, F&& fn ) noexcept( noexcept( bar.action( std::forward<F>( fn ) ) ) )
         {
           return bar.action( std::forward<F>( fn ) );
         }
         template<typename F>
 # if __PGBAR_CXX20
-          requires __PGBAR_ACTIONABLE
-        friend Derived&
+          requires( !std::is_null_pointer_v<std::decay_t<F>>
+                    && (std::is_constructible_v<wrappers::UniqueFunction<void()>, F>
+                        || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F>))
+        __PGBAR_INLINE_FN friend Derived&
 # else
-        friend Actionable<F, Derived&>
+        __PGBAR_INLINE_FN friend typename std::enable_if<
+          traits::AllOf<
+            traits::Not<std::is_null_pointer<typename std::decay<F>::type>>,
+            traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F>,
+                          std::is_constructible<wrappers::UniqueFunction<void( Derived& )>, F>>>::value,
+          Derived&>::type
 # endif
-          operator|( F&& fn, Self& bar )
-            noexcept( std::is_nothrow_assignable<wrappers::UniqueFunction<void()>, F>::value )
+          operator|( F&& fn, Self& bar ) noexcept( noexcept( bar.action( std::forward<F>( fn ) ) ) )
         {
           return bar.action( std::forward<F>( fn ) );
         }
         template<typename F>
 # if __PGBAR_CXX20
-          requires __PGBAR_ACTIONABLE
-        friend Derived&&
+          requires( !std::is_null_pointer_v<std::decay_t<F>>
+                    && (std::is_constructible_v<wrappers::UniqueFunction<void()>, F>
+                        || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F>))
+        __PGBAR_INLINE_FN friend Derived&&
 # else
-        friend Actionable<F, Derived&&>
+        __PGBAR_INLINE_FN friend typename std::enable_if<
+          traits::AllOf<
+            traits::Not<std::is_null_pointer<typename std::decay<F>::type>>,
+            traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F>,
+                          std::is_constructible<wrappers::UniqueFunction<void( Derived& )>, F>>>::value,
+          Derived&&>::type
 # endif
-          operator|( Self&& bar, F&& fn )
-            noexcept( std::is_nothrow_assignable<wrappers::UniqueFunction<void()>, F>::value )
+          operator|( Self&& bar, F&& fn ) noexcept( noexcept( bar.action( std::forward<F>( fn ) ) ) )
         {
           return std::move( bar.action( std::forward<F>( fn ) ) );
         }
         template<typename F>
 # if __PGBAR_CXX20
-          requires __PGBAR_ACTIONABLE
-        friend Derived&&
+          requires( !std::is_null_pointer_v<std::decay_t<F>>
+                    && (std::is_constructible_v<wrappers::UniqueFunction<void()>, F>
+                        || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F>))
+        __PGBAR_INLINE_FN friend Derived&&
 # else
-        friend Actionable<F, Derived&&>
+        __PGBAR_INLINE_FN friend typename std::enable_if<
+          traits::AllOf<
+            traits::Not<std::is_null_pointer<typename std::decay<F>::type>>,
+            traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F>,
+                          std::is_constructible<wrappers::UniqueFunction<void( Derived& )>, F>>>::value,
+          Derived&&>::type
 # endif
-          operator|( F&& fn, Self&& bar )
-            noexcept( std::is_nothrow_assignable<wrappers::UniqueFunction<void()>, F>::value )
+          operator|( F&& fn, Self&& bar ) noexcept( noexcept( bar.action( std::forward<F>( fn ) ) ) )
         {
           return std::move( bar.action( std::forward<F>( fn ) ) );
+        }
+
+        __PGBAR_INLINE_FN friend Derived& operator|=( Self& bar, std::nullptr_t ) noexcept
+        {
+          return bar.action();
+        }
+        __PGBAR_INLINE_FN friend Derived& operator|( Self& bar, std::nullptr_t ) noexcept
+        {
+          return bar.action();
+        }
+        __PGBAR_INLINE_FN friend Derived& operator|( std::nullptr_t, Self& bar ) noexcept
+        {
+          return bar.action();
+        }
+        __PGBAR_INLINE_FN friend Derived&& operator|( Self&& bar, std::nullptr_t ) noexcept
+        {
+          return std::move( bar.action() );
+        }
+        __PGBAR_INLINE_FN friend Derived&& operator|( std::nullptr_t, Self&& bar ) noexcept
+        {
+          return std::move( bar.action() );
+        }
+
+        void swap( Self& lhs ) noexcept
+        {
+          Base::swap( lhs );
+          std::lock( this->mtx_, lhs.mtx_ );
+          std::lock_guard<std::mutex> lock1 { this->mtx_, std::adopt_lock };
+          std::lock_guard<std::mutex> lock2 { lhs.mtx_, std::adopt_lock };
+          switch ( tag_ ) {
+          case Tag::Nullary: {
+            wrappers::UniqueFunction<void()> tmp { std::move( hook_.on_ ) };
+            lhs.move_to( *this );
+            new ( &lhs.hook_.on_ ) wrappers::UniqueFunction<void()>( std::move( tmp ) );
+            lhs.tag_ = Tag::Nullary;
+          } break;
+
+          case Tag::Unary: {
+            wrappers::UniqueFunction<void( Derived& )> tmp { std::move( hook_.on_self_ ) };
+            lhs.move_to( *this );
+            new ( &lhs.hook_.on_self_ ) wrappers::UniqueFunction<void( Derived& )>( std::move( tmp ) );
+            lhs.tag_ = Tag::Unary;
+          } break;
+
+          case Tag::Nil: __PGBAR_FALLTHROUGH;
+          default:       lhs.move_to( *this ); break;
+          }
         }
       };
-# undef __PGBAR_ACTIONABLE
 
       template<typename Base, typename Derived>
       class TickableBar : public Base {
@@ -7098,14 +7246,14 @@ namespace pgbar {
           return state_.load( std::memory_order_acquire );
         }
 
-        __PGBAR_INLINE_FN void do_reset( bool forced = false ) noexcept
+        // Only when "forced" is true will it be noexcept.
+        __PGBAR_INLINE_FN void do_reset( bool forced = false )
         {
           if ( this->active() ) {
             if ( forced )
               __PGBAR_UNLIKELY state_.store( State::Stop, std::memory_order_release );
             else {
-              if ( this->hook_ )
-                this->hook_();
+              this->react();
               state_.store( State::Finish, std::memory_order_release );
             }
             this->do_halt( forced );
@@ -7289,14 +7437,14 @@ namespace pgbar {
           default: __PGBAR_UNREACHABLE;
           }
         }
-        __PGBAR_INLINE_FN void do_reset( bool forced = false ) noexcept
+        // Only when "forced" is true will it be noexcept.
+        __PGBAR_INLINE_FN void do_reset( bool forced = false )
         {
           if ( this->active() ) {
             if ( forced )
               __PGBAR_UNLIKELY state_.store( State::Stop, std::memory_order_release );
             else {
-              if ( this->hook_ )
-                this->hook_();
+              this->react();
               state_.store( State::Finish, std::memory_order_release );
             }
             this->do_halt( forced );
@@ -7437,11 +7585,27 @@ namespace pgbar {
           : Base( Soul( std::forward<Args>( args )... ) )
         {}
 
-        BasicBar( const BasicBar& )                               = delete;
-        BasicBar& operator=( const BasicBar& ) &                  = delete;
-        constexpr BasicBar( BasicBar&& )                          = default;
-        __PGBAR_CXX14_CNSTXPR BasicBar& operator=( BasicBar&& ) & = default;
-        __PGBAR_CXX20_CNSTXPR virtual ~BasicBar()                 = default;
+        BasicBar( const BasicBar& )              = delete;
+        BasicBar& operator=( const BasicBar& ) & = delete;
+        constexpr BasicBar( BasicBar&& )         = default;
+        BasicBar& operator=( BasicBar&& rhs ) & noexcept
+        {
+          __PGBAR_TRUST( this != &rhs );
+          __PGBAR_ASSERT( this->active() == false );
+          __PGBAR_ASSERT( this->active() == false );
+          Base::operator=( std::move( rhs ) );
+          return *this;
+        }
+        __PGBAR_CXX20_CNSTXPR virtual ~BasicBar() = default;
+
+        void swap( BasicBar& lhs ) noexcept
+        {
+          __PGBAR_TRUST( this != &lhs );
+          __PGBAR_ASSERT( this->active() == false );
+          __PGBAR_ASSERT( this->active() == false );
+          Base::swap( lhs );
+        }
+        friend void swap( BasicBar& a, BasicBar& b ) noexcept { a.swap( b ); }
       };
     } // namespace prefabs
 
@@ -7460,6 +7624,8 @@ namespace pgbar {
       };
       template<typename B>
       struct is_iterable_bar : AllOf<is_bar<B>, InstanceOf<B, assets::TaskCounter>> {};
+      template<typename B>
+      struct is_reactive_bar : AllOf<is_bar<B>, InstanceOf<B, assets::ReactiveBar>> {};
     } // namespace traits
   } // namespace __details
 
@@ -7945,6 +8111,34 @@ namespace pgbar {
       -> decltype( std::declval<Self&>().template at<Pos>().iterate( std::forward<Args>( args )... ) )
     {
       return at<Pos>().iterate( std::forward<Args>( args )... );
+    }
+
+    template<__details::types::Size Pos, typename F
+# if __PGBAR_CXX20
+             >
+      requires __details::traits::is_reactive_bar<BarAt_t<Pos>>::value
+# else
+      ,
+      typename = typename std::enable_if<__details::traits::is_reactive_bar<BarAt_t<Pos>>::value>::type>
+# endif
+    __PGBAR_INLINE_FN BarAt_t<Pos>& action( F&& fn ) & noexcept(
+      noexcept( std::declval<Self&>().template at<Pos>().action( std::forward<F>( fn ) ) ) )
+    {
+      return at<Pos>().action( std::forward<F>( fn ) );
+    }
+    template<__details::types::Size Pos
+# if __PGBAR_CXX20
+             >
+      requires __details::traits::is_reactive_bar<BarAt_t<Pos>>::value
+
+# else
+             ,
+             typename =
+               typename std::enable_if<__details::traits::is_reactive_bar<BarAt_t<Pos>>::value>::type>
+# endif
+    __PGBAR_INLINE_FN BarAt_t<Pos>& action() noexcept
+    {
+      return at<Pos>().action();
     }
 
     void swap( Self& rhs ) noexcept { tuple_.swap( rhs.tuple_ ); }
@@ -8684,11 +8878,9 @@ namespace pgbar {
           : Base( std::forward<Args>( args )... ), context_ { std::move( context ) }
         {}
 
-        /**
-         * This thing is always wrapped by `std::unique_ptr` under normal circumstances,
-         * so there is no need to add move semantics support for it;
-         * otherwise, additional null checks would be required in the methods.
-         */
+        // This thing is always wrapped by `std::unique_ptr` under normal circumstances,
+        // so there is no need to add move semantics support for it;
+        // otherwise, additional null checks would be required in the methods.
         ManagedBar( const ManagedBar& )              = delete;
         ManagedBar& operator=( const ManagedBar& ) & = delete;
 

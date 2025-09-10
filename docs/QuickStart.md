@@ -522,7 +522,7 @@ This type of range is actually a "finite range", which means its size is known a
 
 If the finite range constraint is satisfied and C++20 is used, then `iterate` can correctly handle the reference lifetime of view types that satisfy the constraint `std::ranges::view`.
 ### Custom callback
-The `ProgressBar` provides an `action()` method to receive or clear a function callback of type `void()`.
+The `ProgressBar` provides an `action()` method to receive or clear a function callback of type `void()` or `void( ProgressBar& )`.
 
 This callback will be invoked when the progress bar type calls the `reset()` method and before the progress bar rendering is terminated (the return value of the `active()` function switches from `true` to `false`).
 
@@ -538,11 +538,11 @@ int main()
 {
   pgbar::ProgressBar<> bar;
   bool flag = true;
-  auto callback = [&]() {
+  auto callback = [&]( pgbar::ProgressBar<>& self ) {
     if ( flag )
-      bar.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
+      self.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
     else
-      bar.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
+      self.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
   };
 
   bar.action( callback );
@@ -981,7 +981,7 @@ This type of range is actually a "finite range", which means its size is known a
 
 If the finite range constraint is satisfied and C++20 is used, then `iterate` can correctly handle the reference lifetime of view types that satisfy the constraint `std::ranges::view`.
 ### Custom callback
-The `BlockBar` provides an `action()` method to receive or clear a function callback of type `void()`.
+The `BlockBar` provides an `action()` method to receive or clear a function callback of type `void()` or `void( BlockBar& )`.
 
 This callback will be invoked when the progress bar type calls the `reset()` method and before the progress bar rendering is terminated (the return value of the `active()` function switches from `true` to `false`).
 
@@ -997,11 +997,11 @@ int main()
 {
   pgbar::BlockBar<> bar;
   bool flag = true;
-  auto callback = [&]() {
+  auto callback = [&]( pgbar::BlockBar<>& self ) {
     if ( flag )
-      bar.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
+      self.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
     else
-      bar.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
+      self.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
   };
 
   bar.action( callback );
@@ -1407,7 +1407,7 @@ This type of range is actually a "finite range", which means its size is known a
 
 If the finite range constraint is satisfied and C++20 is used, then `iterate` can correctly handle the reference lifetime of view types that satisfy the constraint `std::ranges::view`.
 ### Custom callback
-The `SpinBar` provides an `action()` method to receive or clear a function callback of type `void()`.
+The `SpinBar` provides an `action()` method to receive or clear a function callback of type `void()` or `void( SpinBar& )`.
 
 This callback will be invoked when the progress bar type calls the `reset()` method and before the progress bar rendering is terminated (the return value of the `active()` function switches from `true` to `false`).
 
@@ -1423,11 +1423,11 @@ int main()
 {
   pgbar::SpinBar<> bar;
   bool flag = true;
-  auto callback = [&]() {
+  auto callback = [&]( pgbar::SpinBar<>& self ) {
     if ( flag )
-      bar.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
+      self.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
     else
-      bar.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
+      self.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
   };
 
   bar.action( callback );
@@ -1863,7 +1863,7 @@ This type of range is actually a "finite range", which means its size is known a
 
 If the finite range constraint is satisfied and C++20 is used, then `iterate` can correctly handle the reference lifetime of view types that satisfy the constraint `std::ranges::view`.
 ### Custom callback
-The `SweepBar` provides an `action()` method to receive or clear a function callback of type `void()`.
+The `SweepBar` provides an `action()` method to receive or clear a function callback of type `void()` or `void( SweepBar& )`.
 
 This callback will be invoked when the progress bar type calls the `reset()` method and before the progress bar rendering is terminated (the return value of the `active()` function switches from `true` to `false`).
 
@@ -1879,11 +1879,11 @@ int main()
 {
   pgbar::SweepBar<> bar;
   bool flag = true;
-  auto callback = [&]() {
+  auto callback = [&]( pgbar::SweepBar<>& self ) {
     if ( flag )
-      bar.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
+      self.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
     else
-      bar.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
+      self.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
   };
 
   bar.action( callback );
@@ -2319,7 +2319,7 @@ This type of range is actually a "finite range", which means its size is known a
 
 If the finite range constraint is satisfied and C++20 is used, then `iterate` can correctly handle the reference lifetime of view types that satisfy the constraint `std::ranges::view`.
 ### Custom callback
-The `FlowBar` provides an `action()` method to receive or clear a function callback of type `void()`.
+The `FlowBar` provides an `action()` method to receive or clear a function callback of type `void()` or `void( FlowBar& )`.
 
 This callback will be invoked when the progress bar type calls the `reset()` method and before the progress bar rendering is terminated (the return value of the `active()` function switches from `true` to `false`).
 
@@ -2335,11 +2335,11 @@ int main()
 {
   pgbar::FlowBar<> bar;
   bool flag = true;
-  auto callback = [&]() {
+  auto callback = [&]( pgbar::FlowBar<>& self ) {
     if ( flag )
-      bar.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
+      self.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
     else
-      bar.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
+      self.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
   };
 
   bar.action( callback );

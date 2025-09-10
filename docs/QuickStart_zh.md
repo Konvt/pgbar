@@ -522,7 +522,7 @@ int main()
 
 如果满足有穷范围约束，如果使用 C++20，那么 `iterate` 能够正确处理满足约束 `std::ranges::view` 的视图类型的引用生命周期。
 ### 自定义回调函数
-`ProgressBar` 提供了一个 `action()` 方法，以接收或清除一个 `void()` 类型的函数回调。
+`ProgressBar` 提供了一个 `action()` 方法，以接收或清除一个 `void()` 或 `void( ProgressBar& )` 类型的函数回调。
 
 该回调会在进度条类型调用 `reset()` 方法时、终止进度条渲染（`active()` 函数返回值从 `true` 切换为 `false`）之前被调用。
 
@@ -538,11 +538,11 @@ int main()
 {
   pgbar::ProgressBar<> bar;
   bool flag = true;
-  auto callback = [&]() {
+  auto callback = [&]( pgbar::ProgressBar<>& self ) {
     if ( flag )
-      bar.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
+      self.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
     else
-      bar.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
+      self.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
   };
 
   bar.action( callback );
@@ -981,7 +981,7 @@ int main()
 
 如果满足有穷范围约束，如果使用 C++20，那么 `iterate` 能够正确处理满足约束 `std::ranges::view` 的视图类型的引用生命周期。
 ### 自定义回调函数
-`BlockBar` 提供了一个 `action()` 方法，以接收或清除一个 `void()` 类型的函数回调。
+`BlockBar` 提供了一个 `action()` 方法，以接收或清除一个 `void()` 或 `void(  BlockBar& )` 类型的函数回调。
 
 该回调会在进度条类型调用 `reset()` 方法时、终止进度条渲染（`active()` 函数返回值从 `true` 切换为 `false`）之前被调用。
 
@@ -997,11 +997,11 @@ int main()
 {
   pgbar::BlockBar<> bar;
   bool flag = true;
-  auto callback = [&]() {
+  auto callback = [&]( pgbar::BlockBar<>& self ) {
     if ( flag )
-      bar.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
+      self.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
     else
-      bar.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
+      self.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
   };
 
   bar.action( callback );
@@ -1407,7 +1407,7 @@ int main()
 
 如果满足有穷范围约束，如果使用 C++20，那么 `iterate` 能够正确处理满足约束 `std::ranges::view` 的视图类型的引用生命周期。
 ### 自定义回调函数
-`SpinBar` 提供了一个 `action()` 方法，以接收或清除一个 `void()` 类型的函数回调。
+`SpinBar` 提供了一个 `action()` 方法，以接收或清除一个 `void()` 或 `void( SpinBar& )` 类型的函数回调。
 
 该回调会在进度条类型调用 `reset()` 方法时、终止进度条渲染（`active()` 函数返回值从 `true` 切换为 `false`）之前被调用。
 
@@ -1423,11 +1423,11 @@ int main()
 {
   pgbar::SpinBar<> bar;
   bool flag = true;
-  auto callback = [&]() {
+  auto callback = [&]( pgbar::SpinBar<>& self ) {
     if ( flag )
-      bar.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
+      self.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
     else
-      bar.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
+      self.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
   };
 
   bar.action( callback );
@@ -1864,7 +1864,7 @@ int main()
 
 如果满足有穷范围约束，如果使用 C++20，那么 `iterate` 能够正确处理满足约束 `std::ranges::view` 的视图类型的引用生命周期。
 ### 自定义回调函数
-`SweepBar` 提供了一个 `action()` 方法，以接收或清除一个 `void()` 类型的函数回调。
+`SweepBar` 提供了一个 `action()` 方法，以接收或清除一个 `void()` 或 `void( SweepBar& )` 类型的函数回调。
 
 该回调会在进度条类型调用 `reset()` 方法时、终止进度条渲染（`active()` 函数返回值从 `true` 切换为 `false`）之前被调用。
 
@@ -1880,11 +1880,11 @@ int main()
 {
   pgbar::SweepBar<> bar;
   bool flag = true;
-  auto callback = [&]() {
+  auto callback = [&]( pgbar::SweepBar<>& self ) {
     if ( flag )
-      bar.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
+      self.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
     else
-      bar.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
+      self.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
   };
 
   bar.action( callback );
@@ -2321,7 +2321,7 @@ int main()
 
 如果满足有穷范围约束，如果使用 C++20，那么 `iterate` 能够正确处理满足约束 `std::ranges::view` 的视图类型的引用生命周期。
 ### 自定义回调函数
-`FlowBar` 提供了一个 `action()` 方法，以接收或清除一个 `void()` 类型的函数回调。
+`FlowBar` 提供了一个 `action()` 方法，以接收或清除一个 `void()` 或 `void( FlowBar& )` 类型的函数回调。
 
 该回调会在进度条类型调用 `reset()` 方法时、终止进度条渲染（`active()` 函数返回值从 `true` 切换为 `false`）之前被调用。
 
@@ -2337,11 +2337,11 @@ int main()
 {
   pgbar::FlowBar<> bar;
   bool flag = true;
-  auto callback = [&]() {
+  auto callback = [&]( pgbar::FlowBar<>& self ) {
     if ( flag )
-      bar.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
+      self.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
     else
-      bar.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
+      self.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
   };
 
   bar.action( callback );
