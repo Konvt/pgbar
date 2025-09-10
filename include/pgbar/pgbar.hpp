@@ -7550,31 +7550,39 @@ namespace pgbar {
           auto& ostream        = io::OStream<Outlet>::itself();
           const auto istty     = console::TermContext<Outlet>::itself().connected();
           const auto hide_done = config::hide_completed();
+
+          bool this_rendered = false;
+          auto mask          = active_mask_.load( std::memory_order_relaxed );
           if ( at<Pos>().active() ) {
-            auto new_val = active_mask_.load( std::memory_order_acquire );
-            new_val.set( Pos );
-            active_mask_.store( new_val, std::memory_order_release );
+            this_rendered = true;
+            mask.set( Pos );
             if ( istty )
               ostream << console::escodes::linewipe;
             make_frame( at<Pos>() );
 
-            if ( !at<Pos>().active() && istty && hide_done ) {
-              // The renderer ensures that each call to do render is atomic.
-              new_val.reset( Pos );
-              active_mask_.store( new_val, std::memory_order_release );
-              ostream << console::escodes::linestart;
-            }
+            if ( ( !istty || hide_done ) && !at<Pos>().active() )
+              mask.reset( Pos );
+            active_mask_.store( mask, std::memory_order_release );
           }
-          if ( active_mask_.load( std::memory_order_acquire )[Pos] )
+
+          /**
+           * Here are the scenarios where a newline character is output:
+           * 1. If the output stream is bound to a terminal and the completed progress bar does not need to be
+           * hidden, it should be output when active_mask_[Pos] is true.
+           * 2. If the output stream is bound to a terminal and the completed progress bar needs to be hidden,
+           *    it only be output when Pos-th is still active.
+           * 3. If the output stream is not bound to a terminal,
+           *    it should be output whenever Pos-th has just been rendered.
+           */
+          if ( ( this_rendered || mask[Pos] )
+               && ( ( !istty && this_rendered ) || ( istty && ( !hide_done || at<Pos>().active() ) ) ) )
             ostream << console::escodes::nextline;
-          if ( istty ) {
-            if ( hide_done )
-              ostream << console::escodes::linewipe;
-          } else if ( !at<Pos>().active() ) {
-            auto new_val = active_mask_.load( std::memory_order_acquire );
-            new_val.reset( Pos );
-            active_mask_.store( new_val, std::memory_order_release );
+          if ( istty && hide_done ) {
+            if ( !at<Pos>().active() )
+              ostream << console::escodes::linestart;
+            ostream << console::escodes::linewipe;
           }
+
           return do_render<Pos + 1>(); // tail recursive
         }
 
@@ -7645,6 +7653,7 @@ namespace pgbar {
           } else
             executor.attempt();
           alive_cnt_.fetch_add( 1, std::memory_order_release );
+          __PGBAR_ASSERT( alive_cnt_ <= sizeof...( Configs ) );
         }
 
         template<types::Size Pos>
@@ -8759,8 +8768,6 @@ namespace pgbar {
           const auto hide_done = config::hide_completed();
 
           bool any_alive = false, any_rendered = false;
-          if ( istty && hide_done )
-            ostream << console::escodes::linewipe;
           for ( types::Size i = 0; i < items_.size(); ++i ) {
             bool this_rendered = false;
             // If items_[i].target_ is equal to nullptr,
