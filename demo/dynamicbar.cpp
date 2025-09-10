@@ -13,7 +13,7 @@ int main()
     dbar.insert( pgbar::config::Line( pgbar::option::Prefix( "No.2" ), pgbar::option::Tasks( 8000 ) ) );
 
   vector<thread> pool;
-  pool.emplace_back( [bar1]() {
+  pool.emplace_back( [&bar1]() {
     bar1->config().prefix( "No.1" ).tasks( 1919 );
     this_thread::sleep_for( chrono::seconds( 3 ) );
     do {
@@ -21,7 +21,7 @@ int main()
       this_thread::sleep_for( chrono::milliseconds( 5 ) );
     } while ( bar1->active() );
   } );
-  pool.emplace_back( [bar2]() {
+  pool.emplace_back( [&bar2]() {
     this_thread::sleep_for( chrono::seconds( 2 ) );
     do {
       bar2->tick();
@@ -31,7 +31,7 @@ int main()
   pool.emplace_back( [&dbar]() {
     auto bar =
       dbar.insert<pgbar::config::Line>( pgbar::option::Prefix( "No.3" ), pgbar::option::Tasks( 1000 ) );
-    for ( int i = 0; i < 850; ++i ) {
+    for ( int i = 0; i < 500; ++i ) {
       bar->tick();
       this_thread::sleep_for( chrono::milliseconds( 5 ) );
     }
