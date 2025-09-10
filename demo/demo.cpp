@@ -25,8 +25,7 @@ int main()
   vector<thread> pool;
   pool.emplace_back( [&]() {
     bool flag = true;
-    bar.at<0>() |= [&]() {
-      auto& self = bar.at<0>();
+    bar.at<0>() |= [&]( pgbar::ProgressBar<>& self ) {
       if ( flag )
         self.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
       else
@@ -40,8 +39,7 @@ int main()
   } );
   pool.emplace_back( [&]() {
     bool flag = true;
-    bar.at<1>() |= [&]() {
-      auto& self = bar.at<1>();
+    bar.at<1>() |= [&]( pgbar::BlockBar<>& self ) {
       if ( flag )
         self.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
       else
