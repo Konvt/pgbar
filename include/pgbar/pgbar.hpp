@@ -932,6 +932,21 @@ namespace pgbar {
 # endif
       }
 
+# if __PGBAR_CXX14
+      template<typename T, typename... Args>
+      __PGBAR_INLINE_FN __PGBAR_CXX23_CNSTXPR auto make_unique( Args&&... args )
+      {
+        return std::make_unique<T>( std::forward<Args>( args )... );
+      }
+# else
+      // picking up the standard's mess...
+      template<typename T, typename... Args>
+      __PGBAR_INLINE_FN __PGBAR_CXX23_CNSTXPR std::unique_ptr<T> make_unique( Args&&... args )
+      {
+        return std::unique_ptr<T>( new T( std::forward<Args>( args )... ) );
+      }
+# endif
+
 # if __PGBAR_CXX17
       template<typename Fn, typename... Args>
       __PGBAR_INLINE_FN constexpr decltype( auto ) invoke( Fn&& fn, Args&&... args )
@@ -2968,10 +2983,13 @@ namespace pgbar {
           // If the rendering task throws some exception, this rendering should be abandoned.
         }
 
-        void appoint() noexcept
+        template<typename F>
+        void appoint_then( F&& noexpt_fn ) noexcept
         {
+          static_assert( noexcept( (void)noexpt_fn() ),
+                         "pgbar::__details::render::Renderer::appoint_then: Unsafe functor types" );
+
           std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
-          // All of codes below are locked to prevent concurrent threads from calling `try_appoint`.
           if ( task_ != nullptr ) {
             state_.store( State::Quit, std::memory_order_release );
             {
@@ -2981,7 +2999,13 @@ namespace pgbar {
             Runner<Tag>::itself().appoint();
             task_ = nullptr;
           }
+          (void)noexpt_fn();
         }
+        void appoint() noexcept
+        {
+          appoint_then( []() noexcept {} );
+        }
+
         __PGBAR_NODISCARD bool try_appoint( wrappers::UniqueFunction<void()>&& task ) & noexcept( false )
         {
           std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
@@ -3142,14 +3166,23 @@ namespace pgbar {
           }
         }
 
-        void appoint() noexcept
+        template<typename F>
+        void appoint_then( F&& noexpt_fn ) noexcept
         {
+          static_assert( noexcept( (void)noexpt_fn() ),
+                         "pgbar::__details::render::Renderer::appoint_then: Unsafe functor types" );
+
           std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
           if ( task_ != nullptr ) {
             state_.store( State::Quit, std::memory_order_release );
             Runner<Tag>::itself().appoint();
             task_ = nullptr;
           }
+          (void)noexpt_fn();
+        }
+        void appoint() noexcept
+        {
+          appoint_then( []() noexcept {} );
         }
         __PGBAR_NODISCARD bool try_appoint( wrappers::UniqueFunction<void()>&& task ) & noexcept( false )
         {
@@ -6744,13 +6777,10 @@ namespace pgbar {
         virtual void do_halt( bool forced = false ) noexcept
         {
           auto& executor = render::Renderer<Outlet, Mode>::itself();
-          if ( !executor.empty() ) {
-            if ( !forced )
-              executor.attempt();
-            else
-              io::OStream<Outlet>::itself().release();
-            executor.appoint();
-          }
+          __PGBAR_ASSERT( executor.empty() == false );
+          if ( !forced )
+            executor.attempt();
+          executor.appoint_then( []() noexcept { io::OStream<Outlet>::itself().release(); } );
         }
         virtual void do_boot() & noexcept( false )
         {
@@ -6793,7 +6823,7 @@ namespace pgbar {
                      ostream << console::escodes::linestart << console::escodes::linewipe;
                    else
                      ostream << console::escodes::nextline;
-                   ostream << io::flush << io::release;
+                   ostream << io::flush;
                  } break;
                  default: return;
                  }
@@ -7559,9 +7589,8 @@ namespace pgbar {
             if ( !forced )
               executor.attempt();
             if ( alive_cnt_.fetch_sub( 1, std::memory_order_acq_rel ) == 1 ) {
-              executor.appoint();
-              io::OStream<Outlet>::itself().release();
               state_.store( State::Stop, std::memory_order_release );
+              executor.appoint_then( []() noexcept { io::OStream<Outlet>::itself().release(); } );
             }
           }
         }
@@ -8618,10 +8647,59 @@ namespace pgbar {
   } // namespace slice
 
   namespace __details {
-    namespace prefabs {
-      template<typename, Channel, Policy, Region>
-      class SharedBar;
+    namespace assets {
+      template<Channel, Policy, Region>
+      class DynamicContext;
     }
+
+    namespace prefabs {
+      template<typename C, Channel O, Policy M, Region A>
+      class ManagedBar final : public BasicBar<C, O, M, A> {
+        using Base    = BasicBar<C, O, M, A>;
+        using Context = std::shared_ptr<assets::DynamicContext<O, M, A>>;
+
+        Context context_;
+
+        void do_halt( bool forced ) noexcept final { context_->pop( this, forced ); }
+        void do_boot() & final { context_->append( this ); }
+
+      public:
+        ManagedBar( Context context, C&& config ) noexcept
+          : Base( std::move( config ) ), context_ { std::move( context ) }
+        {}
+        ManagedBar( Context context, BasicBar<C, O, M, A>&& bar ) noexcept
+          : Base( std::move( bar ) ), context_ { std::move( context ) }
+        {}
+        template<typename... Args>
+        ManagedBar( Context context, Args&&... args )
+          : Base( std::forward<Args>( args )... ), context_ { std::move( context ) }
+        {}
+
+        /**
+         * This thing is always wrapped by `std::unique_ptr` under normal circumstances,
+         * so there is no need to add move semantics support for it;
+         * otherwise, additional null checks would be required in the methods.
+         */
+        ManagedBar( const ManagedBar& )              = delete;
+        ManagedBar& operator=( const ManagedBar& ) & = delete;
+
+        /**
+         * The object model of C++ requires that derived classes be destructed first.
+         * When the derived class is destructed and the base class destructor attempts to call `do_reset`,
+         * the internal virtual function `do_halt` will point to a non-existent derived class.
+
+         * Therefore, here it is necessary to explicitly re-call the base class's `do_reset`
+         * to shut down any possible running state.
+
+         * After calling `do_reset`, the object state will switch to Stop,
+         * and further calls to `do_reset` will have no effect.
+         * So even if the base class destructor calls `do_reset` again, it is safe.
+         */
+        virtual ~ManagedBar() noexcept { halt(); }
+
+        void halt() noexcept { this->do_reset( true ); }
+      };
+    } // namespace prefabs
 
     namespace assets {
       template<Channel Outlet, Policy Mode, Region Area>
@@ -8631,49 +8709,46 @@ namespace pgbar {
           using Self = Slot;
 
           template<typename Derived>
-          static void halt( Indicator* bar ) noexcept
+          static void halt( Indicator* item ) noexcept
           {
             static_assert(
               traits::AllOf<std::is_base_of<Indicator, Derived>, traits::is_bar<Derived>>::value,
               "pgbar::__details::assets::DynamicContext::Slot::halt: Derived must inherit from Indicator" );
-            __PGBAR_TRUST( bar != nullptr );
-            static_cast<Derived*>( bar )->halt();
+            __PGBAR_TRUST( item != nullptr );
+            static_cast<Derived*>( item )->halt();
           }
           template<typename Derived>
-          static void render( Indicator* bar )
+          static void render( Indicator* item )
           {
             static_assert(
               traits::AllOf<std::is_base_of<Indicator, Derived>, traits::is_bar<Derived>>::value,
               "pgbar::__details::assets::DynamicContext::Slot::render: Derived must inherit from Indicator" );
-            __PGBAR_TRUST( bar != nullptr );
-            make_frame( static_cast<Derived&>( *bar ) );
+            __PGBAR_TRUST( item != nullptr );
+            make_frame( static_cast<Derived&>( *item ) );
           }
 
         public:
           void ( *halt_ )( Indicator* ) noexcept;
           void ( *render_ )( Indicator* );
-          std::weak_ptr<Indicator> target_;
-          // active_ merely indicates whether the current object has been rendered
-          bool active_;
+          Indicator* target_;
 
           template<typename Config>
-          Slot( const std::shared_ptr<prefabs::SharedBar<Config, Outlet, Mode, Area>>& bar ) noexcept
-            : halt_ { halt<prefabs::SharedBar<Config, Outlet, Mode, Area>> }
+          Slot( prefabs::ManagedBar<Config, Outlet, Mode, Area>* item ) noexcept
+            : halt_ { halt<prefabs::ManagedBar<Config, Outlet, Mode, Area>> }
             , render_ { render<prefabs::BasicBar<Config, Outlet, Mode, Area>> }
-            , target_ { bar }
-            , active_ { false }
+            , target_ { item }
           {}
         };
 
         enum class State : std::uint8_t { Stop, Awake, Refresh };
         std::atomic<State> state_;
-        std::vector<Slot> bars_;
+        std::vector<Slot> items_;
 
         // If Area is equal to Region::Fixed,
         // the variable represents the number of lines that need to be discarded;
         // If Area is equal to Region::Relative,
         // the variable represents the number of nextlines output last time.
-        std::atomic<types::Size> num_modified_line_;
+        std::atomic<types::Size> num_modified_lines_;
         mutable concurrent::SharedMutex res_mtx_;
         mutable std::mutex sched_mtx_;
 
@@ -8682,52 +8757,71 @@ namespace pgbar {
           auto& ostream        = io::OStream<Outlet>::itself();
           const auto istty     = console::TermContext<Outlet>::itself().connected();
           const auto hide_done = config::hide_completed();
-          for ( types::Size i = 0; i < bars_.size(); ++i ) {
-            auto bar_ptr = bars_[i].target_.lock();
 
-            // If bars_[i].render_ is equal to nullptr,
-            // indicating that the i-th object has stopped and is still valid.
-            if ( bar_ptr != nullptr && bars_[i].render_ != nullptr ) {
-              bars_[i].active_ = true;
-              if ( istty )
+          bool any_alive = false, any_rendered = false;
+          if ( istty && hide_done )
+            ostream << console::escodes::linewipe;
+          for ( types::Size i = 0; i < items_.size(); ++i ) {
+            bool this_rendered = false;
+            // If items_[i].target_ is equal to nullptr,
+            // indicating that the i-th object has stopped.
+            if ( items_[i].target_ != nullptr ) {
+              this_rendered = any_rendered = true;
+              if ( istty && !hide_done )
                 ostream << console::escodes::linewipe;
-              ( *bars_[i].render_ )( bar_ptr.get() );
+              ( *items_[i].render_ )( items_[i].target_ );
 
-              if ( !bar_ptr->active() ) {
-                bars_[i].render_ = nullptr;
-                if ( istty && hide_done ) {
-                  bars_[i].active_ = false;
-                  ostream << console::escodes::linestart;
-                }
-              }
+              const auto is_alive = items_[i].target_->active();
+              any_alive |= is_alive;
+              if ( !is_alive )
+                items_[i].target_ = nullptr; // mark that it should stop rendering
             }
 
-            // If bar_[i] stops working due to destruction, the bar_ptr is equal to nullptr.
-            // At this point, the pop() method cannot find the corresponding element in bar_;
-            // So here, it can only be determined whether the object has been destructed
-            // by checking if bar_ptr is equal to nullptr.
-            if ( bars_[i].active_ && bar_ptr != nullptr ) {
+            /**
+             * When Area is equal to Region::Fixed, the row discard policy is as follows:
+             * After eliminating the first k consecutive stopped items in the render queue item_
+             * (via the eliminate method), the starting area for rendering is moved down by k rows.
+             * Therefore, at this point,
+             * all remaining items that have not been removed should trigger a line break for rendering.
+
+             * When Area is equal to Region::Relative, the row discard policy is as follows:
+             * During the rendering process,
+             * count the number of consecutive line breaks output starting from the first rendered item,
+             * denoted as n.
+             * In the next round of rendering, move up by n rows.
+             * Therefore, at this point,
+             * it is necessary to track which items in the render queue have been rendered
+             * and whether any items have been rendered in the current round of rendering.
+
+             * If the output stream is not bound to a terminal, there is no line discard policy;
+             * all rendered items will trigger a newline character to be rendered.
+             */
+            if __PGBAR_CXX17_CNSTXPR ( Area == Region::Relative )
+              if ( !any_rendered && !this_rendered )
+                continue;
+            if ( ( !istty && this_rendered )
+                 || ( istty && ( !hide_done || items_[i].target_ != nullptr ) ) ) {
               ostream << console::escodes::nextline;
               if __PGBAR_CXX17_CNSTXPR ( Area == Region::Relative )
-                num_modified_line_.fetch_add( 1, std::memory_order_relaxed );
+                num_modified_lines_.fetch_add( any_alive, std::memory_order_relaxed );
             }
-            if ( istty ) {
-              if ( hide_done )
-                ostream << console::escodes::linewipe;
-            } else if ( bars_[i].render_ == nullptr || bar_ptr == nullptr )
-              bars_[i].active_ = false;
+            if ( istty && hide_done ) {
+              if ( items_[i].target_ == nullptr )
+                ostream << console::escodes::linestart;
+              ostream << console::escodes::linewipe;
+            }
           }
         }
 
         void eliminate() noexcept
         {
-          // Search for the first k invalid or destructed progress bars and remove them.
-          auto itr = std::find_if( bars_.cbegin(), bars_.cend(), []( const Slot& slot ) noexcept {
-            return slot.render_ != nullptr && !slot.target_.expired();
+          // Search for the first k stopped progress bars and remove them.
+          auto itr = std::find_if( items_.cbegin(), items_.cend(), []( const Slot& slot ) noexcept {
+            return slot.target_ != nullptr;
           } );
-          bars_.erase( bars_.cbegin(), itr );
+          items_.erase( items_.cbegin(), itr );
           if __PGBAR_CXX17_CNSTXPR ( Area == Region::Fixed )
-            num_modified_line_.fetch_add( std::distance( bars_.cbegin(), itr ), std::memory_order_release );
+            num_modified_lines_.fetch_add( std::distance( items_.cbegin(), itr ), std::memory_order_release );
         }
 
       public:
@@ -8744,25 +8838,24 @@ namespace pgbar {
           state_.store( State::Stop, std::memory_order_release );
 
           std::lock_guard<concurrent::SharedMutex> lock2 { res_mtx_ };
-          for ( types::Size i = 0; i < bars_.size(); ++i ) {
-            auto bar_ptr = bars_[i].target_.lock();
-            if ( bars_[i].render_ != nullptr && bar_ptr != nullptr ) {
-              __PGBAR_ASSERT( bars_[i].halt_ != nullptr );
-              ( *bars_[i].halt_ )( bar_ptr.get() );
+          for ( types::Size i = 0; i < items_.size(); ++i ) {
+            if ( items_[i].target_ != nullptr ) {
+              __PGBAR_ASSERT( items_[i].halt_ != nullptr );
+              ( *items_[i].halt_ )( items_[i].target_ );
             }
           }
-          bars_.clear();
+          items_.clear();
         }
 
         template<typename C>
-        void append( std::shared_ptr<prefabs::SharedBar<C, Outlet, Mode, Area>> bar ) & noexcept( false )
+        void append( prefabs::ManagedBar<C, Outlet, Mode, Area>* item ) & noexcept( false )
         {
           std::lock_guard<std::mutex> lock1 { sched_mtx_ };
           auto& executor     = render::Renderer<Outlet, Mode>::itself();
           bool activate_flag = false;
           {
             concurrent::SharedLock<concurrent::SharedMutex> lock2 { res_mtx_ };
-            activate_flag = bars_.empty();
+            activate_flag = items_.empty();
           }
           if ( activate_flag ) {
             if ( !executor.try_appoint( [this]() {
@@ -8771,12 +8864,12 @@ namespace pgbar {
                    const auto hide_done = config::hide_completed();
                    switch ( state_.load( std::memory_order_acquire ) ) {
                    case State::Awake: {
+                     if __PGBAR_CXX17_CNSTXPR ( Area == Region::Fixed ) {
+                       if ( istty )
+                         ostream << console::escodes::savecursor;
+                     }
                      {
                        concurrent::SharedLock<concurrent::SharedMutex> lock { res_mtx_ };
-                       if __PGBAR_CXX17_CNSTXPR ( Area == Region::Fixed ) {
-                         if ( istty )
-                           ostream << console::escodes::savecursor;
-                       }
                        do_render();
                      }
                      ostream << io::flush;
@@ -8790,19 +8883,19 @@ namespace pgbar {
                          if __PGBAR_CXX17_CNSTXPR ( Area == Region::Fixed ) {
                            ostream << console::escodes::resetcursor;
                            if ( !hide_done ) {
-                             const auto num_discarded = num_modified_line_.load( std::memory_order_acquire );
+                             const auto num_discarded = num_modified_lines_.load( std::memory_order_acquire );
                              if ( num_discarded > 0 ) {
                                ostream.append( console::escodes::nextline, num_discarded )
                                  .append( console::escodes::savecursor );
-                               num_modified_line_.fetch_sub( num_discarded, std::memory_order_release );
+                               num_modified_lines_.fetch_sub( num_discarded, std::memory_order_release );
                              }
                            }
                          } else {
                            ostream
                              .append( console::escodes::prevline,
-                                      num_modified_line_.load( std::memory_order_relaxed ) )
+                                      num_modified_lines_.load( std::memory_order_relaxed ) )
                              .append( console::escodes::linestart );
-                           num_modified_line_.store( 0, std::memory_order_relaxed );
+                           num_modified_lines_.store( 0, std::memory_order_relaxed );
                          }
                        }
                        do_render();
@@ -8814,18 +8907,19 @@ namespace pgbar {
                  } ) )
               __PGBAR_UNLIKELY throw exception::InvalidState(
                 "pgbar: another progress bar instance is already running" );
+
             io::OStream<Outlet>::itself() << io::release;
-            num_modified_line_.store( 0, std::memory_order_relaxed );
+            num_modified_lines_.store( 0, std::memory_order_relaxed );
             state_.store( State::Awake, std::memory_order_release );
             try {
               {
                 std::lock_guard<concurrent::SharedMutex> lock2 { res_mtx_ };
-                bars_.emplace_back( std::move( bar ) );
+                items_.emplace_back( item );
               }
               executor.activate();
             } catch ( ... ) {
               std::lock_guard<concurrent::SharedMutex> lock2 { res_mtx_ };
-              bars_.clear();
+              items_.clear();
               state_.store( State::Stop, std::memory_order_release );
               throw;
             }
@@ -8833,121 +8927,55 @@ namespace pgbar {
             {
               std::lock_guard<concurrent::SharedMutex> lock2 { res_mtx_ };
               eliminate();
-              bars_.emplace_back( std::move( bar ) );
+              items_.emplace_back( item );
             }
             executor.attempt();
           }
         }
-        /**
-         * Note: A raw pointer (`const Indicator*`) is used here instead of a `shared_ptr` for the following
-         reasons:
-         * `pop` may be called from within the destructor of the target object (`SharedBar`),
-         * where `shared_from_this()` is not usable,
-         * and `weak_ptr::lock()` will return a null pointer at this time,
-         * making it impossible to construct a valid `shared_ptr`;
-
-         * using a raw pointer as an identifier allows compatibility with both destructor and non-destructor
-         contexts,
-         * and combined with expired checks on `weak_ptr`s in `do_render`,
-         * enables safe matching and resource cleanup.
-         */
-        void pop( const Indicator* bar, bool forced = false ) noexcept
+        void pop( const Indicator* item, bool forced = false ) noexcept
         {
+          auto& executor = render::Renderer<Outlet, Mode>::itself();
+          __PGBAR_ASSERT( executor.empty() == false );
           std::lock_guard<std::mutex> lock1 { sched_mtx_ };
           __PGBAR_ASSERT( size() != 0 );
           if ( !forced )
-            render::Renderer<Outlet, Mode>::itself().attempt();
+            executor.attempt();
 
           bool suspend_flag = false;
           {
             std::lock_guard<concurrent::SharedMutex> lock2 { res_mtx_ };
-            const auto itr = std::find_if( bars_.begin(), bars_.end(), [bar]( const Slot& slot ) noexcept {
-              // If during the destructuring process, the lock() here will return nullptr.
-              return bar == slot.target_.lock().get();
+            const auto itr = std::find_if( items_.begin(), items_.end(), [item]( const Slot& slot ) noexcept {
+              return item == slot.target_;
             } );
-            // Mark render_ as empty,
+            // Mark target_ as empty,
             // and then search for the first k invalid or destructed progress bars and remove them.
-            if ( itr != bars_.end() )
-              itr->render_ = nullptr;
+            if ( itr != items_.end() )
+              itr->target_ = nullptr;
             eliminate();
-            suspend_flag = bars_.empty();
+            suspend_flag = items_.empty();
           }
 
           if ( suspend_flag ) {
             state_.store( State::Stop, std::memory_order_release );
-            render::Renderer<Outlet, Mode>::itself().appoint();
-            io::OStream<Outlet>::itself() << io::release;
-            std::lock_guard<concurrent::SharedMutex> lock2 { res_mtx_ };
+            executor.appoint_then( []() noexcept { io::OStream<Outlet>::itself().release(); } );
           }
         }
 
         __PGBAR_NODISCARD types::Size size() const noexcept
         {
           concurrent::SharedLock<concurrent::SharedMutex> lock { res_mtx_ };
-          return bars_.size();
+          return items_.size();
         }
       };
     } // namespace assets
-
-    namespace prefabs {
-      template<typename C, Channel O, Policy M, Region A>
-      class SharedBar final
-        : public BasicBar<C, O, M, A>
-        , public std::enable_shared_from_this<SharedBar<C, O, M, A>> {
-        using Base = BasicBar<C, O, M, A>;
-        static_assert( !__details::traits::InstanceOf<Base, std::enable_shared_from_this>::value,
-                       "pgbar::__details::prefabs::SharedBar: Unexpected multiple inheritance" );
-        using Server = std::shared_ptr<assets::DynamicContext<O, M, A>>;
-
-        Server server_;
-
-        void do_halt( bool forced ) noexcept final { server_->pop( this, forced ); }
-        void do_boot() & final { server_->append( this->shared_from_this() ); }
-
-      public:
-        SharedBar( Server server, C&& config ) noexcept
-          : Base( std::move( config ) ), server_ { std::move( server ) }
-        {}
-        SharedBar( Server server, BasicBar<C, O, M, A>&& bar ) noexcept
-          : Base( std::move( bar ) ), server_ { std::move( server ) }
-        {}
-        template<typename... Args>
-        SharedBar( Server server, Args&&... args )
-          : Base( std::forward<Args>( args )... ), server_ { std::move( server ) }
-        {}
-
-        /**
-         * This thing is always wrapped by `std::shared_ptr` under normal circumstances,
-         * so there is no need to add move semantics support for it;
-         * otherwise, additional null checks would be required in the methods.
-         */
-        SharedBar( const SharedBar& )              = delete;
-        SharedBar& operator=( const SharedBar& ) & = delete;
-
-        /**
-         * The object model of C++ requires that derived classes be destructed first.
-         * When the derived class is destructed and the base class destructor attempts to call `do_reset`,
-         * the internal virtual function `do_halt` will point to a non-existent derived class.
-
-         * Therefore, here it is necessary to explicitly re-call the base class's `do_reset`
-         * to shut down any possible running state.
-
-         * After calling `do_reset`, the object state will switch to Stop,
-         * and further calls to `do_reset` will have no effect.
-         * So even if the base class destructor calls `do_reset` again, it is safe.
-         */
-        virtual ~SharedBar() noexcept { halt(); }
-
-        void halt() noexcept { this->do_reset( true ); }
-      };
-    } // namespace prefabs
   } // namespace __details
 
   template<Channel Outlet = Channel::Stderr, Policy Mode = Policy::Async, Region Area = Region::Fixed>
   class DynamicBar {
-    using Self   = DynamicBar;
-    using Server = __details::assets::DynamicContext<Outlet, Mode, Area>;
-    std::shared_ptr<Server> core_;
+    using Self    = DynamicBar;
+    using Context = __details::assets::DynamicContext<Outlet, Mode, Area>;
+
+    std::shared_ptr<Context> core_;
 
   public:
     DynamicBar()                     = default;
@@ -8991,35 +9019,36 @@ namespace pgbar {
     template<typename Config>
 # if __PGBAR_CXX20
       requires __details::traits::is_config<Config>::value
-    __PGBAR_NODISCARD std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>
+    __PGBAR_NODISCARD std::unique_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>
 # else
     __PGBAR_NODISCARD
       typename std::enable_if<__details::traits::is_config<Config>::value,
-                              std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>>::type
+                              std::unique_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>>::type
 # endif
       insert( __details::prefabs::BasicBar<Config, Outlet, Mode, Area>&& bar )
     {
       if ( core_ == nullptr )
-        __PGBAR_UNLIKELY core_ = std::make_shared<Server>();
-      return std::make_shared<__details::prefabs::SharedBar<Config, Outlet, Mode, Area>>( core_,
-                                                                                          std::move( bar ) );
+        __PGBAR_UNLIKELY core_ = std::make_shared<Context>();
+      return __details::utils::make_unique<__details::prefabs::ManagedBar<Config, Outlet, Mode, Area>>(
+        core_,
+        std::move( bar ) );
     }
     template<typename Config>
 # if __PGBAR_CXX20
       requires __details::traits::is_config<std::decay_t<Config>>::value
-    __PGBAR_NODISCARD std::shared_ptr<__details::prefabs::BasicBar<std::decay_t<Config>, Outlet, Mode, Area>>
+    __PGBAR_NODISCARD std::unique_ptr<__details::prefabs::BasicBar<std::decay_t<Config>, Outlet, Mode, Area>>
 # else
     __PGBAR_NODISCARD typename std::enable_if<
       __details::traits::is_config<typename std::decay<Config>::type>::value,
-      std::shared_ptr<__details::prefabs::BasicBar<typename std::decay<Config>::type, Outlet, Mode, Area>>>::
+      std::unique_ptr<__details::prefabs::BasicBar<typename std::decay<Config>::type, Outlet, Mode, Area>>>::
       type
 # endif
       insert( Config&& cfg )
     {
       if ( core_ == nullptr )
-        __PGBAR_UNLIKELY core_ = std::make_shared<Server>();
-      return std::make_shared<
-        __details::prefabs::SharedBar<typename std::decay<Config>::type, Outlet, Mode, Area>>(
+        __PGBAR_UNLIKELY core_ = std::make_shared<Context>();
+      return __details::utils::make_unique<
+        __details::prefabs::ManagedBar<typename std::decay<Config>::type, Outlet, Mode, Area>>(
         core_,
         std::forward<Config>( cfg ) );
     }
@@ -9028,7 +9057,7 @@ namespace pgbar {
 # if __PGBAR_CXX20
       requires( __details::traits::is_bar<Bar>::value && Bar::Sink == Outlet && Bar::Strategy == Mode
                 && Bar::Layout == Area && std::is_constructible_v<Bar, Options...> )
-    __PGBAR_NODISCARD std::shared_ptr<Bar>
+    __PGBAR_NODISCARD std::unique_ptr<Bar>
 # else
     __PGBAR_NODISCARD typename std::enable_if<
       __details::traits::AllOf<__details::traits::is_bar<Bar>,
@@ -9036,31 +9065,32 @@ namespace pgbar {
                                std::integral_constant<bool, ( Bar::Sink == Outlet )>,
                                std::integral_constant<bool, ( Bar::Strategy == Mode )>,
                                std::integral_constant<bool, ( Bar::Layout == Area )>>::value,
-      std::shared_ptr<Bar>>::type
+      std::unique_ptr<Bar>>::type
 # endif
       insert( Options&&... options )
     {
       if ( core_ == nullptr )
-        __PGBAR_UNLIKELY core_ = std::make_shared<Server>();
-      return std::make_shared<__details::prefabs::SharedBar<typename Bar::Config, Outlet, Mode, Area>>(
+        __PGBAR_UNLIKELY core_ = std::make_shared<Context>();
+      return __details::utils::make_unique<
+        __details::prefabs::ManagedBar<typename Bar::Config, Outlet, Mode, Area>>(
         core_,
         std::forward<Options>( options )... );
     }
     template<typename Config, typename... Options>
 # if __PGBAR_CXX20
       requires( __details::traits::is_config<Config>::value && std::is_constructible_v<Config, Options...> )
-    __PGBAR_NODISCARD std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>
+    __PGBAR_NODISCARD std::unique_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>
 # else
     __PGBAR_NODISCARD
       typename std::enable_if<__details::traits::AllOf<__details::traits::is_config<Config>,
                                                        std::is_constructible<Config, Options...>>::value,
-                              std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>>::type
+                              std::unique_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>>::type
 # endif
       insert( Options&&... options )
     {
       if ( core_ == nullptr )
-        __PGBAR_UNLIKELY core_ = std::make_shared<Server>();
-      return std::make_shared<__details::prefabs::SharedBar<Config, Outlet, Mode, Area>>(
+        __PGBAR_UNLIKELY core_ = std::make_shared<Context>();
+      return __details::utils::make_unique<__details::prefabs::ManagedBar<Config, Outlet, Mode, Area>>(
         core_,
         std::forward<Options>( options )... );
     }
@@ -9073,20 +9103,20 @@ namespace pgbar {
     friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
   };
 
-  // Creates a tuple of shared_ptr pointing to bars using existing bar instances.
+  // Creates a tuple of unique_ptr pointing to bars using existing bar instances.
   template<typename Config, typename... Configs, Channel Outlet, Policy Mode, Region Area>
 # if __PGBAR_CXX20
     requires( __details::traits::is_config<Config>::value
               && ( __details::traits::is_config<Configs>::value && ... ) )
   __PGBAR_NODISCARD __PGBAR_INLINE_FN
-    std::tuple<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
-               std::shared_ptr<__details::prefabs::BasicBar<Configs, Outlet, Mode, Area>>...>
+    std::tuple<std::unique_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
+               std::unique_ptr<__details::prefabs::BasicBar<Configs, Outlet, Mode, Area>>...>
 # else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
     __details::traits::AllOf<__details::traits::is_config<Config>,
                              __details::traits::is_config<Configs>...>::value,
-    std::tuple<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
-               std::shared_ptr<__details::prefabs::BasicBar<Configs, Outlet, Mode, Area>>...>>::type
+    std::tuple<std::unique_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
+               std::unique_ptr<__details::prefabs::BasicBar<Configs, Outlet, Mode, Area>>...>>::type
 # endif
     make_dynamic( __details::prefabs::BasicBar<Config, Outlet, Mode, Area>&& bar,
                   __details::prefabs::BasicBar<Configs, Outlet, Mode, Area>&&... bars )
@@ -9094,7 +9124,7 @@ namespace pgbar {
     DynamicBar<Outlet, Mode, Area> factory;
     return { factory.insert( std::move( bar ) ), factory.insert( std::move( bars ) )... };
   }
-  // Creates a tuple of shared_ptr pointing to bars using configuration objects.
+  // Creates a tuple of unique_ptr pointing to bars using configuration objects.
   template<Channel Outlet = Channel::Stderr,
            Policy Mode    = Policy::Async,
            Region Area    = Region::Fixed,
@@ -9104,15 +9134,15 @@ namespace pgbar {
     requires( __details::traits::is_config<std::decay_t<Config>>::value
               && ( __details::traits::is_config<std::decay_t<Configs>>::value && ... ) )
   __PGBAR_NODISCARD __PGBAR_INLINE_FN
-    std::tuple<std::shared_ptr<__details::prefabs::BasicBar<std::decay_t<Config>, Outlet, Mode, Area>>,
-               std::shared_ptr<__details::prefabs::BasicBar<std::decay_t<Configs>, Outlet, Mode, Area>>...>
+    std::tuple<std::unique_ptr<__details::prefabs::BasicBar<std::decay_t<Config>, Outlet, Mode, Area>>,
+               std::unique_ptr<__details::prefabs::BasicBar<std::decay_t<Configs>, Outlet, Mode, Area>>...>
 # else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
     __details::traits::AllOf<__details::traits::is_config<typename std::decay<Config>::type>,
                              __details::traits::is_config<typename std::decay<Configs>::type>...>::value,
     std::tuple<
-      std::shared_ptr<__details::prefabs::BasicBar<typename std::decay<Config>::type, Outlet, Mode, Area>>,
-      std::shared_ptr<
+      std::unique_ptr<__details::prefabs::BasicBar<typename std::decay<Config>::type, Outlet, Mode, Area>>,
+      std::unique_ptr<
         __details::prefabs::BasicBar<typename std::decay<Configs>::type, Outlet, Mode, Area>>...>>::type
 # endif
     make_dynamic( Config&& cfg, Configs&&... cfgs )
@@ -9123,18 +9153,18 @@ namespace pgbar {
   }
 
   /**
-   * Creates a vector of shared_ptr pointing to bars with a fixed number of BasicBar instances.
+   * Creates a vector of unique_ptr pointing to bars with a fixed number of BasicBar instances.
    * **All BasicBar instances are initialized using the same configuration.**
    */
   template<typename Config, Channel Outlet, Policy Mode, Region Area>
 # if __PGBAR_CXX20
     requires __details::traits::is_config<Config>::value
   __PGBAR_NODISCARD __PGBAR_INLINE_FN
-    std::vector<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>>
+    std::vector<std::unique_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>>
 # else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
     __details::traits::is_config<Config>::value,
-    std::vector<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>>>::type
+    std::vector<std::unique_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>>>::type
 # endif
     make_dynamic( __details::prefabs::BasicBar<Config, Outlet, Mode, Area>&& bar,
                   __details::types::Size count )
@@ -9142,7 +9172,7 @@ namespace pgbar {
     if ( count == 0 )
       __PGBAR_UNLIKELY return {};
     DynamicBar<Outlet, Mode, Area> factory;
-    std::vector<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>> products;
+    std::vector<std::unique_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>> products;
     std::generate_n( std::back_inserter( products ), count - 1, [&factory, &bar]() {
       return factory.insert( bar.config() );
     } );
@@ -9150,7 +9180,7 @@ namespace pgbar {
     return products;
   }
   /**
-   * Creates a vector of shared_ptr pointing to bars with a fixed number of BasicBar instances.
+   * Creates a vector of unique_ptr pointing to bars with a fixed number of BasicBar instances.
    * **All BasicBar instances are initialized using the same configuration.**
    */
   template<Channel Outlet = Channel::Stderr,
@@ -9160,11 +9190,11 @@ namespace pgbar {
 # if __PGBAR_CXX20
     requires __details::traits::is_config<std::decay_t<Config>>::value
   __PGBAR_NODISCARD __PGBAR_INLINE_FN
-    std::vector<std::shared_ptr<__details::prefabs::BasicBar<std::decay_t<Config>, Outlet, Mode, Area>>>
+    std::vector<std::unique_ptr<__details::prefabs::BasicBar<std::decay_t<Config>, Outlet, Mode, Area>>>
 # else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
     __details::traits::is_config<typename std::decay<Config>::type>::value,
-    std::vector<std::shared_ptr<
+    std::vector<std::unique_ptr<
       __details::prefabs::BasicBar<typename std::decay<Config>::type, Outlet, Mode, Area>>>>::type
 # endif
     make_dynamic( Config&& cfg, __details::types::Size count )
@@ -9173,7 +9203,7 @@ namespace pgbar {
       __PGBAR_UNLIKELY return {};
     DynamicBar<Outlet, Mode, Area> factory;
     std::vector<
-      std::shared_ptr<__details::prefabs::BasicBar<typename std::decay<Config>::type, Outlet, Mode, Area>>>
+      std::unique_ptr<__details::prefabs::BasicBar<typename std::decay<Config>::type, Outlet, Mode, Area>>>
       products;
     std::generate_n( std::back_inserter( products ), count - 1, [&factory, &cfg]() {
       return factory.insert( cfg );
@@ -9183,7 +9213,7 @@ namespace pgbar {
   }
 
   /**
-   * Creates a vector of shared_ptr with a fixed number of bars using mutiple bar/configuration objects.
+   * Creates a vector of unique_ptr with a fixed number of bars using mutiple bar/configuration objects.
    * The ctor sequentially initializes the first few instances corresponding to the provided arguments;
    * **An unmatched count and Bars number will cause an exception `pgbar::exception::InvalidArgument`.**
    */
@@ -9193,7 +9223,7 @@ namespace pgbar {
               && ( ( ( std::is_same_v<std::remove_cv_t<Bar>, std::remove_cv_t<Objs>> && ... )
                      && !( std::is_lvalue_reference_v<Objs> || ... ) )
                    || ( std::is_same<typename Bar::Config, std::decay_t<Objs>>::value && ... ) ) )
-  __PGBAR_NODISCARD __PGBAR_INLINE_FN std::vector<std::shared_ptr<Bar>>
+  __PGBAR_NODISCARD __PGBAR_INLINE_FN std::vector<std::unique_ptr<Bar>>
 # else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
     __details::traits::AllOf<
@@ -9204,18 +9234,18 @@ namespace pgbar {
           __details::traits::Not<__details::traits::AnyOf<std::is_lvalue_reference<Objs>...>>>,
         __details::traits::AllOf<std::is_same<typename Bar::Config, typename std::decay<Objs>::type>...>>>::
       value,
-    std::vector<std::shared_ptr<Bar>>>::type
+    std::vector<std::unique_ptr<Bar>>>::type
 # endif
     make_dynamic( __details::types::Size count, Objs&&... objs ) noexcept( false )
   {
     if ( count == 0 )
       __PGBAR_UNLIKELY return {};
-    else if ( count < sizeof...( Objs ) )
+    else if ( count != sizeof...( Objs ) )
       __PGBAR_UNLIKELY throw exception::InvalidArgument(
         "pgbar: the number of arguments mismatch with the provided count" );
 
     DynamicBar<Bar::Sink, Bar::Strategy, Bar::Layout> factory;
-    std::vector<std::shared_ptr<Bar>> products;
+    std::vector<std::unique_ptr<Bar>> products;
     (void)std::initializer_list<char> {
       ( products.emplace_back( factory.insert( std::forward<Objs>( objs ) ) ), '\0' )...
     };
@@ -9225,7 +9255,7 @@ namespace pgbar {
     return products;
   }
   /**
-   * Creates a vector of shared_ptr with a fixed number of BasicBar instances using multiple configurations.
+   * Creates a vector of unique_ptr with a fixed number of BasicBar instances using multiple configurations.
    * The ctor sequentially initializes the first few instances corresponding to the provided configurations;
    * **An unmatched count and Bars number will cause an exception `pgbar::exception::InvalidArgument`.**
    */
@@ -9238,24 +9268,24 @@ namespace pgbar {
     requires( __details::traits::is_config<Config>::value
               && ( std::is_same_v<std::remove_cv_t<Config>, std::decay_t<Configs>> && ... ) )
   __PGBAR_NODISCARD __PGBAR_INLINE_FN
-    std::vector<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>>
+    std::vector<std::unique_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>>
 # else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
     __details::traits::AllOf<
       __details::traits::is_config<Config>,
       std::is_same<typename std::remove_cv<Config>::type, typename std::decay<Configs>::type>...>::value,
-    std::vector<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>>>::type
+    std::vector<std::unique_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>>>::type
 # endif
     make_dynamic( __details::types::Size count, Configs&&... cfgs ) noexcept( false )
   {
     if ( count == 0 )
       __PGBAR_UNLIKELY return {};
-    else if ( count < sizeof...( Configs ) )
+    else if ( count != sizeof...( Configs ) )
       __PGBAR_UNLIKELY throw exception::InvalidArgument(
         "pgbar: the number of configs mismatch with the provided count" );
 
     DynamicBar<Outlet, Mode, Area> factory;
-    std::vector<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>> products;
+    std::vector<std::unique_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>> products;
     (void)std::initializer_list<char> {
       ( products.emplace_back( factory.insert( std::forward<Configs>( cfgs ) ) ), '\0' )...
     };
@@ -9265,7 +9295,7 @@ namespace pgbar {
     return products;
   }
   /**
-   * Creates a vector of shared_ptr with a fixed number of BasicBar instances using multiple bar objects.
+   * Creates a vector of unique_ptr with a fixed number of BasicBar instances using multiple bar objects.
    * The ctor sequentially initializes the first few instances corresponding to the provided objects;
    * **An unmatched count and Bars number will cause an exception `pgbar::exception::InvalidArgument`.**
    */
@@ -9278,24 +9308,24 @@ namespace pgbar {
     requires( __details::traits::is_config<Config>::value
               && ( std::is_same_v<Config, std::decay_t<Configs>> && ... ) )
   __PGBAR_NODISCARD __PGBAR_INLINE_FN
-    std::vector<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>>
+    std::vector<std::unique_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>>
 # else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
     __details::traits::AllOf<__details::traits::is_config<Config>,
                              std::is_same<Config, typename std::decay<Configs>::type>...>::value,
-    std::vector<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>>>::type
+    std::vector<std::unique_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>>>::type
 # endif
     make_dynamic( __details::types::Size count,
                   __details::prefabs::BasicBar<Configs, Outlet, Mode, Area>&&... bars ) noexcept( false )
   {
     if ( count == 0 )
       __PGBAR_UNLIKELY return {};
-    else if ( count < sizeof...( Configs ) )
+    else if ( count != sizeof...( Configs ) )
       __PGBAR_UNLIKELY throw exception::InvalidArgument(
         "pgbar: the number of bars mismatch with the provided count" );
 
     DynamicBar<Outlet, Mode, Area> factory;
-    std::vector<std::shared_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>> products;
+    std::vector<std::unique_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>> products;
     (void)std::initializer_list<char> { ( products.emplace_back( factory.insert( std::move( bars ) ) ),
                                           '\0' )... };
     std::generate_n( std::back_inserter( products ), count - sizeof...( Configs ) - 1, [&factory]() {
