@@ -1,6 +1,6 @@
 CC:= g++
 OFLAG = -Og
-STANDARD = c++11
+STANDARD = c++23
 CFLAGS:= -std=$(STANDARD) -Wpedantic -Wall -Wextra -Wno-implicit-fallthrough
 IFLAG:= -I../include
 

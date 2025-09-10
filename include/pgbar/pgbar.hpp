@@ -95,6 +95,7 @@
 # endif
 # if __PGBAR_CC_STD >= 202002L
 #  include <ranges>
+#  include <span>
 #  define __PGBAR_CXX20         1
 #  define __PGBAR_UNLIKELY      [[unlikely]]
 #  define __PGBAR_CXX20_CNSTXPR constexpr
@@ -1265,7 +1266,7 @@ namespace pgbar {
         template<typename T>
         static void move_inline( AnyFn& dst, AnyFn& src ) noexcept
         {
-          new ( &dst ) T( std::move( *utils::launder_as<T>( &src.buf_ ) ) );
+          new ( &dst.buf_ ) T( std::move( *utils::launder_as<T>( &src.buf_ ) ) );
           destroy_inline<T>( src );
         }
 
@@ -1601,7 +1602,7 @@ namespace pgbar {
           types::Size length )
         {
           // After RFC 3629, the maximum length of each standard UTF-8 character is 4 bytes.
-          const auto first_byte = static_cast<types::UCodePoint>( static_cast<types::Byte>( *raw_u8_str ) );
+          const auto first_byte = static_cast<types::UCodePoint>( static_cast<std::uint8_t>( *raw_u8_str ) );
           auto validator        = [raw_u8_str, length]( types::Size expected_len ) {
             if ( expected_len > length )
               __PGBAR_UNLIKELY throw exception::InvalidArgument( "pgbar: incomplete UTF-8 string" );
@@ -2469,7 +2470,7 @@ namespace pgbar {
       class OStream final : public Stringbuf {
         using Self = OStream;
 
-# if __PGBAR_WIN
+# if __PGBAR_WIN && !defined( PGBAR_UTF8 )
         std::vector<WCHAR> wb_buffer_;
         std::vector<types::Char> localized_;
 # endif
@@ -2483,7 +2484,13 @@ namespace pgbar {
           return instance;
         }
 
-        static void writeout( const std::vector<types::Char>& bytes )
+        static void writeout(
+# if __PGBAR_CXX20
+          std::span<const types::Char>
+# else
+          const std::vector<types::Char>&
+# endif
+            bytes )
         {
 # if __PGBAR_WIN
           types::Size total_written = 0;
@@ -2543,7 +2550,7 @@ namespace pgbar {
         // Intentional non-virtual destructors.
         __PGBAR_CXX20_CNSTXPR ~OStream()                       = default;
 
-# if __PGBAR_WIN
+# if __PGBAR_WIN && !defined( PGBAR_UTF8 )
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void release() noexcept
         {
           Stringbuf::release();
@@ -2565,16 +2572,20 @@ namespace pgbar {
         {
           if ( this->buffer_.empty() )
             return *this;
-          writeout( this->buffer_ );
 
-          /*
-# if __PGBAR_WIN
-          const auto codepage = GetConsoleOutputCP();
-          if ( !console::TermContext<Outlet>::itself().connected() || codepage == CP_UTF8 ) {
+# if __PGBAR_WIN && !defined( PGBAR_UTF8 )
+          if ( !console::TermContext<Outlet>::itself().connected() ) {
             writeout( this->buffer_ );
             return *this;
           }
+          /**
+           * Strangely enough, if we has called GetConsoleOutputCP once,
+           * even if the terminal code page is indeed CP_UTF8,
+           * the ANSI sequence in the buffer will mysteriously lose its function
+           * when attempting to write data to the terminal.
 
+           * Therefore, the character encoding needs to be forcibly converted once in any case.
+           */
           const auto wlen =
             MultiByteToWideChar( CP_UTF8, 0, buffer_.data(), static_cast<int>( buffer_.size() ), nullptr, 0 );
           __PGBAR_ASSERT( wlen > 0 );
@@ -2586,6 +2597,7 @@ namespace pgbar {
                                wb_buffer_.data(),
                                wlen );
 
+          const auto codepage = GetConsoleOutputCP();
           const auto mblen =
             WideCharToMultiByte( codepage, 0, wb_buffer_.data(), wlen, nullptr, 0, nullptr, nullptr );
           __PGBAR_ASSERT( mblen > 0 );
@@ -2601,7 +2613,7 @@ namespace pgbar {
           writeout( localized_ );
 # else
           writeout( this->buffer_ );
-# endif*/
+# endif
           clear();
           return *this;
         }
@@ -5716,7 +5728,7 @@ namespace pgbar {
         __PGBAR_CXX23_CNSTXPR BasicConfig( Args... args )
         {
           static_cast<Derived*>( this )->template initialize<traits::TypeSet<Args...>>();
-          (void)std::initializer_list<char> { ( unpacker( *this, std::move( args ) ), '\0' )... };
+          (void)std::initializer_list<bool> { ( unpacker( *this, std::move( args ) ), false )... };
         }
 
         BasicConfig( const Self& lhs ) noexcept( traits::AllOf<std::is_nothrow_default_constructible<Base>,
@@ -5791,7 +5803,7 @@ namespace pgbar {
         {
           std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };
           unpacker( *this, std::move( arg ) );
-          (void)std::initializer_list<char> { ( unpacker( *this, std::move( args ) ), '\0' )... };
+          (void)std::initializer_list<bool> { ( unpacker( *this, std::move( args ) ), false )... };
           return static_cast<Derived&>( *this );
         }
 
@@ -6901,11 +6913,16 @@ namespace pgbar {
         } hook_;
         enum class Tag : std::uint8_t { Nil, Nullary, Unary } tag_;
 
-        __PGBAR_INLINE_FN void deconstruct() noexcept
+        __PGBAR_INLINE_FN __PGBAR_CXX23_CNSTXPR void deconstruct() noexcept
         {
           switch ( tag_ ) {
+#if __PGBAR_CXX23
+          case Tag::Nullary: hook_.on_.~move_only_function(); break;
+          case Tag::Unary:   hook_.on_self_.~move_only_function(); break;
+#else
           case Tag::Nullary: hook_.on_.~UniqueFunction(); break;
           case Tag::Unary:   hook_.on_self_.~UniqueFunction(); break;
+#endif
 
           case Tag::Nil: __PGBAR_FALLTHROUGH;
           default:       break;
@@ -6919,10 +6936,11 @@ namespace pgbar {
           lhs.deconstruct();
           switch ( tag_ ) {
           case Tag::Nullary:
-            new ( &lhs.hook_.on_ ) wrappers::UniqueFunction<void()>( std::move( hook_.on_ ) );
+            new ( std::addressof( lhs.hook_.on_ ) )
+              wrappers::UniqueFunction<void()>( std::move( hook_.on_ ) );
             break;
           case Tag::Unary:
-            new ( &lhs.hook_.on_self_ )
+            new ( std::addressof( lhs.hook_.on_self_ ) )
               wrappers::UniqueFunction<void( Derived& )>( std::move( hook_.on_self_ ) );
             break;
 
@@ -6981,7 +6999,7 @@ namespace pgbar {
             std::is_nothrow_assignable<wrappers::UniqueFunction<void()>, F>::value )
         {
           std::lock_guard<std::mutex> lock { this->mtx_ };
-          new ( &hook_.on_ ) wrappers::UniqueFunction<void()>( std::forward<F>( fn ) );
+          new ( std::addressof( hook_.on_ ) ) wrappers::UniqueFunction<void()>( std::forward<F>( fn ) );
           tag_ = Tag::Nullary;
           return static_cast<Derived&>( *this );
         }
@@ -7000,7 +7018,8 @@ namespace pgbar {
             std::is_nothrow_assignable<wrappers::UniqueFunction<void( Derived& )>, F>::value )
         {
           std::lock_guard<std::mutex> lock { this->mtx_ };
-          new ( &hook_.on_ ) wrappers::UniqueFunction<void( Derived& )>( std::forward<F>( fn ) );
+          new ( std::addressof( hook_.on_ ) )
+            wrappers::UniqueFunction<void( Derived& )>( std::forward<F>( fn ) );
           tag_ = Tag::Unary;
           return static_cast<Derived&>( *this );
         }
@@ -7133,14 +7152,15 @@ namespace pgbar {
           case Tag::Nullary: {
             wrappers::UniqueFunction<void()> tmp { std::move( hook_.on_ ) };
             lhs.move_to( *this );
-            new ( &lhs.hook_.on_ ) wrappers::UniqueFunction<void()>( std::move( tmp ) );
+            new ( std::addressof( lhs.hook_.on_ ) ) wrappers::UniqueFunction<void()>( std::move( tmp ) );
             lhs.tag_ = Tag::Nullary;
           } break;
 
           case Tag::Unary: {
             wrappers::UniqueFunction<void( Derived& )> tmp { std::move( hook_.on_self_ ) };
             lhs.move_to( *this );
-            new ( &lhs.hook_.on_self_ ) wrappers::UniqueFunction<void( Derived& )>( std::move( tmp ) );
+            new ( std::addressof( lhs.hook_.on_self_ ) )
+              wrappers::UniqueFunction<void( Derived& )>( std::move( tmp ) );
             lhs.tag_ = Tag::Unary;
           } break;
 
@@ -7875,7 +7895,7 @@ namespace pgbar {
         void halt() noexcept
         {
           if ( online() && !__details::render::Renderer<Outlet, Mode>::itself().empty() )
-            (void)std::initializer_list<char> { ( this->ElementAt_t<Tags>::do_reset( true ), '\0' )... };
+            (void)std::initializer_list<bool> { ( this->ElementAt_t<Tags>::do_reset( true ), false )... };
           __PGBAR_ASSERT( alive_cnt_ == 0 );
           __PGBAR_ASSERT( online() == false );
         }
@@ -7893,8 +7913,8 @@ namespace pgbar {
           __PGBAR_TRUST( this != &rhs );
           __PGBAR_ASSERT( online() == false );
           __PGBAR_ASSERT( rhs.online() == false );
-          (void)std::initializer_list<char> {
-            ( this->ElementAt_t<Tags>::swap( static_cast<ElementAt_t<Tags>&>( rhs ) ), '\0' )...
+          (void)std::initializer_list<bool> {
+            ( this->ElementAt_t<Tags>::swap( static_cast<ElementAt_t<Tags>&>( rhs ) ), false )...
           };
         }
 
@@ -9445,8 +9465,8 @@ namespace pgbar {
 
     DynamicBar<Bar::Sink, Bar::Strategy, Bar::Layout> factory;
     std::vector<std::unique_ptr<Bar>> products;
-    (void)std::initializer_list<char> {
-      ( products.emplace_back( factory.insert( std::forward<Objs>( objs ) ) ), '\0' )...
+    (void)std::initializer_list<bool> {
+      ( products.emplace_back( factory.insert( std::forward<Objs>( objs ) ) ), false )...
     };
     std::generate_n( std::back_inserter( products ), count - sizeof...( Objs ), [&factory]() {
       return factory.template insert<Bar>();
@@ -9485,8 +9505,8 @@ namespace pgbar {
 
     DynamicBar<Outlet, Mode, Area> factory;
     std::vector<std::unique_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>> products;
-    (void)std::initializer_list<char> {
-      ( products.emplace_back( factory.insert( std::forward<Configs>( cfgs ) ) ), '\0' )...
+    (void)std::initializer_list<bool> {
+      ( products.emplace_back( factory.insert( std::forward<Configs>( cfgs ) ) ), false )...
     };
     std::generate_n( std::back_inserter( products ), count - sizeof...( Configs ) - 1, [&factory]() {
       return factory.template insert<Config>();
@@ -9525,8 +9545,8 @@ namespace pgbar {
 
     DynamicBar<Outlet, Mode, Area> factory;
     std::vector<std::unique_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>> products;
-    (void)std::initializer_list<char> { ( products.emplace_back( factory.insert( std::move( bars ) ) ),
-                                          '\0' )... };
+    (void)std::initializer_list<bool> { ( products.emplace_back( factory.insert( std::move( bars ) ) ),
+                                          false )... };
     std::generate_n( std::back_inserter( products ), count - sizeof...( Configs ) - 1, [&factory]() {
       return factory.template insert<Config>();
     } );
