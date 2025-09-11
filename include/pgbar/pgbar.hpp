@@ -2574,18 +2574,13 @@ namespace pgbar {
             return *this;
 
 # if __PGBAR_WIN && !defined( PGBAR_UTF8 )
-          if ( !console::TermContext<Outlet>::itself().connected() ) {
+          const auto codepage = GetConsoleOutputCP();
+          if ( !console::TermContext<Outlet>::itself().connected() || codepage == CP_UTF8 ) {
             writeout( this->buffer_ );
+            clear();
             return *this;
           }
-          /**
-           * Strangely enough, if we has called GetConsoleOutputCP once,
-           * even if the terminal code page is indeed CP_UTF8,
-           * the ANSI sequence in the buffer will mysteriously lose its function
-           * when attempting to write data to the terminal.
 
-           * Therefore, the character encoding needs to be forcibly converted once in any case.
-           */
           const auto wlen =
             MultiByteToWideChar( CP_UTF8, 0, buffer_.data(), static_cast<int>( buffer_.size() ), nullptr, 0 );
           __PGBAR_ASSERT( wlen > 0 );
@@ -2597,7 +2592,6 @@ namespace pgbar {
                                wb_buffer_.data(),
                                wlen );
 
-          const auto codepage = GetConsoleOutputCP();
           const auto mblen =
             WideCharToMultiByte( codepage, 0, wb_buffer_.data(), wlen, nullptr, 0, nullptr, nullptr );
           __PGBAR_ASSERT( mblen > 0 );
@@ -6971,7 +6965,7 @@ namespace pgbar {
         using Base::Base;
         ReactiveBar( Self&& rhs ) noexcept : Base( std::move( rhs ) )
         {
-          std::lock_guard<std::mutex> lock { this->mtx_ };
+          std::lock_guard<std::mutex> lock { rhs.mtx_ };
           rhs.move_to( *this );
         }
         Self& operator=( Self&& rhs ) & noexcept
@@ -6997,7 +6991,7 @@ namespace pgbar {
           Derived&>::type
 # endif
           action( F&& fn ) & noexcept(
-            std::is_nothrow_assignable<wrappers::UniqueFunction<void()>, F>::value )
+            std::is_nothrow_constructible<wrappers::UniqueFunction<void()>, F>::value )
         {
           std::lock_guard<std::mutex> lock { this->mtx_ };
           new ( std::addressof( hook_.on_ ) ) wrappers::UniqueFunction<void()>( std::forward<F>( fn ) );
@@ -7016,7 +7010,7 @@ namespace pgbar {
           Derived&>::type
 # endif
           action( F&& fn ) & noexcept(
-            std::is_nothrow_assignable<wrappers::UniqueFunction<void( Derived& )>, F>::value )
+            std::is_nothrow_constructible<wrappers::UniqueFunction<void( Derived& )>, F>::value )
         {
           std::lock_guard<std::mutex> lock { this->mtx_ };
           new ( std::addressof( hook_.on_ ) )
