@@ -253,10 +253,6 @@ namespace pgbar {
       using Byte       = std::uint8_t;
     } // namespace types
 
-    namespace constants {
-      __PGBAR_CXX17_INLINE constexpr types::Char blank = ' ';
-    }
-
     namespace traits {
 # if __PGBAR_CXX14
       template<types::Size... Ns>
@@ -1144,18 +1140,18 @@ namespace pgbar {
         if ( len_str >= width )
           return types::String( str );
         if __PGBAR_CXX17_CNSTXPR ( Style == TxtLayout::Right ) {
-          auto tmp = types::String( width - len_str, constants::blank );
+          auto tmp = types::String( width - len_str, ' ' );
           tmp.append( str );
           return tmp;
         } else if __PGBAR_CXX17_CNSTXPR ( Style == TxtLayout::Left ) {
           auto tmp = types::String( str );
-          tmp.append( width - len_str, constants::blank );
+          tmp.append( width - len_str, ' ' );
           return tmp;
         } else {
           width -= len_str;
           const types::Size l_blank = width / 2;
-          return std::move( types::String( l_blank, constants::blank ).append( str ) )
-               + types::String( width - l_blank, constants::blank );
+          return std::move( types::String( l_blank, ' ' ).append( str ) )
+               + types::String( width - l_blank, ' ' );
         }
       }
       template<TxtLayout Style>
@@ -4652,7 +4648,7 @@ namespace pgbar {
             this->try_reset( buffer );
             this->try_dye( buffer, this->filler_col_ )
               .append( this->filler_, len_finished / this->filler_.width() )
-              .append( constants::blank, len_finished % this->filler_.width() );
+              .append( ' ', len_finished % this->filler_.width() );
 
             if ( !this->lead_.empty() ) {
               num_frame_cnt =
@@ -4667,7 +4663,7 @@ namespace pgbar {
 
             this->try_reset( buffer );
             this->try_dye( buffer, this->remains_col_ );
-            buffer.append( constants::blank, len_vacancy % this->remains_.width() )
+            buffer.append( ' ', len_vacancy % this->remains_.width() )
               .append( this->remains_, len_vacancy / this->remains_.width() );
           } else {
             const auto flag = [this, num_frame_cnt, &len_vacancy]() noexcept {
@@ -4684,7 +4680,7 @@ namespace pgbar {
 
             this->try_reset( buffer );
             this->try_dye( buffer, this->remains_col_ );
-            buffer.append( constants::blank, len_vacancy % this->remains_.width() )
+            buffer.append( ' ', len_vacancy % this->remains_.width() )
               .append( this->remains_, len_vacancy / this->remains_.width() );
 
             if ( flag ) {
@@ -4695,7 +4691,7 @@ namespace pgbar {
             this->try_reset( buffer );
             this->try_dye( buffer, this->filler_col_ )
               .append( this->filler_, len_finished / this->filler_.width() )
-              .append( constants::blank, len_finished % this->filler_.width() );
+              .append( ' ', len_finished % this->filler_.width() );
           }
 
           this->try_reset( buffer );
@@ -4732,7 +4728,7 @@ namespace pgbar {
             this->try_reset( buffer );
             this->try_dye( buffer, this->filler_col_ )
               .append( this->filler_, len_finished / this->filler_.width() )
-              .append( constants::blank, len_finished % this->filler_.width() );
+              .append( ' ', len_finished % this->filler_.width() );
 
             if ( this->bar_length_ != len_finished && !this->lead_.empty()
                  && this->lead_[incomplete_block].width() <= len_vacancy ) {
@@ -4743,7 +4739,7 @@ namespace pgbar {
 
             this->try_reset( buffer );
             this->try_dye( buffer, this->remains_col_ )
-              .append( constants::blank, len_vacancy % this->remains_.width() )
+              .append( ' ', len_vacancy % this->remains_.width() )
               .append( this->remains_, len_vacancy / this->remains_.width() );
           } else {
             const auto flag = this->bar_length_ != len_finished && !this->lead_.empty()
@@ -4754,7 +4750,7 @@ namespace pgbar {
             this->try_reset( buffer );
             this->try_dye( buffer, this->remains_col_ )
               .append( this->remains_, len_vacancy / this->remains_.width() )
-              .append( constants::blank, len_vacancy % this->remains_.width() );
+              .append( ' ', len_vacancy % this->remains_.width() );
 
             if ( flag ) {
               this->try_reset( buffer );
@@ -4763,7 +4759,7 @@ namespace pgbar {
 
             this->try_reset( buffer );
             this->try_dye( buffer, this->filler_col_ )
-              .append( constants::blank, len_finished % this->filler_.width() )
+              .append( ' ', len_finished % this->filler_.width() )
               .append( this->filler_, len_finished / this->filler_.width() );
           }
 
@@ -4837,24 +4833,24 @@ namespace pgbar {
               this->try_reset( buffer );
               this->try_dye( buffer, this->filler_col_ )
                 .append( this->filler_, len_left_fill / this->filler_.width() )
-                .append( constants::blank, len_left_fill % this->filler_.width() );
+                .append( ' ', len_left_fill % this->filler_.width() );
 
               this->try_reset( buffer );
               this->try_dye( buffer, this->lead_col_ ).append( current_lead );
 
               this->try_reset( buffer );
               this->try_dye( buffer, this->filler_col_ )
-                .append( constants::blank, len_right_fill % this->filler_.width() )
+                .append( ' ', len_right_fill % this->filler_.width() )
                 .append( this->filler_, len_right_fill / this->filler_.width() );
             } else
-              buffer.append( constants::blank, this->bar_length_ );
+              buffer.append( ' ', this->bar_length_ );
           } else if ( this->filler_.empty() )
-            buffer.append( constants::blank, this->bar_length_ );
+            buffer.append( ' ', this->bar_length_ );
           else {
             this->try_reset( buffer );
             this->try_dye( buffer, this->filler_col_ )
               .append( this->filler_, this->bar_length_ / this->filler_.width() )
-              .append( constants::blank, this->bar_length_ % this->filler_.width() );
+              .append( ' ', this->bar_length_ % this->filler_.width() );
           }
 
           this->try_reset( buffer );
@@ -4895,13 +4891,13 @@ namespace pgbar {
                 this->try_reset( buffer );
                 this->try_dye( buffer, this->filler_col_ )
                   .append( this->filler_, virtual_point / this->filler_.width() )
-                  .append( constants::blank, virtual_point % this->filler_.width() );
+                  .append( ' ', virtual_point % this->filler_.width() );
                 this->try_reset( buffer );
                 this->try_dye( buffer, this->lead_col_ ).append( current_lead );
 
                 this->try_reset( buffer );
                 this->try_dye( buffer, this->filler_col_ )
-                  .append( constants::blank, len_right_fill % this->filler_.width() )
+                  .append( ' ', len_right_fill % this->filler_.width() )
                   .append( this->filler_, len_right_fill / this->filler_.width() );
               } else {
                 const auto division      = current_lead.split_by( len_vacancy );
@@ -4911,23 +4907,23 @@ namespace pgbar {
                 this->try_dye( buffer, this->lead_col_ ).append( division.first[1], division.first[2] );
                 this->try_reset( buffer );
                 this->try_dye( buffer, this->filler_col_ )
-                  .append( constants::blank, len_left_fill % this->filler_.width() )
+                  .append( ' ', len_left_fill % this->filler_.width() )
                   .append( this->filler_, len_left_fill / this->filler_.width() );
 
                 this->try_reset( buffer );
                 this->try_dye( buffer, this->lead_col_ )
                   .append( division.first[0], division.first[1] )
-                  .append( constants::blank, len_vacancy - division.second.first );
+                  .append( ' ', len_vacancy - division.second.first );
               }
             } else
-              buffer.append( constants::blank, this->bar_length_ );
+              buffer.append( ' ', this->bar_length_ );
           } else if ( this->filler_.empty() )
-            buffer.append( constants::blank, this->bar_length_ );
+            buffer.append( ' ', this->bar_length_ );
           else {
             this->try_reset( buffer );
             this->try_dye( buffer, this->filler_col_ );
             buffer.append( this->filler_, this->bar_length_ / this->filler_.width() )
-              .append( constants::blank, this->bar_length_ % this->filler_.width() );
+              .append( ' ', this->bar_length_ % this->filler_.width() );
           }
 
           this->try_reset( buffer );
@@ -6244,7 +6240,7 @@ namespace pgbar {
           if ( this->visual_masks_.any() )
             this->try_style( buffer, this->info_col_ );
           if ( !this->prefix_.empty() && ( this->visual_masks_.any() || !this->postfix_.empty() ) )
-            buffer << constants::blank;
+            buffer << ' ';
           if ( this->visual_masks_[utils::as_val( Self::Mask::Per )] ) {
             buffer << this->build_percent( num_percent );
             auto masks = this->visual_masks_;
@@ -6265,7 +6261,7 @@ namespace pgbar {
           this->common_build( buffer, num_task_done, num_all_tasks, zero_point );
 
           if ( !this->postfix_.empty() && this->visual_masks_.any() )
-            buffer << constants::blank;
+            buffer << ' ';
           this->build_postfix( buffer );
           this->try_reset( buffer );
           if ( !this->prefix_.empty() || !this->postfix_.empty() || this->visual_masks_.any() ) {
@@ -6441,7 +6437,7 @@ namespace pgbar {
           this->try_reset( buffer );
           if ( this->visual_masks_[utils::as_val( Self::Mask::Ani )] ) {
             if ( !this->prefix_.empty() )
-              buffer << constants::blank;
+              buffer << ' ';
             this->build_spin( buffer, num_frame_cnt );
             this->try_reset( buffer );
             auto masks = this->visual_masks_;
