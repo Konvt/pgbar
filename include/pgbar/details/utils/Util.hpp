@@ -1,0 +1,179 @@
+#ifndef __PGBAR_UTILS_UTIL
+#define __PGBAR_UTILS_UTIL
+
+#include "../types/Types.hpp"
+#include <cmath>
+#include <tuple>
+#if __PGBAR_CXX17
+# include <charconv>
+#else
+# include <limits>
+#endif
+
+namespace pgbar {
+  namespace __details {
+    namespace utils {
+      template<typename E>
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CNSTEVAL
+        typename std::enable_if<std::is_enum<E>::value, typename std::underlying_type<E>::type>::type
+        as_val( E enum_val ) noexcept
+      {
+        return static_cast<typename std::underlying_type<E>::type>( enum_val );
+      }
+
+      // Perfectly forward the I-th element of a tuple, constructing one by default if it's out of bound.
+      template<types::Size I,
+               typename T,
+               typename Tuple,
+               typename = typename std::enable_if<
+                 ( I < std::tuple_size<typename std::decay<Tuple>::type>::value )>::type>
+      __PGBAR_INLINE_FN constexpr auto forward_or( Tuple&& tup ) noexcept
+        -> decltype( std::get<I>( std::forward<Tuple>( tup ) ) )
+      {
+        static_assert( std::is_convertible<typename std::tuple_element<I, Tuple>::type, T>::value,
+                       "pgbar::__details::traits::forward_or: Incompatible type" );
+        return std::get<I>( std::forward<Tuple>( tup ) );
+      }
+      template<types::Size I, typename T, typename Tuple>
+      __PGBAR_INLINE_FN constexpr
+        typename std::enable_if<( I >= std::tuple_size<typename std::decay<Tuple>::type>::value ), T>::type
+        forward_or( Tuple&& ) noexcept( std::is_nothrow_default_constructible<T>::value )
+      {
+        return T();
+      }
+
+      template<typename Numeric>
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR
+        typename std::enable_if<std::is_unsigned<Numeric>::value, types::Size>::type
+        count_digits( Numeric val ) noexcept
+      {
+        types::Size digits = val == 0;
+        for ( ; val > 0; val /= 10 )
+          ++digits;
+        return digits;
+      }
+      template<typename Numeric>
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR
+        typename std::enable_if<std::is_signed<Numeric>::value, types::Size>::type
+        count_digits( Numeric val ) noexcept
+      {
+        return count_digits( static_cast<std::uint64_t>( val < 0 ? -val : val ) );
+      }
+
+      // Format an integer number.
+      template<typename Integer>
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN
+        typename std::enable_if<std::is_integral<Integer>::value, types::String>::type
+        format( Integer val ) noexcept( noexcept( std::to_string( val ) ) )
+      {
+        /* In some well-designed standard libraries,
+         * integer std::to_string has specialized implementations for different bit-length types;
+
+         * This includes directly constructing the destination string using the SOO/SSO nature of the string,
+         * optimizing the memory management strategy using internally private resize_and_overwrite, etc.
+
+         * Therefore, the functions of the standard library are called directly here,
+         * rather than providing a manual implementation like the other functions. */
+        return std::to_string( val );
+        // Although, unfortunately, std::to_string is not labeled constexpr.
+      }
+
+      // Format a finite floating point number.
+      template<typename Floating>
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN
+        typename std::enable_if<std::is_floating_point<Floating>::value, types::String>::type
+        format( Floating val, int precision ) noexcept( false )
+      {
+        /* Unlike the integer version,
+         * the std::to_string in the standard library does not provide a precision limit
+         * on floating-point numbers;
+
+         * So the implementation here is provided manually. */
+        __PGBAR_ASSERT( std::isfinite( val ) );
+        __PGBAR_TRUST( precision >= 0 );
+#if __PGBAR_CXX17
+        const auto abs_rounded_val = std::round( std::abs( val ) );
+        const auto int_digits      = count_digits( abs_rounded_val );
+
+        types::String formatted;
+# if __PGBAR_CXX23
+        formatted.resize_and_overwrite(
+          int_digits + precision + 2,
+          [val, precision]( types::Char* buf, types::Size n ) noexcept {
+            const auto result = std::to_chars( buf, buf + n, val, std::chars_format::fixed, precision );
+            __PGBAR_TRUST( result.ec == std::errc {} );
+            __PGBAR_TRUST( result.ptr >= buf );
+            return static_cast<types::Size>( result.ptr - buf );
+          } );
+# else
+        formatted.resize( int_digits + precision + 2 );
+        // The extra 2 is left for the decimal point and carry.
+        const auto result = std::to_chars( formatted.data(),
+                                           formatted.data() + formatted.size(),
+                                           val,
+                                           std::chars_format::fixed,
+                                           precision );
+        __PGBAR_TRUST( result.ec == std::errc {} );
+        __PGBAR_ASSERT( result.ptr >= formatted.data() );
+        formatted.resize( result.ptr - formatted.data() );
+# endif
+#else
+        const auto scale           = std::pow( 10, precision );
+        const auto abs_rounded_val = std::round( std::abs( val ) * scale ) / scale;
+        __PGBAR_ASSERT( abs_rounded_val <= ( std::numeric_limits<std::uint64_t>::max )() );
+        const auto integer = static_cast<std::uint64_t>( abs_rounded_val );
+        const auto fraction =
+          static_cast<std::uint64_t>( std::round( ( abs_rounded_val - integer ) * scale ) );
+        const auto sign = std::signbit( val );
+
+        auto formatted = types::String( sign, '-' );
+        formatted.append( format( integer ) ).reserve( count_digits( integer ) + sign );
+        if ( precision > 0 ) {
+          formatted.push_back( '.' );
+          const auto fract_digits = count_digits( fraction );
+          __PGBAR_TRUST( fract_digits <= static_cast<types::Size>( precision ) );
+          formatted.append( precision - fract_digits, '0' ).append( format( fraction ) );
+        }
+#endif
+        return formatted;
+      }
+
+      enum class TxtLayout { Left, Right, Center }; // text layout
+      // Format the `str`.
+      template<TxtLayout Style>
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::String format( types::Size width,
+                                                                                      types::Size len_str,
+                                                                                      types::ROStr str )
+        noexcept( false )
+      {
+        if ( width == 0 )
+          __PGBAR_UNLIKELY return {};
+        if ( len_str >= width )
+          return types::String( str );
+        if __PGBAR_CXX17_CNSTXPR ( Style == TxtLayout::Right ) {
+          auto tmp = types::String( width - len_str, ' ' );
+          tmp.append( str );
+          return tmp;
+        } else if __PGBAR_CXX17_CNSTXPR ( Style == TxtLayout::Left ) {
+          auto tmp = types::String( str );
+          tmp.append( width - len_str, ' ' );
+          return tmp;
+        } else {
+          width -= len_str;
+          const types::Size l_blank = width / 2;
+          return std::move( types::String( l_blank, ' ' ).append( str ) )
+               + types::String( width - l_blank, ' ' );
+        }
+      }
+      template<TxtLayout Style>
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::String format( types::Size width,
+                                                                                      types::ROStr __str )
+        noexcept( false )
+      {
+        return format<Style>( width, __str.size(), __str );
+      }
+    } // namespace utils
+  } // namespace __details
+} // namespace pgbar
+
+#endif

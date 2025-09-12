@@ -1,4 +1,6 @@
-#include "pgbar/pgbar.hpp"
+#include "pgbar/MultiBar.hpp"
+#include "pgbar/BlockBar.hpp"
+#include "pgbar/FlowBar.hpp"
 #include <chrono>
 #include <random>
 #include <thread>
