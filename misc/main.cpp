@@ -6,16 +6,13 @@ using namespace std;
 
 int main()
 {
-#if _WIN32
-  system( "chcp 65001" );
-#endif
-
+  mt19937 rd { random_device {}() };
   pgbar::iterate<pgbar::config::Block>(
     10000,
-    []( int ) {
-      mt19937 rd { random_device {}() };
-      this_thread::sleep_for( chrono::microseconds( uniform_int_distribution<int>( 700, 1100 )( rd ) ) );
+    [&]( int ) {
+      this_thread::sleep_for( chrono::microseconds( uniform_int_distribution<int>( 1, 1200 )( rd ) ) );
     },
+    []( pgbar::BlockBar<>& self ) { self.config().filler_color( pgbar::color::Green ); },
     pgbar::option::Lead( { " ", "▁", "▂", "▃", "▄", "▅", "▆", "▇" } ),
     pgbar::option::InfoColor( "#FFD200" ) );
 }

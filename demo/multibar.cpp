@@ -23,6 +23,8 @@ int main()
     pgbar::config::Block( pgbar::option::Lead( { " ", "▖", "▞", "▛" } ),
                           pgbar::option::InfoColor( "#8AB7EB" ) ) );
   mbar.config<0>().tasks( ( std::tuple_size<decltype( mbar )>::value - 1 ) * 2 );
+  mbar.at<0>() |=
+    [&]( pgbar::FlowBar<>& self ) { self.config().filler_color( pgbar::color::Green ).lead( "" ); };
 
   vector<thread> pool;
   pool.emplace_back( [&]() {

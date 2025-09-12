@@ -889,7 +889,7 @@ namespace pgbar {
 
     namespace utils {
       template<typename E>
-      __PGBAR_NODISCARD __PGBAR_CNSTEVAL __PGBAR_INLINE_FN
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CNSTEVAL
         typename std::enable_if<std::is_enum<E>::value, typename std::underlying_type<E>::type>::type
         as_val( E enum_val ) noexcept
       {
@@ -902,7 +902,7 @@ namespace pgbar {
                typename Tuple,
                typename = typename std::enable_if<
                  ( I < std::tuple_size<typename std::decay<Tuple>::type>::value )>::type>
-      constexpr auto forward_or( Tuple&& tup ) noexcept
+      __PGBAR_INLINE_FN constexpr auto forward_or( Tuple&& tup ) noexcept
         -> decltype( std::get<I>( std::forward<Tuple>( tup ) ) )
       {
         static_assert( std::is_convertible<typename std::tuple_element<I, Tuple>::type, T>::value,
@@ -910,7 +910,7 @@ namespace pgbar {
         return std::get<I>( std::forward<Tuple>( tup ) );
       }
       template<types::Size I, typename T, typename Tuple>
-      constexpr
+      __PGBAR_INLINE_FN constexpr
         typename std::enable_if<( I >= std::tuple_size<typename std::decay<Tuple>::type>::value ), T>::type
         forward_or( Tuple&& ) noexcept( std::is_nothrow_default_constructible<T>::value )
       {
@@ -1036,7 +1036,7 @@ namespace pgbar {
 # endif
 
       template<typename Numeric>
-      __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR __PGBAR_INLINE_FN
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR
         typename std::enable_if<std::is_unsigned<Numeric>::value, types::Size>::type
         count_digits( Numeric val ) noexcept
       {
@@ -1046,7 +1046,7 @@ namespace pgbar {
         return digits;
       }
       template<typename Numeric>
-      __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR __PGBAR_INLINE_FN
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR
         typename std::enable_if<std::is_signed<Numeric>::value, types::Size>::type
         count_digits( Numeric val ) noexcept
       {
@@ -1169,21 +1169,21 @@ namespace pgbar {
 
     namespace traits {
 # if __PGBAR_CXX17
-      template<typename R, typename Fn, typename... ArgTypes>
-      using Invocable_r = std::is_invocable_r<R, Fn, ArgTypes...>;
+      template<typename Ret, typename Fn, typename... Args>
+      using InvocableTo = std::is_invocable_r<Ret, Fn, Args...>;
 # else
-      template<typename R, typename Fn, typename... ArgTypes>
-      struct Invocable_r {
+      template<typename Ret, typename Fn, typename... Args>
+      struct InvocableTo {
       private:
         template<typename F>
-        static constexpr auto check( F&& fn ) -> typename std::enable_if<
-          std::is_convertible<decltype( utils::invoke( std::forward<F>( fn ), std::declval<ArgTypes>()... ) ),
-                              R>::value,
-          std::true_type>::type;
+        static constexpr auto check( int )
+          -> std::is_convertible<decltype( utils::invoke( std::declval<F>(), std::declval<Args>()... ) ),
+                                 Ret>;
+        template<typename>
         static constexpr std::false_type check( ... );
 
       public:
-        static constexpr bool value = decltype( check( std::declval<Fn>() ) )::value;
+        static constexpr bool value = decltype( check<Fn>( 0 ) )::value;
       };
 # endif
     }
@@ -1289,7 +1289,7 @@ namespace pgbar {
         }
 
         template<typename F>
-        static __PGBAR_INLINE_FN typename std::enable_if<Inlinable<typename std::decay<F>::type>::value>::type
+        static typename std::enable_if<Inlinable<typename std::decay<F>::type>::value>::type
           store_fn( const VTable*( &vtable ), AnyFn& any, F&& fn ) noexcept
         {
           using T             = typename std::decay<F>::type;
@@ -1299,8 +1299,7 @@ namespace pgbar {
           vtable = &table_inline<T>();
         }
         template<typename F>
-        static __PGBAR_INLINE_FN
-          typename std::enable_if<!Inlinable<typename std::decay<F>::type>::value>::type
+        static typename std::enable_if<!Inlinable<typename std::decay<F>::type>::value>::type
           store_fn( const VTable*( &vtable ), AnyFn& any, F&& fn ) noexcept( false )
         {
           using T   = typename std::decay<F>::type;
@@ -1342,14 +1341,14 @@ namespace pgbar {
 
         __PGBAR_CXX23_CNSTXPR FnStorageBlock() noexcept : vtable_ { &table_null() } {}
 
-        __PGBAR_INLINE_FN __PGBAR_CXX23_CNSTXPR void reset() noexcept
+        __PGBAR_CXX23_CNSTXPR void reset() noexcept
         {
           __PGBAR_TRUST( vtable_ != nullptr );
           vtable_->destroy( callee_ );
           vtable_ = &table_null();
         }
         template<typename F>
-        __PGBAR_INLINE_FN void reset( F&& fn ) noexcept( Inlinable<typename std::decay<F>::type>::value )
+        void reset( F&& fn ) noexcept( Inlinable<typename std::decay<F>::type>::value )
         {
           const VTable* vtable = nullptr;
           AnyFn tmp;
@@ -1500,7 +1499,7 @@ namespace pgbar {
         template<typename F,
                  typename = typename std::enable_if<
                    traits::AllOf<std::is_constructible<typename std::decay<F>::type, F>,
-                                 traits::Invocable_r<R, F, Args...>>::value>::type>
+                                 traits::InvocableTo<R, F, Args...>>::value>::type>
         UniqueFunction( F&& fn ) noexcept( Base::template Inlinable<typename std::decay<F>::type>::value )
         {
           Base::store_fn( this->vtable_, this->callee_, std::forward<F>( fn ) );
@@ -1509,7 +1508,7 @@ namespace pgbar {
         // Therefore, we do not provide an overloaded constructor for this type here.
         template<typename F>
         typename std::enable_if<traits::AllOf<std::is_constructible<typename std::decay<F>::type, F>,
-                                              traits::Invocable_r<R, F, Args...>>::value,
+                                              traits::InvocableTo<R, F, Args...>>::value,
                                 UniqueFunction&>::type
           operator=( F&& fn ) & noexcept( Base::template Inlinable<typename std::decay<F>::type>::value )
         {
@@ -1522,7 +1521,7 @@ namespace pgbar {
           return *this;
         }
 
-        R operator()( Args... args )
+        __PGBAR_INLINE_FN R operator()( Args... args )
         {
           __PGBAR_TRUST( this->vtable_ != nullptr );
           return ( *this->vtable_->invoke )( this->callee_, std::forward<Args>( args )... );
@@ -1597,7 +1596,7 @@ namespace pgbar {
         types::String bytes_;
 
         /// @return The utf codepoint and the number of byte of the utf-8 character.
-        static __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR std::pair<types::UCodePoint, types::Size> next_char(
+        static __PGBAR_CXX20_CNSTXPR std::pair<types::UCodePoint, types::Size> next_char(
           const types::Char* raw_u8_str,
           types::Size length )
         {
@@ -1660,7 +1659,7 @@ namespace pgbar {
              { 0xFFF80, 0xFFFFF, 2 }, { 0x10FF80, 0x10FFFF, 2 } }
           };
         }
-        __PGBAR_NODISCARD static __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR CodeChart::RenderWidth char_width(
+        __PGBAR_NODISCARD static __PGBAR_CXX20_CNSTXPR CodeChart::RenderWidth char_width(
           types::UCodePoint codepoint ) noexcept
         {
           constexpr const auto charts = code_charts();
@@ -1679,8 +1678,7 @@ namespace pgbar {
          *
          * @return Returns the render width of the given string.
          */
-        __PGBAR_NODISCARD static __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::Size render_width(
-          types::ROStr u8_str )
+        __PGBAR_NODISCARD static __PGBAR_CXX20_CNSTXPR types::Size render_width( types::ROStr u8_str )
         {
           types::Size width     = 0;
           const auto raw_u8_str = u8_str.data();
@@ -1858,7 +1856,7 @@ namespace pgbar {
         std::vector<std::pair<types::Size, CodeChart::RenderWidth>> chars_;
 
       public:
-        __PGBAR_NODISCARD static __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR
+        __PGBAR_NODISCARD static __PGBAR_CXX20_CNSTXPR
           std::vector<std::pair<types::Size, CodeChart::RenderWidth>>
           parse_char( types::ROStr u8_str )
         {
@@ -1945,8 +1943,8 @@ namespace pgbar {
          * @return The split result and the width of each part, where the first element is the result not
          * exceeding the length.
          */
-        std::pair<std::array<const types::Char*, 3>, std::pair<types::Size, types::Size>> split_by(
-          types::Size length ) const noexcept
+        __PGBAR_INLINE_FN std::pair<std::array<const types::Char*, 3>, std::pair<types::Size, types::Size>>
+          split_by( types::Size length ) const noexcept
         {
           if ( bytes_.empty() )
             __PGBAR_UNLIKELY return {
@@ -1974,23 +1972,6 @@ namespace pgbar {
           chars_.swap( lhs.chars_ );
         }
         __PGBAR_CXX20_CNSTXPR friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
-
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self operator+( Self&& a,
-                                                                                         const Self& b )
-        {
-          const auto num_a_char = a.chars_.size();
-          a.chars_.resize( a.chars_.size() + b.chars_.size() );
-          std::transform( b.chars_.cbegin(),
-                          b.chars_.cend(),
-                          a.chars_.begin() + num_a_char,
-                          [&a]( const std::pair<types::Size, CodeChart::RenderWidth>& ch ) noexcept {
-                            return std::make_pair( ch.first + a.size(),
-                                                   static_cast<types::Size>( ch.second ) );
-                          } );
-          a.bytes_.append( b.bytes_ );
-          a.width_ += b.width_;
-          return a;
-        }
 
 # if __PGBAR_CXX20
         __PGBAR_CXX20_CNSTXPR explicit U8Text( types::LitU8 u8_sv ) : U8Text()
@@ -2080,9 +2061,9 @@ namespace pgbar {
         Self& operator=( const Self& ) & = delete;
 
         SharedMutex() noexcept : num_readers_ { 0 } {}
-        __PGBAR_CXX20_CNSTXPR ~SharedMutex() = default;
+        ~SharedMutex() = default;
 
-        void lock() & noexcept
+        __PGBAR_INLINE_FN void lock() & noexcept
         {
           while ( true ) {
             while ( num_readers_.load( std::memory_order_acquire ) != 0 )
@@ -2095,7 +2076,7 @@ namespace pgbar {
               writer_mtx_.unlock();
           }
         }
-        __PGBAR_NODISCARD bool try_lock() & noexcept
+        __PGBAR_INLINE_FN bool try_lock() & noexcept
         {
           if ( num_readers_.load( std::memory_order_acquire ) == 0 && writer_mtx_.try_lock() ) {
             if ( num_readers_.load( std::memory_order_acquire ) == 0 )
@@ -2116,7 +2097,7 @@ namespace pgbar {
 
           writer_mtx_.unlock();
         }
-        __PGBAR_NODISCARD bool try_lock_shared() & noexcept
+        __PGBAR_INLINE_FN bool try_lock_shared() & noexcept
         {
           if ( writer_mtx_.try_lock() ) {
             num_readers_.fetch_add( 1, std::memory_order_release );
@@ -2133,6 +2114,7 @@ namespace pgbar {
         }
       };
 # endif
+
 # if __PGBAR_CXX14
       template<typename Mtx>
       using SharedLock = std::shared_lock<Mtx>;
@@ -2155,11 +2137,10 @@ namespace pgbar {
         SharedLock( mutex_type& m, std::adopt_lock_t ) noexcept : mtx_ { m } {}
         ~SharedLock() noexcept { mtx_.unlock_shared(); }
 
-        void lock() & noexcept { mtx_.lock_shared(); }
-        __PGBAR_NODISCARD bool try_lock() & noexcept { return mtx_.try_lock_shared(); }
+        __PGBAR_INLINE_FN void lock() & noexcept { mtx_.lock_shared(); }
+        __PGBAR_INLINE_FN bool try_lock() & noexcept { return mtx_.try_lock_shared(); }
         __PGBAR_INLINE_FN void unlock() & noexcept { mtx_.unlock_shared(); }
       };
-
 # endif
 
       // A nullable container that holds an exception pointer.
@@ -2216,7 +2197,7 @@ namespace pgbar {
         }
 
         // Rethrow the exception pointed if it isn't null.
-        __PGBAR_INLINE_FN void rethrow() noexcept( false )
+        void rethrow() noexcept( false )
         {
           std::lock_guard<SharedMutex> lock { rw_mtx_ };
           if ( exception_ ) {
@@ -2281,10 +2262,7 @@ namespace pgbar {
           cache_.store( value, std::memory_order_release );
           return value;
         }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool connected() const noexcept
-        {
-          return cache_.load( std::memory_order_acquire );
-        }
+        __PGBAR_INLINE_FN bool connected() const noexcept { return cache_.load( std::memory_order_acquire ); }
 
         /**
          * Enable virtual terminal processing on the specified output channel (Windows only).
@@ -2346,12 +2324,12 @@ namespace pgbar {
       public:
         __PGBAR_CXX20_CNSTXPR Stringbuf() = default;
 
-        __PGBAR_CXX20_CNSTXPR Stringbuf( const Self& lhs )                           = default;
-        __PGBAR_CXX20_CNSTXPR Stringbuf( Self&& rhs ) noexcept                       = default;
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& operator=( const Self& lhs ) & = default;
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR Self& operator=( Self&& rhs ) &      = default;
+        __PGBAR_CXX20_CNSTXPR Stringbuf( const Self& lhs )         = default;
+        __PGBAR_CXX20_CNSTXPR Stringbuf( Self&& rhs ) noexcept     = default;
+        __PGBAR_CXX20_CNSTXPR Self& operator=( const Self& lhs ) & = default;
+        __PGBAR_CXX20_CNSTXPR Self& operator=( Self&& rhs ) &      = default;
         // Intentional non-virtual destructors.
-        __PGBAR_CXX20_CNSTXPR ~Stringbuf()                                           = default;
+        __PGBAR_CXX20_CNSTXPR ~Stringbuf()                         = default;
 
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR bool empty() const noexcept { return buffer_.empty(); }
         __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void clear() & noexcept { buffer_.clear(); }
@@ -2574,10 +2552,15 @@ namespace pgbar {
             return *this;
 
 # if __PGBAR_WIN && !defined( PGBAR_UTF8 )
-          const auto codepage = GetConsoleOutputCP();
-          if ( !console::TermContext<Outlet>::itself().connected() || codepage == CP_UTF8 ) {
+          if ( !console::TermContext<Outlet>::itself().connected() ) {
             writeout( this->buffer_ );
-            clear();
+            Stringbuf::clear();
+            return *this;
+          }
+          const auto codepage = GetConsoleOutputCP();
+          if ( codepage == CP_UTF8 ) {
+            writeout( this->buffer_ );
+            Stringbuf::clear();
             return *this;
           }
 
@@ -2644,9 +2627,9 @@ namespace pgbar {
           std::array<types::Char, 17> sgr_; // Select Graphic Rendition
           std::uint8_t length_;
 
-          static __PGBAR_INLINE_FN __PGBAR_CXX23_CNSTXPR types::Char* to_char( types::Char* first,
-                                                                               types::Char* last,
-                                                                               std::uint8_t value ) noexcept
+          static __PGBAR_CXX23_CNSTXPR types::Char* to_char( types::Char* first,
+                                                             types::Char* last,
+                                                             std::uint8_t value ) noexcept
           {
 # if __PGBAR_CXX17
             auto result = std::to_chars( first, last, value );
@@ -3081,7 +3064,7 @@ namespace pgbar {
            */
         }
         // When the task is not empty, execute at least one task.
-        void attempt() & noexcept
+        __PGBAR_INLINE_FN void attempt() & noexcept
         {
           // The lock here is to ensure that only one thread executes the task_ at any given time.
           // And synchronization semantics require that no call request be dropped.
@@ -3526,7 +3509,7 @@ namespace pgbar {
           return static_cast<__details::types::Size>( std::ceil( ( end_ - start_ ) / step_ ) );
       }
 
-      __PGBAR_NODISCARD constexpr bool empty() const noexcept { return size() == 0; }
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr bool empty() const noexcept { return size() == 0; }
       __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr typename iterator::reference operator[](
         __details::types::Size inc ) const noexcept
       {
@@ -3821,7 +3804,10 @@ namespace pgbar {
         return size( *rnge_ );
       }
 
-      __PGBAR_NODISCARD __PGBAR_CXX17_CNSTXPR bool empty() const noexcept { return rnge_ == nullptr; }
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR bool empty() const noexcept
+      {
+        return rnge_ == nullptr;
+      }
 
       __PGBAR_CXX17_CNSTXPR void swap( BoundedSpan<R>& lhs ) noexcept
       {
@@ -4512,7 +4498,7 @@ namespace pgbar {
 # endif
 # undef __PGBAR_METHOD
 
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void swap( Remains& lhs ) noexcept
+        __PGBAR_CXX20_CNSTXPR void swap( Remains& lhs ) noexcept
         {
           remains_col_.swap( lhs.remains_col_ );
           remains_.swap( lhs.remains_ );
@@ -4647,9 +4633,9 @@ namespace pgbar {
       template<typename Base, typename Derived>
       class CharIndic : public Base {
       protected:
-        __PGBAR_INLINE_FN __PGBAR_CXX23_CNSTXPR io::Stringbuf& build_char( io::Stringbuf& buffer,
-                                                                           types::Float num_percent,
-                                                                           types::Size num_frame_cnt ) const
+        __PGBAR_CXX23_CNSTXPR io::Stringbuf& build_char( io::Stringbuf& buffer,
+                                                         types::Float num_percent,
+                                                         types::Size num_frame_cnt ) const
         {
           __PGBAR_TRUST( num_percent >= 0.0 );
           __PGBAR_TRUST( num_percent <= 1.0 );
@@ -4723,8 +4709,8 @@ namespace pgbar {
       template<typename Base, typename Derived>
       class BlockIndic : public Base {
       protected:
-        __PGBAR_INLINE_FN __PGBAR_CXX23_CNSTXPR io::Stringbuf& build_block( io::Stringbuf& buffer,
-                                                                            types::Float num_percent ) const
+        __PGBAR_CXX23_CNSTXPR io::Stringbuf& build_block( io::Stringbuf& buffer,
+                                                          types::Float num_percent ) const
         {
           __PGBAR_TRUST( num_percent >= 0.0 );
           __PGBAR_TRUST( num_percent <= 1.0 );
@@ -4813,8 +4799,8 @@ namespace pgbar {
       template<typename Base, typename Derived>
       class SweepIndic : public Base {
       protected:
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& build_sweep( io::Stringbuf& buffer,
-                                                                            types::Size num_frame_cnt ) const
+        __PGBAR_CXX20_CNSTXPR io::Stringbuf& build_sweep( io::Stringbuf& buffer,
+                                                          types::Size num_frame_cnt ) const
         {
           if ( this->bar_length_ == 0 )
             return buffer;
@@ -4882,8 +4868,8 @@ namespace pgbar {
       template<typename Base, typename Derived>
       class FlowIndic : public Base {
       protected:
-        __PGBAR_INLINE_FN __PGBAR_CXX23_CNSTXPR io::Stringbuf& build_flow( io::Stringbuf& buffer,
-                                                                           types::Size num_frame_cnt ) const
+        __PGBAR_CXX23_CNSTXPR io::Stringbuf& build_flow( io::Stringbuf& buffer,
+                                                         types::Size num_frame_cnt ) const
         {
           if ( this->bar_length_ == 0 )
             return buffer;
@@ -4892,7 +4878,6 @@ namespace pgbar {
 
           this->try_reset( buffer );
           this->try_dye( buffer, this->start_col_ ) << this->starting_;
-          this->try_reset( buffer );
 
           if ( !this->lead_.empty() ) {
             const auto& current_lead = this->lead_[num_frame_cnt % this->lead_.size()];
@@ -4907,6 +4892,7 @@ namespace pgbar {
               if ( current_lead.width() <= len_vacancy ) {
                 const auto len_right_fill = len_vacancy - current_lead.width();
 
+                this->try_reset( buffer );
                 this->try_dye( buffer, this->filler_col_ )
                   .append( this->filler_, virtual_point / this->filler_.width() )
                   .append( constants::blank, virtual_point % this->filler_.width() );
@@ -4921,6 +4907,7 @@ namespace pgbar {
                 const auto division      = current_lead.split_by( len_vacancy );
                 const auto len_left_fill = virtual_point - division.second.second;
 
+                this->try_reset( buffer );
                 this->try_dye( buffer, this->lead_col_ ).append( division.first[1], division.first[2] );
                 this->try_reset( buffer );
                 this->try_dye( buffer, this->filler_col_ )
@@ -4936,9 +4923,12 @@ namespace pgbar {
               buffer.append( constants::blank, this->bar_length_ );
           } else if ( this->filler_.empty() )
             buffer.append( constants::blank, this->bar_length_ );
-          else
+          else {
+            this->try_reset( buffer );
+            this->try_dye( buffer, this->filler_col_ );
             buffer.append( this->filler_, this->bar_length_ / this->filler_.width() )
               .append( constants::blank, this->bar_length_ % this->filler_.width() );
+          }
 
           this->try_reset( buffer );
           return this->try_dye( buffer, this->end_col_ ) << this->ending_;
@@ -5007,7 +4997,7 @@ namespace pgbar {
 
 # undef __PGBAR_METHOD
 
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void swap( Prefix& lhs ) noexcept
+        __PGBAR_CXX20_CNSTXPR void swap( Prefix& lhs ) noexcept
         {
           prfx_col_.swap( lhs.prfx_col_ );
           prefix_.swap( lhs.prefix_ );
@@ -5079,7 +5069,7 @@ namespace pgbar {
 
 # undef __PGBAR_METHOD
 
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void swap( Postfix& lhs ) noexcept
+        __PGBAR_CXX20_CNSTXPR void swap( Postfix& lhs ) noexcept
         {
           pstfx_col_.swap( lhs.pstfx_col_ );
           postfix_.swap( lhs.postfix_ );
@@ -5164,7 +5154,7 @@ namespace pgbar {
 
 # undef __PGBAR_METHOD
 
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void swap( Segment& lhs ) & noexcept
+        __PGBAR_CXX20_CNSTXPR void swap( Segment& lhs ) & noexcept
         {
           info_col_.swap( lhs.info_col_ );
           divider_.swap( lhs.divider_ );
@@ -5238,9 +5228,9 @@ namespace pgbar {
         types::Size len_longest_unit_;
         std::uint16_t magnitude_;
 
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN types::String build_speed( const types::TimeUnit& time_passed,
-                                                                       std::uint64_t num_task_done,
-                                                                       std::uint64_t num_all_tasks ) const
+        __PGBAR_NODISCARD types::String build_speed( const types::TimeUnit& time_passed,
+                                                     std::uint64_t num_task_done,
+                                                     std::uint64_t num_all_tasks ) const
         {
           __PGBAR_TRUST( num_task_done <= num_all_tasks );
           if ( num_all_tasks == 0 )
@@ -5321,7 +5311,7 @@ namespace pgbar {
 
 # undef __PGBAR_METHOD
 
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void swap( SpeedMeter& lhs ) & noexcept
+        __PGBAR_CXX20_CNSTXPR void swap( SpeedMeter& lhs ) & noexcept
         {
           units_.swap( lhs.units_ );
           std::swap( len_longest_unit_, lhs.len_longest_unit_ );
@@ -5347,7 +5337,7 @@ namespace pgbar {
           return str;
         }
 
-        __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR __PGBAR_INLINE_FN types::Size fixed_len_counter()
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR types::Size fixed_len_counter()
           const noexcept
         {
           return utils::count_digits( this->task_range_.back() ) * 2 + 1;
@@ -5390,7 +5380,7 @@ namespace pgbar {
           return _fixed_length;
         }
 
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::String build_countdown(
+        __PGBAR_NODISCARD __PGBAR_CXX20_CNSTXPR types::String build_countdown(
           const types::TimeUnit& time_passed,
           std::uint64_t num_task_done,
           std::uint64_t num_all_tasks ) const
@@ -5810,7 +5800,7 @@ namespace pgbar {
         __PGBAR_NODISCARD Modifier<true> enable() & noexcept { return Modifier<true>( *this ); }
         __PGBAR_NODISCARD Modifier<false> disable() & noexcept { return Modifier<false>( *this ); }
 
-        __PGBAR_INLINE_FN __PGBAR_CXX23_CNSTXPR void swap( BasicConfig& lhs ) noexcept
+        __PGBAR_CXX23_CNSTXPR void swap( BasicConfig& lhs ) noexcept
         {
           std::lock( this->rw_mtx_, lhs.rw_mtx_ );
           std::lock_guard<concurrent::SharedMutex> lock1 { this->rw_mtx_, std::adopt_lock };
@@ -5819,10 +5809,7 @@ namespace pgbar {
           swap( visual_masks_, lhs.visual_masks_ );
           Base::swap( lhs );
         }
-        friend __PGBAR_INLINE_FN __PGBAR_CXX23_CNSTXPR void swap( BasicConfig& a, BasicConfig& b ) noexcept
-        {
-          a.swap( b );
-        }
+        friend __PGBAR_CXX23_CNSTXPR void swap( BasicConfig& a, BasicConfig& b ) noexcept { a.swap( b ); }
       };
     } // namespace prefabs
 
@@ -6195,11 +6182,10 @@ namespace pgbar {
          * Builds and only builds the components belows:
          * `CounterMeter`, `SpeedMeter`, `ElapsedTimer` and `CountdownTimer`
          */
-        __PGBAR_INLINE_FN io::Stringbuf& common_build(
-          io::Stringbuf& buffer,
-          std::uint64_t num_task_done,
-          std::uint64_t num_all_tasks,
-          const std::chrono::steady_clock::time_point& zero_point ) const
+        io::Stringbuf& common_build( io::Stringbuf& buffer,
+                                     std::uint64_t num_task_done,
+                                     std::uint64_t num_all_tasks,
+                                     const std::chrono::steady_clock::time_point& zero_point ) const
         {
           __PGBAR_TRUST( num_task_done <= num_all_tasks );
           using Self = Config;
@@ -6241,13 +6227,12 @@ namespace pgbar {
 
       protected:
         template<typename... Args>
-        __PGBAR_INLINE_FN io::Stringbuf& indirect_build(
-          io::Stringbuf& buffer,
-          std::uint64_t num_task_done,
-          std::uint64_t num_all_tasks,
-          types::Float num_percent,
-          const std::chrono::steady_clock::time_point& zero_point,
-          Args&&... args ) const
+        io::Stringbuf& indirect_build( io::Stringbuf& buffer,
+                                       std::uint64_t num_task_done,
+                                       std::uint64_t num_all_tasks,
+                                       types::Float num_percent,
+                                       const std::chrono::steady_clock::time_point& zero_point,
+                                       Args&&... args ) const
         {
           if ( !this->prefix_.empty() || !this->postfix_.empty() || this->visual_masks_.any() ) {
             this->try_style( buffer, this->info_col_ );
@@ -6437,12 +6422,11 @@ namespace pgbar {
       public:
         using CommonBuilder<Self>::CommonBuilder;
 
-        __PGBAR_INLINE_FN io::Stringbuf& build(
-          io::Stringbuf& buffer,
-          types::Size num_frame_cnt,
-          std::uint64_t num_task_done,
-          std::uint64_t num_all_tasks,
-          const std::chrono::steady_clock::time_point& zero_point ) const
+        io::Stringbuf& build( io::Stringbuf& buffer,
+                              types::Size num_frame_cnt,
+                              std::uint64_t num_task_done,
+                              std::uint64_t num_all_tasks,
+                              const std::chrono::steady_clock::time_point& zero_point ) const
         {
           __PGBAR_TRUST( num_task_done <= num_all_tasks );
           const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
@@ -6505,7 +6489,10 @@ namespace pgbar {
         std::uint64_t task_end_;
 
       public:
-        template<typename... Args>
+        template<
+          typename... Args,
+          typename = typename std::enable_if<traits::Not<traits::AnyOf<
+            std::is_base_of<TaskCounter<Base, Derived>, typename std::decay<Args>::type>...>>::value>::type>
         constexpr TaskCounter( Args&&... args )
           noexcept( std::is_nothrow_constructible<Base, Args...>::value )
           : Base( std::forward<Args>( args )... ), task_cnt_ { 0 }
@@ -6550,17 +6537,17 @@ namespace pgbar {
             static_cast<Derived&>( *this )
           };
         }
-        template<typename N, typename F>
+        template<typename N, typename Proc>
 # if __PGBAR_CXX20
           requires std::is_arithmetic_v<N>
         __PGBAR_CXX14_CNSTXPR void
 # else
         __PGBAR_CXX14_CNSTXPR typename std::enable_if<std::is_arithmetic<N>::value>::type
 # endif
-          iterate( N startpoint, N endpoint, N step, F&& unary_fn )
+          iterate( N startpoint, N endpoint, N step, Proc&& op )
         {
           for ( N e : iterate( startpoint, endpoint, step ) )
-            unary_fn( e );
+            utils::invoke( std::forward<Proc>( op ), e );
         }
 
         template<typename N>
@@ -6579,17 +6566,17 @@ namespace pgbar {
             static_cast<Derived&>( *this )
           };
         }
-        template<typename N, typename F>
+        template<typename N, typename Proc>
 # if __PGBAR_CXX20
           requires std::is_floating_point_v<N>
         void
 # else
         typename std::enable_if<std::is_floating_point<N>::value>::type
 # endif
-          iterate( N endpoint, N step, F&& unary_fn )
+          iterate( N endpoint, N step, Proc&& op )
         {
           for ( N e : iterate( endpoint, step ) )
-            unary_fn( e );
+            utils::invoke( std::forward<Proc>( op ), e );
         }
 
         // Only available for integer types.
@@ -6610,17 +6597,17 @@ namespace pgbar {
             static_cast<Derived&>( *this )
           };
         }
-        template<typename N, typename F>
+        template<typename N, typename Proc>
 # if __PGBAR_CXX20
           requires std::is_integral_v<N>
         __PGBAR_CXX14_CNSTXPR void
 # else
         __PGBAR_CXX14_CNSTXPR typename std::enable_if<std::is_integral<N>::value>::type
 # endif
-          iterate( N startpoint, N endpoint, F&& unary_fn )
+          iterate( N startpoint, N endpoint, Proc&& op )
         {
           for ( N e : iterate( startpoint, endpoint ) )
-            unary_fn( e );
+            utils::invoke( std::forward<Proc>( op ), e );
         }
 
         template<typename N>
@@ -6640,17 +6627,17 @@ namespace pgbar {
             static_cast<Derived&>( *this )
           };
         }
-        template<typename N, typename F>
+        template<typename N, typename Proc>
 # if __PGBAR_CXX20
           requires std::is_integral_v<N>
         __PGBAR_CXX14_CNSTXPR void
 # else
         __PGBAR_CXX14_CNSTXPR typename std::enable_if<std::is_integral<N>::value>::type
 # endif
-          iterate( N endpoint, F&& unary_fn )
+          iterate( N endpoint, Proc&& op )
         {
           for ( N e : iterate( endpoint ) )
-            unary_fn( e );
+            utils::invoke( std::forward<Proc>( op ), e );
         }
 
         // Visualize unidirectional traversal of a iterator interval defined by parameters.
@@ -6672,17 +6659,17 @@ namespace pgbar {
             static_cast<Derived&>( *this )
           };
         }
-        template<typename I, typename F>
+        template<typename I, typename Proc>
 # if __PGBAR_CXX20
           requires traits::is_sized_iterator<I>::value
         __PGBAR_CXX14_CNSTXPR void
 # else
         __PGBAR_CXX14_CNSTXPR typename std::enable_if<traits::is_sized_iterator<I>::value>::type
 # endif
-          iterate( I startpoint, I endpoint, F&& unary_fn )
+          iterate( I startpoint, I endpoint, Proc&& op )
         {
           for ( auto&& e : iterate( std::move( startpoint ), std::move( endpoint ) ) )
-            unary_fn( std::forward<decltype( e )>( e ) );
+            utils::invoke( std::forward<Proc>( op ), std::forward<decltype( e )>( e ) );
         }
 
         // Visualize unidirectional traversal of a abstract range interval defined by `container`'s
@@ -6712,7 +6699,7 @@ namespace pgbar {
           return { std::move( view ), static_cast<Derived&>( *this ) };
         }
 # endif
-        template<class R, typename F>
+        template<class R, typename Proc>
 # if __PGBAR_CXX20
           requires traits::is_bounded_range<std::remove_reference_t<R>>::value
         __PGBAR_CXX17_CNSTXPR void
@@ -6720,10 +6707,10 @@ namespace pgbar {
         __PGBAR_CXX17_CNSTXPR typename std::enable_if<
           traits::is_bounded_range<typename std::remove_reference<R>::type>::value>::type
 # endif
-          iterate( R&& range, F&& unary_fn )
+          iterate( R&& range, Proc&& op )
         {
           for ( auto&& e : iterate( std::forward<R>( range ) ) )
-            unary_fn( std::forward<decltype( e )>( e ) );
+            utils::invoke( std::forward<Proc>( op ), std::forward<decltype( e )>( e ) );
         }
       };
 
@@ -6871,7 +6858,7 @@ namespace pgbar {
           static_cast<Subcls*>( this )->do_reset( true );
         }
 
-        __PGBAR_NODISCARD bool active() const noexcept final
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool active() const noexcept final
         {
           return static_cast<const Subcls*>( this )->categorize() != StateCategory::Stop;
         }
@@ -6882,9 +6869,9 @@ namespace pgbar {
           __PGBAR_ASSERT( active() == false );
         }
 
-        Soul& config() & noexcept { return config_; }
-        const Soul& config() const& noexcept { return config_; }
-        Soul&& config() && noexcept { return std::move( config_ ); }
+        __PGBAR_INLINE_FN Soul& config() & noexcept { return config_; }
+        __PGBAR_INLINE_FN const Soul& config() const& noexcept { return config_; }
+        __PGBAR_INLINE_FN Soul&& config() && noexcept { return std::move( config_ ); }
 
         __PGBAR_CXX20_CNSTXPR void swap( CoreBar& lhs ) noexcept
         {
@@ -6903,7 +6890,8 @@ namespace pgbar {
           std::uint8_t nil_;
 
           template<typename T>
-          static __PGBAR_INLINE_FN void destroy_at( T& obj ) noexcept
+          static __PGBAR_INLINE_FN void destroy_at( T& obj )
+            noexcept( std::is_nothrow_destructible<T>::value )
           {
             obj.~T();
           }
@@ -6913,7 +6901,7 @@ namespace pgbar {
         } hook_;
         enum class Tag : std::uint8_t { Nil, Nullary, Unary } tag_;
 
-        __PGBAR_INLINE_FN __PGBAR_CXX23_CNSTXPR void destroy() noexcept
+        __PGBAR_CXX23_CNSTXPR void destroy() noexcept
         {
           switch ( tag_ ) {
           case Tag::Nullary: Callback::destroy_at( hook_.on_ ); break;
@@ -6926,7 +6914,7 @@ namespace pgbar {
           tag_       = Tag::Nil;
         }
 
-        __PGBAR_INLINE_FN void move_to( ReactiveBar& lhs ) & noexcept
+        void move_to( ReactiveBar& lhs ) & noexcept
         {
           lhs.destroy();
           switch ( tag_ ) {
@@ -6963,12 +6951,13 @@ namespace pgbar {
         Self& operator=( const Self& ) & = delete;
 
         using Base::Base;
-        ReactiveBar( Self&& rhs ) noexcept : Base( std::move( rhs ) )
+        ReactiveBar( Self&& rhs ) noexcept( std::is_nothrow_move_constructible<Base>::value )
+          : Base( std::move( rhs ) )
         {
           std::lock_guard<std::mutex> lock { rhs.mtx_ };
           rhs.move_to( *this );
         }
-        Self& operator=( Self&& rhs ) & noexcept
+        Self& operator=( Self&& rhs ) & noexcept( std::is_nothrow_move_assignable<Base>::value )
         {
           Base::operator=( std::move( rhs ) );
           std::lock( this->mtx_, rhs.mtx_ );
@@ -7175,12 +7164,12 @@ namespace pgbar {
         __PGBAR_CXX14_CNSTXPR Self& operator=( Self&& rhs ) & = default;
         __PGBAR_CXX20_CNSTXPR virtual ~TickableBar()          = default;
 
-        void tick() &
+        __PGBAR_INLINE_FN void tick() &
         {
           static_cast<Derived*>( this )->do_tick(
             [this]() noexcept { this->task_cnt_.fetch_add( 1, std::memory_order_release ); } );
         }
-        void tick( std::uint64_t next_step ) &
+        __PGBAR_INLINE_FN void tick( std::uint64_t next_step ) &
         {
           static_cast<Derived*>( this )->do_tick( [&]() noexcept {
             const auto task_cnt = this->task_cnt_.load( std::memory_order_acquire );
@@ -7195,7 +7184,7 @@ namespace pgbar {
          *
          * @param percentage Value range: [0, 100].
          */
-        void tick_to( std::uint8_t percentage ) &
+        __PGBAR_INLINE_FN void tick_to( std::uint8_t percentage ) &
         {
           static_cast<Derived*>( this )->do_tick( [&]() noexcept {
             auto updater = [this]( std::uint64_t target ) noexcept {
@@ -7276,7 +7265,7 @@ namespace pgbar {
             state_.store( State::Stop, std::memory_order_release );
         }
         template<typename F>
-        __PGBAR_INLINE_FN void do_tick( F&& ticker ) & noexcept( false )
+        void do_tick( F&& ticker ) & noexcept( false )
         {
           switch ( state_.load( std::memory_order_acquire ) ) {
           case State::Stop:  __PGBAR_FALLTHROUGH;
@@ -7402,8 +7391,22 @@ namespace pgbar {
           return Base::StateCategory::Stop;
         }
 
+        // Only when "forced" is true will it be noexcept.
+        __PGBAR_INLINE_FN void do_reset( bool forced = false )
+        {
+          if ( this->active() ) {
+            if ( forced )
+              __PGBAR_UNLIKELY state_.store( State::Stop, std::memory_order_release );
+            else {
+              this->react();
+              state_.store( State::Finish, std::memory_order_release );
+            }
+            this->do_halt( forced );
+          } else
+            state_.store( State::Stop, std::memory_order_release );
+        }
         template<typename F>
-        __PGBAR_INLINE_FN void do_tick( F&& ticker ) & noexcept( false )
+        void do_tick( F&& ticker ) & noexcept( false )
         {
           switch ( this->state_.load( std::memory_order_acquire ) ) {
           case State::Stop:  __PGBAR_FALLTHROUGH;
@@ -7451,20 +7454,6 @@ namespace pgbar {
 
           default: __PGBAR_UNREACHABLE;
           }
-        }
-        // Only when "forced" is true will it be noexcept.
-        __PGBAR_INLINE_FN void do_reset( bool forced = false )
-        {
-          if ( this->active() ) {
-            if ( forced )
-              __PGBAR_UNLIKELY state_.store( State::Stop, std::memory_order_release );
-            else {
-              this->react();
-              state_.store( State::Finish, std::memory_order_release );
-            }
-            this->do_halt( forced );
-          } else
-            state_.store( State::Stop, std::memory_order_release );
         }
 
       public:
@@ -7685,205 +7674,469 @@ namespace pgbar {
   template<Channel Outlet = Channel::Stderr, Policy Mode = Policy::Async, Region Area = Region::Fixed>
   using FlowBar = __details::prefabs::BasicBar<config::Flow, Outlet, Mode, Area>;
 
-  template<typename Bar, typename N, typename F, typename... Options>
+  template<typename Bar, typename N, typename Proc, typename... Options>
 # if __PGBAR_CXX20
-    requires( __details::traits::is_iterable_bar<Bar>::value
-              && std::is_constructible_v<Bar, Options...> && std::is_arithmetic_v<N> )
+    requires( std::is_arithmetic_v<N> && __details::traits::is_iterable_bar<Bar>::value
+              && std::is_constructible_v<Bar, Options...> )
   __PGBAR_INLINE_FN void
 # else
-  __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<__details::traits::is_iterable_bar<Bar>,
-                                                                     std::is_constructible<Bar, Options...>,
-                                                                     std::is_arithmetic<N>>::value>::type
+  __PGBAR_INLINE_FN
+    typename std::enable_if<__details::traits::AllOf<std::is_arithmetic<N>,
+                                                     __details::traits::is_iterable_bar<Bar>,
+                                                     std::is_constructible<Bar, Options...>>::value>::type
 # endif
-    iterate( N startpoint, N endpoint, N step, F&& unary_fn, Options&&... options )
+    iterate( N startpoint, N endpoint, N step, Proc&& op, Options&&... options )
   {
     auto bar = Bar( std::forward<Options>( options )... );
-    bar.iterate( startpoint, endpoint, step, std::forward<F>( unary_fn ) );
+    bar.iterate( startpoint, endpoint, step, std::forward<Proc>( op ) );
+  }
+  template<typename Bar, typename N, typename Proc, typename Act, typename... Options>
+# if __PGBAR_CXX20
+    requires(
+      std::is_arithmetic_v<N> && __details::traits::is_iterable_bar<Bar>::value
+      && __details::traits::is_reactive_bar<Bar>::value
+      && std::is_same_v<std::remove_reference_t<decltype( std::declval<Bar>() | std::declval<Act>() )>, Bar>
+      && std::is_constructible_v<Bar, Options...> )
+  __PGBAR_INLINE_FN void
+# else
+  __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
+    std::is_arithmetic<N>,
+    __details::traits::is_iterable_bar<Bar>,
+    __details::traits::is_reactive_bar<Bar>,
+    std::is_same<typename std::remove_reference<decltype( std::declval<Bar>() | std::declval<Act>() )>::type,
+                 Bar>,
+    std::is_constructible<Bar, Options...>>::value>::type
+# endif
+    iterate( N startpoint, N endpoint, N step, Proc&& op, Act&& act, Options&&... options )
+  {
+    auto bar = std::forward<Act>( act ) | Bar( std::forward<Options>( options )... );
+    bar.iterate( startpoint, endpoint, step, std::forward<Proc>( op ) );
   }
   template<typename Config,
            Channel Outlet = Channel::Stderr,
            Policy Mode    = Policy::Async,
            Region Area    = Region::Fixed,
            typename N,
-           typename F,
+           typename Proc,
            typename... Options>
 # if __PGBAR_CXX20
     requires(
-      __details::traits::is_config<Config>::value
+      std::is_arithmetic_v<N> && __details::traits::is_config<Config>::value
       && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
-      && std::is_constructible_v<Config, Options...> && std::is_arithmetic_v<N> )
+      && std::is_constructible_v<Config, Options...> )
   __PGBAR_INLINE_FN void
 # else
   __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
+    std::is_arithmetic<N>,
     __details::traits::is_config<Config>,
     __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
-    std::is_constructible<Config, Options...>,
-    std::is_arithmetic<N>>::value>::type
+    std::is_constructible<Config, Options...>>::value>::type
 # endif
-    iterate( N startpoint, N endpoint, N step, F&& unary_fn, Options&&... options )
+    iterate( N startpoint, N endpoint, N step, Proc&& op, Options&&... options )
   {
-    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>(
-      startpoint,
-      endpoint,
-      step,
-      std::forward<F>( unary_fn ),
-      Config( std::forward<Options>( options )... ) );
-  }
-
-  template<typename Bar, typename N, typename F, typename... Options>
-# if __PGBAR_CXX20
-    requires( __details::traits::is_iterable_bar<Bar>::value
-              && std::is_constructible_v<Bar, Options...> && std::is_floating_point_v<N> )
-  __PGBAR_INLINE_FN void
-# else
-  __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<__details::traits::is_iterable_bar<Bar>,
-                                                                     std::is_constructible<Bar, Options...>,
-                                                                     std::is_floating_point<N>>::value>::type
-# endif
-    iterate( N endpoint, N step, F&& unary_fn, Options&&... options )
-  {
-    auto bar = Bar( std::forward<Options>( options )... );
-    bar.iterate( endpoint, step, std::forward<F>( unary_fn ) );
+    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>( startpoint,
+                                                                       endpoint,
+                                                                       step,
+                                                                       std::forward<Proc>( op ),
+                                                                       std::forward<Options>( options )... );
   }
   template<typename Config,
            Channel Outlet = Channel::Stderr,
            Policy Mode    = Policy::Async,
            Region Area    = Region::Fixed,
            typename N,
-           typename F,
+           typename Proc,
+           typename Act,
            typename... Options>
 # if __PGBAR_CXX20
     requires(
-      __details::traits::is_config<Config>::value
+      std::is_arithmetic_v<N> && __details::traits::is_config<Config>::value
       && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
-      && std::is_constructible_v<Config, Options...> && std::is_floating_point_v<N> )
+      && __details::traits::is_reactive_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
+      && std::is_same_v<std::remove_reference_t<
+                          decltype( std::declval<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>()
+                                    | std::declval<Act>() )>,
+                        __details::prefabs::BasicBar<Config, Outlet, Mode, Area>>
+      && std::is_constructible_v<Config, Options...> )
   __PGBAR_INLINE_FN void
 # else
   __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
+    std::is_arithmetic<N>,
     __details::traits::is_config<Config>,
     __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
-    std::is_constructible<Config, Options...>,
-    std::is_floating_point<N>>::value>::type
+    __details::traits::is_reactive_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
+    std::is_same<typename std::remove_reference<
+                   decltype( std::declval<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>()
+                             | std::declval<Act>() )>::type,
+                 __details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
+    std::is_constructible<Config, Options...>>::value>::type
 # endif
-    iterate( N endpoint, N step, F&& unary_fn, Options&&... options )
+    iterate( N startpoint, N endpoint, N step, Proc&& op, Act&& act, Options&&... options )
   {
-    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>(
-      endpoint,
-      step,
-      std::forward<F>( unary_fn ),
-      Config( std::forward<Options>( options )... ) );
+    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>( startpoint,
+                                                                       endpoint,
+                                                                       step,
+                                                                       std::forward<Proc>( op ),
+                                                                       std::forward<Act>( act ),
+                                                                       std::forward<Options>( options )... );
   }
 
-  template<typename Bar, typename N, typename F, typename... Options>
+  template<typename Bar, typename N, typename Proc, typename... Options>
 # if __PGBAR_CXX20
-    requires( __details::traits::is_iterable_bar<Bar>::value
-              && std::is_constructible_v<Bar, Options...> && std::is_integral_v<N> )
+    requires( std::is_floating_point_v<N> && __details::traits::is_iterable_bar<Bar>::value
+              && std::is_constructible_v<Bar, Options...> )
   __PGBAR_INLINE_FN void
 # else
-  __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<__details::traits::is_iterable_bar<Bar>,
-                                                                     std::is_constructible<Bar, Options...>,
-                                                                     std::is_integral<N>>::value>::type
+  __PGBAR_INLINE_FN
+    typename std::enable_if<__details::traits::AllOf<std::is_floating_point<N>,
+                                                     __details::traits::is_iterable_bar<Bar>,
+                                                     std::is_constructible<Bar, Options...>>::value>::type
 # endif
-    iterate( N startpoint, N endpoint, F&& unary_fn, Options&&... options )
+    iterate( N endpoint, N step, Proc&& op, Options&&... options )
   {
     auto bar = Bar( std::forward<Options>( options )... );
-    bar.iterate( startpoint, endpoint, std::forward<F>( unary_fn ) );
+    bar.iterate( endpoint, step, std::forward<Proc>( op ) );
+  }
+  template<typename Bar, typename N, typename Proc, typename Act, typename... Options>
+# if __PGBAR_CXX20
+    requires(
+      std::is_floating_point_v<N> && __details::traits::is_iterable_bar<Bar>::value
+      && __details::traits::is_reactive_bar<Bar>::value
+      && std::is_same_v<std::remove_reference_t<decltype( std::declval<Bar>() | std::declval<Act>() )>, Bar>
+      && std::is_constructible_v<Bar, Options...> )
+  __PGBAR_INLINE_FN void
+# else
+  __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
+    std::is_floating_point<N>,
+    __details::traits::is_iterable_bar<Bar>,
+    __details::traits::is_reactive_bar<Bar>,
+    std::is_same<typename std::remove_reference<decltype( std::declval<Bar>() | std::declval<Act>() )>::type,
+                 Bar>,
+    std::is_constructible<Bar, Options...>>::value>::type
+# endif
+    iterate( N endpoint, N step, Proc&& op, Act&& act, Options&&... options )
+  {
+    auto bar = std::forward<Act>( act ) | Bar( std::forward<Options>( options )... );
+    bar.iterate( endpoint, step, std::forward<Proc>( op ) );
   }
   template<typename Config,
            Channel Outlet = Channel::Stderr,
            Policy Mode    = Policy::Async,
            Region Area    = Region::Fixed,
            typename N,
-           typename F,
+           typename Proc,
            typename... Options>
 # if __PGBAR_CXX20
     requires(
-      __details::traits::is_config<Config>::value
+      std::is_floating_point_v<N> && __details::traits::is_config<Config>::value
       && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
-      && std::is_constructible_v<Config, Options...> && std::is_integral_v<N> )
+      && std::is_constructible_v<Config, Options...> )
   __PGBAR_INLINE_FN void
 # else
   __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
+    std::is_floating_point<N>,
     __details::traits::is_config<Config>,
     __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
-    std::is_constructible<Config, Options...>,
-    std::is_integral<N>>::value>::type
+    std::is_constructible<Config, Options...>>::value>::type
 # endif
-    iterate( N startpoint, N endpoint, F&& unary_fn, Options&&... options )
+    iterate( N endpoint, N step, Proc&& op, Options&&... options )
   {
-    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>(
-      startpoint,
-      endpoint,
-      std::forward<F>( unary_fn ),
-      Config( std::forward<Options>( options )... ) );
-  }
-
-  template<typename Bar, typename N, typename F, typename... Options>
-# if __PGBAR_CXX20
-    requires( __details::traits::is_iterable_bar<Bar>::value
-              && std::is_constructible_v<Bar, Options...> && std::is_integral_v<N> )
-  __PGBAR_INLINE_FN void
-# else
-  __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<__details::traits::is_iterable_bar<Bar>,
-                                                                     std::is_constructible<Bar, Options...>,
-                                                                     std::is_integral<N>>::value>::type
-# endif
-    iterate( N endpoint, F&& unary_fn, Options&&... options )
-  {
-    auto bar = Bar( std::forward<Options>( options )... );
-    bar.iterate( endpoint, std::forward<F>( unary_fn ) );
+    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>( endpoint,
+                                                                       step,
+                                                                       std::forward<Proc>( op ),
+                                                                       std::forward<Options>( options )... );
   }
   template<typename Config,
            Channel Outlet = Channel::Stderr,
            Policy Mode    = Policy::Async,
            Region Area    = Region::Fixed,
            typename N,
-           typename F,
+           typename Proc,
+           typename Act,
            typename... Options>
 # if __PGBAR_CXX20
     requires(
-      __details::traits::is_config<Config>::value
+      std::is_floating_point_v<N> && __details::traits::is_config<Config>::value
       && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
-      && std::is_constructible_v<Config, Options...> && std::is_integral_v<N> )
+      && __details::traits::is_reactive_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
+      && std::is_same_v<std::remove_reference_t<
+                          decltype( std::declval<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>()
+                                    | std::declval<Act>() )>,
+                        __details::prefabs::BasicBar<Config, Outlet, Mode, Area>>
+      && std::is_constructible_v<Config, Options...> )
   __PGBAR_INLINE_FN void
 # else
   __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
+    std::is_floating_point<N>,
     __details::traits::is_config<Config>,
     __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
-    std::is_constructible<Config, Options...>,
-    std::is_integral<N>>::value>::type
+    __details::traits::is_reactive_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
+    std::is_same<typename std::remove_reference<
+                   decltype( std::declval<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>()
+                             | std::declval<Act>() )>::type,
+                 __details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
+    std::is_constructible<Config, Options...>>::value>::type
 # endif
-    iterate( N endpoint, F&& unary_fn, Options&&... options )
+    iterate( N endpoint, N step, Proc&& op, Act&& act, Options&&... options )
   {
-    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>(
-      endpoint,
-      std::forward<F>( unary_fn ),
-      Config( std::forward<Options>( options )... ) );
+    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>( endpoint,
+                                                                       step,
+                                                                       std::forward<Proc>( op ),
+                                                                       std::forward<Act>( act ),
+                                                                       std::forward<Options>( options )... );
   }
 
-  template<typename Bar, typename I, typename F, typename... Options>
+  template<typename Bar, typename N, typename Proc, typename... Options>
+# if __PGBAR_CXX20
+    requires( std::is_integral_v<N> && __details::traits::is_iterable_bar<Bar>::value
+              && std::is_constructible_v<Bar, Options...> )
+  __PGBAR_INLINE_FN void
+# else
+  __PGBAR_INLINE_FN
+    typename std::enable_if<__details::traits::AllOf<std::is_integral<N>,
+                                                     __details::traits::is_iterable_bar<Bar>,
+                                                     std::is_constructible<Bar, Options...>>::value>::type
+# endif
+    iterate( N startpoint, N endpoint, Proc&& op, Options&&... options )
+  {
+    auto bar = Bar( std::forward<Options>( options )... );
+    bar.iterate( startpoint, endpoint, std::forward<Proc>( op ) );
+  }
+  template<typename Bar, typename N, typename Proc, typename Act, typename... Options>
+# if __PGBAR_CXX20
+    requires(
+      std::is_integral_v<N> && __details::traits::is_iterable_bar<Bar>::value
+      && __details::traits::is_reactive_bar<Bar>::value
+      && std::is_same_v<std::remove_reference_t<decltype( std::declval<Bar>() | std::declval<Act>() )>, Bar>
+      && std::is_constructible_v<Bar, Options...> )
+  __PGBAR_INLINE_FN void
+# else
+  __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
+    std::is_integral<N>,
+    __details::traits::is_iterable_bar<Bar>,
+    std::is_same<typename std::remove_reference<decltype( std::declval<Bar>() | std::declval<Act>() )>::type,
+                 Bar>,
+    std::is_constructible<Bar, Options...>>::value>::type
+# endif
+    iterate( N startpoint, N endpoint, Proc&& op, Act&& act, Options&&... options )
+  {
+    auto bar = std::forward<Act>( act ) | Bar( std::forward<Options>( options )... );
+    bar.iterate( startpoint, endpoint, std::forward<Proc>( op ) );
+  }
+  template<typename Config,
+           Channel Outlet = Channel::Stderr,
+           Policy Mode    = Policy::Async,
+           Region Area    = Region::Fixed,
+           typename N,
+           typename Proc,
+           typename... Options>
+# if __PGBAR_CXX20
+    requires(
+      std::is_integral_v<N> && __details::traits::is_config<Config>::value
+      && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
+      && std::is_constructible_v<Config, Options...> )
+  __PGBAR_INLINE_FN void
+# else
+  __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
+    std::is_integral<N>,
+    __details::traits::is_config<Config>,
+    __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
+    std::is_constructible<Config, Options...>>::value>::type
+# endif
+    iterate( N startpoint, N endpoint, Proc&& op, Options&&... options )
+  {
+    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>( startpoint,
+                                                                       endpoint,
+                                                                       std::forward<Proc>( op ),
+                                                                       std::forward<Options>( options )... );
+  }
+  template<typename Config,
+           Channel Outlet = Channel::Stderr,
+           Policy Mode    = Policy::Async,
+           Region Area    = Region::Fixed,
+           typename N,
+           typename Proc,
+           typename Act,
+           typename... Options>
+# if __PGBAR_CXX20
+    requires(
+      std::is_integral_v<N> && __details::traits::is_config<Config>::value
+      && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
+      && __details::traits::is_reactive_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
+      && std::is_same_v<std::remove_reference_t<
+                          decltype( std::declval<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>()
+                                    | std::declval<Act>() )>,
+                        __details::prefabs::BasicBar<Config, Outlet, Mode, Area>>
+      && std::is_constructible_v<Config, Options...> )
+  __PGBAR_INLINE_FN void
+# else
+  __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
+    std::is_integral<N>,
+    __details::traits::is_config<Config>,
+    __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
+    __details::traits::is_reactive_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
+    std::is_same<typename std::remove_reference<
+                   decltype( std::declval<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>()
+                             | std::declval<Act>() )>::type,
+                 __details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
+    std::is_constructible<Config, Options...>>::value>::type
+# endif
+    iterate( N startpoint, N endpoint, Proc&& op, Act&& act, Options&&... options )
+  {
+    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>( startpoint,
+                                                                       endpoint,
+                                                                       std::forward<Proc>( op ),
+                                                                       std::forward<Act>( act ),
+                                                                       std::forward<Options>( options )... );
+  }
+
+  template<typename Bar, typename N, typename Proc, typename... Options>
+# if __PGBAR_CXX20
+    requires( std::is_integral_v<N> && __details::traits::is_iterable_bar<Bar>::value
+              && std::is_constructible_v<Bar, Options...> )
+  __PGBAR_INLINE_FN void
+# else
+  __PGBAR_INLINE_FN
+    typename std::enable_if<__details::traits::AllOf<std::is_integral<N>,
+                                                     __details::traits::is_iterable_bar<Bar>,
+                                                     std::is_constructible<Bar, Options...>>::value>::type
+# endif
+    iterate( N endpoint, Proc&& op, Options&&... options )
+  {
+    auto bar = Bar( std::forward<Options>( options )... );
+    bar.iterate( endpoint, std::forward<Proc>( op ) );
+  }
+  template<typename Bar, typename N, typename Proc, typename Act, typename... Options>
+# if __PGBAR_CXX20
+    requires(
+      std::is_integral_v<N> && __details::traits::is_iterable_bar<Bar>::value
+      && __details::traits::is_reactive_bar<Bar>::value
+      && std::is_same_v<std::remove_reference_t<decltype( std::declval<Bar>() | std::declval<Act>() )>, Bar>
+      && std::is_constructible_v<Bar, Options...> )
+  __PGBAR_INLINE_FN void
+# else
+  __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
+    std::is_integral<N>,
+    __details::traits::is_iterable_bar<Bar>,
+    __details::traits::is_reactive_bar<Bar>,
+    std::is_same<typename std::remove_reference<decltype( std::declval<Bar>() | std::declval<Act>() )>::type,
+                 Bar>,
+    std::is_constructible<Bar, Options...>>::value>::type
+# endif
+    iterate( N endpoint, Proc&& op, Act&& act, Options&&... options )
+  {
+    auto bar = std::forward<Act>( act ) | Bar( std::forward<Options>( options )... );
+    bar.iterate( endpoint, std::forward<Proc>( op ) );
+  }
+  template<typename Config,
+           Channel Outlet = Channel::Stderr,
+           Policy Mode    = Policy::Async,
+           Region Area    = Region::Fixed,
+           typename N,
+           typename Proc,
+           typename... Options>
+# if __PGBAR_CXX20
+    requires(
+      std::is_integral_v<N> && __details::traits::is_config<Config>::value
+      && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
+      && std::is_constructible_v<Config, Options...> )
+  __PGBAR_INLINE_FN void
+# else
+  __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
+    std::is_integral<N>,
+    __details::traits::is_config<Config>,
+    __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
+    std::is_constructible<Config, Options...>>::value>::type
+# endif
+    iterate( N endpoint, Proc&& op, Options&&... options )
+  {
+    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>( endpoint,
+                                                                       std::forward<Proc>( op ),
+                                                                       std::forward<Options>( options )... );
+  }
+  template<typename Config,
+           Channel Outlet = Channel::Stderr,
+           Policy Mode    = Policy::Async,
+           Region Area    = Region::Fixed,
+           typename N,
+           typename Proc,
+           typename Act,
+           typename... Options>
+# if __PGBAR_CXX20
+    requires(
+      std::is_integral_v<N> && __details::traits::is_config<Config>::value
+      && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
+      && __details::traits::is_reactive_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
+      && std::is_same_v<std::remove_reference_t<
+                          decltype( std::declval<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>()
+                                    | std::declval<Act>() )>,
+                        __details::prefabs::BasicBar<Config, Outlet, Mode, Area>>
+      && std::is_constructible_v<Config, Options...> )
+  __PGBAR_INLINE_FN void
+# else
+  __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
+    std::is_integral<N>,
+    __details::traits::is_config<Config>,
+    __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
+    __details::traits::is_reactive_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
+    std::is_same<typename std::remove_reference<
+                   decltype( std::declval<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>()
+                             | std::declval<Act>() )>::type,
+                 __details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
+    std::is_constructible<Config, Options...>>::value>::type
+# endif
+    iterate( N endpoint, Proc&& op, Act&& act, Options&&... options )
+  {
+    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>( endpoint,
+                                                                       std::forward<Proc>( op ),
+                                                                       std::forward<Act>( act ),
+                                                                       std::forward<Options>( options )... );
+  }
+
+  template<typename Bar, typename I, typename Proc, typename... Options>
 # if __PGBAR_CXX20
     requires( __details::traits::is_sized_iterator<I>::value && __details::traits::is_iterable_bar<Bar>::value
               && std::is_constructible_v<Bar, Options...> )
   __PGBAR_INLINE_FN void
 # else
-  __PGBAR_INLINE_FN typename std::enable_if<
-    __details::traits::AllOf<__details::traits::is_sized_iterator<I>,
-                             __details::traits::is_iterable_bar<Bar>,
-                             std::is_constructible<Bar, Options...>,
-                             __details::traits::Not<std::is_arithmetic<I>>>::value>::type
+  __PGBAR_INLINE_FN
+    typename std::enable_if<__details::traits::AllOf<__details::traits::is_sized_iterator<I>,
+                                                     __details::traits::is_iterable_bar<Bar>,
+                                                     std::is_constructible<Bar, Options...>>::value>::type
 # endif
-    iterate( I startpoint, I endpoint, F&& unary_fn, Options&&... options )
+    iterate( I startpoint, I endpoint, Proc&& op, Options&&... options )
   {
     auto bar = Bar( std::forward<Options>( options )... );
-    bar.iterate( std::move( startpoint ), std::move( endpoint ), std::forward<F>( unary_fn ) );
+    bar.iterate( std::move( startpoint ), std::move( endpoint ), std::forward<Proc>( op ) );
+  }
+  template<typename Bar, typename I, typename Proc, typename Act, typename... Options>
+# if __PGBAR_CXX20
+    requires(
+      __details::traits::is_sized_iterator<I>::value && __details::traits::is_iterable_bar<Bar>::value
+      && __details::traits::is_reactive_bar<Bar>::value
+      && std::is_same_v<std::remove_reference_t<decltype( std::declval<Bar>() | std::declval<Act>() )>, Bar>
+      && std::is_constructible_v<Bar, Options...> )
+  __PGBAR_INLINE_FN void
+# else
+  __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
+    __details::traits::is_sized_iterator<I>,
+    __details::traits::is_iterable_bar<Bar>,
+    __details::traits::is_reactive_bar<Bar>,
+    std::is_same<typename std::remove_reference<decltype( std::declval<Bar>() | std::declval<Act>() )>::type,
+                 Bar>,
+    std::is_constructible<Bar, Options...>>::value>::type
+# endif
+    iterate( I startpoint, I endpoint, Proc&& op, Act&& act, Options&&... options )
+  {
+    auto bar = std::forward<Act>( act ) | Bar( std::forward<Options>( options )... );
+    bar.iterate( std::move( startpoint ), std::move( endpoint ), std::forward<Proc>( op ) );
   }
   template<typename Config,
            Channel Outlet = Channel::Stderr,
            Policy Mode    = Policy::Async,
            Region Area    = Region::Fixed,
            typename I,
-           typename F,
+           typename Proc,
            typename... Options>
 # if __PGBAR_CXX20
     requires(
@@ -7896,19 +8149,56 @@ namespace pgbar {
     __details::traits::is_sized_iterator<I>,
     __details::traits::is_config<Config>,
     __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
-    std::is_constructible<Config, Options...>,
-    __details::traits::Not<std::is_arithmetic<I>>>::value>::type
+    std::is_constructible<Config, Options...>>::value>::type
 # endif
-    iterate( I startpoint, I endpoint, F&& unary_fn, Options&&... options )
+    iterate( I startpoint, I endpoint, Proc&& op, Options&&... options )
   {
-    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>(
-      std::move( startpoint ),
-      std::move( endpoint ),
-      std::forward<F>( unary_fn ),
-      Config( std::forward<Options>( options )... ) );
+    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>( std::move( startpoint ),
+                                                                       std::move( endpoint ),
+                                                                       std::forward<Proc>( op ),
+                                                                       std::forward<Options>( options )... );
+  }
+  template<typename Config,
+           Channel Outlet = Channel::Stderr,
+           Policy Mode    = Policy::Async,
+           Region Area    = Region::Fixed,
+           typename I,
+           typename Proc,
+           typename Act,
+           typename... Options>
+# if __PGBAR_CXX20
+    requires(
+      __details::traits::is_sized_iterator<I>::value && __details::traits::is_config<Config>::value
+      && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
+      && __details::traits::is_reactive_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
+      && std::is_same_v<std::remove_reference_t<
+                          decltype( std::declval<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>()
+                                    | std::declval<Act>() )>,
+                        __details::prefabs::BasicBar<Config, Outlet, Mode, Area>>
+      && std::is_constructible_v<Config, Options...> )
+  __PGBAR_INLINE_FN void
+# else
+  __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
+    __details::traits::is_sized_iterator<I>,
+    __details::traits::is_config<Config>,
+    __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
+    __details::traits::is_reactive_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
+    std::is_same<typename std::remove_reference<
+                   decltype( std::declval<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>()
+                             | std::declval<Act>() )>::type,
+                 __details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
+    std::is_constructible<Config, Options...>>::value>::type
+# endif
+    iterate( I startpoint, I endpoint, Proc&& op, Act&& act, Options&&... options )
+  {
+    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>( std::move( startpoint ),
+                                                                       std::move( endpoint ),
+                                                                       std::forward<Proc>( op ),
+                                                                       std::forward<Act>( act ),
+                                                                       std::forward<Options>( options )... );
   }
 
-  template<typename Bar, class R, typename F, typename... Options>
+  template<typename Bar, class R, typename Proc, typename... Options>
 # if __PGBAR_CXX20
     requires( __details::traits::is_bounded_range<R>::value && __details::traits::is_iterable_bar<Bar>::value
               && std::is_constructible_v<Bar, Options...> )
@@ -7919,17 +8209,39 @@ namespace pgbar {
                                                      __details::traits::is_iterable_bar<Bar>,
                                                      std::is_constructible<Bar, Options...>>::value>::type
 # endif
-    iterate( R&& range, F&& unary_fn, Options&&... options )
+    iterate( R&& range, Proc&& op, Options&&... options )
   {
     auto bar = Bar( std::forward<Options>( options )... );
-    bar.iterate( std::forward<R>( range ), std::forward<F>( unary_fn ) );
+    bar.iterate( std::forward<R>( range ), std::forward<Proc>( op ) );
+  }
+  template<typename Bar, class R, typename Proc, typename Act, typename... Options>
+# if __PGBAR_CXX20
+    requires(
+      __details::traits::is_bounded_range<R>::value && __details::traits::is_iterable_bar<Bar>::value
+      && __details::traits::is_reactive_bar<Bar>::value
+      && std::is_same_v<std::remove_reference_t<decltype( std::declval<Bar>() | std::declval<Act>() )>, Bar>
+      && std::is_constructible_v<Bar, Options...> )
+  __PGBAR_INLINE_FN void
+# else
+  __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
+    __details::traits::is_bounded_range<R>,
+    __details::traits::is_iterable_bar<Bar>,
+    __details::traits::is_reactive_bar<Bar>,
+    std::is_same<typename std::remove_reference<decltype( std::declval<Bar>() | std::declval<Act>() )>::type,
+                 Bar>,
+    std::is_constructible<Bar, Options...>>::value>::type
+# endif
+    iterate( R&& range, Proc&& op, Act&& act, Options&&... options )
+  {
+    auto bar = std::forward<Act>( act ) | Bar( std::forward<Options>( options )... );
+    bar.iterate( std::forward<R>( range ), std::forward<Proc>( op ) );
   }
   template<typename Config,
            Channel Outlet = Channel::Stderr,
            Policy Mode    = Policy::Async,
            Region Area    = Region::Fixed,
            class R,
-           typename F,
+           typename Proc,
            typename... Options>
 # if __PGBAR_CXX20
     requires(
@@ -7944,12 +8256,49 @@ namespace pgbar {
     __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
     std::is_constructible<Config, Options...>>::value>::type
 # endif
-    iterate( R&& range, F&& unary_fn, Options&&... options )
+    iterate( R&& range, Proc&& op, Options&&... options )
   {
-    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>(
-      std::forward<R>( range ),
-      std::forward<F>( unary_fn ),
-      Config( std::forward<Options>( options )... ) );
+    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>( std::forward<R>( range ),
+                                                                       std::forward<Proc>( op ),
+                                                                       std::forward<Options>( options )... );
+  }
+  template<typename Config,
+           Channel Outlet = Channel::Stderr,
+           Policy Mode    = Policy::Async,
+           Region Area    = Region::Fixed,
+           class R,
+           typename Proc,
+           typename Act,
+           typename... Options>
+# if __PGBAR_CXX20
+    requires(
+      __details::traits::is_bounded_range<R>::value && __details::traits::is_config<Config>::value
+      && __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
+      && __details::traits::is_reactive_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
+      && std::is_same_v<std::remove_reference_t<
+                          decltype( std::declval<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>()
+                                    | std::declval<Act>() )>,
+                        __details::prefabs::BasicBar<Config, Outlet, Mode, Area>>
+      && std::is_constructible_v<Config, Options...> )
+  __PGBAR_INLINE_FN void
+# else
+  __PGBAR_INLINE_FN typename std::enable_if<__details::traits::AllOf<
+    __details::traits::is_bounded_range<R>,
+    __details::traits::is_config<Config>,
+    __details::traits::is_iterable_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
+    __details::traits::is_reactive_bar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
+    std::is_same<typename std::remove_reference<
+                   decltype( std::declval<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>()
+                             | std::declval<Act>() )>::type,
+                 __details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
+    std::is_constructible<Config, Options...>>::value>::type
+# endif
+    iterate( R&& range, Proc&& op, Act&& act, Options&&... options )
+  {
+    iterate<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>( std::forward<R>( range ),
+                                                                       std::forward<Proc>( op ),
+                                                                       std::forward<Act>( act ),
+                                                                       std::forward<Options>( options )... );
   }
 
   namespace __details {
@@ -7984,8 +8333,10 @@ namespace pgbar {
         std::atomic<State> state_;
         mutable std::mutex sched_mtx_;
 
+        // The std::bitset isn't TriviallyCopyable, so we cannot use std::atomic<std::bitset>.
+        mutable concurrent::SharedMutex res_mtx_;
         // Bitmask indicating which bars produced output in the current render pass.
-        std::atomic<std::bitset<sizeof...( Configs )>> active_mask_;
+        std::bitset<sizeof...( Configs )> active_mask_;
 
         template<types::Size Pos>
         __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR typename std::enable_if<( Pos >= sizeof...( Configs ) )>::type
@@ -8000,17 +8351,15 @@ namespace pgbar {
           const auto hide_done = config::hide_completed();
 
           bool this_rendered = false;
-          auto mask          = active_mask_.load( std::memory_order_relaxed );
           if ( at<Pos>().active() ) {
             this_rendered = true;
-            mask.set( Pos );
+            active_mask_.set( Pos );
             if ( istty )
               ostream << console::escodes::linewipe;
             make_frame( at<Pos>() );
 
             if ( ( !istty || hide_done ) && !at<Pos>().active() )
-              mask.reset( Pos );
-            active_mask_.store( mask, std::memory_order_release );
+              active_mask_.reset( Pos );
           }
 
           /**
@@ -8022,7 +8371,7 @@ namespace pgbar {
            * 3. If the output stream is not bound to a terminal,
            *    it should be output whenever Pos-th has just been rendered.
            */
-          if ( ( this_rendered || mask[Pos] )
+          if ( ( this_rendered || active_mask_[Pos] )
                && ( ( !istty && this_rendered ) || ( istty && ( !hide_done || at<Pos>().active() ) ) ) )
             ostream << console::escodes::nextline;
           if ( istty && hide_done ) {
@@ -8060,27 +8409,31 @@ namespace pgbar {
                    const auto istty = console::TermContext<Outlet>::itself().connected();
                    switch ( state_.load( std::memory_order_acquire ) ) {
                    case State::Awake: {
-                     active_mask_.store( {}, std::memory_order_release );
                      if __PGBAR_CXX17_CNSTXPR ( Area == Region::Fixed )
                        if ( istty )
                          ostream << console::escodes::savecursor;
-                     do_render();
+                     {
+                       std::lock_guard<concurrent::SharedMutex> lock { res_mtx_ };
+                       active_mask_.reset();
+                       do_render();
+                     }
                      ostream << io::flush;
 
                      auto expected = State::Awake;
                      state_.compare_exchange_strong( expected, State::Refresh, std::memory_order_release );
                    } break;
                    case State::Refresh: {
-                     if ( istty ) {
-                       if __PGBAR_CXX17_CNSTXPR ( Area == Region::Fixed )
-                         ostream << console::escodes::resetcursor;
-                       else
-                         ostream
-                           .append( console::escodes::prevline,
-                                    active_mask_.load( std::memory_order_acquire ).count() )
-                           .append( console::escodes::linestart );
+                     {
+                       std::lock_guard<concurrent::SharedMutex> lock { res_mtx_ };
+                       if ( istty ) {
+                         if __PGBAR_CXX17_CNSTXPR ( Area == Region::Fixed )
+                           ostream << console::escodes::resetcursor;
+                         else
+                           ostream.append( console::escodes::prevline, active_mask_.count() )
+                             .append( console::escodes::linestart );
+                       }
+                       do_render();
                      }
-                     do_render();
                      ostream << io::flush;
                    } break;
                    default: break;
@@ -8167,7 +8520,8 @@ namespace pgbar {
         }
         __PGBAR_NODISCARD __PGBAR_INLINE_FN types::Size active_size() const noexcept
         {
-          return active_mask_.load( std::memory_order_acquire ).count();
+          concurrent::SharedLock<concurrent::SharedMutex> lock { res_mtx_ };
+          return active_mask_.count();
         }
 
         void swap( TupleBar& rhs ) noexcept
@@ -8193,7 +8547,7 @@ namespace pgbar {
         template<types::Size Pos>
         __PGBAR_INLINE_FN ElementAt_t<Pos>&& at() && noexcept
         {
-          return static_cast<ElementAt_t<Pos>&&>( std::move( *this ) );
+          return std::move( static_cast<ElementAt_t<Pos>&>( *this ) );
         }
       };
     } // namespace assets
@@ -8427,10 +8781,9 @@ namespace pgbar {
     friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
 
     template<__details::types::Size Pos, typename Mb>
-    friend __PGBAR_INLINE_FN constexpr
+    friend __PGBAR_INLINE_FN constexpr auto get( Mb&& self ) noexcept ->
       typename std::enable_if<std::is_same<typename std::decay<Mb>::type, Self>::value,
-                              decltype( std::declval<Mb>().template at<Pos>() )>::type
-      get( Mb&& self ) noexcept
+                              decltype( std::forward<Mb>( self ).template at<Pos>() )>::type
     {
       return std::forward<Mb>( self ).template at<Pos>();
     }
@@ -8878,8 +9231,8 @@ namespace pgbar {
 
         Context context_;
 
-        void do_halt( bool forced ) noexcept final { context_->pop( this, forced ); }
-        void do_boot() & final { context_->append( this ); }
+        __PGBAR_INLINE_FN void do_halt( bool forced ) noexcept final { context_->pop( this, forced ); }
+        __PGBAR_INLINE_FN void do_boot() & final { context_->append( this ); }
 
       public:
         ManagedBar( Context context, C&& config ) noexcept
@@ -8913,7 +9266,7 @@ namespace pgbar {
          */
         virtual ~ManagedBar() noexcept { halt(); }
 
-        void halt() noexcept { this->do_reset( true ); }
+        __PGBAR_INLINE_FN void halt() noexcept { this->do_reset( true ); }
       };
     } // namespace prefabs
 
@@ -9175,7 +9528,7 @@ namespace pgbar {
           }
         }
 
-        __PGBAR_NODISCARD types::Size size() const noexcept
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN types::Size size() const noexcept
         {
           concurrent::SharedLock<concurrent::SharedMutex> lock { res_mtx_ };
           return items_.size();
@@ -9205,11 +9558,11 @@ namespace pgbar {
     }
     __PGBAR_NODISCARD __PGBAR_INLINE_FN __details::types::Size size() const noexcept
     {
-      return core_ == nullptr ? 0 : core_.use_count() - 1;
+      return core_ != nullptr ? core_.use_count() - 1 : 0;
     }
     __PGBAR_NODISCARD __PGBAR_INLINE_FN __details::types::Size active_size() const noexcept
     {
-      return core_ == nullptr ? 0 : core_->size();
+      return core_ != nullptr ? core_->size() : 0;
     }
     __PGBAR_INLINE_FN void reset() noexcept
     {
@@ -9218,14 +9571,13 @@ namespace pgbar {
     }
 
     // Wait until the indicator is Stop.
-    __PGBAR_INLINE_FN void wait() const noexcept
+    void wait() const noexcept
     {
       __details::concurrent::spin_wait( [this]() noexcept { return !active(); } );
     }
     // Wait for the indicator is Stop or timed out.
     template<class Rep, class Period>
-    __PGBAR_NODISCARD __PGBAR_INLINE_FN bool wait_for(
-      const std::chrono::duration<Rep, Period>& timeout ) const noexcept
+    __PGBAR_NODISCARD bool wait_for( const std::chrono::duration<Rep, Period>& timeout ) const noexcept
     {
       return __details::concurrent::spin_wait_for( [this]() noexcept { return !active(); }, timeout );
     }
