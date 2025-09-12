@@ -26,8 +26,7 @@ namespace pgbar {
         std::string bytes_;
 
       public:
-        /* nodiscard inline */ static constexpr types::Size char_width(
-          types::UCodePoint codepoint ) noexcept
+        /* nodiscard inline */ static constexpr types::Size char_width( types::UCodePoint codepoint ) noexcept
         {
           // The condition judgement here is taken directly from the standard CodeCharts file.
 
@@ -194,10 +193,7 @@ namespace pgbar {
 
         /* cxx20constexpr */ explicit operator types::String() & { return bytes_; }
         /* cxx20constexpr */ explicit operator types::String() const& { return bytes_; }
-        /* cxx20constexpr */ explicit operator types::String() && noexcept
-        {
-          return std::move( bytes_ );
-        }
+        /* cxx20constexpr */ explicit operator types::String() && noexcept { return std::move( bytes_ ); }
         /* cxx20constexpr */ operator types::ROStr() const noexcept { return bytes_; }
       };
     } // namespace charcodes

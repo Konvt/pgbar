@@ -1,4 +1,5 @@
-#include "pgbar/pgbar.hpp"
+#include "pgbar/DynamicBar.hpp"
+#include "pgbar/ProgressBar.hpp"
 #include <chrono>
 #include <thread>
 #include <vector>

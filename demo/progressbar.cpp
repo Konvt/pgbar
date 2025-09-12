@@ -1,4 +1,4 @@
-#include "pgbar/pgbar.hpp"
+#include "pgbar/ProgressBar.hpp"
 
 int main()
 {

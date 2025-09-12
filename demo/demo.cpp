@@ -1,4 +1,7 @@
-#include "pgbar/pgbar.hpp"
+#include "pgbar/BlockBar.hpp"
+#include "pgbar/MultiBar.hpp"
+#include "pgbar/ProgressBar.hpp"
+#include "pgbar/SweepBar.hpp"
 #include <chrono>
 #include <random>
 #include <thread>

@@ -1,4 +1,4 @@
-#include "pgbar/pgbar.hpp"
+#include "pgbar/BlockBar.hpp"
 
 int main()
 {
