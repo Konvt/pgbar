@@ -56,7 +56,7 @@
 
 ### Usage
 ```cpp
-#include "pgbar/pgbar.hpp"
+#include "pgbar/ProgressBar.hpp"
 
 int main()
 {
@@ -78,19 +78,19 @@ For more examples, see [QuickStart.md](docs/QuickStart.md) and [demo/](demo/).
 ## FAQ
 ### How to build?
 #### Header-only
-You can copy `pgbar/pgbar.hpp` to the inclusion path of the project, and then directly include the corresponding header file within the source file.
+You can copy `include/pgbar` to the inclusion path of the project, and then directly include the corresponding header file within the source file.
 #### Submodule
 Use `git` to introduce `pgbar` as a sub-module into your project directory:
 
 ```bash
-git submodule add https://github.com/Konvt/pgbar external/pgbar
+git submodule add https://github.com/Konvt/pgbar path/to/pgbar
 git submodule update --init --recursive
 ```
 
 Then, add the following lines to your `CMakeLists.txt`:
 
 ```cmake
-add_subdirectory(${CMAKE_SOURCE_DIR}/external/pgbar)
+add_subdirectory(${CMAKE_SOURCE_DIR}/path/to/pgbar)
 # ...
 add_executable(TargetName ${SOURCES})
 target_link_libraries(TargetName PRIVATE pgbar)
