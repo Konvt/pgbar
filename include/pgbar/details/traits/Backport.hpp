@@ -2,6 +2,7 @@
 #define __PGBAR_TRAITS_BACKPORT
 
 #include "../types/Types.hpp"
+#include <type_traits>
 #if __PGBAR_CXX20
 # include <concepts>
 # include <ranges>
@@ -51,6 +52,9 @@ namespace pgbar {
 #endif
 
 #if __PGBAR_CXX17
+      template<bool B>
+      using BoolConstant = std::bool_constant<B>;
+
       template<typename... Preds>
       using AllOf = std::conjunction<Preds...>;
 
@@ -60,6 +64,9 @@ namespace pgbar {
       template<typename Pred>
       using Not = std::negation<Pred>;
 #else
+      template<bool B>
+      using BoolConstant = std::integral_constant<bool, B>;
+
       template<typename... Preds>
       struct AllOf : std::true_type {};
       template<typename Pred>
@@ -97,7 +104,7 @@ namespace pgbar {
       };
 
       template<typename Pred>
-      struct Not : std::integral_constant<bool, !bool( Pred::value )> {};
+      struct Not : BoolConstant<!bool( Pred::value )> {};
 #endif
 
       /**
@@ -172,8 +179,8 @@ namespace pgbar {
 #if __PGBAR_CXX20
       template<typename T>
       struct is_sized_iterator
-        : std::bool_constant<std::movable<T> && std::weakly_incrementable<T> && std::indirectly_readable<T>
-                             && std::sized_sentinel_for<T, T>> {};
+        : BoolConstant<std::movable<T> && std::weakly_incrementable<T> && std::indirectly_readable<T>
+                       && std::sized_sentinel_for<T, T>> {};
 #else
       template<typename T>
       struct is_sized_iterator {
@@ -201,7 +208,7 @@ namespace pgbar {
 
 #if __PGBAR_CXX20
       template<typename T>
-      struct is_bounded_range : std::bool_constant<std::ranges::sized_range<T>> {};
+      struct is_bounded_range : BoolConstant<std::ranges::sized_range<T>> {};
 #else
       template<typename T>
       struct is_bounded_range {

@@ -234,11 +234,9 @@ namespace pgbar {
 #endif
           set( Arg arg, Args... args ) & noexcept(
             traits::AllOf<
-              std::integral_constant<bool,
-                                     noexcept( unpacker( std::declval<Derived&>(), std::move( arg ) ) )>,
-              std::integral_constant<bool,
-                                     noexcept( unpacker( std::declval<Derived&>(),
-                                                         std::move( args ) ) )>...>::value )
+              traits::BoolConstant<noexcept( unpacker( std::declval<Derived&>(), std::move( arg ) ) )>,
+              traits::BoolConstant<noexcept( unpacker( std::declval<Derived&>(), std::move( args ) ) )>...>::
+              value )
         {
           std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };
           unpacker( *this, std::move( arg ) );

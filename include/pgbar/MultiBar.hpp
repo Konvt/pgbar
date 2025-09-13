@@ -40,7 +40,7 @@ namespace pgbar {
     template<typename Cfg,
              typename... Cfgs,
              typename = typename std::enable_if<__details::traits::AllOf<
-               std::integral_constant<bool, ( sizeof...( Cfgs ) <= sizeof...( Configs ) )>,
+               __details::traits::BoolConstant<( sizeof...( Cfgs ) <= sizeof...( Configs ) )>,
                __details::traits::StartsWith<__details::traits::TypeList<typename std::decay<Cfg>::type,
                                                                          typename std::decay<Cfgs>::type...>,
                                              Config,
@@ -60,7 +60,7 @@ namespace pgbar {
 #else
              ,
              typename = typename std::enable_if<__details::traits::AllOf<
-               std::integral_constant<bool, ( sizeof...( Cfgs ) <= sizeof...( Configs ) )>,
+               __details::traits::BoolConstant< ( sizeof...( Cfgs ) <= sizeof...( Configs ) )>,
                __details::traits::is_config<Cfg>,
                __details::traits::is_config<Cfgs>...,
                __details::traits::StartsWith<
@@ -307,9 +307,8 @@ namespace pgbar {
       template<types::Size Cnt, Channel O, Policy M, Region A, typename C, types::Size... Is>
       __PGBAR_NODISCARD __PGBAR_INLINE_FN
         traits::Repeat_t<prefabs::BasicBar<typename std::decay<C>::type, O, M, A>, MultiBar, Cnt>
-        make_multi_helper( C&& cfg, const traits::IndexSeq<Is...>& )
-          noexcept( __details::traits::AllOf<std::integral_constant<bool, ( Cnt == 1 )>,
-                                             __details::traits::Not<std::is_lvalue_reference<C>>>::value )
+        make_multi_helper( C&& cfg, const traits::IndexSeq<Is...>& ) noexcept(
+          traits::AllOf<traits::BoolConstant<( Cnt == 1 )>, traits::Not<std::is_lvalue_reference<C>>>::value )
       {
         std::array<C, Cnt - 1> cfgs { { ( (void)( Is ), cfg )... } };
         return { std::forward<C>( cfg ), std::move( cfgs[Is] )... };
@@ -328,7 +327,7 @@ namespace pgbar {
     __details::traits::Repeat_t<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>, MultiBar, Cnt>
 #else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
-    __details::traits::AllOf<std::integral_constant<bool, ( Cnt > 0 )>,
+    __details::traits::AllOf<__details::traits::BoolConstant<( Cnt > 0 )>,
                              __details::traits::is_config<Config>>::value,
     __details::traits::Repeat_t<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>, MultiBar, Cnt>>::
     type
@@ -354,7 +353,7 @@ namespace pgbar {
     Repeat_t<__details::prefabs::BasicBar<std::decay_t<Config>, Outlet, Mode, Area>, MultiBar, Cnt>
 #else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
-    __details::traits::AllOf<std::integral_constant<bool, ( Cnt > 0 )>,
+    __details::traits::AllOf<__details::traits::BoolConstant<( Cnt > 0 )>,
                              __details::traits::is_config<typename std::decay<Config>::type>>::value,
     __details::traits::Repeat_t<
       __details::prefabs::BasicBar<typename std::decay<Config>::type, Outlet, Mode, Area>,
@@ -362,7 +361,7 @@ namespace pgbar {
       Cnt>>::type
 #endif
     make_multi( Config&& cfg )
-      noexcept( __details::traits::AllOf<std::integral_constant<bool, ( Cnt == 1 )>,
+      noexcept( __details::traits::AllOf<__details::traits::BoolConstant<( Cnt == 1 )>,
                                          __details::traits::Not<std::is_lvalue_reference<Config>>>::value )
   {
     return __details::assets::make_multi_helper<Cnt, Outlet, Mode>(
@@ -385,8 +384,8 @@ namespace pgbar {
 #else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
     __details::traits::AllOf<
-      std::integral_constant<bool, ( Cnt > 0 )>,
-      std::integral_constant<bool, ( sizeof...( Objs ) <= Cnt )>,
+      __details::traits::BoolConstant<( Cnt > 0 )>,
+      __details::traits::BoolConstant<( sizeof...( Objs ) <= Cnt )>,
       __details::traits::is_bar<Bar>,
       __details::traits::AnyOf<
         __details::traits::AllOf<
@@ -418,8 +417,8 @@ namespace pgbar {
     __details::traits::Repeat_t<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>, MultiBar, Cnt>
 #else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
-    __details::traits::AllOf<std::integral_constant<bool, ( Cnt > 0 )>,
-                             std::integral_constant<bool, ( sizeof...( Configs ) <= Cnt )>,
+    __details::traits::AllOf<__details::traits::BoolConstant<( Cnt > 0 )>,
+                             __details::traits::BoolConstant<( sizeof...( Configs ) <= Cnt )>,
                              __details::traits::is_config<Config>,
                              std::is_same<Config, typename std::decay<Configs>::type>...>::value,
     __details::traits::Repeat_t<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>, MultiBar, Cnt>>::
@@ -447,8 +446,8 @@ namespace pgbar {
     __details::traits::Repeat_t<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>, MultiBar, Cnt>
 #else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
-    __details::traits::AllOf<std::integral_constant<bool, ( Cnt > 0 )>,
-                             std::integral_constant<bool, ( sizeof...( Configs ) <= Cnt )>,
+    __details::traits::AllOf<__details::traits::BoolConstant<( Cnt > 0 )>,
+                             __details::traits::BoolConstant<( sizeof...( Configs ) <= Cnt )>,
                              __details::traits::is_config<Config>,
                              std::is_same<Config, typename std::decay<Configs>::type>&&...>::value,
     __details::traits::Repeat_t<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>, MultiBar, Cnt>>::

@@ -362,9 +362,9 @@ namespace pgbar {
     __PGBAR_NODISCARD typename std::enable_if<
       __details::traits::AllOf<__details::traits::is_bar<Bar>,
                                std::is_constructible<Bar, Options...>,
-                               std::integral_constant<bool, ( Bar::Sink == Outlet )>,
-                               std::integral_constant<bool, ( Bar::Strategy == Mode )>,
-                               std::integral_constant<bool, ( Bar::Layout == Area )>>::value,
+                               __details::traits::BoolConstant<( Bar::Sink == Outlet )>,
+                               __details::traits::BoolConstant<( Bar::Strategy == Mode )>,
+                               __details::traits::BoolConstant<( Bar::Layout == Area )>>::value,
       std::unique_ptr<Bar>>::type
 #endif
       insert( Options&&... options )

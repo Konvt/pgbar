@@ -1,6 +1,7 @@
 #ifndef __PGBAR_UTILS_UTIL
 #define __PGBAR_UTILS_UTIL
 
+#include "../traits/Backport.hpp"
 #include "../types/Types.hpp"
 #include <cmath>
 #include <tuple>
@@ -25,8 +26,9 @@ namespace pgbar {
       template<types::Size I,
                typename T,
                typename Tuple,
-               typename = typename std::enable_if<
-                 ( I < std::tuple_size<typename std::decay<Tuple>::type>::value )>::type>
+               typename = typename std::enable_if<traits::AllOf<
+                 traits::BoolConstant<( I < std::tuple_size<typename std::decay<Tuple>::type>::value )>,
+                 std::is_default_constructible<T>>::value>::type>
       __PGBAR_INLINE_FN constexpr auto pick_or( Tuple&& tup ) noexcept
         -> decltype( std::get<I>( std::forward<Tuple>( tup ) ) )
       {
@@ -35,9 +37,12 @@ namespace pgbar {
         return std::get<I>( std::forward<Tuple>( tup ) );
       }
       template<types::Size I, typename T, typename Tuple>
-      __PGBAR_INLINE_FN constexpr
-        typename std::enable_if<( I >= std::tuple_size<typename std::decay<Tuple>::type>::value ), T>::type
-        pick_or( Tuple&& ) noexcept( std::is_nothrow_default_constructible<T>::value )
+      __PGBAR_INLINE_FN constexpr auto pick_or( Tuple&& )
+        noexcept( std::is_nothrow_default_constructible<T>::value ) -> typename std::enable_if<
+          traits::AllOf<
+            traits::BoolConstant<( I >= std::tuple_size<typename std::decay<Tuple>::type>::value )>,
+            std::is_default_constructible<T>>::value,
+          T>::type
       {
         return T();
       }
