@@ -3,6 +3,9 @@
 
 #include "../details/config/Core.hpp"
 #include <exception>
+#if __PGBAR_CXX17
+# include <string_view>
+#endif
 
 namespace pgbar {
   namespace exception {
@@ -13,14 +16,25 @@ namespace pgbar {
      */
     class Error : public std::exception {
     protected:
+#if __PGBAR_CXX17
+      std::string_view message_;
+#else
       const char* message_;
+#endif
 
     public:
       template<std::size_t N>
       Error( const char ( &mes )[N] ) noexcept : message_ { mes }
       {}
       ~Error() override = default;
-      __PGBAR_NODISCARD const char* what() const noexcept override { return message_; }
+      __PGBAR_NODISCARD const char* what() const noexcept override
+      {
+#if __PGBAR_CXX17
+        return message_.data();
+#else
+        return message_;
+#endif
+      }
     };
 
     // Exception for invalid function arguments.
