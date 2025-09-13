@@ -680,23 +680,34 @@ namespace pgbar {
           std::lock_guard<std::mutex> lock1 { this->mtx_, std::adopt_lock };
           std::lock_guard<std::mutex> lock2 { lhs.mtx_, std::adopt_lock };
           switch ( tag_ ) {
-          case Tag::Nullary: {
-            wrappers::UniqueFunction<void()> tmp { std::move( hook_.on_ ) };
-            lhs.move_to( *this );
-            new ( std::addressof( lhs.hook_.on_ ) ) wrappers::UniqueFunction<void()>( std::move( tmp ) );
-            lhs.tag_ = Tag::Nullary;
-          } break;
+          case Tag::Nullary:
+            if ( lhs.tag_ == Tag::Nullary )
+              hook_.on_.swap( lhs.hook_.on_ );
+            else {
+              wrappers::UniqueFunction<void()> tmp { std::move( hook_.on_ ) };
+              lhs.move_to( *this );
+              new ( std::addressof( lhs.hook_.on_ ) ) wrappers::UniqueFunction<void()>( std::move( tmp ) );
+              lhs.tag_ = Tag::Nullary;
+            }
+            break;
 
-          case Tag::Unary: {
-            wrappers::UniqueFunction<void( Derived& )> tmp { std::move( hook_.on_self_ ) };
-            lhs.move_to( *this );
-            new ( std::addressof( lhs.hook_.on_self_ ) )
-              wrappers::UniqueFunction<void( Derived& )>( std::move( tmp ) );
-            lhs.tag_ = Tag::Unary;
-          } break;
+          case Tag::Unary:
+            if ( lhs.tag_ == Tag::Unary )
+              hook_.on_self_.swap( lhs.hook_.on_self_ );
+            else {
+              wrappers::UniqueFunction<void( Derived& )> tmp { std::move( hook_.on_self_ ) };
+              lhs.move_to( *this );
+              new ( std::addressof( lhs.hook_.on_self_ ) )
+                wrappers::UniqueFunction<void( Derived& )>( std::move( tmp ) );
+              lhs.tag_ = Tag::Unary;
+            }
+            break;
 
           case Tag::Nil: __PGBAR_FALLTHROUGH;
-          default:       lhs.move_to( *this ); break;
+          default:
+            if ( lhs.tag_ != Tag::Nil )
+              lhs.move_to( *this );
+            break;
           }
         }
       };
