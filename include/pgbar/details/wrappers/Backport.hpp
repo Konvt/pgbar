@@ -39,10 +39,9 @@ namespace pgbar {
         };
 
         template<typename T>
-        using Inlinable = traits::AllOf<std::is_nothrow_move_constructible<T>,
-                                        std::integral_constant<bool,
-                                                               ( sizeof( AnyFn::buf_ ) >= sizeof( T )
-                                                                 && alignof( AnyFn ) >= alignof( T ) )>>;
+        using Inlinable = traits::AllOf<
+          std::is_nothrow_move_constructible<T>,
+          traits::BoolConstant<( sizeof( AnyFn::buf_ ) >= sizeof( T ) && alignof( AnyFn ) >= alignof( T ) )>>;
 
         const VTable* vtable_;
         AnyFn callee_;
