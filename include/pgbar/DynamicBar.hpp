@@ -337,22 +337,20 @@ namespace pgbar {
     }
     template<typename Config>
 #if __PGBAR_CXX20
-      requires __details::traits::is_config<std::decay_t<Config>>::value
-    __PGBAR_NODISCARD std::unique_ptr<__details::prefabs::BasicBar<std::decay_t<Config>, Outlet, Mode, Area>>
+      requires __details::traits::is_config<Config>::value
+    __PGBAR_NODISCARD std::unique_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>
 #else
-    __PGBAR_NODISCARD typename std::enable_if<
-      __details::traits::is_config<typename std::decay<Config>::type>::value,
-      std::unique_ptr<__details::prefabs::BasicBar<typename std::decay<Config>::type, Outlet, Mode, Area>>>::
-      type
+    __PGBAR_NODISCARD
+      typename std::enable_if<__details::traits::is_config<Config>::value,
+                              std::unique_ptr<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>>>::type
 #endif
-      insert( Config&& cfg )
+      insert( Config cfg )
     {
       if ( core_ == nullptr )
         __PGBAR_UNLIKELY core_ = std::make_shared<Context>();
-      return __details::utils::make_unique<
-        __details::prefabs::ManagedBar<typename std::decay<Config>::type, Outlet, Mode, Area>>(
+      return __details::utils::make_unique<__details::prefabs::ManagedBar<Config, Outlet, Mode, Area>>(
         core_,
-        std::forward<Config>( cfg ) );
+        std::move( cfg ) );
     }
 
     template<typename Bar, typename... Options>

@@ -54,7 +54,7 @@
 
 ## 用例
 ```cpp
-#include "pgbar/pgbar.hpp"
+#include "pgbar/ProgressBar.hpp"
 
 int main()
 {
@@ -76,19 +76,19 @@ int main()
 ## FAQ
 ### 如何构建？
 #### 仅头文件
-你可以将 `pgbar/pgbar.hpp` 复制到项目的包含路径中，随后在源文件内直接包含对应头文件。
+你可以将 `include/pgbar` 复制到项目的包含路径中，随后在源文件内直接包含对应头文件。
 #### 子模块（submodule）
 使用 `git` 将 `pgbar` 作为子模块引入你的项目目录中：
 
 ```bash
-git submodule add https://github.com/Konvt/pgbar external/pgbar
+git submodule add https://github.com/Konvt/pgbar path/to/pgbar
 git submodule update --init --recursive
 ```
 
 并将以下代码添加到项目中 `CMakeLists.txt` 的对应位置即可。
 
 ```cmake
-add_subdirectory(${CMAKE_SOURCE_DIR}/external/pgbar)
+add_subdirectory(${CMAKE_SOURCE_DIR}/path/to/pgbar)
 # ...
 add_executable(TargetName ${SOURCES})
 target_link_libraries(TargetName PRIVATE pgbar)

@@ -27,17 +27,17 @@ namespace pgbar {
                typename Tuple,
                typename = typename std::enable_if<
                  ( I < std::tuple_size<typename std::decay<Tuple>::type>::value )>::type>
-      __PGBAR_INLINE_FN constexpr auto forward_or( Tuple&& tup ) noexcept
+      __PGBAR_INLINE_FN constexpr auto pick_or( Tuple&& tup ) noexcept
         -> decltype( std::get<I>( std::forward<Tuple>( tup ) ) )
       {
         static_assert( std::is_convertible<typename std::tuple_element<I, Tuple>::type, T>::value,
-                       "pgbar::__details::traits::forward_or: Incompatible type" );
+                       "pgbar::__details::traits::pick_or: Incompatible type" );
         return std::get<I>( std::forward<Tuple>( tup ) );
       }
       template<types::Size I, typename T, typename Tuple>
       __PGBAR_INLINE_FN constexpr
         typename std::enable_if<( I >= std::tuple_size<typename std::decay<Tuple>::type>::value ), T>::type
-        forward_or( Tuple&& ) noexcept( std::is_nothrow_default_constructible<T>::value )
+        pick_or( Tuple&& ) noexcept( std::is_nothrow_default_constructible<T>::value )
       {
         return T();
       }

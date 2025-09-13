@@ -787,7 +787,6 @@ namespace pgbar {
         }
         __PGBAR_INLINE_FN void endframe() &
         {
-          __PGBAR_ASSERT( this->task_cnt_ <= this->task_end_ );
           refreshframe();
           this->state_.store( State::Stop, std::memory_order_release );
         }
@@ -907,8 +906,7 @@ namespace pgbar {
         __PGBAR_INLINE_FN void refreshframe() &
         {
           __PGBAR_ASSERT( this->task_cnt_ <= this->task_end_ );
-          auto& buffer = io::OStream<Outlet>::itself();
-          this->config_.build( buffer,
+          this->config_.build( io::OStream<Outlet>::itself(),
                                this->idx_frame_,
                                this->task_cnt_.load( std::memory_order_acquire ),
                                this->task_end_,

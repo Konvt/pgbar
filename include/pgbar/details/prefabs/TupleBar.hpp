@@ -172,7 +172,7 @@ namespace pgbar {
         template<typename Tuple, types::Size... Is>
         TupleBar( Tuple&& tup, const traits::IndexSeq<Is...>& )
           noexcept( std::tuple_size<typename std::decay<Tuple>::type>::value == sizeof...( Configs ) )
-          : ElementAt_t<Is>( utils::forward_or<Is, ElementAt_t<Is>>( std::forward<Tuple>( tup ) ) )...
+          : ElementAt_t<Is>( utils::pick_or<Is, ElementAt_t<Is>>( std::forward<Tuple>( tup ) ) )...
           , alive_cnt_ { 0 }
           , state_ { State::Stop }
         {
