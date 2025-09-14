@@ -57,7 +57,6 @@ namespace pgbar {
       using Error::Error;
       ~SystemError() override = default;
     };
-
   } // namespace exception
 } // namespace pgbar
 
