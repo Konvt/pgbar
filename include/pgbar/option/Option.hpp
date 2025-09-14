@@ -307,7 +307,6 @@ public:                                                                         
 
 #undef __PGBAR_DEFAULT_OPTION
 #undef __PGBAR_BASE
-
   } // namespace option
 } // namespace pgbar
 

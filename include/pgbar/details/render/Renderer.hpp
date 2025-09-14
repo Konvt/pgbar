@@ -9,166 +9,6 @@ namespace pgbar {
       template<Channel Tag, Policy Mode>
       class Renderer;
       template<Channel Tag>
-      class Renderer<Tag, Policy::Sync> final {
-        using Self = Renderer;
-
-        enum class State : std::uint8_t { Dormant, Finish, Active, Quit };
-        std::atomic<State> state_;
-
-        mutable concurrent::SharedMutex rw_mtx_;
-        mutable std::mutex mtx_;
-        mutable std::condition_variable cond_var_;
-
-        wrappers::UniqueFunction<void()> task_;
-
-        Renderer() noexcept : state_ { State::Quit } {}
-
-      public:
-        static Self& itself() noexcept
-        {
-          static Self instance;
-          return instance;
-        }
-        Renderer( const Self& )        = delete;
-        Self& operator=( const Self& ) = delete;
-
-        ~Renderer() noexcept { appoint(); }
-
-        // `activate` guarantees to perform the render task at least once.
-        void activate() & noexcept( false )
-        { /**
-           * Since the rendering function is a state machine,
-           * `activate` must ensure it runs at least once to trigger state transitions.
-           * As asynchronous renderers do not provide an interface that guarantees at-least-once execution,
-           * `activate` must explicitly invoke the rendering function during scheduling.
-           */
-          std::lock_guard<concurrent::SharedMutex> lock1 { rw_mtx_ };
-          // Internal component does not make validity judgments.
-          __PGBAR_ASSERT( task_ != nullptr );
-          __PGBAR_ASSERT( state_ == State::Dormant );
-          Runner<Tag>::itself().activate();
-          task_();
-          // If the rendering task throws some exception, this rendering should be abandoned.
-        }
-
-        template<typename F>
-        void appoint_then( F&& noexpt_fn ) noexcept
-        {
-          static_assert( noexcept( (void)noexpt_fn() ),
-                         "pgbar::__details::render::Renderer::appoint_then: Unsafe functor types" );
-
-          std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
-          if ( task_ != nullptr ) {
-            state_.store( State::Quit, std::memory_order_release );
-            {
-              std::unique_lock<std::mutex> lock { mtx_ };
-              cond_var_.notify_one();
-            }
-            Runner<Tag>::itself().appoint();
-            task_ = nullptr;
-          }
-          (void)noexpt_fn();
-        }
-        void appoint() noexcept
-        {
-          appoint_then( []() noexcept {} );
-        }
-
-        __PGBAR_NODISCARD bool try_appoint( wrappers::UniqueFunction<void()>&& task ) & noexcept( false )
-        {
-          std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
-          if ( task_ != nullptr || !Runner<Tag>::itself().try_appoint( [this]() {
-                 try {
-                   while ( state_.load( std::memory_order_acquire ) != State::Quit ) {
-                     switch ( state_.load( std::memory_order_acquire ) ) {
-                     case State::Dormant: __PGBAR_FALLTHROUGH;
-                     case State::Finish:  {
-                       std::unique_lock<std::mutex> lock { mtx_ };
-                       auto expected = State::Finish;
-                       state_.compare_exchange_strong( expected, State::Dormant, std::memory_order_release );
-                       cond_var_.wait( lock, [this]() noexcept {
-                         return state_.load( std::memory_order_acquire ) != State::Dormant;
-                       } );
-                     } break;
-                     case State::Active: {
-                       {
-                         concurrent::SharedLock<concurrent::SharedMutex> lock1 { rw_mtx_ };
-                         std::lock_guard<std::mutex> lock2 { mtx_ };
-                         task_();
-                       }
-                       auto expected = State::Active;
-                       state_.compare_exchange_strong( expected, State::Finish, std::memory_order_release );
-                     } break;
-                     default: return;
-                     }
-                   }
-                 } catch ( ... ) {
-                   state_.store( State::Quit, std::memory_order_release );
-                   throw;
-                 }
-               } ) )
-            return false;
-          state_.store( State::Dormant, std::memory_order_release );
-          task_.swap( task );
-          return true;
-        }
-
-        // Assume that the task is not empty and execute it once.
-        __PGBAR_INLINE_FN void execute() & noexcept( false )
-        { /**
-           * Although not relevant here,
-           * OStream is called non-atomically for each rendering task,
-           * so it needs to be locked for the entire duration of the rendering task execution.
-
-           * By the way, although the implementation tries to lock the internal component
-           * when it renders the string,
-           * that is a reader lock on the configuration data type of the component that stores the string,
-           * and it does not prevent concurrent threads from simultaneously
-           * trying to concatenate the string in the same OStream.
-           */
-          concurrent::SharedLock<concurrent::SharedMutex> lock1 { rw_mtx_ };
-          std::lock_guard<std::mutex> lock2 { mtx_ }; // Fixed locking order.
-          __PGBAR_ASSERT( task_ != nullptr );
-          task_();
-          /**
-           * In short: The mtx_ here is to prevent multiple progress bars in MultiBar
-           * from concurrently attempting to render strings in synchronous rendering mode;
-           * each of these progress bars will lock itself before rendering,
-           * but they cannot mutually exclusively access the renderer.
-           */
-        }
-        // When the task is not empty, execute at least one task.
-        __PGBAR_INLINE_FN void attempt() & noexcept
-        {
-          // The lock here is to ensure that only one thread executes the task_ at any given time.
-          // And synchronization semantics require that no call request be dropped.
-          concurrent::SharedLock<concurrent::SharedMutex> lock1 { rw_mtx_ };
-          /**
-           * Here, asynchronous threads and forced state checks are used to achieve synchronous semantics;
-           * this is because task_ is not exception-free,
-           * so if task_ needs to be executed with synchronous semantics in some functions marked as noexcept,
-           * the execution operation needs to be dispatched to another thread.
-           */
-          auto expected = State::Dormant;
-          if ( state_.compare_exchange_strong( expected, State::Active, std::memory_order_release ) ) {
-            {
-              std::lock_guard<std::mutex> lock { mtx_ };
-              cond_var_.notify_one();
-            }
-            concurrent::spin_wait(
-              [this]() noexcept { return state_.load( std::memory_order_acquire ) != State::Active; } );
-            std::lock_guard<std::mutex> lock { mtx_ };
-          }
-        }
-
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool empty() const noexcept
-        {
-          concurrent::SharedLock<concurrent::SharedMutex> lock { rw_mtx_ };
-          return task_ == nullptr;
-        }
-      };
-
-      template<Channel Tag>
       class Renderer<Tag, Policy::Async> final {
         using Self = Renderer;
 
@@ -312,6 +152,166 @@ namespace pgbar {
       template<Channel Tag>
       std::atomic<types::TimeUnit> Renderer<Tag, Policy::Async>::_working_interval {
         std::chrono::duration_cast<types::TimeUnit>( std::chrono::milliseconds( 40 ) )
+      };
+
+      template<Channel Tag>
+      class Renderer<Tag, Policy::Sync> final {
+        using Self = Renderer;
+
+        enum class State : std::uint8_t { Dormant, Finish, Active, Quit };
+        std::atomic<State> state_;
+
+        mutable concurrent::SharedMutex res_mtx_;
+        mutable std::mutex sched_mtx_;
+        mutable std::condition_variable cond_var_;
+
+        wrappers::UniqueFunction<void()> task_;
+
+        Renderer() noexcept : state_ { State::Quit } {}
+
+      public:
+        static Self& itself() noexcept
+        {
+          static Self instance;
+          return instance;
+        }
+        Renderer( const Self& )        = delete;
+        Self& operator=( const Self& ) = delete;
+
+        ~Renderer() noexcept { appoint(); }
+
+        // `activate` guarantees to perform the render task at least once.
+        void activate() & noexcept( false )
+        { /**
+           * Since the rendering function is a state machine,
+           * `activate` must ensure it runs at least once to trigger state transitions.
+           * As asynchronous renderers do not provide an interface that guarantees at-least-once execution,
+           * `activate` must explicitly invoke the rendering function during scheduling.
+           */
+          std::lock_guard<concurrent::SharedMutex> lock1 { res_mtx_ };
+          // Internal component does not make validity judgments.
+          __PGBAR_ASSERT( task_ != nullptr );
+          __PGBAR_ASSERT( state_ == State::Dormant );
+          Runner<Tag>::itself().activate();
+          task_();
+          // If the rendering task throws some exception, this rendering should be abandoned.
+        }
+
+        template<typename F>
+        void appoint_then( F&& noexpt_fn ) noexcept
+        {
+          static_assert( noexcept( (void)noexpt_fn() ),
+                         "pgbar::__details::render::Renderer::appoint_then: Unsafe functor types" );
+
+          std::lock_guard<concurrent::SharedMutex> lock { res_mtx_ };
+          if ( task_ != nullptr ) {
+            state_.store( State::Quit, std::memory_order_release );
+            {
+              std::unique_lock<std::mutex> lock { sched_mtx_ };
+              cond_var_.notify_one();
+            }
+            Runner<Tag>::itself().appoint();
+            task_ = nullptr;
+          }
+          (void)noexpt_fn();
+        }
+        void appoint() noexcept
+        {
+          appoint_then( []() noexcept {} );
+        }
+
+        __PGBAR_NODISCARD bool try_appoint( wrappers::UniqueFunction<void()>&& task ) & noexcept( false )
+        {
+          std::lock_guard<concurrent::SharedMutex> lock { res_mtx_ };
+          if ( task_ != nullptr || !Runner<Tag>::itself().try_appoint( [this]() {
+                 try {
+                   while ( state_.load( std::memory_order_acquire ) != State::Quit ) {
+                     switch ( state_.load( std::memory_order_acquire ) ) {
+                     case State::Dormant: __PGBAR_FALLTHROUGH;
+                     case State::Finish:  {
+                       std::unique_lock<std::mutex> lock { sched_mtx_ };
+                       auto expected = State::Finish;
+                       state_.compare_exchange_strong( expected, State::Dormant, std::memory_order_release );
+                       cond_var_.wait( lock, [this]() noexcept {
+                         return state_.load( std::memory_order_acquire ) != State::Dormant;
+                       } );
+                     } break;
+                     case State::Active: {
+                       {
+                         concurrent::SharedLock<concurrent::SharedMutex> lock1 { res_mtx_ };
+                         std::lock_guard<std::mutex> lock2 { sched_mtx_ };
+                         task_();
+                       }
+                       auto expected = State::Active;
+                       state_.compare_exchange_strong( expected, State::Finish, std::memory_order_release );
+                     } break;
+                     default: return;
+                     }
+                   }
+                 } catch ( ... ) {
+                   state_.store( State::Quit, std::memory_order_release );
+                   throw;
+                 }
+               } ) )
+            return false;
+          state_.store( State::Dormant, std::memory_order_release );
+          task_.swap( task );
+          return true;
+        }
+
+        // Assume that the task is not empty and execute it once.
+        __PGBAR_INLINE_FN void execute() & noexcept( false )
+        { /**
+           * Although not relevant here,
+           * OStream is called non-atomically for each rendering task,
+           * so it needs to be locked for the entire duration of the rendering task execution.
+
+           * By the way, although the implementation tries to lock the internal component
+           * when it renders the string,
+           * that is a reader lock on the configuration data type of the component that stores the string,
+           * and it does not prevent concurrent threads from simultaneously
+           * trying to concatenate the string in the same OStream.
+           */
+          concurrent::SharedLock<concurrent::SharedMutex> lock1 { res_mtx_ };
+          std::lock_guard<std::mutex> lock2 { sched_mtx_ }; // Fixed locking order.
+          __PGBAR_ASSERT( task_ != nullptr );
+          task_();
+          /**
+           * In short: The mtx_ here is to prevent multiple progress bars in MultiBar
+           * from concurrently attempting to render strings in synchronous rendering mode;
+           * each of these progress bars will lock itself before rendering,
+           * but they cannot mutually exclusively access the renderer.
+           */
+        }
+        // When the task is not empty, execute at least one task.
+        __PGBAR_INLINE_FN void attempt() & noexcept
+        {
+          // The lock here is to ensure that only one thread executes the task_ at any given time.
+          // And synchronization semantics require that no call request be dropped.
+          concurrent::SharedLock<concurrent::SharedMutex> lock1 { res_mtx_ };
+          /**
+           * Here, asynchronous threads and forced state checks are used to achieve synchronous semantics;
+           * this is because task_ is not exception-free,
+           * so if task_ needs to be executed with synchronous semantics in some functions marked as noexcept,
+           * the execution operation needs to be dispatched to another thread.
+           */
+          auto expected = State::Dormant;
+          if ( state_.compare_exchange_strong( expected, State::Active, std::memory_order_release ) ) {
+            {
+              std::lock_guard<std::mutex> lock { sched_mtx_ };
+              cond_var_.notify_one();
+            }
+            concurrent::spin_wait(
+              [this]() noexcept { return state_.load( std::memory_order_acquire ) != State::Active; } );
+            std::lock_guard<std::mutex> lock { sched_mtx_ };
+          }
+        }
+
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool empty() const noexcept
+        {
+          concurrent::SharedLock<concurrent::SharedMutex> lock { res_mtx_ };
+          return task_ == nullptr;
+        }
       };
     } // namespace render
   } // namespace __details
