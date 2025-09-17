@@ -733,36 +733,25 @@ namespace pgbar {
       template<typename Base, typename Derived>
       class PercentMeter : public Base {
 #define __PGBAR_DEFAULT_PERCENT u8" --.--%"
-        static constexpr types::Size _fixed_length = sizeof( __PGBAR_DEFAULT_PERCENT ) - 1;
 
       protected:
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN types::String build_percent( types::Float num_percent ) const
+        __PGBAR_INLINE_FN io::Stringbuf& build_percent( io::Stringbuf& buffer,
+                                                        types::Float num_percent ) const
         {
           __PGBAR_TRUST( num_percent >= 0.0 );
           __PGBAR_TRUST( num_percent <= 1.0 );
 
-          if ( num_percent <= 0.0 )
-#if __PGBAR_CXX20
-            __PGBAR_UNLIKELY
-            {
-              constexpr types::LitU8 tmp = __PGBAR_DEFAULT_PERCENT;
-              auto ret                   = types::String( tmp.size(), '\0' );
-              std::copy( tmp.cbegin(), tmp.cend(), ret.begin() );
-              return ret;
-            }
-#else
-            __PGBAR_UNLIKELY return { __PGBAR_DEFAULT_PERCENT, _fixed_length };
-#endif
+          if ( num_percent <= 0.0 ) // 0.01%
+            __PGBAR_UNLIKELY return buffer << __PGBAR_DEFAULT_PERCENT;
 
-          auto str = utils::format( num_percent * 100.0, 2 );
-          str.push_back( '%' );
-
-          return utils::format<utils::TxtLayout::Right>( _fixed_length, str );
+          auto orig = utils::format( num_percent * 100.0, 2 );
+          orig.push_back( '%' );
+          return buffer << utils::format<utils::TxtLayout::Right>( fixed_len_percent(), orig );
         }
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr types::Size fixed_len_percent() const noexcept
         {
-          return _fixed_length;
+          return sizeof( __PGBAR_DEFAULT_PERCENT ) - 1;
         }
 
       public:
@@ -777,8 +766,12 @@ namespace pgbar {
         {
           cfg.units_ = std::move( val.value() );
           cfg.len_longest_unit_ =
-            ( std::max )( ( std::max )( cfg.units_[0].width(), cfg.units_[1].width() ),
-                          ( std::max )( cfg.units_[2].width(), cfg.units_[3].width() ) );
+            std::max_element( cfg.units_.cbegin(),
+                              cfg.units_.cend(),
+                              []( const charcodes::U8Raw& a, const charcodes::U8Raw& b ) noexcept {
+                                return a.width() < b.width();
+                              } )
+              ->width();
         }
         friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( SpeedMeter& cfg,
                                                                       option::Magnitude&& val ) noexcept
@@ -794,20 +787,15 @@ namespace pgbar {
         types::Size len_longest_unit_;
         std::uint16_t magnitude_;
 
-        __PGBAR_NODISCARD types::String build_speed( const types::TimeUnit& time_passed,
-                                                     std::uint64_t num_task_done,
-                                                     std::uint64_t num_all_tasks ) const
+        io::Stringbuf& build_speed( io::Stringbuf& buffer,
+                                    const types::TimeUnit& time_passed,
+                                    std::uint64_t num_task_done,
+                                    std::uint64_t num_all_tasks ) const
         {
           __PGBAR_TRUST( num_task_done <= num_all_tasks );
           if ( num_all_tasks == 0 )
-            __PGBAR_UNLIKELY return utils::format<utils::TxtLayout::Right>( _fixed_length + len_longest_unit_,
-                                                                            u8"-- " + units_.front() );
-
-          const auto seconds_passed    = std::chrono::duration<types::Float>( time_passed ).count();
-          // zero or negetive is invalid
-          const types::Float frequency = seconds_passed <= 0.0 ? ( std::numeric_limits<types::Float>::max )()
-                                                               : num_task_done / seconds_passed;
-          types::String rate_str;
+            __PGBAR_UNLIKELY return buffer
+              << utils::format<utils::TxtLayout::Right>( fixed_len_speed(), u8"-- " + units_.front() );
 
           /* Since the cube of the maximum value of std::uint16_t does not exceed
            * the representable range of std::uint64_t,
@@ -816,21 +804,27 @@ namespace pgbar {
           const types::Size tier2 = tier1 * magnitude_;
           // tier0 is magnitude_ itself
 
+          const auto seconds_passed    = std::chrono::duration<types::Float>( time_passed ).count();
+          // zero or negetive is invalid
+          const types::Float frequency = seconds_passed <= 0.0 ? ( std::numeric_limits<types::Float>::max )()
+                                                               : num_task_done / seconds_passed;
+
+          types::String orig;
           if ( frequency < magnitude_ )
-            rate_str = utils::format( frequency, 2 ) + ' ' + units_[0];
+            orig = utils::format( frequency, 2 ) + ' ' + units_[0];
           else if ( frequency < tier1 ) // "kilo"
-            rate_str = utils::format( frequency / magnitude_, 2 ) + ' ' + units_[1];
+            orig = utils::format( frequency / magnitude_, 2 ) + ' ' + units_[1];
           else if ( frequency < tier2 ) // "Mega"
-            rate_str = utils::format( frequency / tier1, 2 ) + ' ' + units_[2];
+            orig = utils::format( frequency / tier1, 2 ) + ' ' + units_[2];
           else { // "Giga" or "infinity"
             const types::Float remains = frequency / tier2;
             if ( remains > magnitude_ )
-              __PGBAR_UNLIKELY rate_str = __PGBAR_DEFAULT_SPEED + units_[3];
+              __PGBAR_UNLIKELY orig = __PGBAR_DEFAULT_SPEED + units_[3];
             else
-              rate_str = utils::format( remains, 2 ) + ' ' + units_[3];
+              orig = utils::format( remains, 2 ) + ' ' + units_[3];
           }
 
-          return utils::format<utils::TxtLayout::Right>( _fixed_length + len_longest_unit_, rate_str );
+          return buffer << utils::format<utils::TxtLayout::Right>( fixed_len_speed(), orig );
         }
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr types::Size fixed_len_speed() const noexcept
@@ -889,18 +883,17 @@ namespace pgbar {
       template<typename Base, typename Derived>
       class CounterMeter : public Base {
       protected:
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN types::String build_counter( std::uint64_t num_task_done,
-                                                                         std::uint64_t num_all_tasks ) const
+        __PGBAR_INLINE_FN io::Stringbuf& build_counter( io::Stringbuf& buffer,
+                                                        std::uint64_t num_task_done,
+                                                        std::uint64_t num_all_tasks ) const
         {
           __PGBAR_TRUST( num_task_done <= num_all_tasks );
           if ( num_all_tasks == 0 )
-            return { "-/-" };
+            buffer << "-/-";
 
-          auto str = utils::format<utils::TxtLayout::Right>( utils::count_digits( num_all_tasks ) + 1,
-                                                             utils::format( num_task_done ) );
-          str.append( 1, '/' ).append( utils::format( num_all_tasks ) );
-
-          return str;
+          return buffer << utils::format<utils::TxtLayout::Right>( utils::count_digits( num_all_tasks ) + 1,
+                                                                   utils::format( num_task_done ) )
+                        << '/' << utils::format( num_all_tasks );
         }
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR types::Size fixed_len_counter()
@@ -915,54 +908,50 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class Timer : public Base {
-#define __PGBAR_DEFAULT_TIMER u8"--:--:--"
-#define __PGBAR_TIMER_SEGMENT u8" < "
-        static constexpr types::Size _fixed_length = sizeof( __PGBAR_DEFAULT_TIMER ) - 1;
-
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN types::String time_formatter( types::TimeUnit duration ) const
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN io::Stringbuf& to_hms( io::Stringbuf& buffer,
+                                                                   types::TimeUnit duration ) const
         {
-          auto time2str = []( std::int64_t num_time ) {
+          auto zfill2 = [&]( std::int64_t num_time ) -> io::Stringbuf& {
+            __PGBAR_TRUST( num_time >= 0 );
+            if ( num_time > 99 )
+              return buffer.append( 'X', 2 );
+
             auto ret = utils::format( num_time );
             if ( ret.size() < 2 )
               ret.insert( 0, 1, '0' );
-            return ret;
+            return buffer << ret;
           };
           const auto hours = std::chrono::duration_cast<std::chrono::hours>( duration );
           duration -= hours;
           const auto minutes = std::chrono::duration_cast<std::chrono::minutes>( duration );
           duration -= minutes;
-          return ( ( ( hours.count() > 99 ? types::String( 2, '-' ) : time2str( hours.count() ) ) + ':' )
-                   + ( time2str( minutes.count() ) + ':' )
-                   + time2str( std::chrono::duration_cast<std::chrono::seconds>( duration ).count() ) );
+
+          zfill2( hours.count() ) << ':';
+          zfill2( minutes.count() ) << ':';
+          return zfill2( std::chrono::duration_cast<std::chrono::seconds>( duration ).count() );
         }
 
       protected:
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN types::String build_elapsed( types::TimeUnit time_passed ) const
+#define __PGBAR_ELASPED u8"--:--:--"
+        __PGBAR_INLINE_FN io::Stringbuf& build_elapsed( io::Stringbuf& buffer,
+                                                        types::TimeUnit time_passed ) const
         {
-          return time_formatter( time_passed );
+          return to_hms( buffer, time_passed );
         }
         __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr types::Size fixed_len_elapsed() const noexcept
         {
-          return _fixed_length;
+          return sizeof( __PGBAR_ELASPED ) - 1;
         }
 
-        __PGBAR_NODISCARD __PGBAR_CXX20_CNSTXPR types::String build_countdown(
-          const types::TimeUnit& time_passed,
-          std::uint64_t num_task_done,
-          std::uint64_t num_all_tasks ) const
+#define __PGBAR_COUNTDOWN u8"~" __PGBAR_ELASPED
+        __PGBAR_CXX20_CNSTXPR io::Stringbuf& build_countdown( io::Stringbuf& buffer,
+                                                              const types::TimeUnit& time_passed,
+                                                              std::uint64_t num_task_done,
+                                                              std::uint64_t num_all_tasks ) const
         {
           __PGBAR_TRUST( num_task_done <= num_all_tasks );
           if ( num_task_done == 0 || num_all_tasks == 0 )
-#if __PGBAR_CXX20
-          {
-            constexpr types::LitU8 tmp = __PGBAR_DEFAULT_TIMER;
-            auto ret                   = types::String( tmp.size(), '\0' );
-            std::copy( tmp.cbegin(), tmp.cend(), ret.begin() );
-            return ret;
-          }
-#else
-            return { __PGBAR_DEFAULT_TIMER, _fixed_length };
-#endif
+            return buffer << __PGBAR_COUNTDOWN;
 
           auto time_per_task = time_passed / num_task_done;
           if ( time_per_task.count() == 0 )
@@ -971,43 +960,22 @@ namespace pgbar {
           const auto remaining_tasks = num_all_tasks - num_task_done;
           // overflow check
           if ( remaining_tasks > ( std::numeric_limits<std::int64_t>::max )() / time_per_task.count() )
-#if __PGBAR_CXX20
-          {
-            constexpr types::LitU8 tmp = __PGBAR_DEFAULT_TIMER;
-            auto ret                   = types::String( tmp.size(), '\0' );
-            std::copy( tmp.cbegin(), tmp.cend(), ret.begin() );
-            return ret;
+            return buffer << u8"~XX:XX:XX";
+          else {
+            buffer << '~';
+            return to_hms( buffer, time_per_task * remaining_tasks );
           }
-#else
-            return { __PGBAR_DEFAULT_TIMER, _fixed_length };
-#endif
-          else
-            return time_formatter( time_per_task * remaining_tasks );
         }
         __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr types::Size fixed_len_countdown() const noexcept
         {
-          return _fixed_length;
-        }
-
-        __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR io::Stringbuf& build_hybird(
-          io::Stringbuf& buffer,
-          const types::TimeUnit& time_passed,
-          std::uint64_t num_task_done,
-          std::uint64_t num_all_tasks ) const
-        {
-          return buffer << build_elapsed( time_passed ) << __PGBAR_TIMER_SEGMENT
-                        << build_countdown( time_passed, num_task_done, num_all_tasks );
-        }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr types::Size fixed_len_hybird() const noexcept
-        {
-          return fixed_len_elapsed() + fixed_len_countdown() + sizeof( __PGBAR_TIMER_SEGMENT ) - 1;
+          return sizeof( __PGBAR_COUNTDOWN ) - 1;
         }
 
       public:
         __PGBAR_EMPTY_COMPONENT( Timer )
       };
-#undef __PGBAR_DEFAULT_TIMER
-#undef __PGBAR_TIMER_SEGMENT
+#undef __PGBAR_COUNTDOWN
+#undef __PGBAR_ELASPED
     } // namespace assets
 
     namespace traits {
