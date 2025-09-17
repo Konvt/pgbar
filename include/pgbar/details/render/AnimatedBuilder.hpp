@@ -36,7 +36,7 @@ namespace pgbar {
           if ( !this->prefix_.empty() && ( this->visual_masks_.any() || !this->postfix_.empty() ) )
             buffer << ' ';
           if ( this->visual_masks_[utils::as_val( Self::Mask::Per )] ) {
-            buffer << this->build_percent( num_percent );
+            this->build_percent( buffer, num_percent );
             auto masks = this->visual_masks_;
             if ( masks.reset( utils::as_val( Self::Mask::Per ) ).any() )
               buffer << this->divider_;

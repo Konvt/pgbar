@@ -49,7 +49,7 @@ namespace pgbar {
                || this->visual_masks_[utils::as_val( Self::Mask::Elpsd )]
                || this->visual_masks_[utils::as_val( Self::Mask::Cntdwn )] ) {
             if ( this->visual_masks_[utils::as_val( Self::Mask::Cnt )] ) {
-              buffer << this->build_counter( num_task_done, num_all_tasks );
+              this->build_counter( buffer, num_task_done, num_all_tasks );
               if ( this->visual_masks_[utils::as_val( Self::Mask::Sped )]
                    || this->visual_masks_[utils::as_val( Self::Mask::Elpsd )]
                    || this->visual_masks_[utils::as_val( Self::Mask::Cntdwn )] )
@@ -57,18 +57,18 @@ namespace pgbar {
             }
             const auto time_passed = std::chrono::steady_clock::now() - zero_point;
             if ( this->visual_masks_[utils::as_val( Self::Mask::Sped )] ) {
-              buffer << this->build_speed( time_passed, num_task_done, num_all_tasks );
+              this->build_speed( buffer, time_passed, num_task_done, num_all_tasks );
               if ( this->visual_masks_[utils::as_val( Self::Mask::Elpsd )]
                    || this->visual_masks_[utils::as_val( Self::Mask::Cntdwn )] )
                 buffer << this->divider_;
             }
-            if ( this->visual_masks_[utils::as_val( Self::Mask::Elpsd )]
-                 && this->visual_masks_[utils::as_val( Self::Mask::Cntdwn )] )
-              this->build_hybird( buffer, time_passed, num_task_done, num_all_tasks );
-            else if ( this->visual_masks_[utils::as_val( Self::Mask::Elpsd )] )
-              buffer << this->build_elapsed( time_passed );
-            else if ( this->visual_masks_[utils::as_val( Self::Mask::Cntdwn )] )
-              buffer << this->build_countdown( time_passed, num_task_done, num_all_tasks );
+            if ( this->visual_masks_[utils::as_val( Self::Mask::Elpsd )] ) {
+              this->build_elapsed( buffer, time_passed );
+              if ( this->visual_masks_[utils::as_val( Self::Mask::Cntdwn )] )
+                buffer << this->divider_;
+            }
+            if ( this->visual_masks_[utils::as_val( Self::Mask::Cntdwn )] )
+              this->build_countdown( buffer, time_passed, num_task_done, num_all_tasks );
           }
           return buffer;
         }

@@ -6,7 +6,7 @@
 namespace pgbar {
   template<typename Bar, typename... Bars>
   class MultiBar;
-  template<typename Config, typename... Configs, Channel O, Policy M, Region A>
+  template<Channel O, Policy M, Region A, typename Config, typename... Configs>
   class MultiBar<__details::prefabs::BasicBar<Config, O, M, A>,
                  __details::prefabs::BasicBar<Configs, O, M, A>...> {
     static_assert( __details::traits::AllOf<__details::traits::is_config<Config>,
@@ -259,21 +259,21 @@ namespace pgbar {
 #endif
 
   // Creates a MultiBar using existing bar instances.
-  template<typename Config, typename... Configs, Channel Outlet, Policy Mode, Region Area>
+  template<typename Config, typename... Configs, Channel O, Policy M, Region A>
 #if __PGBAR_CXX20
     requires( __details::traits::is_config<Config>::value
               && ( __details::traits::is_config<Configs>::value && ... ) )
-  __PGBAR_NODISCARD __PGBAR_INLINE_FN MultiBar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>,
-                                               __details::prefabs::BasicBar<Configs, Outlet, Mode, Area>...>
+  __PGBAR_NODISCARD __PGBAR_INLINE_FN
+    MultiBar<__details::prefabs::BasicBar<Config, O, M, A>, __details::prefabs::BasicBar<Configs, O, M, A>...>
 #else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN
     typename std::enable_if<__details::traits::AllOf<__details::traits::is_config<Config>,
                                                      __details::traits::is_config<Configs>...>::value,
-                            MultiBar<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>,
-                                     __details::prefabs::BasicBar<Configs, Outlet, Mode, Area>...>>::type
+                            MultiBar<__details::prefabs::BasicBar<Config, O, M, A>,
+                                     __details::prefabs::BasicBar<Configs, O, M, A>...>>::type
 #endif
-    make_multi( __details::prefabs::BasicBar<Config, Outlet, Mode, Area>&& bar,
-                __details::prefabs::BasicBar<Configs, Outlet, Mode, Area>&&... bars ) noexcept
+    make_multi( __details::prefabs::BasicBar<Config, O, M, A>&& bar,
+                __details::prefabs::BasicBar<Configs, O, M, A>&&... bars ) noexcept
   {
     return { std::move( bar ), std::move( bars )... };
   }
@@ -320,23 +320,21 @@ namespace pgbar {
    * Creates a MultiBar with a fixed number of BasicBar instances using a single bar object.
    * **All BasicBar instances are initialized using the same configuration.**
    */
-  template<__details::types::Size Cnt, typename Config, Channel Outlet, Policy Mode, Region Area>
+  template<__details::types::Size Cnt, typename Config, Channel O, Policy M, Region A>
 #if __PGBAR_CXX20
     requires( Cnt > 0 && __details::traits::is_config<Config>::value )
   __PGBAR_NODISCARD __PGBAR_INLINE_FN
-    __details::traits::Repeat_t<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>, MultiBar, Cnt>
+    __details::traits::Repeat_t<__details::prefabs::BasicBar<Config, O, M, A>, MultiBar, Cnt>
 #else
   __PGBAR_NODISCARD __PGBAR_INLINE_FN typename std::enable_if<
     __details::traits::AllOf<__details::traits::BoolConstant<( Cnt > 0 )>,
                              __details::traits::is_config<Config>>::value,
-    __details::traits::Repeat_t<__details::prefabs::BasicBar<Config, Outlet, Mode, Area>, MultiBar, Cnt>>::
-    type
+    __details::traits::Repeat_t<__details::prefabs::BasicBar<Config, O, M, A>, MultiBar, Cnt>>::type
 #endif
-    make_multi( __details::prefabs::BasicBar<Config, Outlet, Mode, Area>&& bar ) noexcept( Cnt == 1 )
+    make_multi( __details::prefabs::BasicBar<Config, O, M, A>&& bar ) noexcept( Cnt == 1 )
   {
-    return __details::assets::make_multi_helper<Cnt, Outlet, Mode>(
-      std::move( bar ).config(),
-      __details::traits::MakeIndexSeq<Cnt - 1>() );
+    return __details::assets::make_multi_helper<Cnt, O, M>( std::move( bar ).config(),
+                                                            __details::traits::MakeIndexSeq<Cnt - 1>() );
   }
   /**
    * Creates a MultiBar with a fixed number of BasicBar instances using a single configuration object.

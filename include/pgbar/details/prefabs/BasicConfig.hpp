@@ -122,19 +122,9 @@ namespace pgbar {
                + ( visual_masks_[utils::as_val( Mask::Per )] ? this->fixed_len_percent() : 0 )
                + ( visual_masks_[utils::as_val( Mask::Cnt )] ? this->fixed_len_counter() : 0 )
                + ( visual_masks_[utils::as_val( Mask::Sped )] ? this->fixed_len_speed() : 0 )
-               + ( visual_masks_[utils::as_val( Mask::Elpsd )] && visual_masks_[utils::as_val( Mask::Cntdwn )]
-                     ? this->fixed_len_hybird()
-                     : ( visual_masks_[utils::as_val( Mask::Elpsd )]
-                           ? this->fixed_len_elapsed()
-                           : ( this->visual_masks_[utils::as_val( Mask::Cntdwn )]
-                                 ? this->fixed_len_countdown()
-                                 : 0 ) ) )
-               + ( visual_masks_[utils::as_val( Mask::Elpsd )] && visual_masks_[utils::as_val( Mask::Cntdwn )]
-                     ? 3
-                     : 0 )
+               + ( visual_masks_[utils::as_val( Mask::Elpsd )] ? this->fixed_len_elapsed() : 0 )
+               + ( visual_masks_[utils::as_val( Mask::Cntdwn )] ? this->fixed_len_countdown() : 0 )
                + this->fixed_len_segment( this->visual_masks_.count()
-                                          - ( this->visual_masks_[utils::as_val( Mask::Cntdwn )]
-                                              && this->visual_masks_[utils::as_val( Mask::Elpsd )] )
                                           + ( !this->prefix_.empty() || !this->postfix_.empty() ) );
         }
 
