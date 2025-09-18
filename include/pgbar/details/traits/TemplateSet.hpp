@@ -1,6 +1,7 @@
 #ifndef __PGBAR_TEMPLATESET
 #define __PGBAR_TEMPLATESET
 
+#include "Algorithm.hpp"
 #include "TemplateList.hpp"
 
 namespace pgbar {
@@ -9,18 +10,11 @@ namespace pgbar {
       template<template<typename...> class... Ts>
       struct TemplateSet : TemplateList<Ts>... {};
 
-      template<typename TmpSet, template<typename...> class T>
-      struct Contain;
       template<template<typename...> class... Ts, template<typename...> class T>
-      struct Contain<TemplateSet<Ts...>, T> : std::is_base_of<TemplateList<T>, TemplateSet<Ts...>> {};
-
-      template<typename TmpSet, template<typename...> class T>
-      struct Extend;
-      template<typename TmpSet, template<typename...> class T>
-      using Extend_t = typename Extend<TmpSet, T>::type;
+      struct TmpContain<TemplateSet<Ts...>, T> : std::is_base_of<TemplateList<T>, TemplateSet<Ts...>> {};
 
       template<template<typename...> class... Ts, template<typename...> class T>
-      struct Extend<TemplateSet<Ts...>, T> {
+      struct TmpExtend<TemplateSet<Ts...>, T> {
       private:
         template<bool Cond, template<typename...> class NewOne>
         struct _Select;
@@ -34,7 +28,7 @@ namespace pgbar {
         };
 
       public:
-        using type = typename _Select<Contain<TemplateSet<Ts...>, T>::value, T>::type;
+        using type = typename _Select<TmpContain<TemplateSet<Ts...>, T>::value, T>::type;
       };
     } // namespace traits
   } // namespace __details

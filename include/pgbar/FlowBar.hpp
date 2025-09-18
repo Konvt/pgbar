@@ -92,12 +92,12 @@ namespace pgbar {
         __PGBAR_PACK( assets::Filler, assets::BasicAnimation, assets::BasicIndicator, assets::Reversible ) );
       template<>
       struct OptionFor<assets::FlowIndic>
-        : Coalesce<OptionFor_t<assets::Countable>,
-                   OptionFor_t<assets::Reversible>,
-                   OptionFor_t<assets::Frames>,
-                   OptionFor_t<assets::Filler>,
-                   OptionFor_t<assets::BasicAnimation>,
-                   OptionFor_t<assets::BasicIndicator>> {};
+        : Merge<OptionFor_t<assets::Countable>,
+                OptionFor_t<assets::Reversible>,
+                OptionFor_t<assets::Frames>,
+                OptionFor_t<assets::Filler>,
+                OptionFor_t<assets::BasicAnimation>,
+                OptionFor_t<assets::BasicIndicator>> {};
     }
   } // namespace __details
 
@@ -111,29 +111,29 @@ namespace pgbar {
       {
         static_assert( __details::traits::InstanceOf<ArgSet, __details::traits::TypeSet>::value,
                        "pgbar::config::Flow::initialize: Invalid template type" );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Reversed>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::Reversed>::value )
           unpacker( *this, option::Reversed( false ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Shift>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::Shift>::value )
           unpacker( *this, option::Shift( -3 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Starting>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::Starting>::value )
           unpacker( *this, option::Starting( u8"[" ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Ending>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::Ending>::value )
           unpacker( *this, option::Ending( u8"]" ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::BarLength>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::BarLength>::value )
           unpacker( *this, option::BarLength( 30 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Filler>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::Filler>::value )
           unpacker( *this, option::Filler( u8" " ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Lead>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::Lead>::value )
           unpacker( *this, option::Lead( u8"====" ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Divider>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::Divider>::value )
           unpacker( *this, option::Divider( u8" | " ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::InfoColor>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::InfoColor>::value )
           unpacker( *this, option::InfoColor( color::Cyan ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::SpeedUnit>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::SpeedUnit>::value )
           unpacker( *this, option::SpeedUnit( { u8"Hz", u8"kHz", u8"MHz", u8"GHz" } ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Magnitude>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::Magnitude>::value )
           unpacker( *this, option::Magnitude( 1000 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Style>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::Style>::value )
           unpacker( *this, option::Style( Base::Ani | Base::Elpsd ) );
       }
 

@@ -24,11 +24,11 @@ namespace pgbar {
         // This is not done here just to reduce repetitive code
 
         // BarType must inherit from BasicIndicator or BasicAnimation
-        static_assert(
-          traits::AnyOf<
-            traits::Include<traits::TopoSort_t<traits::TemplateSet<BarType>>, assets::BasicIndicator>,
-            traits::Include<traits::TopoSort_t<traits::TemplateSet<BarType>>, assets::BasicAnimation>>::value,
-          "pgbar::__details::prefabs::BasicConfig: Invalid progress bar type" );
+        static_assert( traits::AnyOf<traits::TmpContain<traits::TopoSort_t<traits::TemplateSet<BarType>>,
+                                                        assets::BasicIndicator>,
+                                     traits::TmpContain<traits::TopoSort_t<traits::TemplateSet<BarType>>,
+                                                        assets::BasicAnimation>>::value,
+                       "pgbar::__details::prefabs::BasicConfig: Invalid progress bar type" );
 
         using Self = BasicConfig;
         using Base =
@@ -40,14 +40,14 @@ namespace pgbar {
                                 assets::SpeedMeter,
                                 assets::CounterMeter,
                                 assets::Timer>::template type<assets::CoreConfig<Derived>, Derived>;
-        using PermittedSet = traits::Coalesce_t<traits::TypeSet<option::Style>,
-                                                traits::OptionFor_t<BarType>,
-                                                traits::OptionFor_t<assets::Prefix>,
-                                                traits::OptionFor_t<assets::Postfix>,
-                                                traits::OptionFor_t<assets::Segment>,
-                                                traits::OptionFor_t<assets::SpeedMeter>,
-                                                traits::OptionFor_t<assets::Timer>,
-                                                traits::OptionFor_t<assets::CoreConfig>>;
+        using PermittedSet = traits::Merge_t<traits::TypeSet<option::Style>,
+                                             traits::OptionFor_t<BarType>,
+                                             traits::OptionFor_t<assets::Prefix>,
+                                             traits::OptionFor_t<assets::Postfix>,
+                                             traits::OptionFor_t<assets::Segment>,
+                                             traits::OptionFor_t<assets::SpeedMeter>,
+                                             traits::OptionFor_t<assets::Timer>,
+                                             traits::OptionFor_t<assets::CoreConfig>>;
 
         friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( BasicConfig& cfg,
                                                                       option::Style&& val ) noexcept
@@ -146,13 +146,13 @@ namespace pgbar {
 
 #if __PGBAR_CXX20
         template<typename... Args>
-          requires( !traits::Duplicated<traits::TypeList<Args...>>::value
-                    && ( traits::Exist<PermittedSet, Args>::value && ... ) )
+          requires( traits::Distinct<traits::TypeList<Args...>>::value
+                    && ( traits::TpContain<PermittedSet, Args>::value && ... ) )
 #else
         template<typename... Args,
                  typename = typename std::enable_if<
-                   traits::AllOf<traits::Not<traits::Duplicated<traits::TypeList<Args...>>>,
-                                 traits::Exist<PermittedSet, Args>...>::value>::type>
+                   traits::AllOf<traits::Distinct<traits::TypeList<Args...>>,
+                                 traits::TpContain<PermittedSet, Args>...>::value>::type>
 #endif
         __PGBAR_CXX23_CNSTXPR BasicConfig( Args... args )
         {
@@ -212,14 +212,14 @@ namespace pgbar {
 
         template<typename Arg, typename... Args>
 #if __PGBAR_CXX20
-          requires( !traits::Duplicated<traits::TypeList<Arg, Args...>>::value
-                    && traits::Exist<PermittedSet, Arg>::value
-                    && ( traits::Exist<PermittedSet, Args>::value && ... ) )
+          requires( traits::Distinct<traits::TypeList<Arg, Args...>>::value
+                    && traits::TpContain<PermittedSet, Arg>::value
+                    && ( traits::TpContain<PermittedSet, Args>::value && ... ) )
         Derived&
 #else
-        typename std::enable_if<traits::AllOf<traits::Not<traits::Duplicated<traits::TypeList<Arg, Args...>>>,
-                                              traits::Exist<PermittedSet, Arg>,
-                                              traits::Exist<PermittedSet, Args>...>::value,
+        typename std::enable_if<traits::AllOf<traits::Distinct<traits::TypeList<Arg, Args...>>,
+                                              traits::TpContain<PermittedSet, Arg>,
+                                              traits::TpContain<PermittedSet, Args>...>::value,
                                 Derived&>::type
 #endif
           set( Arg arg, Args... args ) & noexcept(

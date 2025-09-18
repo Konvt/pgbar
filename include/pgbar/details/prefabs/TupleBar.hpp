@@ -190,16 +190,16 @@ namespace pgbar {
                  typename = typename std::enable_if<
                    traits::AllOf<traits::is_config<typename std::decay<Cfg>::type>,
                                  traits::is_config<typename std::decay<Cfgs>::type>...,
-                                 traits::StartsWith<traits::TypeList<typename std::decay<Cfg>::type,
-                                                                     typename std::decay<Cfgs>::type...>,
-                                                    Configs...>>::value>::type>
+                                 traits::TpStartsWith<traits::TypeList<typename std::decay<Cfg>::type,
+                                                                       typename std::decay<Cfgs>::type...>,
+                                                      Configs...>>::value>::type>
         TupleBar( Cfg&& cfg, Cfgs&&... cfgs ) noexcept( sizeof...( Cfgs ) + 1 == sizeof...( Configs ) )
           : TupleBar( std::forward_as_tuple( std::forward<Cfg>( cfg ), std::forward<Cfgs>( cfgs )... ),
                       traits::MakeIndexSeq<sizeof...( Cfgs ) + 1>() )
         {}
         template<typename... Cfgs,
                  typename = typename std::enable_if<
-                   traits::StartsWith<traits::TypeList<Cfgs...>, Configs...>::value>::type>
+                   traits::TpStartsWith<traits::TypeList<Cfgs...>, Configs...>::value>::type>
         TupleBar( prefabs::BasicBar<Cfgs, Outlet, Mode, Area>&&... bars )
           noexcept( sizeof...( Cfgs ) == sizeof...( Configs ) )
           : TupleBar( std::forward_as_tuple( std::move( bars )... ),

@@ -99,14 +99,15 @@ namespace pgbar {
           };
           template<typename RestNodes, template<typename...> class Target>
           struct _Select<false, RestNodes, Target> {
-            using type = Prepend_t<SortNVB_t, Target>;
+            using type = TmpPrepend_t<SortNVB_t, Target>;
           };
 
         public:
-          using pathset = Extend_t<MarkNVB_t, Head>;
-          using type = typename _Select<AnyOf<Contain<SetVisitedVB, Head>, Contain<MarkTail_t, Head>>::value,
-                                        TemplateSet<Tail...>,
-                                        Head>::type;
+          using pathset = TmpExtend_t<MarkNVB_t, Head>;
+          using type =
+            typename _Select<AnyOf<TmpContain<SetVisitedVB, Head>, TmpContain<MarkTail_t, Head>>::value,
+                             TemplateSet<Tail...>,
+                             Head>::type;
         };
         template<template<typename...> class Head,
                  template<typename...> class... Tail,
@@ -125,7 +126,7 @@ namespace pgbar {
 
         public:
           using pathset = MarkNVB_t;
-          using type    = Prepend_t<SortNVB_t, Head>;
+          using type    = TmpPrepend_t<SortNVB_t, Head>;
         };
 
       public:
