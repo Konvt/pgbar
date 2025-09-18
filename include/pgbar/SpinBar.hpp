@@ -37,7 +37,7 @@ namespace pgbar {
       __PGBAR_INHERIT_REGISTER( assets::SpinIndic, , assets::BasicAnimation );
       template<>
       struct OptionFor<assets::SpinIndic>
-        : Coalesce<OptionFor_t<assets::Countable>, OptionFor_t<assets::BasicAnimation>> {};
+        : Merge<OptionFor_t<assets::Countable>, OptionFor_t<assets::BasicAnimation>> {};
     }
   } // namespace __details
 
@@ -51,19 +51,19 @@ namespace pgbar {
       {
         static_assert( __details::traits::InstanceOf<ArgSet, __details::traits::TypeSet>::value,
                        "pgbar::config::Spin::initialize: Invalid template type" );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Shift>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::Shift>::value )
           unpacker( *this, option::Shift( -3 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Lead>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::Lead>::value )
           unpacker( *this, option::Lead( { u8"/", u8"-", u8"\\", u8"|" } ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Divider>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::Divider>::value )
           unpacker( *this, option::Divider( u8" | " ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::InfoColor>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::InfoColor>::value )
           unpacker( *this, option::InfoColor( color::Cyan ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::SpeedUnit>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::SpeedUnit>::value )
           unpacker( *this, option::SpeedUnit( { u8"Hz", u8"kHz", u8"MHz", u8"GHz" } ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Magnitude>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::Magnitude>::value )
           unpacker( *this, option::Magnitude( 1000 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::Exist<ArgSet, option::Style>::value )
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::Style>::value )
           unpacker( *this, option::Style( Base::Ani | Base::Elpsd ) );
       }
 

@@ -32,19 +32,20 @@ namespace pgbar {
 #if __PGBAR_CXX20
     template<typename Cfg, typename... Cfgs>
       requires( sizeof...( Cfgs ) <= sizeof...( Configs )
-                && __details::traits::StartsWith<
+                && __details::traits::TpStartsWith<
                   __details::traits::TypeList<std::decay_t<Cfg>, std::decay_t<Cfgs>...>,
                   Config,
                   Configs...>::value )
 #else
-    template<typename Cfg,
-             typename... Cfgs,
-             typename = typename std::enable_if<__details::traits::AllOf<
-               __details::traits::BoolConstant<( sizeof...( Cfgs ) <= sizeof...( Configs ) )>,
-               __details::traits::StartsWith<__details::traits::TypeList<typename std::decay<Cfg>::type,
-                                                                         typename std::decay<Cfgs>::type...>,
-                                             Config,
-                                             Configs...>>::value>::type>
+    template<
+      typename Cfg,
+      typename... Cfgs,
+      typename = typename std::enable_if<__details::traits::AllOf<
+        __details::traits::BoolConstant<( sizeof...( Cfgs ) <= sizeof...( Configs ) )>,
+        __details::traits::TpStartsWith<
+          __details::traits::TypeList<typename std::decay<Cfg>::type, typename std::decay<Cfgs>::type...>,
+          Config,
+          Configs...>>::value>::type>
 #endif
     MultiBar( Cfg&& cfg, Cfgs&&... cfgs ) noexcept( sizeof...( Cfgs ) == sizeof...( Configs ) )
       : tuple_ { std::forward<Cfg>( cfg ), std::forward<Cfgs>( cfgs )... }
@@ -56,14 +57,14 @@ namespace pgbar {
       requires( sizeof...( Cfgs ) <= sizeof...( Configs ) && __details::traits::is_config<Cfg>::value
                 && ( __details::traits::is_config<Cfgs>::value && ... )
                 && __details::traits::
-                  StartsWith<__details::traits::TypeList<Cfg, Cfgs...>, Config, Configs...>::value )
+                  TpStartsWith<__details::traits::TypeList<Cfg, Cfgs...>, Config, Configs...>::value )
 #else
              ,
              typename = typename std::enable_if<__details::traits::AllOf<
                __details::traits::BoolConstant< ( sizeof...( Cfgs ) <= sizeof...( Configs ) )>,
                __details::traits::is_config<Cfg>,
                __details::traits::is_config<Cfgs>...,
-               __details::traits::StartsWith<
+               __details::traits::TpStartsWith<
                  __details::traits::TypeList<Cfg,
                  Cfgs...>,
                  Config,
