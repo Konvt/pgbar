@@ -18,7 +18,7 @@ namespace pgbar {
       struct TpContain<TypeSet<Ts...>, T> : std::is_base_of<TypeList<T>, TypeSet<Ts...>> {};
 
       template<typename... Ts, typename T>
-      struct TpExtend<TypeSet<Ts...>, T> {
+      struct TpAppend<TypeSet<Ts...>, T> {
       private:
         template<bool Cond, typename NewOne>
         struct _Select;
@@ -36,18 +36,11 @@ namespace pgbar {
       };
 
       template<typename FirstSet>
-      struct Union<FirstSet, TypeSet<>> {
+      struct Combine<FirstSet, TypeSet<>> {
         using type = FirstSet;
       };
       template<typename FirstSet, typename T, typename... Ts>
-      struct Union<FirstSet, TypeSet<T, Ts...>> : Union<TpExtend_t<FirstSet, T>, TypeSet<Ts...>> {};
-
-      template<typename FirstSet>
-      struct Merge<FirstSet> {
-        using type = FirstSet;
-      };
-      template<typename FirstSet, typename SecondSet, typename... RestSets>
-      struct Merge<FirstSet, SecondSet, RestSets...> : Merge<Union_t<FirstSet, SecondSet>, RestSets...> {};
+      struct Combine<FirstSet, TypeSet<T, Ts...>> : Combine<TpAppend_t<FirstSet, T>, TypeSet<Ts...>> {};
 
       template<typename... Elements>
       struct Distinct<TypeList<Elements...>> {
@@ -58,7 +51,7 @@ namespace pgbar {
         struct Helper<Visited, TypeList<>> : std::true_type {};
         template<typename Visited, typename U, typename... Us>
         struct Helper<Visited, TypeList<U, Us...>>
-          : AllOf<Not<TpContain<Visited, U>>, Helper<TpExtend_t<Visited, U>, TypeList<Us...>>> {};
+          : AllOf<Not<TpContain<Visited, U>>, Helper<TpAppend_t<Visited, U>, TypeList<Us...>>> {};
 
       public:
         static constexpr bool value = Helper<TypeSet<>, TypeList<Elements...>>::value;

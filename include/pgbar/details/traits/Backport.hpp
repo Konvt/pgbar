@@ -16,7 +16,7 @@ namespace pgbar {
       using IndexSeq = std::integer_sequence<types::Size, Ns...>;
 
       template<types::Size N>
-      using MakeIndexSeq = std::make_index_sequence<N>;
+      using MakeIndexSeq = std::make_integer_sequence<types::Size, N>;
 #else
       template<types::Size... Ns>
       struct IndexSeq {};

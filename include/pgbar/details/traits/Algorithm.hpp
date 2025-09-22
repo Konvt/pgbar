@@ -20,28 +20,37 @@ namespace pgbar {
       using TmpPrepend_t = typename TmpPrepend<List, Element>::type;
 
       template<typename Collection, template<typename...> class Element>
-      struct TmpExtend;
+      struct TmpAppend;
       template<typename Collection, template<typename...> class Element>
-      using TmpExtend_t = typename TmpExtend<Collection, Element>::type;
+      using TmpAppend_t = typename TmpAppend<Collection, Element>::type;
 
       template<typename Collection, typename Element>
-      struct TpExtend;
+      struct TpAppend;
       template<typename Collection, typename Element>
-      using TpExtend_t = typename TpExtend<Collection, Element>::type;
+      using TpAppend_t = typename TpAppend<Collection, Element>::type;
 
       // Check whether the elements in the collection are unique.
       template<typename Collection>
       struct Distinct;
 
-      template<typename FirstSet, typename SecondSet>
-      struct Union;
-      template<typename FirstSet, typename SecondSet>
-      using Union_t = typename Union<FirstSet, SecondSet>::type;
+      template<typename FirstCollection, typename SecondCollection>
+      struct Combine;
+      template<typename FirstCollection, typename SecondCollection>
+      using Combine_t = typename Combine<FirstCollection, SecondCollection>::type;
 
       template<typename FirstCollection, typename... TailCollections>
       struct Merge;
       template<typename FirstCollection, typename... TailCollections>
       using Merge_t = typename Merge<FirstCollection, TailCollections...>::type;
+
+      template<typename FirstCollection>
+      struct Merge<FirstCollection> {
+        using type = FirstCollection;
+      };
+      template<typename FirstCollection, typename SecondCollection, typename... RestCollections>
+      struct Merge<FirstCollection, SecondCollection, RestCollections...>
+        : Merge<Combine_t<FirstCollection, SecondCollection>, RestCollections...> {};
+
     } // namespace traits
   } // namespace __details
 } // namespace pgbar
