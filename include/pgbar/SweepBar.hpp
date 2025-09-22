@@ -83,17 +83,15 @@ namespace pgbar {
 
     namespace traits {
       __PGBAR_INHERIT_REGISTER( assets::SweepIndic,
-                                ,
-                                __PGBAR_PACK( assets::Filler,
-                                              assets::BasicAnimation,
-                                              assets::BasicIndicator ) );
+                                assets::Filler,
+                                assets::BasicIndicator,
+                                assets::BasicAnimation );
       template<>
       struct OptionFor<assets::SweepIndic>
-        : Merge<OptionFor_t<assets::Countable>,
-                OptionFor_t<assets::Frames>,
-                OptionFor_t<assets::Filler>,
+        : Merge<OptionFor_t<assets::Filler>,
+                OptionFor_t<assets::BasicIndicator>,
                 OptionFor_t<assets::BasicAnimation>,
-                OptionFor_t<assets::BasicIndicator>> {};
+                OptionFor_t<assets::Countable>> {};
     }
   } // namespace __details
 

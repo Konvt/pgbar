@@ -5,7 +5,7 @@
 #include "../../slice/NumericSpan.hpp"
 #include "../concurrent/Backport.hpp"
 #include "../io/Stringbuf.hpp"
-#include "../traits/LinearInherit.hpp"
+#include "../traits/C3.hpp"
 #include "../traits/TypeSet.hpp"
 #include "../utils/Util.hpp"
 #include <bitset>
@@ -981,13 +981,13 @@ namespace pgbar {
     namespace traits {
       // There is no need to declare the dependency on assets::CoreConfig here.
       // It will be directly passed to the dependency resolution function as the initial base class.
-      __PGBAR_INHERIT_REGISTER( assets::BasicAnimation, , assets::Frames );
+      __PGBAR_INHERIT_REGISTER( assets::BasicAnimation, assets::Frames );
 
-      __PGBAR_INHERIT_REGISTER( assets::PercentMeter, assets::Countable, );
-      __PGBAR_INHERIT_REGISTER( assets::SpeedMeter, assets::Countable, );
-      __PGBAR_INHERIT_REGISTER( assets::CounterMeter, assets::Countable, );
+      __PGBAR_INHERIT_REGISTER( assets::PercentMeter, assets::Countable );
+      __PGBAR_INHERIT_REGISTER( assets::SpeedMeter, assets::Countable );
+      __PGBAR_INHERIT_REGISTER( assets::CounterMeter, assets::Countable );
 
-      __PGBAR_INHERIT_REGISTER( assets::Timer, assets::Countable, );
+      __PGBAR_INHERIT_REGISTER( assets::Timer, assets::Countable );
 
       template<template<typename...> class Component>
       struct OptionFor {
@@ -1008,7 +1008,6 @@ namespace pgbar {
       __PGBAR_BIND_OPTION( assets::Frames, option::Lead, option::LeadColor );
       __PGBAR_BIND_OPTION( assets::Filler, option::Filler, option::FillerColor );
       __PGBAR_BIND_OPTION( assets::Remains, option::Remains, option::RemainsColor );
-      __PGBAR_BIND_OPTION( assets::BasicAnimation, option::Shift );
       __PGBAR_BIND_OPTION( assets::BasicIndicator,
                            option::Starting,
                            option::Ending,
@@ -1024,6 +1023,9 @@ namespace pgbar {
                            option::InfoColor );
       __PGBAR_BIND_OPTION( assets::PercentMeter, );
       __PGBAR_BIND_OPTION( assets::SpeedMeter, option::SpeedUnit, option::Magnitude );
+      template<>
+      struct OptionFor<assets::BasicAnimation>
+        : Merge<TypeSet<option::Shift>, OptionFor_t<assets::Frames>> {};
     } // namespace traits
   } // namespace __details
 } // namespace pgbar

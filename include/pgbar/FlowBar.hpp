@@ -86,10 +86,11 @@ namespace pgbar {
     } // namespace assets
 
     namespace traits {
-      __PGBAR_INHERIT_REGISTER(
-        assets::FlowIndic,
-        ,
-        __PGBAR_PACK( assets::Filler, assets::BasicAnimation, assets::BasicIndicator, assets::Reversible ) );
+      __PGBAR_INHERIT_REGISTER( assets::FlowIndic,
+                                assets::Filler,
+                                assets::BasicAnimation,
+                                assets::BasicIndicator,
+                                assets::Reversible );
       template<>
       struct OptionFor<assets::FlowIndic>
         : Merge<OptionFor_t<assets::Countable>,

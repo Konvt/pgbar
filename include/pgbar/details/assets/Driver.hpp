@@ -1076,18 +1076,15 @@ namespace pgbar {
     } // namespace assets
 
     namespace traits {
-      __PGBAR_INHERIT_REGISTER( assets::ReactiveBar, assets::CoreBar, );
-      __PGBAR_INHERIT_REGISTER( assets::TickableBar, , assets::TaskCounter );
-      __PGBAR_INHERIT_REGISTER( assets::PlainBar,
-                                ,
-                                __PGBAR_PACK( assets::ReactiveBar, assets::TickableBar ) );
+      __PGBAR_INHERIT_REGISTER( assets::ReactiveBar, assets::CoreBar );
+      __PGBAR_INHERIT_REGISTER( assets::TickableBar, assets::TaskCounter );
+      __PGBAR_INHERIT_REGISTER( assets::PlainBar, assets::ReactiveBar, assets::TickableBar );
       __PGBAR_INHERIT_REGISTER( assets::FrameBar,
-                                ,
-                                __PGBAR_PACK( assets::ReactiveBar,
-                                              assets::TickableBar,
-                                              assets::FrameCounter ) );
-      __PGBAR_INHERIT_REGISTER( assets::BoundedFrameBar, , assets::FrameBar );
-      __PGBAR_INHERIT_REGISTER( assets::NullableFrameBar, , assets::FrameBar );
+                                assets::ReactiveBar,
+                                assets::TickableBar,
+                                assets::FrameCounter );
+      __PGBAR_INHERIT_REGISTER( assets::BoundedFrameBar, assets::FrameBar );
+      __PGBAR_INHERIT_REGISTER( assets::NullableFrameBar, assets::FrameBar );
 
       // In pgbar, the configuration type is "first-class type";
       // thus, we hope to be able to automatically generate the progress bar type

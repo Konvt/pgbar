@@ -13,41 +13,40 @@ namespace pgbar {
       template<template<typename...> class BarType, typename Derived>
       class BasicConfig
         : public traits::LI_t<BarType,
-                              assets::Prefix,
-                              assets::Postfix,
-                              assets::Segment,
                               assets::PercentMeter,
                               assets::SpeedMeter,
                               assets::CounterMeter,
-                              assets::Timer>::template type<assets::CoreConfig<Derived>, Derived> {
+                              assets::Timer,
+                              assets::Prefix,
+                              assets::Postfix,
+                              assets::Segment>::template type<assets::CoreConfig<Derived>, Derived> {
         // In fact, all the dependent components of BasicConfig can be fully injected from the outside.
         // This is not done here just to reduce repetitive code
 
         // BarType must inherit from BasicIndicator or BasicAnimation
-        static_assert( traits::AnyOf<traits::TmpContain<traits::TopoSort_t<traits::TemplateSet<BarType>>,
-                                                        assets::BasicIndicator>,
-                                     traits::TmpContain<traits::TopoSort_t<traits::TemplateSet<BarType>>,
-                                                        assets::BasicAnimation>>::value,
-                       "pgbar::__details::prefabs::BasicConfig: Invalid progress bar type" );
+        static_assert(
+          traits::AnyOf<traits::TmpContain<traits::C3_t<BarType>, assets::BasicIndicator>,
+                        traits::TmpContain<traits::C3_t<BarType>, assets::BasicAnimation>>::value,
+          "pgbar::__details::prefabs::BasicConfig: Invalid progress bar type" );
 
         using Self = BasicConfig;
         using Base =
           typename traits::LI_t<BarType,
-                                assets::Prefix,
-                                assets::Postfix,
-                                assets::Segment,
                                 assets::PercentMeter,
                                 assets::SpeedMeter,
                                 assets::CounterMeter,
-                                assets::Timer>::template type<assets::CoreConfig<Derived>, Derived>;
+                                assets::Timer,
+                                assets::Prefix,
+                                assets::Postfix,
+                                assets::Segment>::template type<assets::CoreConfig<Derived>, Derived>;
         using PermittedSet = traits::Merge_t<traits::TypeSet<option::Style>,
                                              traits::OptionFor_t<BarType>,
-                                             traits::OptionFor_t<assets::Prefix>,
-                                             traits::OptionFor_t<assets::Postfix>,
-                                             traits::OptionFor_t<assets::Segment>,
                                              traits::OptionFor_t<assets::SpeedMeter>,
                                              traits::OptionFor_t<assets::Timer>,
-                                             traits::OptionFor_t<assets::CoreConfig>>;
+                                             traits::OptionFor_t<assets::CoreConfig>,
+                                             traits::OptionFor_t<assets::Prefix>,
+                                             traits::OptionFor_t<assets::Postfix>,
+                                             traits::OptionFor_t<assets::Segment>>;
 
         friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( BasicConfig& cfg,
                                                                       option::Style&& val ) noexcept
