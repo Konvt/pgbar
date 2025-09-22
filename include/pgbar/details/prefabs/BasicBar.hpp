@@ -2,7 +2,7 @@
 #define __PGBAR_BASICBAR
 
 #include "../assets/Driver.hpp"
-#include "../traits/LinearInherit.hpp"
+#include "../traits/C3.hpp"
 #include "../traits/Util.hpp"
 
 namespace pgbar {

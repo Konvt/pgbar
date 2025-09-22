@@ -1,6 +1,8 @@
 #ifndef __PGBAR_ALGORITHM
 #define __PGBAR_ALGORITHM
 
+#include "../types/Types.hpp"
+
 namespace pgbar {
   namespace __details {
     namespace traits {
@@ -23,6 +25,11 @@ namespace pgbar {
       struct TmpAppend;
       template<typename Collection, template<typename...> class Element>
       using TmpAppend_t = typename TmpAppend<Collection, Element>::type;
+
+      template<typename Collection, typename T>
+      struct TpPrepend;
+      template<typename Collection, typename T>
+      using TpPrepend_t = typename TpPrepend<Collection, T>::type;
 
       template<typename Collection, typename Element>
       struct TpAppend;
@@ -51,6 +58,11 @@ namespace pgbar {
       struct Merge<FirstCollection, SecondCollection, RestCollections...>
         : Merge<Combine_t<FirstCollection, SecondCollection>, RestCollections...> {};
 
+      template<types::Size I, typename Collection>
+      struct DropAt;
+      // Get a collection that excludes the i-th element.
+      template<types::Size I, typename Collection>
+      using DropAt_t = typename DropAt<I, Collection>::type;
     } // namespace traits
   } // namespace __details
 } // namespace pgbar

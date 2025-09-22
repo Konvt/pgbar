@@ -90,21 +90,20 @@ namespace pgbar {
 
     namespace traits {
       __PGBAR_INHERIT_REGISTER( assets::CharIndic,
-                                assets::Countable,
-                                __PGBAR_PACK( assets::Filler,
-                                              assets::Remains,
-                                              assets::BasicAnimation,
-                                              assets::BasicIndicator,
-                                              assets::Reversible ) );
+                                assets::Filler,
+                                assets::Remains,
+                                assets::BasicIndicator,
+                                assets::Reversible,
+                                assets::BasicAnimation,
+                                assets::Countable );
       template<>
       struct OptionFor<assets::CharIndic>
-        : Merge<OptionFor_t<assets::Countable>,
-                OptionFor_t<assets::Reversible>,
-                OptionFor_t<assets::Frames>,
-                OptionFor_t<assets::Filler>,
+        : Merge<OptionFor_t<assets::Filler>,
                 OptionFor_t<assets::Remains>,
+                OptionFor_t<assets::Reversible>,
+                OptionFor_t<assets::BasicIndicator>,
                 OptionFor_t<assets::BasicAnimation>,
-                OptionFor_t<assets::BasicIndicator>> {};
+                OptionFor_t<assets::Countable>> {};
     }
   } // namespace __details
 

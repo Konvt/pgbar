@@ -34,7 +34,7 @@ namespace pgbar {
     } // namespace assets
 
     namespace traits {
-      __PGBAR_INHERIT_REGISTER( assets::SpinIndic, , assets::BasicAnimation );
+      __PGBAR_INHERIT_REGISTER( assets::SpinIndic, assets::BasicAnimation );
       template<>
       struct OptionFor<assets::SpinIndic>
         : Merge<OptionFor_t<assets::Countable>, OptionFor_t<assets::BasicAnimation>> {};

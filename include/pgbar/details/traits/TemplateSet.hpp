@@ -30,6 +30,24 @@ namespace pgbar {
       public:
         using type = typename _Select<TmpContain<TemplateSet<Ts...>, T>::value, T>::type;
       };
+
+      template<template<typename...> class... Ts, template<typename...> class T>
+      struct TmpPrepend<TemplateSet<Ts...>, T> {
+      private:
+        template<bool Cond, template<typename...> class NewOne>
+        struct _Select;
+        template<template<typename...> class NewOne>
+        struct _Select<true, NewOne> {
+          using type = TemplateSet<Ts...>;
+        };
+        template<template<typename...> class NewOne>
+        struct _Select<false, NewOne> {
+          using type = TemplateSet<NewOne, Ts...>;
+        };
+
+      public:
+        using type = typename _Select<TmpContain<TemplateSet<Ts...>, T>::value, T>::type;
+      };
     } // namespace traits
   } // namespace __details
 } // namespace pgbar

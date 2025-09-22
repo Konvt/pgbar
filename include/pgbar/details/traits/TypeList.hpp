@@ -5,7 +5,6 @@
 #include "Backport.hpp"
 #include <type_traits>
 
-
 namespace pgbar {
   namespace __details {
     namespace traits {
@@ -18,6 +17,11 @@ namespace pgbar {
       template<typename... Ts>
       struct TypeList {};
 
+      template<typename... Ts, typename T>
+      struct TpPrepend<TypeList<Ts...>, T> {
+        using type = TypeList<T, Ts...>;
+      };
+
       template<typename... Ts>
       struct TpStartsWith<TypeList<>, Ts...> : std::true_type {};
       template<typename Head, typename... Tail>
@@ -25,6 +29,13 @@ namespace pgbar {
       template<typename Head, typename... Tail, typename T, typename... Ts>
       struct TpStartsWith<TypeList<Head, Tail...>, T, Ts...>
         : AllOf<std::is_same<Head, T>, TpStartsWith<TypeList<Tail...>, Ts...>> {};
+
+      template<typename Discarded, typename... Rests>
+      struct DropAt<0, TypeList<Discarded, Rests...>> {
+        using type = TypeList<Rests...>;
+      };
+      template<types::Size I, typename Head, typename... Rests>
+      struct DropAt<I, TypeList<Head, Rests...>> : TpPrepend<DropAt_t<I - 1, TypeList<Rests...>>, Head> {};
     } // namespace traits
   } // namespace __details
 } // namespace pgbar

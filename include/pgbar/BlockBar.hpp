@@ -83,22 +83,21 @@ namespace pgbar {
 
     namespace traits {
       __PGBAR_INHERIT_REGISTER( assets::BlockIndic,
-                                assets::Countable,
-                                __PGBAR_PACK( assets::Filler,
-                                              assets::Remains,
-                                              assets::Frames,
-                                              assets::BasicIndicator,
-                                              assets::Reversible ) );
+                                assets::Filler,
+                                assets::Remains,
+                                assets::BasicIndicator,
+                                assets::Reversible,
+                                assets::Frames,
+                                assets::Countable );
       template<>
       struct OptionFor<assets::BlockIndic>
-        : Merge<OptionFor_t<assets::Countable>,
-                OptionFor_t<assets::Reversible>,
-                OptionFor_t<assets::Frames>,
-                OptionFor_t<assets::Filler>,
+        : Merge<OptionFor_t<assets::Filler>,
                 OptionFor_t<assets::Remains>,
-                OptionFor_t<assets::BasicAnimation>,
-                OptionFor_t<assets::BasicIndicator>> {};
-    }
+                OptionFor_t<assets::Reversible>,
+                OptionFor_t<assets::BasicIndicator>,
+                OptionFor_t<assets::Frames>,
+                OptionFor_t<assets::Countable>> {};
+    } // namespace traits
   } // namespace __details
 
   namespace config {
@@ -210,5 +209,4 @@ namespace pgbar {
   template<Channel Outlet = Channel::Stderr, Policy Mode = Policy::Async, Region Area = Region::Fixed>
   using BlockBar = __details::prefabs::BasicBar<config::Block, Outlet, Mode, Area>;
 } // namespace pgbar
-
 #endif
