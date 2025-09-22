@@ -19,7 +19,6 @@ namespace pgbar {
         using VBs  = TemplateSet<>; // virtual base
         using NVBs = TemplateSet<>; // non-virtual base
       };
-
       // Gets the virtual base list of the template class `Node`.
       template<template<typename...> class Node>
       using InheritFrom_vbt = typename InheritFrom<Node>::VBs;
@@ -51,6 +50,9 @@ namespace pgbar {
        */
       template<typename NVBSet, typename VBSet = TemplateSet<>>
       struct TopoSort;
+      // Get a list of topological sorting results for the input template classes.
+      template<typename NVBSet, typename VBSet = TemplateSet<>>
+      using TopoSort_t = typename TopoSort<NVBSet, VBSet>::type;
 
       // NVB: Non-virtual Base, VB: Virtual Base
       template<template<typename...> class NVB,
@@ -103,7 +105,7 @@ namespace pgbar {
           };
 
         public:
-          using pathset = TmpExtend_t<MarkNVB_t, Head>;
+          using pathset = TmpAppend_t<MarkNVB_t, Head>;
           using type =
             typename _Select<AnyOf<TmpContain<SetVisitedVB, Head>, TmpContain<MarkTail_t, Head>>::value,
                              TemplateSet<Tail...>,
@@ -135,9 +137,6 @@ namespace pgbar {
                                Helper_tp<true, TemplateSet<VBs...>, TemplateList<>, TemplateSet<>>,
                                Helper_ps<true, TemplateSet<VBs...>, TemplateList<>, TemplateSet<>>>;
       };
-      // Get a list of topological sorting results for the input template classes.
-      template<typename NVBSet, typename VBSet = TemplateSet<>>
-      using TopoSort_t = typename TopoSort<NVBSet, VBSet>::type;
 
       /**
        * Linearization of Inheritance.

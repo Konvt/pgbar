@@ -14,7 +14,7 @@ namespace pgbar {
       struct TmpContain<TemplateSet<Ts...>, T> : std::is_base_of<TemplateList<T>, TemplateSet<Ts...>> {};
 
       template<template<typename...> class... Ts, template<typename...> class T>
-      struct TmpExtend<TemplateSet<Ts...>, T> {
+      struct TmpAppend<TemplateSet<Ts...>, T> {
       private:
         template<bool Cond, template<typename...> class NewOne>
         struct _Select;
