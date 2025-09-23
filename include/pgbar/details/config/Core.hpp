@@ -100,6 +100,12 @@
 # error "The library 'pgbar' requires C++11"
 #endif
 
+#ifdef __has_builtin
+# define __PGBAR_BUILTIN( builtin ) __has_builtin( builtin )
+#else
+# define __PGBAR_BUILTIN( _ ) 0
+#endif
+
 #ifdef PGBAR_DEBUG
 # include <cassert>
 # define __PGBAR_ASSERT( expr ) assert( expr )

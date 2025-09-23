@@ -399,11 +399,7 @@ namespace pgbar {
           Base::operator=( std::move( rhs ) );
           return *this;
         }
-        ~CoreBar() noexcept
-        {
-          std::lock_guard<std::mutex> lock { mtx_ };
-          static_cast<Subcls*>( this )->do_reset( true );
-        }
+        ~CoreBar() noexcept = default;
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN bool active() const noexcept final
         {
@@ -522,7 +518,7 @@ namespace pgbar {
         Derived&
 #else
         typename std::enable_if<
-          traits::AllOf<traits::Not<std::is_null_pointer<typename std::decay<F>::type>>,
+          traits::AllOf<traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
                         std::is_constructible<wrappers::UniqueFunction<void()>, F>>::value,
           Derived&>::type
 #endif
@@ -541,7 +537,7 @@ namespace pgbar {
         Derived&
 #else
         typename std::enable_if<
-          traits::AllOf<traits::Not<std::is_null_pointer<typename std::decay<F>::type>>,
+          traits::AllOf<traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
                         std::is_constructible<wrappers::UniqueFunction<void( Derived& )>, F>>::value,
           Derived&>::type
 #endif
@@ -570,7 +566,7 @@ namespace pgbar {
 #else
         __PGBAR_INLINE_FN friend typename std::enable_if<
           traits::AllOf<
-            traits::Not<std::is_null_pointer<typename std::decay<F>::type>>,
+            traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
             traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F>,
                           std::is_constructible<wrappers::UniqueFunction<void( Derived& )>, F>>>::value,
           Derived&>::type
@@ -588,7 +584,7 @@ namespace pgbar {
 #else
         __PGBAR_INLINE_FN friend typename std::enable_if<
           traits::AllOf<
-            traits::Not<std::is_null_pointer<typename std::decay<F>::type>>,
+            traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
             traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F>,
                           std::is_constructible<wrappers::UniqueFunction<void( Derived& )>, F>>>::value,
           Derived&>::type
@@ -606,7 +602,7 @@ namespace pgbar {
 #else
         __PGBAR_INLINE_FN friend typename std::enable_if<
           traits::AllOf<
-            traits::Not<std::is_null_pointer<typename std::decay<F>::type>>,
+            traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
             traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F>,
                           std::is_constructible<wrappers::UniqueFunction<void( Derived& )>, F>>>::value,
           Derived&>::type
@@ -624,7 +620,7 @@ namespace pgbar {
 #else
         __PGBAR_INLINE_FN friend typename std::enable_if<
           traits::AllOf<
-            traits::Not<std::is_null_pointer<typename std::decay<F>::type>>,
+            traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
             traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F>,
                           std::is_constructible<wrappers::UniqueFunction<void( Derived& )>, F>>>::value,
           Derived&&>::type
@@ -642,7 +638,7 @@ namespace pgbar {
 #else
         __PGBAR_INLINE_FN friend typename std::enable_if<
           traits::AllOf<
-            traits::Not<std::is_null_pointer<typename std::decay<F>::type>>,
+            traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
             traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F>,
                           std::is_constructible<wrappers::UniqueFunction<void( Derived& )>, F>>>::value,
           Derived&&>::type
@@ -810,7 +806,7 @@ namespace pgbar {
         // Only when "forced" is true will it be noexcept.
         __PGBAR_INLINE_FN void do_reset( bool forced = false )
         {
-          if ( this->active() ) {
+          if ( state_.load( std::memory_order_acquire ) != State::Stop ) {
             if ( forced )
               __PGBAR_UNLIKELY state_.store( State::Stop, std::memory_order_release );
             else {
@@ -881,7 +877,11 @@ namespace pgbar {
           Base::operator=( std::move( rhs ) );
           return *this;
         }
-        ~PlainBar() = default;
+        ~PlainBar() noexcept
+        {
+          std::lock_guard<std::mutex> lock { this->mtx_ };
+          do_reset( true );
+        }
       };
 
       template<typename Base, typename Derived>
@@ -950,7 +950,7 @@ namespace pgbar {
         // Only when "forced" is true will it be noexcept.
         __PGBAR_INLINE_FN void do_reset( bool forced = false )
         {
-          if ( this->active() ) {
+          if ( state_.load( std::memory_order_acquire ) != State::Stop ) {
             if ( forced )
               __PGBAR_UNLIKELY state_.store( State::Stop, std::memory_order_release );
             else {
@@ -1027,7 +1027,11 @@ namespace pgbar {
           Base::operator=( std::move( rhs ) );
           return *this;
         }
-        ~FrameBar() = default;
+        ~FrameBar() noexcept
+        {
+          std::lock_guard<std::mutex> lock { this->mtx_ };
+          do_reset( true );
+        }
       };
 
       template<typename Base, typename Derived>
@@ -1077,12 +1081,12 @@ namespace pgbar {
 
     namespace traits {
       __PGBAR_INHERIT_REGISTER( assets::ReactiveBar, assets::CoreBar );
-      __PGBAR_INHERIT_REGISTER( assets::TickableBar, assets::TaskCounter );
-      __PGBAR_INHERIT_REGISTER( assets::PlainBar, assets::ReactiveBar, assets::TickableBar );
+      __PGBAR_INHERIT_REGISTER( assets::TickableBar, assets::TaskCounter, assets::CoreBar );
+      __PGBAR_INHERIT_REGISTER( assets::PlainBar, assets::TickableBar, assets::ReactiveBar );
       __PGBAR_INHERIT_REGISTER( assets::FrameBar,
+                                assets::FrameCounter,
                                 assets::ReactiveBar,
-                                assets::TickableBar,
-                                assets::FrameCounter );
+                                assets::TickableBar );
       __PGBAR_INHERIT_REGISTER( assets::BoundedFrameBar, assets::FrameBar );
       __PGBAR_INHERIT_REGISTER( assets::NullableFrameBar, assets::FrameBar );
 
