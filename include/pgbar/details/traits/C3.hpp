@@ -4,7 +4,6 @@
 #include "Backport.hpp"
 #include "TemplateSet.hpp"
 #include "TypeList.hpp"
-#include "Util.hpp"
 
 namespace pgbar {
   namespace __details {
@@ -80,19 +79,19 @@ namespace pgbar {
 
         template<typename /* TemplateSet<...> */ Sorted,
                  typename /* TypeList<TemplateSet<...>, ...> */ MergedList,
-                 std::size_t I>
+                 types::Size I>
         struct Linearize;
-        template<typename Sorted, typename MergedList, std::size_t I>
+        template<typename Sorted, typename MergedList, types::Size I>
         using Linearize_t = typename Linearize<Sorted, MergedList, I>::type;
 
-        template<typename Sorted, std::size_t I>
+        template<typename Sorted, types::Size I>
         struct Linearize<Sorted, TypeList<>, I> {
           using type = Sorted;
         };
-        template<typename Sorted, typename... Lists, std::size_t I>
+        template<typename Sorted, typename... Lists, types::Size I>
         struct Linearize<Sorted, TypeList<TemplateSet<>, Lists...>, I>
           : Linearize<Sorted, TypeList<Lists...>, I> {};
-        template<typename Sorted, typename... Lists, std::size_t I>
+        template<typename Sorted, typename... Lists, types::Size I>
         struct Linearize<Sorted, TypeList<Lists...>, I> {
         private:
           template<typename /* TemplateSet<...> */ Selected,
@@ -123,7 +122,7 @@ namespace pgbar {
           };
 
         public:
-          using type = Helper_t<TypeAt_t<I, Lists...>, DropAt_t<I, TypeList<Lists...>>>;
+          using type = Helper_t<TypeAt_t<I, Lists...>, DropAt_t<TypeList<Lists...>, I>>;
         };
 
       public:

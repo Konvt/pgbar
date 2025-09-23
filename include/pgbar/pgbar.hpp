@@ -24,6 +24,8 @@
 # undef __PGBAR_PACK
 # undef __PGBAR_INHERIT_REGISTER
 
+# undef __PGBAR_BUILTIN
+
 # undef __PGBAR_CC_STD
 # undef __PGBAR_WIN
 # undef __PGBAR_UNIX
