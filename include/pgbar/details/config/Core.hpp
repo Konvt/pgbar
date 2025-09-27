@@ -123,7 +123,7 @@
   } while ( false )
 
 // Pack multiple macro parameters into a single one.
-#define __PGBAR_PACK( ... ) __VA_ARGS__
+#define __PGBAR_WRAP( ... ) __VA_ARGS__
 
 #include <cstdint>
 

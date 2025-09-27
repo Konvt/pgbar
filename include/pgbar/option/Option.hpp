@@ -229,7 +229,7 @@ public:                                                                         
      * @throw exception::InvalidArgument
      *   Thrown if any input string fails UTF-8 validation or the array size mismatches.
      */
-    struct SpeedUnit : __PGBAR_BASE( __PGBAR_PACK( std::array<__details::charcodes::U8Raw, 4> ) ) {
+    struct SpeedUnit : __PGBAR_BASE( __PGBAR_WRAP( std::array<__details::charcodes::U8Raw, 4> ) ) {
       /**
        * @throw exception::InvalidArgument
        *
