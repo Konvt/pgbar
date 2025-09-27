@@ -21,10 +21,10 @@
 # undef __PGBAR_EMPTY_COMPONENT
 # undef __PGBAR_NONEMPTY_COMPONENT
 
-# undef __PGBAR_PACK
 # undef __PGBAR_INHERIT_REGISTER
 
 # undef __PGBAR_BUILTIN
+# undef __PGBAR_WRAP
 
 # undef __PGBAR_CC_STD
 # undef __PGBAR_WIN

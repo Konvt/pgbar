@@ -545,7 +545,7 @@ namespace pgbar {
             std::is_nothrow_constructible<wrappers::UniqueFunction<void( Derived& )>, F>::value )
         {
           std::lock_guard<std::mutex> lock { this->mtx_ };
-          new ( std::addressof( hook_.on_ ) )
+          new ( std::addressof( hook_.on_self_ ) )
             wrappers::UniqueFunction<void( Derived& )>( std::forward<F>( fn ) );
           tag_ = Tag::Unary;
           return static_cast<Derived&>( *this );
