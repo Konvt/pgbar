@@ -3086,12 +3086,6 @@ These components apply only to `pgbar` itself, and `pgbar` does not make any gua
 ### Progress bar type design
 By [this article](https://zhuanlan.zhihu.com/p/106672814), the sole progress bar of `pgbar` uses the Mixin pattern to combine multiple different template base classes inherited internally, all of which are CRTP designed; therefore, different configuration methods can be accessed sequentially in the form of chain calls within the configuration type.
 
-In order to avoid the problem that the base class construction order is uncertain due to the introduction of multiple inheritance in Mixin combination inheritance, and CRTP design is not allowed in C++ virtual inheritance, `pgbar` uses a compile-time topological sorting algorithm to generate the final combinatorial inheritance structure.
+In order to avoid the problem that the base class construction order is uncertain due to the introduction of multiple inheritance in Mixin combination inheritance, and CRTP design is not allowed in C++ virtual inheritance, `pgbar` uses a compile-time C3 linearization algorithm to generate the final combinatorial inheritance structure.
 
-This topological sorting algorithm is similar to the C3 linearization algorithm in Python, but unlike it: The purpose of C3 linearization algorithm is to find the most suitable class method in the class inheritance structure, while the topological sorting algorithm here linearizes the entire inheritance structure directly, linearizing a complex multi-inheritance structure into an inheritance chain at compile time.
-
-But they have one thing in common: the method resolution at the most derived class satisfies the local priority principle of the inheritance order of the base class; In other words, during the inheritance process, the base class located to the left of the inheritance list is preferentially placed closer to the derived class to ensure that the methods of this base class are not overwritten by the base class further to the right.
-
-In addition, the topological sorting algorithm has another feature: for the two classes with non-virtual inheritance relationship, they will be placed as close to each other as possible after sorting; This is to ensure that in non-virtual inheritance, derived classes can refer directly to base classes without complex template nesting.
-
-The specific working principle can be referred to the article mentioned above. Based on the principle proposed in the article, I have implemented a topological sorting algorithm that can analyze the relationship between virtual inheritance and non-virtual inheritance at the same time and meet some characteristics of C3 linearization algorithm.
+This linearization algorithm is the C3 linearization algorithm used in languages such as Python.
