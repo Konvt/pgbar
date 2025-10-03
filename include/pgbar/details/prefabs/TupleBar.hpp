@@ -36,7 +36,6 @@ namespace pgbar {
                        "pgbar::__details::prefabs::TupleBar: The number of progress bars cannot be zero" );
 
         std::atomic<types::Size> alive_cnt_;
-        // cb: CombinedBar
         enum class State : std::uint8_t { Stop, Awake, Refresh };
         std::atomic<State> state_;
         mutable std::mutex sched_mtx_;

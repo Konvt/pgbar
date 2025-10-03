@@ -92,12 +92,6 @@ namespace pgbar {
       };
       template<typename Head, typename Tail>
       struct Merge<Head, Tail> : Combine<Head, Tail> {};
-
-      template<typename Collection, types::Size Nth>
-      struct DropAt;
-      // Get a collection that excludes the n-th element.
-      template<typename Collection, types::Size Nth>
-      using DropAt_t = typename DropAt<Collection, Nth>::type;
     } // namespace traits
   } // namespace __details
 } // namespace pgbar
