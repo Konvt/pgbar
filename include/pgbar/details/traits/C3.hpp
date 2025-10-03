@@ -3,7 +3,6 @@
 
 #include "Backport.hpp"
 #include "TemplateSet.hpp"
-#include "TypeList.hpp"
 
 namespace pgbar {
   namespace __details {
@@ -52,84 +51,103 @@ namespace pgbar {
       template<template<typename...> class VB, template<typename...> class... VBs>
       struct C3<TemplateSet<VB, VBs...>> {
       private:
-        template<typename /* TemplateSet<...> */ OtherVBs, template<typename...> class Candidate>
-        struct PreferredCandidate;
+        // Check whether Candidate is the top priority within AnotherVBs.
+        template<template<typename...> class Candidate, typename /* TemplateSet<...> */ AnotherVBs>
+        struct PreferredWithin;
 
         template<template<typename...> class Candidate>
-        struct PreferredCandidate<TemplateSet<>, Candidate> : std::true_type {};
-        template<template<typename...> class Head,
-                 template<typename...> class... Rests,
-                 template<typename...> class Candidate>
-        struct PreferredCandidate<TemplateSet<Head, Rests...>, Candidate>
+        struct PreferredWithin<Candidate, TemplateSet<>> : std::true_type {};
+        template<template<typename...> class Candidate, template<typename...> class... Rests>
+        struct PreferredWithin<Candidate, TemplateSet<Candidate, Rests...>> : std::true_type {};
+        template<template<typename...> class Candidate,
+                 template<typename...> class Head,
+                 template<typename...> class... Rests>
+        struct PreferredWithin<Candidate, TemplateSet<Head, Rests...>>
           : Not<TmpContain<TemplateSet<Rests...>, Candidate>> {};
 
-        template<typename /* TemplateSet<...> */ VBSet, template<typename...> class Candidate>
-        struct DropCandidate;
-        template<typename VBSet, template<typename...> class Candidate>
-        using DropCandidate_t = typename DropCandidate<VBSet, Candidate>::type;
+        // Check whether the next preferred candidate is from Inspected.
+        template<typename /* TemplateSet<...> */ Inspected,
+                 typename... /* TemplateSet<...>, ... */ MergedLists>
+        struct FeasibleList;
 
-        template<template<typename...> class Candidate, template<typename...> class... Rests>
-        struct DropCandidate<TemplateSet<Candidate, Rests...>, Candidate> {
-          using type = TemplateSet<Rests...>;
+        template<typename... MergedLists>
+        struct FeasibleList<TemplateSet<>, MergedLists...> : std::false_type {
+          // MergedLists contain the source list of Candidate.
+          static_assert( sizeof...( MergedLists ) > 1,
+                         "pgbar::__details::traits::C3: MergedLists is always non-empty" );
         };
-        template<template<typename...> class... Rests, template<typename...> class Candidate>
-        struct DropCandidate<TemplateSet<Rests...>, Candidate> {
-          using type = TemplateSet<Rests...>;
-        };
+        template<template<typename...> class Candidate,
+                 template<typename...> class... Rests,
+                 typename... MergedLists>
+        struct FeasibleList<TemplateSet<Candidate, Rests...>, MergedLists...>
+          : AllOf<PreferredWithin<Candidate, MergedLists>...> {};
 
-        template<typename /* TemplateSet<...> */ Sorted,
-                 typename /* TypeList<TemplateSet<...>, ...> */ MergedList,
-                 types::Size I>
-        struct Linearize;
-        template<typename Sorted, typename MergedList, types::Size I>
-        using Linearize_t = typename Linearize<Sorted, MergedList, I>::type;
-
-        template<typename Sorted, types::Size I>
-        struct Linearize<Sorted, TypeList<>, I> {
-          using type = Sorted;
-        };
-        template<typename Sorted, typename... Lists, types::Size I>
-        struct Linearize<Sorted, TypeList<TemplateSet<>, Lists...>, I>
-          : Linearize<Sorted, TypeList<Lists...>, I> {};
-        template<typename Sorted, typename... Lists, types::Size I>
-        struct Linearize<Sorted, TypeList<Lists...>, I> {
+        // Pick out the index of the candidate from the MergedList.
+        template<typename... MergedLists>
+        struct PickCandidate {
         private:
-          template<typename /* TemplateSet<...> */ Selected,
-                   typename /* TypeList<TemplateSet<...>, ...> */ Others>
+          template<types::Size I>
           struct Helper;
-          template<typename Selected, typename Others>
-          using Helper_t = typename Helper<Selected, Others>::type;
 
-          template<typename... Others>
-          struct Helper<TemplateSet<>, TypeList<Others...>> : Linearize<Sorted, TypeList<Others...>, I> {};
-          template<template<typename...> class Candidate,
-                   template<typename...> class... Rests,
-                   typename... Others>
-          struct Helper<TemplateSet<Candidate, Rests...>, TypeList<Others...>> {
-          private:
-            template<bool Cond, typename Result>
-            struct _Select;
-            template<typename Result>
-            struct _Select<true, Result>
-              : Linearize<TmpAppend_t<Result, Candidate>, TypeList<DropCandidate_t<Lists, Candidate>...>, 0> {
-            };
-            template<typename Result>
-            struct _Select<false, Result> : Linearize<Result, TypeList<Lists...>, I + 1> {};
+          template<bool Cond, types::Size Pos>
+          struct _Select;
+          template<types::Size Pos>
+          struct _Select<true, Pos> : std::integral_constant<types::Size, Pos> {};
+          template<types::Size Pos>
+          struct _Select<false, Pos> : Helper<Pos + 1> {};
 
-          public:
-            using type =
-              typename _Select<AllOf<PreferredCandidate<Others, Candidate>...>::value, Sorted>::type;
-          };
+          template<types::Size I>
+          struct Helper : _Select<FeasibleList<TypeAt_t<I, MergedLists...>, MergedLists...>::value, I> {};
 
         public:
-          using type = Helper_t<TypeAt_t<I, Lists...>, DropAt_t<TypeList<Lists...>, I>>;
+          static constexpr types::Size value = Helper<0>::value;
         };
 
+        // Remove the Candidate from the list (if exists).
+        template<template<typename...> class Candidate, typename /* TemplateSet<...> */ List>
+        struct DropCandidate;
+        template<template<typename...> class Candidate, typename List>
+        using DropCandidate_t = typename DropCandidate<Candidate, List>::type;
+
+        template<template<typename...> class Candidate, template<typename...> class... Rests>
+        struct DropCandidate<Candidate, TemplateSet<Candidate, Rests...>> {
+          using type = TemplateSet<Rests...>;
+        };
+        template<template<typename...> class Candidate, template<typename...> class... Rests>
+        struct DropCandidate<Candidate, TemplateSet<Rests...>> {
+          using type = TemplateSet<Rests...>;
+        };
+
+        template<typename /* TemplateSet<...> */ Sorted, typename... /* TemplateSet<...>... */ MergedLists>
+        struct Linearize {
+        private:
+          template<typename Selected>
+          struct Helper;
+          template<template<typename...> class Candidate, template<typename...> class... Others>
+          struct Helper<TemplateSet<Candidate, Others...>>
+            : Linearize<TmpAppend_t<Sorted, Candidate>, DropCandidate_t<Candidate, MergedLists>...> {};
+
+        public:
+          using type = typename Helper<TypeAt_t<PickCandidate<MergedLists...>::value, MergedLists...>>::type;
+        };
+        template<typename Sorted>
+        struct Linearize<Sorted> {
+          using type = Sorted;
+        };
+        template<typename Sorted, typename... OtherLists>
+        struct Linearize<Sorted, TemplateSet<>, OtherLists...> : Linearize<Sorted, OtherLists...> {};
+        template<typename Sorted, typename... OtherLists>
+        struct Linearize<Sorted, TemplateSet<>, TemplateSet<>, OtherLists...>
+          : Linearize<Sorted, OtherLists...> {};
+        template<typename Sorted, typename... OtherLists>
+        struct Linearize<Sorted, TemplateSet<>, TemplateSet<>, TemplateSet<>, OtherLists...>
+          : Linearize<Sorted, OtherLists...> {};
+
       public:
-        using type =
-          Linearize_t<TemplateSet<>,
-                      TypeList<InheritOrder_t<VB>, InheritOrder_t<VBs>..., TemplateSet<VB, VBs...>>,
-                      0>;
+        using type = typename Linearize<TemplateSet<>,
+                                        InheritOrder_t<VB>,
+                                        InheritOrder_t<VBs>...,
+                                        TemplateSet<VB, VBs...>>::type;
       };
 
       /**

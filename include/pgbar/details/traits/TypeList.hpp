@@ -56,27 +56,6 @@ namespace pgbar {
       template<typename Head, typename... Tail, typename T, typename... Ts>
       struct TpStartsWith<TypeList<Head, Tail...>, T, Ts...>
         : AllOf<std::is_same<Head, T>, TpStartsWith<TypeList<Tail...>, Ts...>> {};
-
-      template<typename... First, typename... Second>
-      struct Combine<TypeList<First...>, TypeList<Second...>> {
-        using type = TypeList<First..., Second...>;
-      };
-
-      template<typename... Elements, types::Size Nth>
-      struct DropAt<TypeList<Elements...>, Nth> {
-      private:
-        template<typename Front, typename Back>
-        struct Helper;
-        template<types::Size... L, types::Size... R>
-        struct Helper<IndexSeq<L...>, IndexSeq<R...>> {
-          using type = TypeList<TypeAt_t<L, Elements...>..., TypeAt_t<( R + Nth + 1 ), Elements...>...>;
-        };
-
-      public:
-        static_assert( Nth < sizeof...( Elements ), "pgbar::__details::traits::DropAt: Nth overflow" );
-
-        using type = typename Helper<MakeIndexSeq<Nth>, MakeIndexSeq<sizeof...( Elements ) - Nth - 1>>::type;
-      };
     } // namespace traits
   } // namespace __details
 } // namespace pgbar
