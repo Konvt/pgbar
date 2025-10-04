@@ -96,8 +96,8 @@ namespace pgbar {
 #endif
     iterate( N startpoint, N endpoint, N step, Proc&& op, Options&&... options )
   {
-    auto bar = Bar( std::forward<Options>( options )... );
-    bar.iterate( startpoint, endpoint, step, std::forward<Proc>( op ) );
+    Bar( std::forward<Options>( options )... )
+      .iterate( startpoint, endpoint, step, std::forward<Proc>( op ) );
   }
   template<typename Bar, typename N, typename Proc, typename Act, typename... Options>
 #if __PGBAR_CXX20
@@ -118,8 +118,8 @@ namespace pgbar {
 #endif
     iterate( N startpoint, N endpoint, N step, Proc&& op, Act&& act, Options&&... options )
   {
-    auto bar = std::forward<Act>( act ) | Bar( std::forward<Options>( options )... );
-    bar.iterate( startpoint, endpoint, step, std::forward<Proc>( op ) );
+    ( std::forward<Act>( act ) | Bar( std::forward<Options>( options )... ) )
+      .iterate( startpoint, endpoint, step, std::forward<Proc>( op ) );
   }
   template<typename Config,
            Channel Outlet = Channel::Stderr,
@@ -308,8 +308,7 @@ namespace pgbar {
 #endif
     iterate( N startpoint, N endpoint, Proc&& op, Options&&... options )
   {
-    auto bar = Bar( std::forward<Options>( options )... );
-    bar.iterate( startpoint, endpoint, std::forward<Proc>( op ) );
+    Bar( std::forward<Options>( options )... ).iterate( startpoint, endpoint, std::forward<Proc>( op ) );
   }
   template<typename Bar, typename N, typename Proc, typename Act, typename... Options>
 #if __PGBAR_CXX20
@@ -329,8 +328,8 @@ namespace pgbar {
 #endif
     iterate( N startpoint, N endpoint, Proc&& op, Act&& act, Options&&... options )
   {
-    auto bar = std::forward<Act>( act ) | Bar( std::forward<Options>( options )... );
-    bar.iterate( startpoint, endpoint, std::forward<Proc>( op ) );
+    ( std::forward<Act>( act ) | Bar( std::forward<Options>( options )... ) )
+      .iterate( startpoint, endpoint, std::forward<Proc>( op ) );
   }
   template<typename Config,
            Channel Outlet = Channel::Stderr,
@@ -412,8 +411,7 @@ namespace pgbar {
 #endif
     iterate( N endpoint, Proc&& op, Options&&... options )
   {
-    auto bar = Bar( std::forward<Options>( options )... );
-    bar.iterate( endpoint, std::forward<Proc>( op ) );
+    Bar( std::forward<Options>( options )... ).iterate( endpoint, std::forward<Proc>( op ) );
   }
   template<typename Bar, typename N, typename Proc, typename Act, typename... Options>
 #if __PGBAR_CXX20
@@ -434,8 +432,8 @@ namespace pgbar {
 #endif
     iterate( N endpoint, Proc&& op, Act&& act, Options&&... options )
   {
-    auto bar = std::forward<Act>( act ) | Bar( std::forward<Options>( options )... );
-    bar.iterate( endpoint, std::forward<Proc>( op ) );
+    ( std::forward<Act>( act ) | Bar( std::forward<Options>( options )... ) )
+      .iterate( endpoint, std::forward<Proc>( op ) );
   }
   template<typename Config,
            Channel Outlet = Channel::Stderr,
@@ -515,8 +513,8 @@ namespace pgbar {
 #endif
     iterate( I startpoint, I endpoint, Proc&& op, Options&&... options )
   {
-    auto bar = Bar( std::forward<Options>( options )... );
-    bar.iterate( std::move( startpoint ), std::move( endpoint ), std::forward<Proc>( op ) );
+    Bar( std::forward<Options>( options )... )
+      .iterate( std::move( startpoint ), std::move( endpoint ), std::forward<Proc>( op ) );
   }
   template<typename Bar, typename I, typename Proc, typename Act, typename... Options>
 #if __PGBAR_CXX20
@@ -537,8 +535,8 @@ namespace pgbar {
 #endif
     iterate( I startpoint, I endpoint, Proc&& op, Act&& act, Options&&... options )
   {
-    auto bar = std::forward<Act>( act ) | Bar( std::forward<Options>( options )... );
-    bar.iterate( std::move( startpoint ), std::move( endpoint ), std::forward<Proc>( op ) );
+    ( std::forward<Act>( act ) | Bar( std::forward<Options>( options )... ) )
+      .iterate( std::move( startpoint ), std::move( endpoint ), std::forward<Proc>( op ) );
   }
   template<typename Config,
            Channel Outlet = Channel::Stderr,
@@ -620,8 +618,7 @@ namespace pgbar {
 #endif
     iterate( R&& range, Proc&& op, Options&&... options )
   {
-    auto bar = Bar( std::forward<Options>( options )... );
-    bar.iterate( std::forward<R>( range ), std::forward<Proc>( op ) );
+    Bar( std::forward<Options>( options )... ).iterate( std::forward<R>( range ), std::forward<Proc>( op ) );
   }
   template<typename Bar, class R, typename Proc, typename Act, typename... Options>
 #if __PGBAR_CXX20
@@ -642,8 +639,8 @@ namespace pgbar {
 #endif
     iterate( R&& range, Proc&& op, Act&& act, Options&&... options )
   {
-    auto bar = std::forward<Act>( act ) | Bar( std::forward<Options>( options )... );
-    bar.iterate( std::forward<R>( range ), std::forward<Proc>( op ) );
+    ( std::forward<Act>( act ) | Bar( std::forward<Options>( options )... ) )
+      .iterate( std::forward<R>( range ), std::forward<Proc>( op ) );
   }
   template<typename Config,
            Channel Outlet = Channel::Stderr,

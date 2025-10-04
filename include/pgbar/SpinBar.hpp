@@ -5,7 +5,6 @@
 #include "details/prefabs/BasicConfig.hpp"
 #include "details/render/Builder.hpp"
 #include "details/render/CommonBuilder.hpp"
-#include "details/traits/Util.hpp"
 #include "slice/ProxySpan.hpp"
 
 namespace pgbar {
