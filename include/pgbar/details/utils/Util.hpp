@@ -14,14 +14,6 @@
 namespace pgbar {
   namespace __details {
     namespace utils {
-      template<typename E>
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CNSTEVAL
-        typename std::enable_if<std::is_enum<E>::value, typename std::underlying_type<E>::type>::type
-        as_val( E enum_val ) noexcept
-      {
-        return static_cast<typename std::underlying_type<E>::type>( enum_val );
-      }
-
       // Perfectly forward the I-th element of a tuple, constructing one by default if it's out of bound.
       template<types::Size I,
                typename T,

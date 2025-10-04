@@ -16,6 +16,21 @@
 namespace pgbar {
   namespace __details {
     namespace utils {
+#if __PGBAR_CXX23
+      template<typename E>
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CNSTEVAL auto as_val( E enum_val ) noexcept
+      {
+        return std::to_underlying( enum_val );
+      }
+#else
+      template<typename E>
+      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CNSTEVAL typename std::underlying_type<E>::type as_val(
+        E enum_val ) noexcept
+      {
+        return static_cast<typename std::underlying_type<E>::type>( enum_val );
+      }
+#endif
+
       // Available only for buffers that use placement new.
       template<typename To, typename From>
       __PGBAR_INLINE_FN constexpr To* launder_as( From* src ) noexcept
