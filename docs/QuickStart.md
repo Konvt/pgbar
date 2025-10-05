@@ -74,13 +74,13 @@
   - [`NumericSpan`](#numericspan)
     - [Member method](#member-method)
     - [Iterator type](#iterator-type)
-  - [`IterSpan`](#iterspan)
+  - [`IteratorSpan`](#iterspan)
     - [Member method](#member-method-1)
     - [Iterator type](#iterator-type-1)
   - [`BoundedSpan`](#boundedspan)
     - [Member method](#member-method-2)
     - [Iterator type](#iterator-type-2)
-  - [`ProxySpan`](#proxyspan)
+  - [`TrackedSpan`](#proxyspan)
     - [Member method](#member-method-3)
     - [Iterator type](#iterator-type-3)
   - [`iterate`](#iterate)
@@ -458,7 +458,7 @@ int main()
 }
 ```
 
-In the first two Enhanced-for cases, the `iterate()` method actually returns `pgbar::slice::ProxySpan`; For an introduction to this type, see [Auxiliary type - `ProxySpan`](#proxyspan).
+In the first two Enhanced-for cases, the `iterate()` method actually returns `pgbar::slice::TrackedSpan`; For an introduction to this type, see [Auxiliary type - `TrackedSpan`](#proxyspan).
 
 For use of numeric type ranges, see [Auxiliary type - `NumericSpan`](#numericspan).
 
@@ -490,7 +490,7 @@ int main()
 }
 ```
 
-See [Auxiliary type - `IterSpan`](#iterspan) for range of iterable types.
+See [Auxiliary type - `IteratorSpan`](#iterspan) for range of iterable types.
 
 In particular, if a type satisfies the concept `std::ranges::sized_range`, then the type can also be traversed in a simpler way; This includes the raw arrays.
 
@@ -917,7 +917,7 @@ int main()
 }
 ```
 
-In the first two Enhanced-for cases, the `iterate()` method actually returns `pgbar::slice::ProxySpan`; For an introduction to this type, see [Auxiliary type - `ProxySpan`](#proxyspan).
+In the first two Enhanced-for cases, the `iterate()` method actually returns `pgbar::slice::TrackedSpan`; For an introduction to this type, see [Auxiliary type - `TrackedSpan`](#proxyspan).
 
 For use of numeric type ranges, see [Auxiliary type - `NumericSpan`](#numericspan).
 
@@ -949,7 +949,7 @@ int main()
 }
 ```
 
-See [Auxiliary type - `IterSpan`](#iterspan) for range of iterable types.
+See [Auxiliary type - `IteratorSpan`](#iterspan) for range of iterable types.
 
 In particular, if a type satisfies the concept `std::ranges::sized_range`, then the type can also be traversed in a simpler way; This includes the raw arrays.
 
@@ -1343,7 +1343,7 @@ int main()
 }
 ```
 
-In the first two Enhanced-for cases, the `iterate()` method actually returns `pgbar::slice::ProxySpan`; For an introduction to this type, see [Auxiliary type - `ProxySpan`](#proxyspan).
+In the first two Enhanced-for cases, the `iterate()` method actually returns `pgbar::slice::TrackedSpan`; For an introduction to this type, see [Auxiliary type - `TrackedSpan`](#proxyspan).
 
 For use of numeric type ranges, see [Auxiliary type - `NumericSpan`](#numericspan).
 
@@ -1375,7 +1375,7 @@ int main()
 }
 ```
 
-See [Auxiliary type - `IterSpan`](#iterspan) for range of iterable types.
+See [Auxiliary type - `IteratorSpan`](#iterspan) for range of iterable types.
 
 In particular, if a type satisfies the concept `std::ranges::sized_range`, then the type can also be traversed in a simpler way; This includes the raw arrays.
 
@@ -1799,7 +1799,7 @@ int main()
   bar.iterate( 100, []( int ) { this_thread::sleep_for( 100ms ); } );
 }
 ```
-In the first two Enhanced-for cases, the `iterate()` method actually returns `pgbar::slice::ProxySpan`; For an introduction to this type, see [Auxiliary type - `ProxySpan`](#proxyspan).
+In the first two Enhanced-for cases, the `iterate()` method actually returns `pgbar::slice::TrackedSpan`; For an introduction to this type, see [Auxiliary type - `TrackedSpan`](#proxyspan).
 
 For use of numeric type ranges, see [Auxiliary type - `NumericSpan`](#numericspan).
 
@@ -1831,7 +1831,7 @@ int main()
 }
 ```
 
-See [Auxiliary type - `IterSpan`](#iterspan) for range of iterable types.
+See [Auxiliary type - `IteratorSpan`](#iterspan) for range of iterable types.
 
 In particular, if a type satisfies the concept `std::ranges::sized_range`, then the type can also be traversed in a simpler way; This includes the raw arrays.
 
@@ -2255,7 +2255,7 @@ int main()
   bar.iterate( 100, []( int ) { this_thread::sleep_for( 100ms ); } );
 }
 ```
-In the first two Enhanced-for cases, the `iterate()` method actually returns `pgbar::slice::ProxySpan`; For an introduction to this type, see [Auxiliary type - `ProxySpan`](#proxyspan).
+In the first two Enhanced-for cases, the `iterate()` method actually returns `pgbar::slice::TrackedSpan`; For an introduction to this type, see [Auxiliary type - `TrackedSpan`](#proxyspan).
 
 For use of numeric type ranges, see [Auxiliary type - `NumericSpan`](#numericspan).
 
@@ -2287,7 +2287,7 @@ int main()
 }
 ```
 
-See [Auxiliary type - `IterSpan`](#iterspan) for range of iterable types.
+See [Auxiliary type - `IteratorSpan`](#iterspan) for range of iterable types.
 
 In particular, if a type satisfies the concept `std::ranges::sized_range`, then the type can also be traversed in a simpler way; This includes the raw arrays.
 
@@ -2807,10 +2807,10 @@ void swap( NumericSpan& ) noexcept; // Exchange two NumericSpan
 
 The number of effective iterations of the iterator is the same as the value returned by the `NumericSpan` method `size()`;  In particular, if the step is longer than the value range, then the iterator's value will be beyond the end point of the value range.
 
-## `IterSpan`
-`pgbar::slice::IterSpan` is a template type, which is used to express the abstract range delimited by two iterators; it can be considered a very simplified version of `std::views::ref_view`.
+## `IteratorSpan`
+`pgbar::slice::IteratorSpan` is a template type, which is used to express the abstract range delimited by two iterators; it can be considered a very simplified version of `std::views::ref_view`.
 
-`IterSpan` requires that the iterator type passed in must be able to copy or move constructs, and must be able to calculate the distance between two iterator objects, otherwise the compilation will fail.
+`IteratorSpan` requires that the iterator type passed in must be able to copy or move constructs, and must be able to calculate the distance between two iterator objects, otherwise the compilation will fail.
 
 If the passed iterator is a reverse iterator of a non-reverse type, an `pgbar::exception::InvalidArgument` will be thrown.
 
@@ -2823,13 +2823,13 @@ int main()
   int arr1[50] = {};
   std::vector<int> arr2;
 
-  auto reverse_span1 = pgbar::slice::IterSpan<int*>( arr1 + 49, arr1 - 1 );
+  auto reverse_span1 = pgbar::slice::IteratorSpan<int*>( arr1 + 49, arr1 - 1 );
   auto reverse_span2 =
-    pgbar::slice::IterSpan<std::reverse_iterator<std::vector<int>::iterator>>( arr2.rbegin(), arr2.rend() );
+    pgbar::slice::IteratorSpan<std::reverse_iterator<std::vector<int>::iterator>>( arr2.rbegin(), arr2.rend() );
 }
 ```
 ### Member method
-There are several methods in `IterSpan`:
+There are several methods in `IteratorSpan`:
 
 ```cpp
 iterator begin() const noexcept; // Returns an iterator that points to the starting of the abstract range
@@ -2840,10 +2840,10 @@ iterator end() const noexcept;   // Returns an iterator that points to the end o
 /* size_t */ step() const noexcept;     // Returns the current step size, usually the compile-time constant 1
 /* size_t */ size() const noexcept;     // Returns the size of the current abstract range
 
-void swap( IterSpan& ) noexcept; // Exchange two IterSpan
+void swap( IteratorSpan& ) noexcept; // Exchange two IteratorSpan
 ```
 ### Iterator type
-`IterSpan::iterator` is a forward iterator that overrides operator functions including, but not limited to, `operator++()`, `operator++( int )`, `operator+=()`, `operator*()`, and equality operators.
+`IteratorSpan::iterator` is a forward iterator that overrides operator functions including, but not limited to, `operator++()`, `operator++( int )`, `operator+=()`, `operator*()`, and equality operators.
 
 Since it is a forward iterator and does not provide a self-decrement operator, all reverse operations depend on the iterator type implementation.
 
@@ -2867,16 +2867,16 @@ void swap( BoundedSpan& ) noexcept; // Exchange two BoundedSpan
 ### Iterator type
 The iterator type of `BoundedSpan::iterator` is equivalent to the iterator type of its underlying range.
 
-## `ProxySpan`
-`pgbar::slice::ProxySpan` is a nullable template type that expresses the iteration range of a sole progress bar.
+## `TrackedSpan`
+`pgbar::slice::TrackedSpan` is a nullable template type that expresses the iteration range of a sole progress bar.
 
-`ProxySpan` can only accept an object of view type that satisfies the concept `std::ranges::sized_range`, and a sole progress bar object; Its purpose is to simplify interactions between progress bar instances and scenarios that require the use of iterators, such as Enhanced-for.
+`TrackedSpan` can only accept an object of view type that satisfies the concept `std::ranges::sized_range`, and a sole progress bar object; Its purpose is to simplify interactions between progress bar instances and scenarios that require the use of iterators, such as Enhanced-for.
 
 This is a special move-only type, which should only be constructed and returned by factory functions, such as the progress bar's `iterate()` method, and should not be constructed manually.
 
-Calling `ProxySpan`'s `begin()` method causes the `ProxySpan` object to attempt to set the number of tasks for the progress bar instances it holds, based on the size of the internal abstract range.
+Calling `TrackedSpan`'s `begin()` method causes the `TrackedSpan` object to attempt to set the number of tasks for the progress bar instances it holds, based on the size of the internal abstract range.
 ### Member method
-There are several methods in `ProxySpan`:
+There are several methods in `TrackedSpan`:
 
 ```cpp
 /* iterator */ begin() &;          // Assigns a value to the internal progress bar instance and returns the starting iterator
@@ -2884,10 +2884,10 @@ There are several methods in `ProxySpan`:
 bool empty() const noexcept;       // Check whether the object points to a valid progress bar instance
 explicit operator bool() noexcept; // Check whether the current object is non-empty
 
-void swap( ProxySpan& ) noexcept; // Exchange two ProxySpan
+void swap( TrackedSpan& ) noexcept; // Exchange two TrackedSpan
 ```
 ### Iterator type
-`ProxySpan::iterator` is a forward iterator whose increment operator attempts to call the `tick()` method of the progress bar instance bound to it, thus it will trigger side effects in unexpected scenarios.
+`TrackedSpan::iterator` is a forward iterator whose increment operator attempts to call the `tick()` method of the progress bar instance bound to it, thus it will trigger side effects in unexpected scenarios.
 
 ## `iterate`
 `iterate` is the overloaded name of a series of template functions, and it serves as a wrapper interface for the `iterate` method of [the sole progress bar type](#sole-progress-bar).

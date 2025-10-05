@@ -5,7 +5,7 @@
 #include "details/prefabs/BasicConfig.hpp"
 #include "details/render/AnimatedBuilder.hpp"
 #include "details/render/Builder.hpp"
-#include "slice/ProxySpan.hpp"
+#include "slice/TrackedSpan.hpp"
 
 namespace pgbar {
   namespace __details {

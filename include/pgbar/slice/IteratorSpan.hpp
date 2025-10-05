@@ -1,5 +1,5 @@
-#ifndef PGBAR_ITERSPAN
-#define PGBAR_ITERSPAN
+#ifndef PGBAR_ITERATORSPAN
+#define PGBAR_ITERATORSPAN
 
 #include "../details/traits/Backport.hpp"
 #include "../exception/Error.hpp"
@@ -13,16 +13,16 @@ namespace pgbar {
      * Accepted iterator types must satisfy subtractable.
      */
     template<typename I>
-    class IterSpan
+    class IteratorSpan
 #if __PGBAR_CXX20
-      : public std::ranges::view_interface<IterSpan<I>>
+      : public std::ranges::view_interface<IteratorSpan<I>>
 #endif
     {
       static_assert( __details::traits::is_sized_iterator<I>::value,
-                     "pgbar::slice::IterSpan: Only available for sized iterator types" );
+                     "pgbar::slice::IteratorSpan: Only available for sized iterator types" );
       static_assert(
         std::is_convertible<typename std::iterator_traits<I>::difference_type, __details::types::Size>::value,
-        "pgbar::slice::IterSpan: The 'difference_type' must be convertible to Size" );
+        "pgbar::slice::IteratorSpan: The 'difference_type' must be convertible to Size" );
 
       I start_, end_;
       __details::types::Size size_;
@@ -126,7 +126,7 @@ namespace pgbar {
         constexpr explicit operator bool() const { return current_ != I(); }
       };
 
-      __PGBAR_CXX17_CNSTXPR IterSpan( I startpoint, I endpoint )
+      __PGBAR_CXX17_CNSTXPR IteratorSpan( I startpoint, I endpoint )
         : start_ { std::move( startpoint ) }, end_ { std::move( endpoint ) }
       {
 #if __PGBAR_CXX20
@@ -138,12 +138,12 @@ namespace pgbar {
           throw exception::InvalidArgument( "pgbar: negative iterator range" );
         size_ = static_cast<__details::types::Size>( length );
       }
-      __PGBAR_CXX17_CNSTXPR IterSpan( const IterSpan& )              = default;
-      __PGBAR_CXX17_CNSTXPR IterSpan( IterSpan&& )                   = default;
-      __PGBAR_CXX17_CNSTXPR IterSpan& operator=( const IterSpan& ) & = default;
-      __PGBAR_CXX17_CNSTXPR IterSpan& operator=( IterSpan&& ) &      = default;
+      __PGBAR_CXX17_CNSTXPR IteratorSpan( const IteratorSpan& )              = default;
+      __PGBAR_CXX17_CNSTXPR IteratorSpan( IteratorSpan&& )                   = default;
+      __PGBAR_CXX17_CNSTXPR IteratorSpan& operator=( const IteratorSpan& ) & = default;
+      __PGBAR_CXX17_CNSTXPR IteratorSpan& operator=( IteratorSpan&& ) &      = default;
       // Intentional non-virtual destructors.
-      __PGBAR_CXX20_CNSTXPR ~IterSpan()                              = default;
+      __PGBAR_CXX20_CNSTXPR ~IteratorSpan()                                  = default;
 
       __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR Reference_t front() const noexcept
       {
@@ -178,7 +178,7 @@ namespace pgbar {
         return { this->end_ };
       }
 
-      __PGBAR_CXX20_CNSTXPR void swap( IterSpan<I>& lhs ) noexcept
+      __PGBAR_CXX20_CNSTXPR void swap( IteratorSpan<I>& lhs ) noexcept
       {
         __PGBAR_TRUST( this != &lhs );
         using std::swap;
@@ -186,7 +186,10 @@ namespace pgbar {
         swap( end_, lhs.end_ );
         swap( size_, lhs.size_ );
       }
-      friend __PGBAR_CXX20_CNSTXPR void swap( IterSpan<I>& a, IterSpan<I>& b ) noexcept { a.swap( b ); }
+      friend __PGBAR_CXX20_CNSTXPR void swap( IteratorSpan<I>& a, IteratorSpan<I>& b ) noexcept
+      {
+        a.swap( b );
+      }
 
       __PGBAR_CXX17_CNSTXPR explicit operator bool() const noexcept { return !empty(); }
     };
