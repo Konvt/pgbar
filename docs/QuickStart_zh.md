@@ -74,13 +74,13 @@
   - [`NumericSpan`](#numericspan)
     - [成员方法](#成员方法)
     - [迭代器类型](#迭代器类型)
-  - [`IterSpan`](#iterspan)
+  - [`IteratorSpan`](#iterspan)
     - [成员方法](#成员方法-1)
     - [迭代器类型](#迭代器类型-1)
   - [`BoundedSpan`](#boundedspan)
     - [成员方法](#成员方法-2)
     - [迭代器类型](#迭代器类型-2)
-  - [`ProxySpan`](#proxyspan)
+  - [`TrackedSpan`](#proxyspan)
     - [成员方法](#成员方法-3)
     - [迭代器类型](#迭代器类型-3)
   - [`iterate`](#iterate)
@@ -458,7 +458,7 @@ int main()
 }
 ```
 
-在前两个 Enhanced-for 中，`iterate()` 方法返回的实际上是 `pgbar::slice::ProxySpan`；关于这一类型的介绍可以见[辅助类型-`ProxySpan`](#proxyspan)。
+在前两个 Enhanced-for 中，`iterate()` 方法返回的实际上是 `pgbar::slice::TrackedSpan`；关于这一类型的介绍可以见[辅助类型-`TrackedSpan`](#proxyspan)。
 
 有关数值类型范围的使用，可以见[辅助类型-`NumericSpan`](#numericspan)。
 
@@ -490,7 +490,7 @@ int main()
 }
 ```
 
-有关可迭代类型的范围划定，可以见[辅助类型-`IterSpan`](#iterspan)。
+有关可迭代类型的范围划定，可以见[辅助类型-`IteratorSpan`](#iterspan)。
 
 特别的，如果一个类型满足概念 `std::ranges::sized_range`，那么这个类型还可以以更简单的方式进行遍历；这包括了原始数组。
 
@@ -917,7 +917,7 @@ int main()
 }
 ```
 
-在前两个 Enhanced-for 中，`iterate()` 方法返回的实际上是 `pgbar::slice::ProxySpan`；关于这一类型的介绍可以见[辅助类型-`ProxySpan`](#proxyspan)。
+在前两个 Enhanced-for 中，`iterate()` 方法返回的实际上是 `pgbar::slice::TrackedSpan`；关于这一类型的介绍可以见[辅助类型-`TrackedSpan`](#proxyspan)。
 
 有关数值类型范围的使用，可以见[辅助类型-`NumericSpan`](#numericspan)。
 
@@ -949,7 +949,7 @@ int main()
 }
 ```
 
-有关可迭代类型的范围划定，可以见[辅助类型-`IterSpan`](#iterspan)。
+有关可迭代类型的范围划定，可以见[辅助类型-`IteratorSpan`](#iterspan)。
 
 特别的，如果一个类型满足概念 `std::ranges::sized_range`，那么这个类型还可以以更简单的方式进行遍历；这包括了原始数组。
 
@@ -1343,7 +1343,7 @@ int main()
 }
 ```
 
-在前两个 Enhanced-for 中，`iterate()` 方法返回的实际上是 `pgbar::slice::ProxySpan`；关于这一类型的介绍可以见[辅助类型-`ProxySpan`](#proxyspan)。
+在前两个 Enhanced-for 中，`iterate()` 方法返回的实际上是 `pgbar::slice::TrackedSpan`；关于这一类型的介绍可以见[辅助类型-`TrackedSpan`](#proxyspan)。
 
 有关数值类型范围的使用，可以见[辅助类型-`NumericSpan`](#numericspan)。
 
@@ -1375,7 +1375,7 @@ int main()
 }
 ```
 
-有关可迭代类型的范围划定，可以见[辅助类型-`IterSpan`](#iterspan)。
+有关可迭代类型的范围划定，可以见[辅助类型-`IteratorSpan`](#iterspan)。
 
 特别的，如果一个类型满足概念 `std::ranges::sized_range`，那么这个类型还可以以更简单的方式进行遍历；这包括了原始数组。
 
@@ -1800,7 +1800,7 @@ int main()
 }
 ```
 
-在前两个 Enhanced-for 中，`iterate()` 方法返回的实际上是 `pgbar::slice::ProxySpan`；关于这一类型的介绍可以见[辅助类型-`ProxySpan`](#proxyspan)。
+在前两个 Enhanced-for 中，`iterate()` 方法返回的实际上是 `pgbar::slice::TrackedSpan`；关于这一类型的介绍可以见[辅助类型-`TrackedSpan`](#proxyspan)。
 
 有关数值类型范围的使用，可以见[辅助类型-`NumericSpan`](#numericspan)。
 
@@ -1832,7 +1832,7 @@ int main()
 }
 ```
 
-有关可迭代类型的范围划定，可以见[辅助类型-`IterSpan`](#iterspan)。
+有关可迭代类型的范围划定，可以见[辅助类型-`IteratorSpan`](#iterspan)。
 
 特别的，如果一个类型满足概念 `std::ranges::sized_range`，那么这个类型还可以以更简单的方式进行遍历；这包括了原始数组。
 
@@ -2257,7 +2257,7 @@ int main()
 }
 ```
 
-在前两个 Enhanced-for 中，`iterate()` 方法返回的实际上是 `pgbar::slice::ProxySpan`；关于这一类型的介绍可以见[辅助类型-`ProxySpan`](#proxyspan)。
+在前两个 Enhanced-for 中，`iterate()` 方法返回的实际上是 `pgbar::slice::TrackedSpan`；关于这一类型的介绍可以见[辅助类型-`TrackedSpan`](#proxyspan)。
 
 有关数值类型范围的使用，可以见[辅助类型-`NumericSpan`](#numericspan)。
 
@@ -2289,7 +2289,7 @@ int main()
 }
 ```
 
-有关可迭代类型的范围划定，可以见[辅助类型-`IterSpan`](#iterspan)。
+有关可迭代类型的范围划定，可以见[辅助类型-`IteratorSpan`](#iterspan)。
 
 特别的，如果一个类型满足概念 `std::ranges::sized_range`，那么这个类型还可以以更简单的方式进行遍历；这包括了原始数组。
 
@@ -2801,10 +2801,10 @@ void swap( NumericSpan& ) noexcept; // 交换两个数值范围
 
 迭代器的有效迭代次数与 `NumericSpan` 的方法 `size()` 返回的值相同；特别的，如果步长大于数值范围，那么迭代器在前进一步后的值将会超出数值范围的终止点。
 
-## `IterSpan`
-`pgbar::slice::IterSpan` 是一个模板类型，它被用于表达两个迭代器所划定的抽象范围；可以被视作是 `std::views::ref_view` 的极度简化版本。
+## `IteratorSpan`
+`pgbar::slice::IteratorSpan` 是一个模板类型，它被用于表达两个迭代器所划定的抽象范围；可以被视作是 `std::views::ref_view` 的极度简化版本。
 
-`IterSpan` 要求传入的迭代器类型必须可以复制构造或移动构造，并且必须能够计算两个迭代器对象之间的距离，否则会导致编译失败。
+`IteratorSpan` 要求传入的迭代器类型必须可以复制构造或移动构造，并且必须能够计算两个迭代器对象之间的距离，否则会导致编译失败。
 
 如果传入的迭代器是一组非逆序类型的逆序迭代器，那么会抛出异常 `pgbar::exception::InvalidArgument`。
 
@@ -2818,16 +2818,16 @@ int main()
   std::vector<int> arr2;
 
   try {
-    auto reverse_span1 = pgbar::slice::IterSpan<int*>( arr1 + 49, arr1 - 1 );
+    auto reverse_span1 = pgbar::slice::IteratorSpan<int*>( arr1 + 49, arr1 - 1 );
   } catch ( const pgbar::exception::InvalidArgument& ) {
     // ...
   }
   auto reverse_span2 =
-    pgbar::slice::IterSpan<std::reverse_iterator<std::vector<int>::iterator>>( arr2.rbegin(), arr2.rend() );
+    pgbar::slice::IteratorSpan<std::reverse_iterator<std::vector<int>::iterator>>( arr2.rbegin(), arr2.rend() );
 }
 ```
 ### 成员方法
-`IterSpan` 有以下几个方法：
+`IteratorSpan` 有以下几个方法：
 
 ```cpp
 iterator begin() const noexcept; // 返回一个指向抽象范围起点的迭代器
@@ -2838,10 +2838,10 @@ iterator end() const noexcept;   // 返回一个指向抽象范围终点的迭�
 /* size_t */ step() const noexcept;     // 返回当前步长，通常是编译期常数 1
 /* size_t */ size() const noexcept;     // 返回当前抽象范围的大小
 
-void swap( IterSpan& ) noexcept; // 交换两个抽象范围
+void swap( IteratorSpan& ) noexcept; // 交换两个抽象范围
 ```
 ### 迭代器类型
-`IterSpan::iterator` 属于前向迭代器，重载了包括但不限于 `operator++()`、`operator++( int )`、`operator+=()`、`operator*()` 和判等运算符在内的运算符函数。
+`IteratorSpan::iterator` 属于前向迭代器，重载了包括但不限于 `operator++()`、`operator++( int )`、`operator+=()`、`operator*()` 和判等运算符在内的运算符函数。
 
 由于是前向迭代器且没有提供自减运算符，因此所有逆序操作都依赖于迭代器类型实现。
 
@@ -2865,16 +2865,16 @@ void swap( BoundedSpan& ) noexcept; // 交换两个抽象范围
 ### 迭代器类型
 `BoundedSpan::iterator` 的迭代器类型等价于其底层范围的迭代器类型。
 
-## `ProxySpan`
-`pgbar::slice::ProxySpan` 是一个可空的模板类型，它用于表达某个独立进度条的迭代范围。
+## `TrackedSpan`
+`pgbar::slice::TrackedSpan` 是一个可空的模板类型，它用于表达某个独立进度条的迭代范围。
 
-`ProxySpan` 只能接受一个满足概念 `std::ranges::sized_range`  的视图类型对象，和一个独立进度条对象；它的作用是为了简化进度条实例与 Enhanced-for 等需要使用迭代器的场景的交互。
+`TrackedSpan` 只能接受一个满足概念 `std::ranges::sized_range`  的视图类型对象，和一个独立进度条对象；它的作用是为了简化进度条实例与 Enhanced-for 等需要使用迭代器的场景的交互。
 
 这是一个 move-only 的特殊类型，它只应该被工厂函数，如进度条的 `iterate()` 方法，构造并返回，而不应该手动构造。
 
-调用 `ProxySpan` 的 `begin()` 方法会导致 `ProxySpan` 对象尝试根据内部的抽象范围大小，对其持有的进度条实例设置任务数量。
+调用 `TrackedSpan` 的 `begin()` 方法会导致 `TrackedSpan` 对象尝试根据内部的抽象范围大小，对其持有的进度条实例设置任务数量。
 ### 成员方法
-`ProxySpan` 有以下几个方法：
+`TrackedSpan` 有以下几个方法：
 
 ```cpp
 /* iterator */ begin() &;          // 为内部的进度条实例赋值，并返回起始迭代器
@@ -2882,10 +2882,10 @@ void swap( BoundedSpan& ) noexcept; // 交换两个抽象范围
 bool empty() const noexcept;       // 检查当前对象是否指向了一个有效的进度条实例
 explicit operator bool() noexcept; // 检查当前对象是否非空
 
-void swap( ProxySpan& ) noexcept; // 交换两个代理范围
+void swap( TrackedSpan& ) noexcept; // 交换两个代理范围
 ```
 ### 迭代器类型
-`ProxySpan::iterator` 属于前向迭代器，该迭代器的自增运算符会尝试调用与之绑定的进度条实例的 `tick()` 方法，因此会在意料之外的场景触发副作用。
+`TrackedSpan::iterator` 属于前向迭代器，该迭代器的自增运算符会尝试调用与之绑定的进度条实例的 `tick()` 方法，因此会在意料之外的场景触发副作用。
 
 - - -
 

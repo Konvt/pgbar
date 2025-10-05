@@ -12,10 +12,7 @@ namespace pgbar {
     static_assert( __details::traits::AllOf<__details::traits::is_config<Config>,
                                             __details::traits::is_config<Configs>...>::value,
                    "pgbar::MultiBar: Invalid type" );
-    using Self    = MultiBar;
-    using Package = __details::prefabs::TupleBar<__details::traits::MakeIndexSeq<sizeof...( Configs ) + 1>,
-                                                 __details::prefabs::BasicBar<Config, O, M, A>,
-                                                 __details::prefabs::BasicBar<Configs, O, M, A>...>;
+    using Self = MultiBar;
 
     template<__details::types::Size Pos>
     using ConfigAt_t = __details::traits::TypeAt_t<Pos, Config, Configs...>;
@@ -24,7 +21,10 @@ namespace pgbar {
                                                 __details::prefabs::BasicBar<Config, O, M, A>,
                                                 __details::prefabs::BasicBar<Configs, O, M, A>...>;
 
-    Package tuple_;
+    __details::prefabs::TupleBar<__details::traits::MakeIndexSeq<sizeof...( Configs ) + 1>,
+                                 __details::prefabs::BasicBar<Config, O, M, A>,
+                                 __details::prefabs::BasicBar<Configs, O, M, A>...>
+      package_;
 
   public:
     MultiBar() = default;
@@ -48,7 +48,7 @@ namespace pgbar {
           Configs...>>::value>::type>
 #endif
     MultiBar( Cfg&& cfg, Cfgs&&... cfgs ) noexcept( sizeof...( Cfgs ) == sizeof...( Configs ) )
-      : tuple_ { std::forward<Cfg>( cfg ), std::forward<Cfgs>( cfgs )... }
+      : package_ { std::forward<Cfg>( cfg ), std::forward<Cfgs>( cfgs )... }
     {}
 
     template<typename Cfg, typename... Cfgs
@@ -73,12 +73,12 @@ namespace pgbar {
     MultiBar( __details::prefabs::BasicBar<Cfg, O, M, A>&& bar,
               __details::prefabs::BasicBar<Cfgs, O, M, A>&&... bars )
       noexcept( sizeof...( Cfgs ) == sizeof...( Configs ) )
-      : tuple_ { std::move( bar ), std::move( bars )... }
+      : package_ { std::move( bar ), std::move( bars )... }
     {}
 
     MultiBar( const Self& )          = delete;
     Self& operator=( const Self& ) & = delete;
-    MultiBar( Self&& rhs ) noexcept : tuple_ { std::move( rhs.tuple_ ) }
+    MultiBar( Self&& rhs ) noexcept : package_ { std::move( rhs.package_ ) }
     {
       __PGBAR_ASSERT( rhs.active() == false );
     }
@@ -87,15 +87,15 @@ namespace pgbar {
       __PGBAR_TRUST( this != &rhs );
       __PGBAR_ASSERT( active() == false );
       __PGBAR_ASSERT( rhs.active() == false );
-      tuple_ = std::move( rhs );
+      package_ = std::move( rhs );
       return *this;
     }
     ~MultiBar() noexcept { reset(); }
 
     // Check whether a progress bar is running
-    __PGBAR_NODISCARD __PGBAR_INLINE_FN bool active() const noexcept { return tuple_.online(); }
+    __PGBAR_NODISCARD __PGBAR_INLINE_FN bool active() const noexcept { return package_.online(); }
     // Reset all the progress bars.
-    __PGBAR_INLINE_FN void reset() noexcept { tuple_.halt(); }
+    __PGBAR_INLINE_FN void reset() noexcept { package_.halt(); }
     // Returns the number of progress bars.
     __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CNSTEVAL __details::types::Size size() const noexcept
     {
@@ -104,7 +104,7 @@ namespace pgbar {
     // Returns the number of progress bars which is running.
     __PGBAR_NODISCARD __PGBAR_INLINE_FN __details::types::Size active_size() const noexcept
     {
-      return tuple_.active_size();
+      return package_.active_size();
     }
     // Wait for all progress bars to stop.
     void wait() const noexcept
@@ -121,17 +121,17 @@ namespace pgbar {
     template<__details::types::Size Pos>
     __PGBAR_INLINE_FN BarAt_t<Pos>& at() & noexcept
     {
-      return tuple_.template at<Pos>();
+      return package_.template at<Pos>();
     }
     template<__details::types::Size Pos>
     __PGBAR_INLINE_FN const BarAt_t<Pos>& at() const& noexcept
     {
-      return static_cast<const Package&>( tuple_ ).template at<Pos>();
+      return package_.template at<Pos>();
     }
     template<__details::types::Size Pos>
     __PGBAR_INLINE_FN BarAt_t<Pos>&& at() && noexcept
     {
-      return std::move( tuple_ ).template at<Pos>();
+      return std::move( package_ ).template at<Pos>();
     }
 
     template<__details::types::Size Pos>
@@ -229,7 +229,7 @@ namespace pgbar {
       return at<Pos>().action();
     }
 
-    void swap( Self& rhs ) noexcept { tuple_.swap( rhs.tuple_ ); }
+    void swap( Self& rhs ) noexcept { package_.swap( rhs.package_ ); }
     friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
 
     template<__details::types::Size Pos, typename Mb>

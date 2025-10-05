@@ -3,7 +3,7 @@
 
 #include "../../Indicator.hpp"
 #include "../../slice/BoundedSpan.hpp"
-#include "../../slice/IterSpan.hpp"
+#include "../../slice/IteratorSpan.hpp"
 #include "../../slice/NumericSpan.hpp"
 #include "../io/OStream.hpp"
 #include "../prefabs/BasicConfig.hpp"
@@ -16,7 +16,7 @@
 namespace pgbar {
   namespace slice {
     template<typename R, typename B>
-    class ProxySpan;
+    class TrackedSpan;
   }
 
   namespace __details {
@@ -69,11 +69,11 @@ namespace pgbar {
         template<typename N>
 #if __PGBAR_CXX20
           requires std::is_arithmetic_v<N>
-        __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR slice::ProxySpan<slice::NumericSpan<N>, Derived>
+        __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR slice::TrackedSpan<slice::NumericSpan<N>, Derived>
 #else
         __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR
           typename std::enable_if<std::is_arithmetic<N>::value,
-                                  slice::ProxySpan<slice::NumericSpan<N>, Derived>>::type
+                                  slice::TrackedSpan<slice::NumericSpan<N>, Derived>>::type
 #endif
           iterate( N startpoint, N endpoint, N step ) &
         { // default parameter will cause ambiguous overloads
@@ -100,10 +100,10 @@ namespace pgbar {
         template<typename N>
 #if __PGBAR_CXX20
           requires std::is_floating_point_v<N>
-        __PGBAR_NODISCARD slice::ProxySpan<slice::NumericSpan<N>, Derived>
+        __PGBAR_NODISCARD slice::TrackedSpan<slice::NumericSpan<N>, Derived>
 #else
         __PGBAR_NODISCARD typename std::enable_if<std::is_floating_point<N>::value,
-                                                  slice::ProxySpan<slice::NumericSpan<N>, Derived>>::type
+                                                  slice::TrackedSpan<slice::NumericSpan<N>, Derived>>::type
 #endif
           iterate( N endpoint, N step ) &
         {
@@ -130,11 +130,11 @@ namespace pgbar {
         template<typename N>
 #if __PGBAR_CXX20
           requires std::is_integral_v<N>
-        __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR slice::ProxySpan<slice::NumericSpan<N>, Derived>
+        __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR slice::TrackedSpan<slice::NumericSpan<N>, Derived>
 #else
         __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR
           typename std::enable_if<std::is_integral<N>::value,
-                                  slice::ProxySpan<slice::NumericSpan<N>, Derived>>::type
+                                  slice::TrackedSpan<slice::NumericSpan<N>, Derived>>::type
 #endif
           iterate( N startpoint, N endpoint ) &
         {
@@ -160,11 +160,11 @@ namespace pgbar {
         template<typename N>
 #if __PGBAR_CXX20
           requires std::is_integral_v<N>
-        __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR slice::ProxySpan<slice::NumericSpan<N>, Derived>
+        __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR slice::TrackedSpan<slice::NumericSpan<N>, Derived>
 #else
         __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR
           typename std::enable_if<std::is_integral<N>::value,
-                                  slice::ProxySpan<slice::NumericSpan<N>, Derived>>::type
+                                  slice::TrackedSpan<slice::NumericSpan<N>, Derived>>::type
 #endif
           iterate( N endpoint ) &
         {
@@ -191,11 +191,11 @@ namespace pgbar {
         template<typename I>
 #if __PGBAR_CXX20
           requires traits::is_sized_iterator<I>::value
-        __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR slice::ProxySpan<slice::IterSpan<I>, Derived>
+        __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR slice::TrackedSpan<slice::IteratorSpan<I>, Derived>
 #else
         __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR
           typename std::enable_if<traits::is_sized_iterator<I>::value,
-                                  slice::ProxySpan<slice::IterSpan<I>, Derived>>::type
+                                  slice::TrackedSpan<slice::IteratorSpan<I>, Derived>>::type
 #endif
           iterate( I startpoint, I endpoint ) & noexcept(
             traits::AnyOf<std::is_pointer<I>, std::is_nothrow_move_constructible<I>>::value )
@@ -226,11 +226,11 @@ namespace pgbar {
           requires( traits::is_bounded_range<std::remove_reference_t<R>>::value
                     && !std::ranges::view<std::remove_reference_t<R>> )
         __PGBAR_NODISCARD __PGBAR_CXX17_CNSTXPR
-          slice::ProxySpan<slice::BoundedSpan<std::remove_reference_t<R>>, Derived>
+          slice::TrackedSpan<slice::BoundedSpan<std::remove_reference_t<R>>, Derived>
 #else
         __PGBAR_NODISCARD __PGBAR_CXX17_CNSTXPR typename std::enable_if<
           traits::is_bounded_range<typename std::remove_reference<R>::type>::value,
-          slice::ProxySpan<slice::BoundedSpan<typename std::remove_reference<R>::type>, Derived>>::type
+          slice::TrackedSpan<slice::BoundedSpan<typename std::remove_reference<R>::type>, Derived>>::type
 #endif
           iterate( R& container ) &
         {
@@ -240,7 +240,7 @@ namespace pgbar {
 #if __PGBAR_CXX20
         template<class R>
           requires( traits::is_bounded_range<R>::value && std::ranges::view<R> )
-        __PGBAR_NODISCARD __PGBAR_CXX17_CNSTXPR slice::ProxySpan<R, Derived> iterate( R view ) &
+        __PGBAR_NODISCARD __PGBAR_CXX17_CNSTXPR slice::TrackedSpan<R, Derived> iterate( R view ) &
         {
           throw_if_active();
           return { std::move( view ), static_cast<Derived&>( *this ) };

@@ -1,5 +1,5 @@
-#ifndef PGBAR_PROXYSPAN
-#define PGBAR_PROXYSPAN
+#ifndef PGBAR_TRACKEDSPAN
+#define PGBAR_TRACKEDSPAN
 
 #include "../details/prefabs/BasicBar.hpp"
 #include "../details/traits/Backport.hpp"
@@ -14,15 +14,15 @@ namespace pgbar {
      * which transforms the iterations in the abstract into a visual display of the object.
      */
     template<typename R, typename B>
-    class ProxySpan
+    class TrackedSpan
 #if __PGBAR_CXX20
-      : public std::ranges::view_interface<ProxySpan<R, B>>
+      : public std::ranges::view_interface<TrackedSpan<R, B>>
 #endif
     {
       static_assert( __details::traits::is_bounded_range<R>::value,
-                     "pgbar::slice::ProxySpan: Only available for bounded ranges" );
+                     "pgbar::slice::TrackedSpan: Only available for bounded ranges" );
       static_assert( __details::traits::is_iterable_bar<B>::value,
-                     "pgbar::slice::ProxySpan: Must have a method to configure the iteration "
+                     "pgbar::slice::TrackedSpan: Must have a method to configure the iteration "
                      "count for the object's configuration type" );
 
       B* itr_bar_;
@@ -165,18 +165,18 @@ namespace pgbar {
         constexpr explicit operator bool() const noexcept { return itr_bar_ != nullptr; }
       };
 
-      __PGBAR_CXX17_CNSTXPR ProxySpan( R itr_range, B& itr_bar )
+      __PGBAR_CXX17_CNSTXPR TrackedSpan( R itr_range, B& itr_bar )
         noexcept( std::is_nothrow_move_constructible<R>::value )
         : itr_bar_ { std::addressof( itr_bar ) }, itr_range_ { std::move( itr_range ) }
       {}
-      __PGBAR_CXX17_CNSTXPR ProxySpan( ProxySpan&& rhs )
+      __PGBAR_CXX17_CNSTXPR TrackedSpan( TrackedSpan&& rhs )
         noexcept( std::is_nothrow_move_constructible<R>::value )
-        : ProxySpan( std::move( rhs.itr_range_ ), *rhs.itr_bar_ )
+        : TrackedSpan( std::move( rhs.itr_range_ ), *rhs.itr_bar_ )
       {
         __PGBAR_ASSERT( rhs.empty() == false );
         rhs.itr_bar_ = nullptr;
       }
-      __PGBAR_CXX17_CNSTXPR ProxySpan& operator=( ProxySpan&& rhs ) & noexcept(
+      __PGBAR_CXX17_CNSTXPR TrackedSpan& operator=( TrackedSpan&& rhs ) & noexcept(
         std::is_nothrow_move_assignable<R>::value )
       {
         __PGBAR_TRUST( this != &rhs );
@@ -185,7 +185,7 @@ namespace pgbar {
         return *this;
       }
       // Intentional non-virtual destructors.
-      __PGBAR_CXX20_CNSTXPR ~ProxySpan() = default;
+      __PGBAR_CXX20_CNSTXPR ~TrackedSpan() = default;
 
       // This function will CHANGE the state of the pgbar object it holds.
       __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR iterator begin() &
@@ -202,13 +202,13 @@ namespace pgbar {
         return itr_bar_ == nullptr;
       }
 
-      __PGBAR_CXX14_CNSTXPR void swap( ProxySpan<R, B>& lhs ) noexcept
+      __PGBAR_CXX14_CNSTXPR void swap( TrackedSpan<R, B>& lhs ) noexcept
       {
         __PGBAR_TRUST( this != &lhs );
         std::swap( itr_bar_, lhs.itr_bar_ );
         itr_range_.swap( lhs.itr_range_ );
       }
-      friend __PGBAR_CXX14_CNSTXPR void swap( ProxySpan<R, B>& a, ProxySpan<R, B>& b ) noexcept
+      friend __PGBAR_CXX14_CNSTXPR void swap( TrackedSpan<R, B>& a, TrackedSpan<R, B>& b ) noexcept
       {
         a.swap( b );
       }

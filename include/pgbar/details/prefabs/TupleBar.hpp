@@ -1,6 +1,7 @@
 #ifndef __PGBAR_TUPLEBAR
 #define __PGBAR_TUPLEBAR
 
+#include "../assets/TupleSlot.hpp"
 #include "../prefabs/BasicBar.hpp"
 #include "../traits/Backport.hpp"
 #include <initializer_list>
@@ -8,40 +9,29 @@
 
 namespace pgbar {
   namespace __details {
-    namespace assets {
-      template<types::Size, typename Base>
-      struct TupleSlot : public Base {
-        using Base::Base;
-        __PGBAR_CXX23_CNSTXPR TupleSlot( TupleSlot&& )              = default;
-        __PGBAR_CXX14_CNSTXPR TupleSlot& operator=( TupleSlot&& ) & = default;
-        constexpr TupleSlot( Base&& rhs ) noexcept : Base( std::move( rhs ) ) {}
-        __PGBAR_CXX14_CNSTXPR TupleSlot& operator=( Base&& rhs ) & noexcept
-        {
-          __PGBAR_ASSERT( this != std::addressof( rhs ) );
-          Base::operator=( std::move( rhs ) );
-          return *this;
-        }
-      };
-    } // namespace assets
-
     namespace prefabs {
       template<typename Seq, typename... Bars>
       class TupleBar;
       template<types::Size... Tags, Channel Outlet, Policy Mode, Region Area, typename... Configs>
       class TupleBar<traits::IndexSeq<Tags...>, prefabs::BasicBar<Configs, Outlet, Mode, Area>...> final
-        : public assets::TupleSlot<Tags, prefabs::BasicBar<Configs, Outlet, Mode, Area>>... {
+        : public assets::TupleSlot<prefabs::BasicBar<Configs, Outlet, Mode, Area>, Tags>... {
         static_assert( sizeof...( Tags ) == sizeof...( Configs ),
                        "pgbar::__details::prefabs::TupleBar: Unexpected type mismatch" );
         static_assert( sizeof...( Configs ) > 0,
                        "pgbar::__details::prefabs::TupleBar: The number of progress bars cannot be zero" );
 
-        std::atomic<types::Size> alive_cnt_;
-        enum class State : std::uint8_t { Stop, Awake, Refresh };
-        std::atomic<State> state_;
-        mutable std::mutex sched_mtx_;
+        template<types::Size Pos>
+        using ElementAt_t =
+          traits::TypeAt_t<Pos, assets::TupleSlot<prefabs::BasicBar<Configs, Outlet, Mode, Area>, Tags>...>;
 
+        std::atomic<types::Size> alive_cnt_;
+        mutable std::mutex sched_mtx_;
         // The std::bitset isn't TriviallyCopyable, so we cannot use std::atomic<std::bitset>.
         mutable concurrent::SharedMutex res_mtx_;
+
+        enum class State : std::uint8_t { Stop, Awake, Refresh };
+        std::atomic<State> state_;
+
         // Bitmask indicating which bars produced output in the current render pass.
         std::bitset<sizeof...( Configs )> active_mask_;
 
@@ -164,15 +154,13 @@ namespace pgbar {
           __PGBAR_ASSERT( alive_cnt_ <= sizeof...( Configs ) );
         }
 
-        template<types::Size Pos>
-        using ElementAt_t =
-          traits::TypeAt_t<Pos, assets::TupleSlot<Tags, prefabs::BasicBar<Configs, Outlet, Mode, Area>>...>;
-
         template<typename Tuple, types::Size... Is>
         TupleBar( Tuple&& tup, const traits::IndexSeq<Is...>& )
           noexcept( std::tuple_size<typename std::decay<Tuple>::type>::value == sizeof...( Configs ) )
           : ElementAt_t<Is>( utils::pick_or<Is, ElementAt_t<Is>>( std::forward<Tuple>( tup ) ) )...
           , alive_cnt_ { 0 }
+          , sched_mtx_ {}
+          , res_mtx_ {}
           , state_ { State::Stop }
         {
           static_assert( std::tuple_size<typename std::decay<Tuple>::type>::value <= sizeof...( Is ),
@@ -181,7 +169,7 @@ namespace pgbar {
 
       public:
         template<types::Size... Is, typename... Cs, Channel O, Policy M, Region A>
-        TupleBar( const assets::TupleSlot<Is, prefabs::BasicBar<Cs, O, M, A>>&... ) = delete;
+        TupleBar( const assets::TupleSlot<prefabs::BasicBar<Cs, O, M, A>, Is>&... ) = delete;
 
         // SFINAE is used here to prevent infinite recursive matching of errors.
         template<typename Cfg,
@@ -207,7 +195,7 @@ namespace pgbar {
         TupleBar( const TupleBar& )              = delete;
         TupleBar& operator=( const TupleBar& ) & = delete;
         TupleBar( TupleBar&& rhs ) noexcept
-          : assets::TupleSlot<Tags, prefabs::BasicBar<Configs, Outlet, Mode, Area>>( std::move( rhs ) )...
+          : assets::TupleSlot<prefabs::BasicBar<Configs, Outlet, Mode, Area>, Tags>( std::move( rhs ) )...
           , alive_cnt_ { 0 }
           , state_ { State::Stop }
         {}
