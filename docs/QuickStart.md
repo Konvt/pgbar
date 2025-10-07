@@ -74,13 +74,13 @@
   - [`NumericSpan`](#numericspan)
     - [Member method](#member-method)
     - [Iterator type](#iterator-type)
-  - [`IteratorSpan`](#iterspan)
+  - [`IteratorSpan`](#iteratorspan)
     - [Member method](#member-method-1)
     - [Iterator type](#iterator-type-1)
   - [`BoundedSpan`](#boundedspan)
     - [Member method](#member-method-2)
     - [Iterator type](#iterator-type-2)
-  - [`TrackedSpan`](#proxyspan)
+  - [`TrackedSpan`](#trackedspan)
     - [Member method](#member-method-3)
     - [Iterator type](#iterator-type-3)
   - [`iterate`](#iterate)
@@ -2979,6 +2979,8 @@ int main()
 ```
 
 In the above code, the two threads cumulatively called `tick()` more than the predetermined task count of `1000`. Therefore, the excess `(500 + 700 + 1000 * 0.8) - 1000 = 1000` calls are not thread-safe and may either be discarded or normally counted into the counter for the next round of progress bar operation.
+
+In addition, `tick_to()` only guarantees that the cumulative task count of the progress bar will be no less than the specified percentage after the call. It does not ensure the synchronization of the number of `tick()` calls across threads; that is to say, if multiple threads are calling `tick()` simultaneously at this time, calling `tick_to()` may lose several `tick()` calls.
 
 ## Life cycle of the progress bar object
 The lifecycle of each progress bar object is subject to the C++ standard object lifecycle mechanism:
