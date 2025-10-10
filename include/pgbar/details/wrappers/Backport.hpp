@@ -2,12 +2,14 @@
 #define __PGBAR_WRAPPERS_BACKPORT
 
 #include "../traits/Backport.hpp"
-#include "../utils/Backport.hpp"
-#include <cstddef>
 #if __PGBAR_CXX23
 # include <functional>
-#elif !__PGBAR_CXX17
-# include <new>
+#else
+# include "../utils/Backport.hpp"
+# include <cstddef>
+# if !__PGBAR_CXX17
+#  include <new>
+# endif
 #endif
 
 namespace pgbar {
