@@ -27,8 +27,7 @@ namespace pgbar {
         __PGBAR_INLINE_FN void throw_if_active() &
         {
           if ( this->active() )
-            __PGBAR_UNLIKELY throw exception::InvalidState(
-              "pgbar: try to iterate using a running progress bar" );
+            __PGBAR_UNLIKELY throw exception::InvalidState( "pgbar: try to iterate using an active object" );
         }
 
       protected:
@@ -432,13 +431,6 @@ namespace pgbar {
           wrappers::UniqueFunction<void( Derived& )> on_self_;
           std::uint8_t nil_;
 
-          template<typename T>
-          static __PGBAR_INLINE_FN void destroy_at( T& obj )
-            noexcept( std::is_nothrow_destructible<T>::value )
-          {
-            obj.~T();
-          }
-
           constexpr Callback() noexcept : nil_ {} {}
           __PGBAR_CXX23_CNSTXPR ~Callback() noexcept {}
         } hook_;
@@ -447,8 +439,8 @@ namespace pgbar {
         __PGBAR_CXX23_CNSTXPR void destroy() noexcept
         {
           switch ( tag_ ) {
-          case Tag::Nullary: Callback::destroy_at( hook_.on_ ); break;
-          case Tag::Unary:   Callback::destroy_at( hook_.on_self_ ); break;
+          case Tag::Nullary: utils::destruct_at( hook_.on_ ); break;
+          case Tag::Unary:   utils::destruct_at( hook_.on_self_ ); break;
 
           case Tag::Nil: __PGBAR_FALLTHROUGH;
           default:       break;
@@ -1096,7 +1088,7 @@ namespace pgbar {
       // This's why we should define an additional tool type here.
       template<typename Config>
       struct BehaviourFor {
-        using type = TemplateSet<>;
+        using type = C3Container<>;
       };
       template<typename Config>
       using BehaviourFor_t = typename BehaviourFor<Config>::type;
@@ -1104,7 +1096,7 @@ namespace pgbar {
 #define __PGBAR_BIND_BEHAVIOUR( Config, ... ) \
   template<>                                  \
   struct BehaviourFor<Config> {               \
-    using type = TemplateSet<__VA_ARGS__>;    \
+    using type = C3Container<__VA_ARGS__>;    \
   }
     } // namespace traits
   } // namespace __details

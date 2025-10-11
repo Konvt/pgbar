@@ -7,8 +7,8 @@
 #include "../io/Stringbuf.hpp"
 #include "../traits/C3.hpp"
 #include "../traits/TypeSet.hpp"
-#include "../utils/Util.hpp"
 #include "../utils/Backport.hpp"
+#include "../utils/Util.hpp"
 #include <bitset>
 #include <limits>
 
@@ -89,7 +89,6 @@ namespace pgbar {
         __PGBAR_CXX20_CNSTXPR ~CoreConfig() = default;
 
 #define __PGBAR_METHOD( OptionName, ParamName )              \
-                                                             \
   std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ }; \
   unpacker( *this, option::OptionName( ParamName ) );        \
   return static_cast<Derived&>( *this )
@@ -1025,8 +1024,7 @@ namespace pgbar {
       __PGBAR_BIND_OPTION( assets::PercentMeter, );
       __PGBAR_BIND_OPTION( assets::SpeedMeter, option::SpeedUnit, option::Magnitude );
       template<>
-      struct OptionFor<assets::BasicAnimation>
-        : Merge<TypeSet<option::Shift>, OptionFor_t<assets::Frames>> {};
+      struct OptionFor<assets::BasicAnimation> : TpAppend<OptionFor_t<assets::Frames>, option::Shift> {};
     } // namespace traits
   } // namespace __details
 } // namespace pgbar

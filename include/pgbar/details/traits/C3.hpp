@@ -7,6 +7,10 @@
 namespace pgbar {
   namespace __details {
     namespace traits {
+      // The type used in the C3 algorithm to store template types.
+      template<template<typename...> class... Ts>
+      using C3Container = TemplateSet<Ts...>;
+
       /**
        * By introducing base class templates,
        * derived classes can inherit from multiple base classes arbitrarily.
@@ -24,10 +28,10 @@ namespace pgbar {
        * The only trade-off is a slight increase in compilation time
        * when resolving highly complex inheritance dependencies.
        */
-      template<typename /* TemplateSet<...> */ VBSet>
+      template<typename /* C3Container<...> */ VBs>
       struct C3;
       template<template<typename...> class VB, template<typename...> class... VBs>
-      using C3_t = typename C3<TemplateSet<VB, VBs...>>::type;
+      using C3_t = typename C3<C3Container<VB, VBs...>>::type;
 
       // The structure that records the inheritance order of Node includes itself,
       // just like Python's MRO.
@@ -35,7 +39,7 @@ namespace pgbar {
       // and the entry parameter of C3.
       template<template<typename...> class Node>
       struct InheritOrder {
-        using type = TemplateSet<Node>;
+        using type = C3Container<Node>;
       };
       // Gets the inheritance order of the template class `Node`.
       template<template<typename...> class Node>
@@ -49,37 +53,37 @@ namespace pgbar {
   }
 
       template<template<typename...> class VB, template<typename...> class... VBs>
-      struct C3<TemplateSet<VB, VBs...>> {
+      struct C3<C3Container<VB, VBs...>> {
       private:
         // Check whether Candidate is the top priority within AnotherVBs.
-        template<template<typename...> class Candidate, typename /* TemplateSet<...> */ AnotherVBs>
+        template<template<typename...> class Candidate, typename /* C3Container<...> */ AnotherVBs>
         struct PreferredWithin;
 
         template<template<typename...> class Candidate>
-        struct PreferredWithin<Candidate, TemplateSet<>> : std::true_type {};
+        struct PreferredWithin<Candidate, C3Container<>> : std::true_type {};
         template<template<typename...> class Candidate, template<typename...> class... Rests>
-        struct PreferredWithin<Candidate, TemplateSet<Candidate, Rests...>> : std::true_type {};
+        struct PreferredWithin<Candidate, C3Container<Candidate, Rests...>> : std::true_type {};
         template<template<typename...> class Candidate,
                  template<typename...> class Head,
                  template<typename...> class... Rests>
-        struct PreferredWithin<Candidate, TemplateSet<Head, Rests...>>
-          : Not<TmpContain<TemplateSet<Rests...>, Candidate>> {};
+        struct PreferredWithin<Candidate, C3Container<Head, Rests...>>
+          : Not<TmpContain<C3Container<Rests...>, Candidate>> {};
 
         // Check whether the next preferred candidate is from Inspected.
-        template<typename /* TemplateSet<...> */ Inspected,
-                 typename... /* TemplateSet<...>, ... */ MergedLists>
+        template<typename /* C3Container<...> */ Inspected,
+                 typename... /* C3Container<...>, ... */ MergedLists>
         struct FeasibleList;
 
         template<typename... MergedLists>
-        struct FeasibleList<TemplateSet<>, MergedLists...> : std::false_type {
+        struct FeasibleList<C3Container<>, MergedLists...> : std::false_type {
           // MergedLists contain the source list of Candidate.
           static_assert( sizeof...( MergedLists ) > 1,
-                         "pgbar::__details::traits::C3: MergedLists is always non-empty" );
+                         "pgbar::__details::traits::C3::FeasibleList: MergedLists is always non-empty" );
         };
         template<template<typename...> class Candidate,
                  template<typename...> class... Rests,
                  typename... MergedLists>
-        struct FeasibleList<TemplateSet<Candidate, Rests...>, MergedLists...>
+        struct FeasibleList<C3Container<Candidate, Rests...>, MergedLists...>
           : AllOf<PreferredWithin<Candidate, MergedLists>...> {};
 
         // Pick out the index of the candidate from the MergedList.
@@ -104,27 +108,27 @@ namespace pgbar {
         };
 
         // Remove the Candidate from the list (if exists).
-        template<template<typename...> class Candidate, typename /* TemplateSet<...> */ List>
+        template<template<typename...> class Candidate, typename /* C3Container<...> */ List>
         struct DropCandidate;
         template<template<typename...> class Candidate, typename List>
         using DropCandidate_t = typename DropCandidate<Candidate, List>::type;
 
         template<template<typename...> class Candidate, template<typename...> class... Rests>
-        struct DropCandidate<Candidate, TemplateSet<Candidate, Rests...>> {
-          using type = TemplateSet<Rests...>;
+        struct DropCandidate<Candidate, C3Container<Candidate, Rests...>> {
+          using type = C3Container<Rests...>;
         };
         template<template<typename...> class Candidate, template<typename...> class... Rests>
-        struct DropCandidate<Candidate, TemplateSet<Rests...>> {
-          using type = TemplateSet<Rests...>;
+        struct DropCandidate<Candidate, C3Container<Rests...>> {
+          using type = C3Container<Rests...>;
         };
 
-        template<typename /* TemplateSet<...> */ Sorted, typename... /* TemplateSet<...>... */ MergedLists>
+        template<typename /* C3Container<...> */ Sorted, typename... /* C3Container<...>... */ MergedLists>
         struct Linearize {
         private:
           template<typename Selected>
           struct Helper;
           template<template<typename...> class Candidate, template<typename...> class... Others>
-          struct Helper<TemplateSet<Candidate, Others...>>
+          struct Helper<C3Container<Candidate, Others...>>
             : Linearize<TmpAppend_t<Sorted, Candidate>, DropCandidate_t<Candidate, MergedLists>...> {};
 
         public:
@@ -135,19 +139,19 @@ namespace pgbar {
           using type = Sorted;
         };
         template<typename Sorted, typename... OtherLists>
-        struct Linearize<Sorted, TemplateSet<>, OtherLists...> : Linearize<Sorted, OtherLists...> {};
+        struct Linearize<Sorted, C3Container<>, OtherLists...> : Linearize<Sorted, OtherLists...> {};
         template<typename Sorted, typename... OtherLists>
-        struct Linearize<Sorted, TemplateSet<>, TemplateSet<>, OtherLists...>
+        struct Linearize<Sorted, C3Container<>, C3Container<>, OtherLists...>
           : Linearize<Sorted, OtherLists...> {};
         template<typename Sorted, typename... OtherLists>
-        struct Linearize<Sorted, TemplateSet<>, TemplateSet<>, TemplateSet<>, OtherLists...>
+        struct Linearize<Sorted, C3Container<>, C3Container<>, C3Container<>, OtherLists...>
           : Linearize<Sorted, OtherLists...> {};
 
       public:
-        using type = typename Linearize<TemplateSet<>,
+        using type = typename Linearize<C3Container<>,
                                         InheritOrder_t<VB>,
                                         InheritOrder_t<VBs>...,
-                                        TemplateSet<VB, VBs...>>::type;
+                                        C3Container<VB, VBs...>>::type;
       };
 
       /**
@@ -158,36 +162,36 @@ namespace pgbar {
 
        * It relies on the template `InheritOrder` and `C3` classes to work.
        */
-      template<typename /* TemplateSet<...> */ VBSet>
+      template<typename VBs>
       struct LI {
       private:
-        template<typename LinearedOrder, typename RBC, typename... Args>
+        template<typename Linearized, typename RBC, typename... Args>
         struct Helper;
-        template<typename LinearedOrder, typename RBC, typename... Args>
-        using Helper_t = typename Helper<LinearedOrder, RBC, Args...>::type;
+        template<typename Linearized, typename RBC, typename... Args>
+        using Helper_t = typename Helper<Linearized, RBC, Args...>::type;
 
         template<typename RBC, typename... Args>
-        struct Helper<TemplateSet<>, RBC, Args...> {
+        struct Helper<C3Container<>, RBC, Args...> {
           using type = RBC;
         };
         template<template<typename...> class Head,
                  template<typename...> class... Tail,
                  typename RBC,
                  typename... Args>
-        struct Helper<TemplateSet<Head, Tail...>, RBC, Args...> {
-          using type = Head<Helper_t<TemplateSet<Tail...>, RBC, Args...>, Args...>;
+        struct Helper<C3Container<Head, Tail...>, RBC, Args...> {
+          using type = Head<Helper_t<C3Container<Tail...>, RBC, Args...>, Args...>;
         };
 
       public:
         // RBC: Root Base Class.
         template<typename RBC, typename... Args>
-        using type = Helper_t<typename C3<VBSet>::type, RBC, Args...>;
+        using type = Helper_t<typename C3<VBs>::type, RBC, Args...>;
       };
 
       template<template<typename...> class VB, template<typename...> class... VBs>
       struct LI_t {
         template<typename RBC, typename... Args>
-        using type = typename LI<TemplateSet<VB, VBs...>>::template type<RBC, Args...>;
+        using type = typename LI<C3Container<VB, VBs...>>::template type<RBC, Args...>;
       };
     } // namespace traits
   } // namespace __details

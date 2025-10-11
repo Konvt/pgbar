@@ -81,7 +81,7 @@ namespace pgbar {
       public:
         using type = typename Helper<
           MakeIndexSeq<( sizeof...( TailCollections ) / 2 )>,
-          MakeIndexSeq<sizeof...( TailCollections ) - ( sizeof...( TailCollections ) / 2 )>>::type;
+          MakeIndexSeq<( sizeof...( TailCollections ) - ( sizeof...( TailCollections ) / 2 ) )>>::type;
       };
       template<typename FirstCollection, typename... TailCollections>
       using Merge_t = typename Merge<FirstCollection, TailCollections...>::type;

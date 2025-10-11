@@ -8,14 +8,16 @@
 namespace pgbar {
   namespace __details {
     namespace charcodes {
+      // A UTF-8 string that supports splitting strings by character length.
       class U8Text : public U8Raw {
         using Self = U8Text;
 
       protected:
-        // The starting offset (in byte) of each utf-8 character and its width.
+        // The starting offset (in byte) and the rendered width (in character) of each utf-8 character.
         std::vector<std::pair<types::Size, CodeChart::RenderWidth>> chars_;
 
       public:
+        /// @return The starting offset and the rendered width of each character.
         __PGBAR_NODISCARD static __PGBAR_CXX20_CNSTXPR
           std::vector<std::pair<types::Size, CodeChart::RenderWidth>>
           parse_char( types::ROStr u8_str )
