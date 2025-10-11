@@ -35,12 +35,13 @@ namespace pgbar {
         using type = typename _Select<TpContain<TypeSet<Ts...>, T>::value, T>::type;
       };
 
-      template<typename FirstSet>
-      struct Combine<FirstSet, TypeSet<>> {
-        using type = FirstSet;
+      template<typename... Es, template<typename...> class Collection>
+      struct Combine<TypeSet<Es...>, Collection<>> {
+        using type = TypeSet<Es...>;
       };
-      template<typename FirstSet, typename T, typename... Ts>
-      struct Combine<FirstSet, TypeSet<T, Ts...>> : Combine<TpAppend_t<FirstSet, T>, TypeSet<Ts...>> {};
+      template<typename... Es, template<typename...> class Collection, typename T, typename... Ts>
+      struct Combine<TypeSet<Es...>, Collection<T, Ts...>>
+        : Combine<TpAppend_t<TypeSet<Es...>, T>, Collection<Ts...>> {};
 
       template<typename... Elements>
       struct Distinct<TypeList<Elements...>> {

@@ -31,6 +31,19 @@ namespace pgbar {
       }
 #endif
 
+      // Available only for objects that constructed by placement new.
+      template<typename T>
+      __PGBAR_CXX20_CNSTXPR void destruct_at( T& object ) noexcept( std::is_nothrow_destructible<T>::value )
+      {
+#if __PGBAR_CXX17
+        std::destroy_at( std::addressof( object ) );
+#else
+        static_assert( !std::is_array<T>::value,
+                       "pgbar::__details::utils::destruct_at: The program is ill-formed" );
+        object.~T();
+#endif
+      }
+
       // Available only for buffers that use placement new.
       template<typename To, typename From>
       __PGBAR_INLINE_FN constexpr To* launder_as( From* src ) noexcept

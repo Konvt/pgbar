@@ -1,4 +1,5 @@
 module;
+
 #include "pgbar/pgbar.hpp"
 
 export module pgbar;
