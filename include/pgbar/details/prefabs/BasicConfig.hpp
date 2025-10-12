@@ -123,8 +123,7 @@ namespace pgbar {
                + ( visual_masks_[utils::as_val( Mask::Sped )] ? this->fixed_len_speed() : 0 )
                + ( visual_masks_[utils::as_val( Mask::Elpsd )] ? this->fixed_len_elapsed() : 0 )
                + ( visual_masks_[utils::as_val( Mask::Cntdwn )] ? this->fixed_len_countdown() : 0 )
-               + this->fixed_len_segment( this->visual_masks_.count()
-                                          + ( !this->prefix_.empty() || !this->postfix_.empty() ) );
+               + this->fixed_len_segment( this->visual_masks_.count() );
         }
 
       public:

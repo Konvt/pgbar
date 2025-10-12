@@ -39,18 +39,11 @@ namespace pgbar {
           : Base( Soul( std::forward<Args>( args )... ) )
         {}
 
-        BasicBar( const BasicBar& )              = delete;
-        BasicBar& operator=( const BasicBar& ) & = delete;
-        constexpr BasicBar( BasicBar&& )         = default;
-        BasicBar& operator=( BasicBar&& rhs ) & noexcept
-        {
-          __PGBAR_TRUST( this != &rhs );
-          __PGBAR_ASSERT( this->active() == false );
-          __PGBAR_ASSERT( this->active() == false );
-          Base::operator=( std::move( rhs ) );
-          return *this;
-        }
-        __PGBAR_CXX20_CNSTXPR virtual ~BasicBar() = default;
+        BasicBar( const BasicBar& )                      = delete;
+        BasicBar& operator=( const BasicBar& ) &         = delete;
+        constexpr BasicBar( BasicBar&& )                 = default;
+        BasicBar& operator=( BasicBar&& rhs ) & noexcept = default;
+        __PGBAR_CXX20_CNSTXPR virtual ~BasicBar()        = default;
 
         void swap( BasicBar& lhs ) noexcept
         {
