@@ -524,13 +524,13 @@ namespace pgbar {
           if ( prefix_.empty() )
             return buffer;
           this->try_reset( buffer );
-          return this->try_style( buffer, prfx_col_ ) << prefix_;
+          return this->try_style( buffer, prfx_col_ ) << prefix_ << ' ';
         }
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::Size fixed_len_prefix()
           const noexcept
         {
-          return prefix_.width();
+          return prefix_.width() + !prefix_.empty();
         }
 
       public:
@@ -591,13 +591,13 @@ namespace pgbar {
           if ( postfix_.empty() )
             return buffer;
           this->try_reset( buffer );
-          return this->try_style( buffer, pstfx_col_ ) << postfix_;
+          return this->try_style( buffer, pstfx_col_ ) << ' ' << postfix_;
         }
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::Size fixed_len_postfix()
           const noexcept
         {
-          return postfix_.width();
+          return postfix_.width() + !postfix_.empty();
         }
 
       public:
@@ -749,7 +749,7 @@ namespace pgbar {
           return buffer << utils::format<utils::TxtLayout::Right>( fixed_len_percent(), orig );
         }
 
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr types::Size fixed_len_percent() const noexcept
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CNSTEVAL types::Size fixed_len_percent() const noexcept
         {
           return sizeof( __PGBAR_DEFAULT_PERCENT ) - 1;
         }
@@ -764,14 +764,14 @@ namespace pgbar {
         friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( SpeedMeter& cfg,
                                                                       option::SpeedUnit&& val ) noexcept
         {
-          cfg.units_ = std::move( val.value() );
-          cfg.len_longest_unit_ =
+          cfg.units_            = std::move( val.value() );
+          cfg.nth_longest_unit_ = static_cast<std::uint8_t>( std::distance(
+            cfg.units_.cbegin(),
             std::max_element( cfg.units_.cbegin(),
                               cfg.units_.cend(),
                               []( const charcodes::U8Raw& a, const charcodes::U8Raw& b ) noexcept {
                                 return a.width() < b.width();
-                              } )
-              ->width();
+                              } ) ) );
         }
         friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( SpeedMeter& cfg,
                                                                       option::Magnitude&& val ) noexcept
@@ -779,13 +779,13 @@ namespace pgbar {
           cfg.magnitude_ = val.value();
         }
 
-#define __PGBAR_DEFAULT_SPEED u8"   inf "
+#define __PGBAR_DEFAULT_SPEED u8"   inf " // The width prepared for "999.99 "
         static constexpr types::Size _fixed_length = sizeof( __PGBAR_DEFAULT_SPEED ) - 1;
 
       protected:
         std::array<charcodes::U8Raw, 4> units_;
-        types::Size len_longest_unit_;
         std::uint16_t magnitude_;
+        std::uint8_t nth_longest_unit_;
 
         io::Stringbuf& build_speed( io::Stringbuf& buffer,
                                     const types::TimeUnit& time_passed,
@@ -829,7 +829,7 @@ namespace pgbar {
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr types::Size fixed_len_speed() const noexcept
         {
-          return _fixed_length + len_longest_unit_;
+          return _fixed_length + units_[nth_longest_unit_].width();
         }
 
       public:
@@ -874,7 +874,7 @@ namespace pgbar {
         __PGBAR_CXX20_CNSTXPR void swap( SpeedMeter& lhs ) & noexcept
         {
           units_.swap( lhs.units_ );
-          std::swap( len_longest_unit_, lhs.len_longest_unit_ );
+          std::swap( nth_longest_unit_, lhs.nth_longest_unit_ );
           Base::swap( lhs );
         }
       };
@@ -891,7 +891,7 @@ namespace pgbar {
           if ( num_all_tasks == 0 )
             buffer << "-/-";
 
-          return buffer << utils::format<utils::TxtLayout::Right>( utils::count_digits( num_all_tasks ) + 1,
+          return buffer << utils::format<utils::TxtLayout::Right>( utils::count_digits( num_all_tasks ),
                                                                    utils::format( num_task_done ) )
                         << '/' << utils::format( num_all_tasks );
         }
@@ -938,7 +938,7 @@ namespace pgbar {
         {
           return to_hms( buffer, time_passed );
         }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr types::Size fixed_len_elapsed() const noexcept
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CNSTEVAL types::Size fixed_len_elapsed() const noexcept
         {
           return sizeof( __PGBAR_ELASPED ) - 1;
         }
@@ -961,12 +961,10 @@ namespace pgbar {
           // overflow check
           if ( remaining_tasks > ( std::numeric_limits<std::int64_t>::max )() / time_per_task.count() )
             return buffer << u8"~XX:XX:XX";
-          else {
-            buffer << '~';
-            return to_hms( buffer, time_per_task * remaining_tasks );
-          }
+          buffer << '~';
+          return to_hms( buffer, time_per_task * remaining_tasks );
         }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr types::Size fixed_len_countdown() const noexcept
+        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CNSTEVAL types::Size fixed_len_countdown() const noexcept
         {
           return sizeof( __PGBAR_COUNTDOWN ) - 1;
         }

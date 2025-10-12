@@ -134,6 +134,9 @@ namespace pgbar {
         public:
           using type = typename Helper<TypeAt_t<PickCandidate<MergedLists...>::value, MergedLists...>>::type;
         };
+        template<typename Sorted, typename... MergedLists>
+        using Linearize_t = typename Linearize<Sorted, MergedLists...>::type;
+
         template<typename Sorted>
         struct Linearize<Sorted> {
           using type = Sorted;
@@ -148,10 +151,8 @@ namespace pgbar {
           : Linearize<Sorted, OtherLists...> {};
 
       public:
-        using type = typename Linearize<C3Container<>,
-                                        InheritOrder_t<VB>,
-                                        InheritOrder_t<VBs>...,
-                                        C3Container<VB, VBs...>>::type;
+        using type =
+          Linearize_t<C3Container<>, InheritOrder_t<VB>, InheritOrder_t<VBs>..., C3Container<VB, VBs...>>;
       };
 
       /**

@@ -70,9 +70,8 @@ namespace pgbar {
       __PGBAR_NODISCARD __PGBAR_INLINE_FN __details::types::Size fixed_render_size() const noexcept
       {
         return this->common_render_size()
-             + ( this->visual_masks_[__details::utils::as_val( Base::Mask::Ani )]
-                   ? this->fixed_len_frames() + ( !this->prefix_.empty() )
-                   : 0 );
+             + ( this->visual_masks_[__details::utils::as_val( Base::Mask::Ani )] ? this->fixed_len_frames()
+                                                                                  : 0 );
       }
 
     public:
@@ -117,8 +116,6 @@ namespace pgbar {
           this->build_prefix( buffer );
           this->try_reset( buffer );
           if ( this->visual_masks_[utils::as_val( Self::Mask::Ani )] ) {
-            if ( !this->prefix_.empty() )
-              buffer << ' ';
             this->build_spin( buffer, num_frame_cnt );
             this->try_reset( buffer );
             auto masks = this->visual_masks_;
