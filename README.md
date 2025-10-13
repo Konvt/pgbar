@@ -79,6 +79,21 @@ For more examples, see [QuickStart.md](docs/QuickStart.md) and [demo/](demo/).
 ### How to build?
 #### Header-only
 You can copy `include/pgbar` to the inclusion path of the project, and then directly include the corresponding header file within the source file.
+#### C++20 Module
+If you are using a compiler that already supports the `module` functionality, you can use the `*.ixx` module interface files under `include/` and import it in your project.
+
+> The `include/` contains a compilation `Makefile` for `gcc 15.1`.
+
+`pgbar` supports the following forms of `import`:
+
+```cpp
+import pgbar.Core;        // Only import core functions, such as exception types, etc
+import pgbar.ProgressBar; // Import as needed. All progress bar modules will automatically import pgbar.Core
+import pgbar.MultiBar;    // The functions imported between different modules are orthogonal to each other
+import pgbar;             // Import all functions at once
+```
+
+When using it officially, be sure to `import std` in the code file at the same time; otherwise, strange compilation errors will occur as of now.
 #### Submodule
 Use `git` to introduce `pgbar` as a sub-module into your project directory:
 

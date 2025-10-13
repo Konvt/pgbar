@@ -7,9 +7,7 @@
 #else
 # include "../utils/Backport.hpp"
 # include <cstddef>
-# if !__PGBAR_CXX17
-#  include <new>
-# endif
+# include <new>
 #endif
 
 namespace pgbar {

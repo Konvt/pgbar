@@ -77,6 +77,21 @@ int main()
 ### 如何构建？
 #### 仅头文件
 你可以将 `include/pgbar` 复制到项目的包含路径中，随后在源文件内直接包含对应头文件。
+#### C++20 Module
+如果你在使用已经支持 `module` 功能的编译器，那么可以使用 `include/` 下的 `*.ixx` 模块接口文件，并在项目中调用它。
+
+> `include/` 下包含了一个适用于 `gcc 15.1` 的编译用 `Makefile`。
+
+`pgbar` 支持以下形式的 `import`：
+
+```cpp
+import pgbar.Core;        // 仅引入核心功能，如异常类型等
+import pgbar.ProgressBar; // 按需引入。所有进度条模块都会自动引入 pgbar.Core
+import pgbar.MultiBar;    // 不同模块之间引入的功能是彼此正交的
+import pgbar;             // 引入所有功能
+```
+
+在正式使用时，请务必一并在代码文件中 `import std`，否则就目前来看会出现奇怪的编译错误。
 #### 子模块（submodule）
 使用 `git` 将 `pgbar` 作为子模块引入你的项目目录中：
 

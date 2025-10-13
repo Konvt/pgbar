@@ -1,11 +1,11 @@
 CC:= g++
-OFLAG = -Og
+OFLAG = Og
 STANDARD = c++11
-CFLAGS:= -std=$(STANDARD) -Wpedantic -Wall -Wextra
-IFLAG:= -I../include
+CFLAGS:= -Wpedantic -Wall -Wextra
+IFLAG:= ../include
 
 %: %.cpp
-	$(CC) $(OFLAG) $(CFLAGS) $(IFLAG) $< -o $@
+	$(CC) -$(OFLAG) -std=$(STANDARD) $(CFLAGS) -I$(IFLAG) $< -o $@
 
 all: demo progressbar blockbar spinbar sweepbar flowbar multibar dynamicbar unicode
 clean:
