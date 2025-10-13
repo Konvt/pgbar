@@ -2,7 +2,7 @@
 #define PGBAR_OPTION
 
 #include "../details/charcodes/U8Text.hpp"
-#include "../details/console/escodes/Color.hpp"
+#include "../details/console/escodes/Escodes.hpp"
 #include "../details/wrappers/OptionWrapper.hpp"
 #include <array>
 

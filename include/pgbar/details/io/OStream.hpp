@@ -2,6 +2,9 @@
 #define __PGBAR_OSTREAM
 
 #include "Stringbuf.hpp"
+#if __PGBAR_CXX20
+# include <span>
+#endif
 #if __PGBAR_WIN
 # include "../console/TermContext.hpp"
 # ifndef NOMINMAX
@@ -52,19 +55,19 @@ namespace pgbar {
         __PGBAR_CXX20_CNSTXPR OStream() = default;
 
       public:
+#if __PGBAR_CXX20
+        using SinkBuffer = std::span<const types::Char>;
+#else
+        using SinkBuffer = const std::vector<types::Char>&;
+#endif
+
         static Self& itself() noexcept( std::is_nothrow_default_constructible<Stringbuf>::value )
         {
           static OStream instance;
           return instance;
         }
 
-        static void writeout(
-#if __PGBAR_CXX20
-          std::span<const types::Char>
-#else
-          const std::vector<types::Char>&
-#endif
-            bytes )
+        static void writeout( SinkBuffer bytes )
         {
 #if __PGBAR_WIN
           types::Size total_written = 0;
