@@ -8,7 +8,7 @@
 namespace pgbar {
   namespace __details {
     namespace charcodes {
-      // A UTF-8 string that supports splitting strings by character length.
+      // A UTF-8 string that supports splitting strings by character width.
       class U8Text : public U8Raw {
         using Self = U8Text;
 
@@ -100,13 +100,13 @@ namespace pgbar {
         }
 
         /**
-         * @brief Split a string into two parts based on the given length, with UTF-8 characters as the unit.
-         * @param length The given length.
+         * @brief Split a string into two parts based on the given width, with UTF-8 characters as the unit.
+         * @param width The given width.
          * @return The split result and the width of each part, where the first element is the result not
-         * exceeding the length.
+         * exceeding the width.
          */
         __PGBAR_INLINE_FN std::pair<std::array<const types::Char*, 3>, std::pair<types::Size, types::Size>>
-          split_by( types::Size length ) const noexcept
+          split_by( types::Size width ) const noexcept
         {
           if ( bytes_.empty() )
             __PGBAR_UNLIKELY return {
@@ -117,7 +117,7 @@ namespace pgbar {
           // split_pos is the starting point of the right part
           types::Size split_pos  = 0;
           types::Size left_width = 0;
-          while ( left_width + chars_[split_pos].second <= length && split_pos < chars_.size() )
+          while ( left_width + chars_[split_pos].second <= width && split_pos < chars_.size() )
             left_width += chars_[split_pos++].second;
 
           return {

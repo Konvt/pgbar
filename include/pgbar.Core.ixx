@@ -20,7 +20,7 @@ export namespace pgbar {
   }
 
   namespace option {
-    using pgbar::option::BarLength;
+    using pgbar::option::BarWidth;
     using pgbar::option::Bolded;
     using pgbar::option::Colored;
     using pgbar::option::Divider;

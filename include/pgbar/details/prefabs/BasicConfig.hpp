@@ -232,7 +232,7 @@ namespace pgbar {
           return static_cast<Derived&>( *this );
         }
 
-        __PGBAR_NODISCARD types::Size fixed_length() const noexcept
+        __PGBAR_NODISCARD types::Size fixed_width() const noexcept
         {
           concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
           return static_cast<const Derived*>( this )->fixed_render_size();

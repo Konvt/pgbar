@@ -46,9 +46,9 @@ public                            \
       __PGBAR_NULLABLE_OPTION( Reversed, bool, _flag )
     };
 
-    // A wrapper that stores the length of the bar indicator, in the character unit.
-    struct BarLength : __PGBAR_BASE( __details::types::Size ) {
-      __PGBAR_DEFAULT_OPTION( BarLength, __details::types::Size, _num_char )
+    // A wrapper that stores the width of the bar indicator, in the character unit.
+    struct BarWidth : __PGBAR_BASE( __details::types::Size ) {
+      __PGBAR_DEFAULT_OPTION( BarWidth, __details::types::Size, _num_char )
     };
 
     /**

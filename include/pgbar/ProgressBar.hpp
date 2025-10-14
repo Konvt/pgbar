@@ -19,11 +19,11 @@ namespace pgbar {
         {
           __PGBAR_TRUST( num_percent >= 0.0 );
           __PGBAR_TRUST( num_percent <= 1.0 );
-          if ( this->bar_length_ == 0 )
+          if ( this->bar_width_ == 0 )
             return buffer;
 
-          const auto len_finished = static_cast<types::Size>( std::round( this->bar_length_ * num_percent ) );
-          types::Size len_vacancy = this->bar_length_ - len_finished;
+          const auto len_finished = static_cast<types::Size>( std::round( this->bar_width_ * num_percent ) );
+          types::Size len_vacancy = this->bar_width_ - len_finished;
 
           this->try_reset( buffer );
           this->try_dye( buffer, this->start_col_ ) << this->starting_;
@@ -127,8 +127,8 @@ namespace pgbar {
           unpacker( *this, option::Starting( u8"[" ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::Ending>::value )
           unpacker( *this, option::Ending( u8"]" ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::BarLength>::value )
-          unpacker( *this, option::BarLength( 30 ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::BarWidth>::value )
+          unpacker( *this, option::BarWidth( 30 ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::Filler>::value )
           unpacker( *this, option::Filler( u8"=" ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::Remains>::value )
