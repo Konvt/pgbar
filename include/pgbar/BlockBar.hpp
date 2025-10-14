@@ -18,16 +18,16 @@ namespace pgbar {
         {
           __PGBAR_TRUST( num_percent >= 0.0 );
           __PGBAR_TRUST( num_percent <= 1.0 );
-          if ( this->bar_length_ == 0 )
+          if ( this->bar_width_ == 0 )
             return buffer;
 
-          const auto len_finished     = static_cast<types::Size>( this->bar_length_ * num_percent );
-          const types::Float fraction = ( this->bar_length_ * num_percent ) - len_finished;
+          const auto len_finished     = static_cast<types::Size>( this->bar_width_ * num_percent );
+          const types::Float fraction = ( this->bar_width_ * num_percent ) - len_finished;
           __PGBAR_TRUST( fraction >= 0.0 );
           __PGBAR_TRUST( fraction <= 1.0 );
           const auto incomplete_block = static_cast<types::Size>( fraction * this->lead_.size() );
           __PGBAR_ASSERT( incomplete_block <= this->lead_.size() );
-          types::Size len_vacancy = this->bar_length_ - len_finished;
+          types::Size len_vacancy = this->bar_width_ - len_finished;
 
           this->try_reset( buffer );
           this->try_dye( buffer, this->start_col_ ) << this->starting_;
@@ -38,7 +38,7 @@ namespace pgbar {
               .append( this->filler_, len_finished / this->filler_.width() )
               .append( ' ', len_finished % this->filler_.width() );
 
-            if ( this->bar_length_ != len_finished && !this->lead_.empty()
+            if ( this->bar_width_ != len_finished && !this->lead_.empty()
                  && this->lead_[incomplete_block].width() <= len_vacancy ) {
               this->try_reset( buffer );
               this->try_dye( buffer, this->lead_col_ ).append( this->lead_[incomplete_block] );
@@ -50,7 +50,7 @@ namespace pgbar {
               .append( ' ', len_vacancy % this->remains_.width() )
               .append( this->remains_, len_vacancy / this->remains_.width() );
           } else {
-            const auto flag = this->bar_length_ != len_finished && !this->lead_.empty()
+            const auto flag = this->bar_width_ != len_finished && !this->lead_.empty()
                            && this->lead_[incomplete_block].width() <= len_vacancy;
             if ( flag )
               len_vacancy -= this->lead_[incomplete_block].width();
@@ -124,8 +124,8 @@ namespace pgbar {
         // In some editing environments,
         // directly writing character literals can lead to very strange encoding conversion errors.
         // Therefore, here we use Unicode code points to directly specify the required characters.
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::BarLength>::value )
-          unpacker( *this, option::BarLength( 30 ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::BarWidth>::value )
+          unpacker( *this, option::BarWidth( 30 ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::Filler>::value )
           unpacker( *this, option::Filler( u8"\u2588" ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::Remains>::value )

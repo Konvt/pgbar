@@ -16,7 +16,7 @@ namespace pgbar {
         __PGBAR_CXX20_CNSTXPR io::Stringbuf& build_sweep( io::Stringbuf& buffer,
                                                           types::Size num_frame_cnt ) const
         {
-          if ( this->bar_length_ == 0 )
+          if ( this->bar_width_ == 0 )
             return buffer;
 
           num_frame_cnt = static_cast<types::Size>( num_frame_cnt * this->shift_factor_ );
@@ -26,27 +26,27 @@ namespace pgbar {
 
           if ( !this->lead_.empty() ) {
             const auto& current_lead = this->lead_[num_frame_cnt % this->lead_.size()];
-            if ( current_lead.width() <= this->bar_length_ ) {
-              // virtual_point is a value between 1 and this->bar_length
+            if ( current_lead.width() <= this->bar_width_ ) {
+              // virtual_point is a value between 1 and this->bar_width
               const auto virtual_point = [this, num_frame_cnt]() noexcept -> types::Size {
-                if ( this->bar_length_ == 1 )
+                if ( this->bar_width_ == 1 )
                   return 1;
-                const auto period = 2 * this->bar_length_ - 2;
+                const auto period = 2 * this->bar_width_ - 2;
                 const auto pos    = num_frame_cnt % period;
-                return pos < this->bar_length_ ? pos + 1 : 2 * this->bar_length_ - pos - 1;
+                return pos < this->bar_width_ ? pos + 1 : 2 * this->bar_width_ - pos - 1;
               }();
               const auto len_left_fill = [this, virtual_point, &current_lead]() noexcept -> types::Size {
                 const auto len_half_lead = ( current_lead.width() / 2 ) + current_lead.width() % 2;
                 if ( virtual_point <= len_half_lead )
                   return 0;
-                const auto len_unreached = this->bar_length_ - virtual_point;
+                const auto len_unreached = this->bar_width_ - virtual_point;
                 if ( len_unreached <= len_half_lead - current_lead.width() % 2 )
-                  return this->bar_length_ - current_lead.width();
+                  return this->bar_width_ - current_lead.width();
 
                 return virtual_point - len_half_lead;
               }();
-              const auto len_right_fill = this->bar_length_ - ( len_left_fill + current_lead.width() );
-              __PGBAR_ASSERT( len_left_fill + len_right_fill + current_lead.width() == this->bar_length_ );
+              const auto len_right_fill = this->bar_width_ - ( len_left_fill + current_lead.width() );
+              __PGBAR_ASSERT( len_left_fill + len_right_fill + current_lead.width() == this->bar_width_ );
 
               this->try_reset( buffer );
               this->try_dye( buffer, this->filler_col_ )
@@ -61,14 +61,14 @@ namespace pgbar {
                 .append( ' ', len_right_fill % this->filler_.width() )
                 .append( this->filler_, len_right_fill / this->filler_.width() );
             } else
-              buffer.append( ' ', this->bar_length_ );
+              buffer.append( ' ', this->bar_width_ );
           } else if ( this->filler_.empty() )
-            buffer.append( ' ', this->bar_length_ );
+            buffer.append( ' ', this->bar_width_ );
           else {
             this->try_reset( buffer );
             this->try_dye( buffer, this->filler_col_ )
-              .append( this->filler_, this->bar_length_ / this->filler_.width() )
-              .append( ' ', this->bar_length_ % this->filler_.width() );
+              .append( this->filler_, this->bar_width_ / this->filler_.width() )
+              .append( ' ', this->bar_width_ % this->filler_.width() );
           }
 
           this->try_reset( buffer );
@@ -110,8 +110,8 @@ namespace pgbar {
           unpacker( *this, option::Starting( u8"[" ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::Ending>::value )
           unpacker( *this, option::Ending( u8"]" ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::BarLength>::value )
-          unpacker( *this, option::BarLength( 30 ) );
+        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::BarWidth>::value )
+          unpacker( *this, option::BarWidth( 30 ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::Filler>::value )
           unpacker( *this, option::Filler( u8"-" ) );
         if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::Lead>::value )

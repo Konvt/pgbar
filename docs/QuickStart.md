@@ -4,7 +4,7 @@
     - [How to use](#how-to-use)
     - [Configuration](#configuration)
       - [Constituent element](#constituent-element)
-        - [Variable progress bar length](#variable-progress-bar-length)
+        - [Variable progress bar width](#variable-progress-bar-width)
       - [Data configuration](#data-configuration)
       - [Thread safety](#thread-safety)
       - [Output stream](#output-stream)
@@ -15,7 +15,7 @@
     - [How to use](#how-to-use-1)
     - [Configuration](#configuration-1)
       - [Constituent element](#constituent-element-1)
-        - [Variable progress bar length](#variable-progress-bar-length-1)
+        - [Variable progress bar width](#variable-progress-bar-width-1)
       - [Data configuration](#data-configuration-1)
       - [Thread safety](#thread-safety-1)
       - [Output stream](#output-stream-1)
@@ -36,7 +36,7 @@
     - [How to use](#how-to-use-3)
     - [Configuration](#configuration-3)
       - [Constituent element](#constituent-element-3)
-        - [Variable progress bar length](#variable-progress-bar-length-2)
+        - [Variable progress bar width](#variable-progress-bar-width-2)
       - [Data configuration](#data-configuration-3)
       - [Thread safety](#thread-safety-3)
       - [Output stream](#output-stream-3)
@@ -47,7 +47,7 @@
     - [How to use](#how-to-use-4)
     - [Configuration](#configuration-4)
       - [Constituent element](#constituent-element-4)
-        - [Variable progress bar length](#variable-progress-bar-length-3)
+        - [Variable progress bar width](#variable-progress-bar-width-3)
       - [Data configuration](#data-configuration-4)
       - [Thread safety](#thread-safety-4)
       - [Output stream](#output-stream-4)
@@ -234,7 +234,7 @@ pgbar::option::Lead;      // Modify the frames of the animation section
 pgbar::option::Remains;   // Modify the fill character for the uniterated part
 pgbar::option::Reversed   // Adjust the growth direction of the progress bar (false indicates from left to right)
 pgbar::option::Shift;     // Adjust the animation speed of the animation section (Lead)
-pgbar::option::BarLength; // Adjust the length of the progress bar
+pgbar::option::BarWidth;  // Adjust the width of the progress bar
 
 pgbar::option::SpeedUnit; // Modify the unit in the Speed section
 pgbar::option::Magnitude; // Adjust the carry ratio in the Speed section
@@ -273,19 +273,19 @@ bar.config().disable().animation().counter();
 ```
 
 The above elements all have methods with the same name in `Line`, and calling these methods and passing parameters to them can also modify the data information.
-##### Variable progress bar length
-In between the `Starting` and `Ending` elements is a progress indicator called the `Animation` (excluding `Starting` and `Ending`), which is variable in length.
+##### Variable progress bar width
+In between the `Starting` and `Ending` elements is a progress indicator called the `Animation` (excluding `Starting` and `Ending`), which is variable in width.
 
-Each progress bar has a default initial length of 30 characters. If you want the progress bar to fill a row, or if the progress bar is too long and needs to be narrowed, you need to change the length of the progress indicator using the `bar_length()` method or the `pgbar::option::BarLength` wrapper.
+Each progress bar has a default initial width of 30 characters. If you want the progress bar to fill a row, or if the progress bar is too long and needs to be narrowed, you need to change the width of the progress indicator using the `bar_width()` method or the `pgbar::option::BarWidth` wrapper.
 
-For the latter, directly use the corresponding interface to adjust the parameters;   The former requires a helper method to obtain the length of parts other than the progress indicator in order to correctly calculate the length just enough to fill a row with the progress bar.
+For the latter, directly use the corresponding interface to adjust the parameters;   The former requires a helper method to obtain the width of parts other than the progress indicator in order to correctly calculate the width just enough to fill a row with the progress bar.
 
-The method is `config().fixed_length()`。
+The method is `config().fixed_width()`。
 
 ```cpp
 pgbar::ProgressBar<> bar;
-assert( bar.config().bar_length() == 30 );  // default value
-assert( bar.config().fixed_length() != 0 ); // The exact value depends on the content of the data member
+assert( bar.config().bar_width() == 30 );  // default value
+assert( bar.config().fixed_width() != 0 ); // The exact value depends on the content of the data member
 ```
 
 The specific terminal line width (in characters) can be obtained using `pgbar::config::terminal_width()`. If the passed output stream does not point to an actual terminal device, the return value will be 0.
@@ -293,8 +293,8 @@ The specific terminal line width (in characters) can be obtained using `pgbar::c
 > If the running platform is neither `Windows` nor `Unix-like`, then this function will only return a fixed value of 100.
 
 ```cpp
-assert( pgbar::config::terminal_width( pgbar::Channel::Stdout ) > bar.config().fixed_length() );
-bar.bar_length( pgbar::config::terminal_width( pgbar::Channel::Stdout ) - bar.config().fixed_length() );
+assert( pgbar::config::terminal_width( pgbar::Channel::Stdout ) > bar.config().fixed_width() );
+bar.bar_width( pgbar::config::terminal_width( pgbar::Channel::Stdout ) - bar.config().fixed_width() );
 // At this point, the progress bar can exactly fill one line.
 ```
 #### Data configuration
@@ -695,7 +695,7 @@ pgbar::option::Lead;      // Modify the frames of the animation section
 pgbar::option::Filler;    // Modify the fill character of the iterated part
 pgbar::option::Remains;   // Modify the fill character for the uniterated part
 pgbar::option::Reversed   // Adjust the growth direction of the progress bar (false indicates from left to right)
-pgbar::option::BarLength; // Adjust the length of the progress bar
+pgbar::option::BarWidth;  // Adjust the width of the progress bar
 
 pgbar::option::SpeedUnit; // Modify the unit in the Speed section
 pgbar::option::Magnitude; // Adjust the carry ratio in the Speed section
@@ -734,19 +734,19 @@ bar.config().disable().animation().counter();
 ```
 
 The above elements all have methods with the same name in `Block`, and calling these methods and passing parameters to them can also modify the data information.
-##### Variable progress bar length
-The element BlockBar of `BlockBar` is also called as Animation. It is a progress indicator implemented using Unicode block characters, and the length of this progress indicator is variable.
+##### Variable progress bar width
+The element BlockBar of `BlockBar` is also called as Animation. It is a progress indicator implemented using Unicode block characters, and the width of this progress indicator is variable.
 
-Each progress bar has a default initial length of 30 characters. If you want the progress bar to fill a row, or if the progress bar is too long and needs to be narrowed, you need to change the length of the progress indicator using the `bar_length()` method or the `pgbar::option::BarLength` wrapper.
+Each progress bar has a default initial width of 30 characters. If you want the progress bar to fill a row, or if the progress bar is too long and needs to be narrowed, you need to change the width of the progress indicator using the `bar_width()` method or the `pgbar::option::BarWidth` wrapper.
 
-For the latter, directly use the corresponding interface to adjust the parameters;   The former requires a helper method to obtain the length of parts other than the progress indicator in order to correctly calculate the length just enough to fill a row with the progress bar.
+For the latter, directly use the corresponding interface to adjust the parameters;   The former requires a helper method to obtain the width of parts other than the progress indicator in order to correctly calculate the width just enough to fill a row with the progress bar.
 
-The method is `config().fixed_length()`。
+The method is `config().fixed_width()`。
 
 ```cpp
 pgbar::BlockBar<> bar;
-assert( bar.config().bar_length() == 30 );  // default value
-assert( bar.config().fixed_length() != 0 ); // The exact value depends on the content of the data member
+assert( bar.config().bar_width() == 30 );  // default value
+assert( bar.config().fixed_width() != 0 ); // The exact value depends on the content of the data member
 ```
 
 The specific terminal line width (in characters) can be obtained using `pgbar::config::terminal_width()`. If the passed output stream does not point to an actual terminal device, the return value will be 0.
@@ -754,8 +754,8 @@ The specific terminal line width (in characters) can be obtained using `pgbar::c
 > If the running platform is neither `Windows` nor `Unix-like`, then this function will only return a fixed value of 100.
 
 ```cpp
-assert( pgbar::config::terminal_width( pgbar::Channel::Stdout ) > bar.config().fixed_length() );
-bar.bar_length( pgbar::config::terminal_width( pgbar::Channel::Stdout ) - bar.config().fixed_length() );
+assert( pgbar::config::terminal_width( pgbar::Channel::Stdout ) > bar.config().fixed_width() );
+bar.bar_width( pgbar::config::terminal_width( pgbar::Channel::Stdout ) - bar.config().fixed_width() );
 // At this point, the progress bar can exactly fill one line.
 ```
 #### Data configuration
@@ -1579,7 +1579,7 @@ pgbar::option::Ending;    // Modify the elements right of the progress bar and l
 pgbar::option::Filler;    // Modify the fill character of the iterated part
 pgbar::option::Lead;      // Modify the frames of the animation section
 pgbar::option::Shift;     // Adjust the animation speed of the animation section (Lead)
-pgbar::option::BarLength; // Adjust the length of the progress bar
+pgbar::option::BarWidth;  // Adjust the width of the progress bar
 
 pgbar::option::SpeedUnit; // Modify the unit in the Speed section
 pgbar::option::Magnitude; // Adjust the carry ratio in the Speed section
@@ -1617,19 +1617,19 @@ bar.config().disable().animation().counter();
 ```
 
 The above elements all have methods with the same name in `SweepBar`, and calling these methods and passing parameters to them can also modify the data information.
-##### Variable progress bar length
-In between the Starting and Ending elements is a scanning progress bar called Animation (excluding Starting and Ending), which is variable in length.
+##### Variable progress bar width
+In between the Starting and Ending elements is a scanning progress bar called Animation (excluding Starting and Ending), which is variable in width.
 
-Each progress bar has a default initial length of 30 characters. If you want the progress bar to fill a row, or if the progress bar is too long and needs to be narrowed, you need to change the length of the progress indicator using the `bar_length()` method or the `pgbar::option::BarLength` wrapper.
+Each progress bar has a default initial width of 30 characters. If you want the progress bar to fill a row, or if the progress bar is too long and needs to be narrowed, you need to change the width of the progress indicator using the `bar_width()` method or the `pgbar::option::BarWidth` wrapper.
 
-For the latter, directly use the corresponding interface to adjust the parameters;   The former requires a helper method to obtain the length of parts other than the progress indicator in order to correctly calculate the length just enough to fill a row with the progress bar.
+For the latter, directly use the corresponding interface to adjust the parameters;   The former requires a helper method to obtain the width of parts other than the progress indicator in order to correctly calculate the width just enough to fill a row with the progress bar.
 
-The method is `config().fixed_length()`。
+The method is `config().fixed_width()`。
 
 ```cpp
 pgbar::SweepBar<> bar;
-assert( bar.config().bar_length() == 30 );  // default value
-assert( bar.config().fixed_length() != 0 ); // The exact value depends on the content of the data member
+assert( bar.config().bar_width() == 30 );  // default value
+assert( bar.config().fixed_width() != 0 ); // The exact value depends on the content of the data member
 ```
 
 The specific terminal line width (in characters) can be obtained using `pgbar::config::terminal_width()`. If the passed output stream does not point to an actual terminal device, the return value will be 0.
@@ -1637,8 +1637,8 @@ The specific terminal line width (in characters) can be obtained using `pgbar::c
 > If the running platform is neither `Windows` nor `Unix-like`, then this function will only return a fixed value of 100.
 
 ```cpp
-assert( pgbar::config::terminal_width( pgbar::Channel::Stdout ) > bar.config().fixed_length() );
-bar.bar_length( pgbar::config::terminal_width( pgbar::Channel::Stdout ) - bar.config().fixed_length() );
+assert( pgbar::config::terminal_width( pgbar::Channel::Stdout ) > bar.config().fixed_width() );
+bar.bar_width( pgbar::config::terminal_width( pgbar::Channel::Stdout ) - bar.config().fixed_width() );
 // At this point, the progress bar can exactly fill one line.
 ```
 #### Data configuration
@@ -2035,7 +2035,7 @@ pgbar::option::Ending;    // Modify the elements right of the progress bar and l
 pgbar::option::Filler;    // Modify the fill character of the iterated part
 pgbar::option::Lead;      // Modify the frames of the animation section
 pgbar::option::Shift;     // Adjust the animation speed of the animation section (Lead)
-pgbar::option::BarLength; // Adjust the length of the progress bar
+pgbar::option::BarWidth;  // Adjust the width of the progress bar
 
 pgbar::option::SpeedUnit; // Modify the unit in the Speed section
 pgbar::option::Magnitude; // Adjust the carry ratio in the Speed section
@@ -2073,19 +2073,19 @@ bar.config().disable().animation().counter();
 ```
 
 The above elements all have methods with the same name in `FlowBar`, and calling these methods and passing parameters to them can also modify the data information.
-##### Variable progress bar length
-In between the Starting and Ending elements is a scanning progress bar called Animation (excluding Starting and Ending), which is variable in length.
+##### Variable progress bar width
+In between the Starting and Ending elements is a scanning progress bar called Animation (excluding Starting and Ending), which is variable in width.
 
-Each progress bar has a default initial length of 30 characters. If you want the progress bar to fill a row, or if the progress bar is too long and needs to be narrowed, you need to change the length of the progress indicator using the `bar_length()` method or the `pgbar::option::BarLength` wrapper.
+Each progress bar has a default initial width of 30 characters. If you want the progress bar to fill a row, or if the progress bar is too long and needs to be narrowed, you need to change the width of the progress indicator using the `bar_width()` method or the `pgbar::option::BarWidth` wrapper.
 
-For the latter, directly use the corresponding interface to adjust the parameters;   The former requires a helper method to obtain the length of parts other than the progress indicator in order to correctly calculate the length just enough to fill a row with the progress bar.
+For the latter, directly use the corresponding interface to adjust the parameters;   The former requires a helper method to obtain the width of parts other than the progress indicator in order to correctly calculate the width just enough to fill a row with the progress bar.
 
-The method is `config().fixed_length()`。
+The method is `config().fixed_width()`。
 
 ```cpp
 pgbar::FlowBar<> bar;
-assert( bar.config().bar_length() == 30 );  // default value
-assert( bar.config().fixed_length() != 0 ); // The exact value depends on the content of the data member
+assert( bar.config().bar_width() == 30 );  // default value
+assert( bar.config().fixed_width() != 0 ); // The exact value depends on the content of the data member
 ```
 
 The specific terminal line width (in characters) can be obtained using `pgbar::config::terminal_width()`. If the passed output stream does not point to an actual terminal device, the return value will be 0.
@@ -2093,8 +2093,8 @@ The specific terminal line width (in characters) can be obtained using `pgbar::c
 > If the running platform is neither `Windows` nor `Unix-like`, then this function will only return a fixed value of 100.
 
 ```cpp
-assert( pgbar::config::terminal_width( pgbar::Channel::Stdout ) > bar.config().fixed_length() );
-bar.bar_length( pgbar::config::terminal_width( pgbar::Channel::Stdout ) - bar.config().fixed_length() );
+assert( pgbar::config::terminal_width( pgbar::Channel::Stdout ) > bar.config().fixed_width() );
+bar.bar_width( pgbar::config::terminal_width( pgbar::Channel::Stdout ) - bar.config().fixed_width() );
 // At this point, the progress bar can exactly fill one line.
 ```
 #### Data configuration

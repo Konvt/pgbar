@@ -4,7 +4,7 @@
     - [交互方式](#交互方式)
     - [配置选项](#配置选项)
       - [元素构成](#元素构成)
-        - [可变的进度条长度](#可变的进度条长度)
+        - [可变的进度条宽度](#可变的进度条宽度)
       - [数据配置](#数据配置)
       - [线程安全性](#线程安全性)
       - [绑定的输出流](#绑定的输出流)
@@ -15,7 +15,7 @@
     - [交互方式](#交互方式-1)
     - [配置选项](#配置选项-1)
       - [元素构成](#元素构成-1)
-        - [可变的进度条长度](#可变的进度条长度-1)
+        - [可变的进度条宽度](#可变的进度条宽度-1)
       - [数据配置](#数据配置-1)
       - [线程安全性](#线程安全性-1)
       - [绑定的输出流](#绑定的输出流-1)
@@ -36,7 +36,7 @@
     - [交互方式](#交互方式-3)
     - [配置选项](#配置选项-3)
       - [元素构成](#元素构成-3)
-        - [可变的进度条长度](#可变的进度条长度-2)
+        - [可变的进度条宽度](#可变的进度条宽度-2)
       - [数据配置](#数据配置-3)
       - [线程安全性](#线程安全性-3)
       - [绑定的输出流](#绑定的输出流-3)
@@ -47,7 +47,7 @@
     - [交互方式](#交互方式-4)
     - [配置选项](#配置选项-4)
       - [元素构成](#元素构成-4)
-        - [可变的进度条长度](#可变的进度条长度-3)
+        - [可变的进度条宽度](#可变的进度条宽度-3)
       - [数据配置](#数据配置-4)
       - [线程安全性](#线程安全性-4)
       - [绑定的输出流](#绑定的输出流-4)
@@ -234,7 +234,7 @@ pgbar::option::Lead;      // 修改可变动画部分的各个帧
 pgbar::option::Remains;   // 修改未迭代部分的填充字符
 pgbar::option::Reversed;  // 调整进度条的增长方向（false 表示从左到右）
 pgbar::option::Shift;     // 调整动画部分（Lead）的动画速度
-pgbar::option::BarLength; // 调整进度条的长度
+pgbar::option::BarWidth;  // 调整进度条的宽度
 
 pgbar::option::SpeedUnit; // 修改 Speed 部分的单位
 pgbar::option::Magnitude; // 调整 Speed 部分的进位倍率
@@ -273,19 +273,19 @@ bar.config().disable().animation().counter();
 ```
 
 以上元素在 `Line` 都有同名方法，调用这些方法并向其中传递参数同样能做到修改数据信息。
-##### 可变的进度条长度
-在元素 `Starting` 和 `Ending` 中间部分的是被称作 `Animation` 的进度指示器（不包括 `Starting` 和 `Ending`），这个进度指示器的长度是可变的。
+##### 可变的进度条宽度
+在元素 `Starting` 和 `Ending` 中间部分的是被称作 `Animation` 的进度指示器（不包括 `Starting` 和 `Ending`），这个进度指示器的宽度是可变的。
 
-每个进度条都有一个默认的初始长度（30 字符），如果希望进度条能够填满一个终端行，或者进度条太长需要缩窄，就需要使用到 `bar_length()` 方法或 `pgbar::option::BarLength` 包装器更改进度指示器的长度。
+每个进度条都有一个默认的初始宽度（30 字符），如果希望进度条能够填满一个终端行，或者进度条太长需要缩窄，就需要使用到 `bar_width()` 方法或 `pgbar::option::BarWidth` 包装器更改进度指示器的宽度。
 
-对于后者，直接使用对应的接口调整参数即可；而前者则需要一个辅助方法获取除了进度指示器之外部分的长度，才能正确计算得到恰好能让进度条占满一行的长度。
+对于后者，直接使用对应的接口调整参数即可；而前者则需要一个辅助方法获取除了进度指示器之外部分的宽度，才能正确计算得到恰好能让进度条占满一行的宽度。
 
-这个方法就是 `config().fixed_length()`。
+这个方法就是 `config().fixed_width()`。
 
 ```cpp
 pgbar::ProgressBar<> bar;
-assert( bar.config().bar_length() == 30 );  // 默认值
-assert( bar.config().fixed_length() != 0 ); // 具体值取决于数据成员的内容
+assert( bar.config().bar_width() == 30 );  // 默认值
+assert( bar.config().fixed_width() != 0 ); // 具体值取决于数据成员的内容
 ```
 
 具体的终端行宽度（以字符为单位）可以使用 `pgbar::config::terminal_width()` 获取；如果传递的输出流不指向实际终端设备，那么返回值为 0。
@@ -293,8 +293,8 @@ assert( bar.config().fixed_length() != 0 ); // 具体值取决于数据成员的
 > 如果运行平台既不是 `Windows` 也不是 `unix-like`，那么该函数只会返回一个固定值 100。
 
 ```cpp
-assert( pgbar::config::terminal_width( pgbar::Channel::Stdout ) > bar.config().fixed_length() );
-bar.bar_length( pgbar::config::terminal_width( pgbar::Channel::Stdout ) - bar.config().fixed_length() );
+assert( pgbar::config::terminal_width( pgbar::Channel::Stdout ) > bar.config().fixed_width() );
+bar.bar_width( pgbar::config::terminal_width( pgbar::Channel::Stdout ) - bar.config().fixed_width() );
 // 此时进度条恰能填满一行
 ```
 #### 数据配置
@@ -400,7 +400,7 @@ int main()
 
 `pgbar::Region::Relative` 会根据上一次渲染输出的行数、回退并覆盖旧进度条内容；此时向同一输出流写入信息后，若额外添加适当数量的换行符，那么写入的额外信息能够得到保留。
 
-但如果进度条字符串长度过长，使用 `pgbar::Region::Relative` 会导致终端渲染异常。
+但如果进度条字符串宽度过长，使用 `pgbar::Region::Relative` 会导致终端渲染异常。
 
 > 对于任意一个独立的进度条而言，它的渲染结构共占两行：一行是进度条本身，一行则是空行；
 >
@@ -695,7 +695,7 @@ pgbar::option::Lead;      // 修改可变动画部分的各个帧
 pgbar::option::Filler;    // 修改已迭代部分的填充字符
 pgbar::option::Remains;   // 修改未迭代部分的填充字符
 pgbar::option::Reversed;  // 调整进度条的增长方向（false 表示从左到右）
-pgbar::option::BarLength; // 调整进度条的长度
+pgbar::option::BarWidth;  // 调整进度条的宽度
 
 pgbar::option::SpeedUnit; // 修改 Speed 部分的单位
 pgbar::option::Magnitude; // 调整 Speed 部分的进位倍率
@@ -734,19 +734,19 @@ bar.config().disable().animation().counter();
 ```
 
 以上元素在 `Block` 都有同名方法，调用这些方法并向其中传递参数同样能做到修改数据信息。
-##### 可变的进度条长度
-`BlockBar` 的元素 `BlockBar` 也被称作 `Animation`，它是一个使用 Unicode 方块字符实现的进度指示器，这个进度指示器的长度是可变的。
+##### 可变的进度条宽度
+`BlockBar` 的元素 `BlockBar` 也被称作 `Animation`，它是一个使用 Unicode 方块字符实现的进度指示器，这个进度指示器的宽度是可变的。
 
-每个进度条都有一个默认的初始长度（30 字符），如果希望进度条能够填满一个终端行，或者进度条太长需要缩窄，就需要使用到 `bar_length()` 方法或 `pgbar::option::BarLength` 包装器更改进度指示器的长度。
+每个进度条都有一个默认的初始宽度（30 字符），如果希望进度条能够填满一个终端行，或者进度条太长需要缩窄，就需要使用到 `bar_width()` 方法或 `pgbar::option::BarWidth` 包装器更改进度指示器的宽度。
 
-对于后者，直接使用对应的接口调整参数即可；而前者则需要一个辅助方法获取除了进度指示器之外部分的长度，才能正确计算得到恰好能让进度条占满一行的长度。
+对于后者，直接使用对应的接口调整参数即可；而前者则需要一个辅助方法获取除了进度指示器之外部分的宽度，才能正确计算得到恰好能让进度条占满一行的宽度。
 
-这个方法就是 `config().fixed_length()`。
+这个方法就是 `config().fixed_width()`。
 
 ```cpp
 pgbar::BlockBar<> bar;
-assert( bar.config().bar_length() == 30 );  // 默认值
-assert( bar.config().fixed_length() != 0 ); // 具体值取决于数据成员的内容
+assert( bar.config().bar_width() == 30 );  // 默认值
+assert( bar.config().fixed_width() != 0 ); // 具体值取决于数据成员的内容
 ```
 
 具体的终端行宽度（以字符为单位）可以使用 `pgbar::config::terminal_width()` 获取；如果传递的输出流不指向实际终端设备，那么返回值为 0。
@@ -754,8 +754,8 @@ assert( bar.config().fixed_length() != 0 ); // 具体值取决于数据成员的
 > 如果运行平台既不是 Windows 也不是 unix-like，那么该函数只会返回一个固定值 100。
 
 ```cpp
-assert( pgbar::config::terminal_width( pgbar::Channel::Stdout ) > bar.config().fixed_length() );
-bar.bar_length( pgbar::config::terminal_width( pgbar::Channel::Stdout ) - bar.config().fixed_length() );
+assert( pgbar::config::terminal_width( pgbar::Channel::Stdout ) > bar.config().fixed_width() );
+bar.bar_width( pgbar::config::terminal_width( pgbar::Channel::Stdout ) - bar.config().fixed_width() );
 // 此时进度条恰能填满一行
 ```
 #### 数据配置
@@ -859,7 +859,7 @@ int main()
 
 `pgbar::Region::Relative` 会根据上一次渲染输出的行数、回退并覆盖旧进度条内容；此时向同一输出流写入信息后，若额外添加适当数量的换行符，那么写入的额外信息能够得到保留。
 
-但如果进度条字符串长度过长，使用 `pgbar::Region::Relative` 会导致终端渲染异常。
+但如果进度条字符串宽度过长，使用 `pgbar::Region::Relative` 会导致终端渲染异常。
 
 > 对于任意一个独立的进度条而言，它的渲染结构共占两行：一行是进度条本身，一行则是空行；
 >
@@ -1285,7 +1285,7 @@ int main()
 
 `pgbar::Region::Relative` 则仅根据上一次输出的进度条行数、在下一帧输出前回退适量的行数，并重新输出字符串以覆盖旧内容‘这种情况下，向同一输出流写入信息后，若额外添加适当数量的换行符，那么写入的额外信息能够得到保留。
 
-但如果进度条字符串长度过长，`pgbar::Region::Relative` 会导致错误的终端渲染结果。
+但如果进度条字符串宽度过长，`pgbar::Region::Relative` 会导致错误的终端渲染结果。
 
 > 对于任意一个独立的进度条而言，它的渲染结构共占两行：一行是进度条本身，一行则是空行；
 >
@@ -1579,7 +1579,7 @@ pgbar::option::Ending;    // 修改进度条块右侧、Counter 左侧的元素
 pgbar::option::Filler;    // 修改进度条背景的填充字符
 pgbar::option::Lead;      // 修改可变动画部分的各个帧
 pgbar::option::Shift;     // 调整动画部分（Lead）的动画速度
-pgbar::option::BarLength; // 调整进度条的长度
+pgbar::option::BarWidth;  // 调整进度条的宽度
 
 pgbar::option::SpeedUnit; // 修改 Speed 部分的单位
 pgbar::option::Magnitude; // 调整 Speed 部分的进位倍率
@@ -1617,19 +1617,19 @@ bar.config().disable().animation().counter();
 ```
 
 以上元素在 `Sweep` 都有同名方法，调用这些方法并向其中传递参数同样能做到修改数据信息。
-##### 可变的进度条长度
-在元素 `Starting` 和 `Ending` 中间部分的是被称作 `Animation` 的扫描进度条（不包括 `Starting` 和 `Ending`），这个扫描进度条的长度是可变的。
+##### 可变的进度条宽度
+在元素 `Starting` 和 `Ending` 中间部分的是被称作 `Animation` 的扫描进度条（不包括 `Starting` 和 `Ending`），这个扫描进度条的宽度是可变的。
 
-每个进度条都有一个默认的初始长度（30 字符），如果希望进度条能够填满一个终端行，或者进度条太长需要缩窄，就需要使用到 `bar_length()` 方法或 `pgbar::option::BarLength` 包装器更改进度指示器的长度。
+每个进度条都有一个默认的初始宽度（30 字符），如果希望进度条能够填满一个终端行，或者进度条太长需要缩窄，就需要使用到 `bar_width()` 方法或 `pgbar::option::BarWidth` 包装器更改进度指示器的宽度。
 
-对于后者，直接使用对应的接口调整参数即可；而前者则需要一个辅助方法获取除了进度指示器之外部分的长度，才能正确计算得到恰好能让进度条占满一行的长度。
+对于后者，直接使用对应的接口调整参数即可；而前者则需要一个辅助方法获取除了进度指示器之外部分的宽度，才能正确计算得到恰好能让进度条占满一行的宽度。
 
-这个方法就是 `config().fixed_length()`。
+这个方法就是 `config().fixed_width()`。
 
 ```cpp
 pgbar::SweepBar<> bar;
-assert( bar.config().bar_length() == 30 );  // 默认值
-assert( bar.config().fixed_length() != 0 ); // 具体值取决于数据成员的内容
+assert( bar.config().bar_width() == 30 );  // 默认值
+assert( bar.config().fixed_width() != 0 ); // 具体值取决于数据成员的内容
 ```
 
 具体的终端行宽度（以字符为单位）可以使用 `pgbar::config::terminal_width()` 获取；如果传递的输出流不指向实际终端设备，那么返回值为 0。
@@ -1637,8 +1637,8 @@ assert( bar.config().fixed_length() != 0 ); // 具体值取决于数据成员的
 > 如果运行平台既不是 Windows 也不是 unix-like，那么该函数只会返回一个固定值 100。
 
 ```cpp
-assert( pgbar::config::terminal_width( pgbar::Channel::Stdout ) > bar.config().fixed_length() );
-bar.bar_length( pgbar::config::terminal_width( pgbar::Channel::Stdout ) - bar.config().fixed_length() );
+assert( pgbar::config::terminal_width( pgbar::Channel::Stdout ) > bar.config().fixed_width() );
+bar.bar_width( pgbar::config::terminal_width( pgbar::Channel::Stdout ) - bar.config().fixed_width() );
 // 此时进度条恰能填满一行
 ```
 #### 数据配置
@@ -1742,7 +1742,7 @@ int main()
 
 `pgbar::Region::Relative` 则仅根据上一次输出的进度条行数、在下一帧输出前回退适量的行数，并重新输出字符串以覆盖旧内容‘这种情况下，向同一输出流写入信息后，若额外添加适当数量的换行符，那么写入的额外信息能够得到保留。
 
-但如果进度条字符串长度过长，`pgbar::Region::Relative` 会导致错误的终端渲染结果。
+但如果进度条字符串宽度过长，`pgbar::Region::Relative` 会导致错误的终端渲染结果。
 
 > 对于任意一个独立的进度条而言，它的渲染结构共占两行：一行是进度条本身，一行则是空行；
 >
@@ -2036,7 +2036,7 @@ pgbar::option::Ending;    // 修改进度条块右侧、Counter 左侧的元素
 pgbar::option::Filler;    // 修改进度条背景的填充字符
 pgbar::option::Lead;      // 修改可变动画部分的各个帧
 pgbar::option::Shift;     // 调整动画部分（Lead）的动画速度
-pgbar::option::BarLength; // 调整进度条的长度
+pgbar::option::BarWidth;  // 调整进度条的宽度
 
 pgbar::option::SpeedUnit; // 修改 Speed 部分的单位
 pgbar::option::Magnitude; // 调整 Speed 部分的进位倍率
@@ -2074,19 +2074,19 @@ bar.config().disable().animation().counter();
 ```
 
 以上元素在 `Flow` 都有同名方法，调用这些方法并向其中传递参数同样能做到修改数据信息。
-##### 可变的进度条长度
-在元素 `Starting` 和 `Ending` 中间部分的是被称作 `Animation` 的扫描进度条（不包括 `Starting` 和 `Ending`），这个扫描进度条的长度是可变的。
+##### 可变的进度条宽度
+在元素 `Starting` 和 `Ending` 中间部分的是被称作 `Animation` 的扫描进度条（不包括 `Starting` 和 `Ending`），这个扫描进度条的宽度是可变的。
 
-每个进度条都有一个默认的初始长度（30 字符），如果希望进度条能够填满一个终端行，或者进度条太长需要缩窄，就需要使用到 `bar_length()` 方法或 `pgbar::option::BarLength` 包装器更改进度指示器的长度。
+每个进度条都有一个默认的初始宽度（30 字符），如果希望进度条能够填满一个终端行，或者进度条太长需要缩窄，就需要使用到 `bar_width()` 方法或 `pgbar::option::BarWidth` 包装器更改进度指示器的宽度。
 
-对于后者，直接使用对应的接口调整参数即可；而前者则需要一个辅助方法获取除了进度指示器之外部分的长度，才能正确计算得到恰好能让进度条占满一行的长度。
+对于后者，直接使用对应的接口调整参数即可；而前者则需要一个辅助方法获取除了进度指示器之外部分的宽度，才能正确计算得到恰好能让进度条占满一行的宽度。
 
-这个方法就是 `config().fixed_length()`。
+这个方法就是 `config().fixed_width()`。
 
 ```cpp
 pgbar::FlowBar<> bar;
-assert( bar.config().bar_length() == 30 );  // 默认值
-assert( bar.config().fixed_length() != 0 ); // 具体值取决于数据成员的内容
+assert( bar.config().bar_width() == 30 );  // 默认值
+assert( bar.config().fixed_width() != 0 ); // 具体值取决于数据成员的内容
 ```
 
 具体的终端行宽度（以字符为单位）可以使用 `pgbar::config::terminal_width()` 获取；如果传递的输出流不指向实际终端设备，那么返回值为 0。
@@ -2094,8 +2094,8 @@ assert( bar.config().fixed_length() != 0 ); // 具体值取决于数据成员的
 > 如果运行平台既不是 Windows 也不是 unix-like，那么该函数只会返回一个固定值 100。
 
 ```cpp
-assert( pgbar::config::terminal_width( pgbar::Channel::Stdout ) > bar.config().fixed_length() );
-bar.bar_length( pgbar::config::terminal_width( pgbar::Channel::Stdout ) - bar.config().fixed_length() );
+assert( pgbar::config::terminal_width( pgbar::Channel::Stdout ) > bar.config().fixed_width() );
+bar.bar_width( pgbar::config::terminal_width( pgbar::Channel::Stdout ) - bar.config().fixed_width() );
 // 此时进度条恰能填满一行
 ```
 #### 数据配置
@@ -2199,7 +2199,7 @@ int main()
 
 `pgbar::Region::Relative` 则仅根据上一次输出的进度条行数、在下一帧输出前回退适量的行数，并重新输出字符串以覆盖旧内容‘这种情况下，向同一输出流写入信息后，若额外添加适当数量的换行符，那么写入的额外信息能够得到保留。
 
-但如果进度条字符串长度过长，`pgbar::Region::Relative` 会导致错误的终端渲染结果。
+但如果进度条字符串宽度过长，`pgbar::Region::Relative` 会导致错误的终端渲染结果。
 
 > 对于任意一个独立的进度条而言，它的渲染结构共占两行：一行是进度条本身，一行则是空行；
 >

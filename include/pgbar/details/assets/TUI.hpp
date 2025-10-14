@@ -428,13 +428,13 @@ namespace pgbar {
   }
         __PGBAR_UNPAKING( Starting, starting_, __PGBAR_CXX20_CNSTXPR )
         __PGBAR_UNPAKING( Ending, ending_, __PGBAR_CXX20_CNSTXPR )
-        __PGBAR_UNPAKING( BarLength, bar_length_, __PGBAR_CXX20_CNSTXPR )
+        __PGBAR_UNPAKING( BarWidth, bar_width_, __PGBAR_CXX20_CNSTXPR )
         __PGBAR_UNPAKING( StartColor, start_col_, )
         __PGBAR_UNPAKING( EndColor, end_col_, )
 #undef __PGBAR_UNPAKING
 
       protected:
-        types::Size bar_length_;
+        types::Size bar_width_;
         charcodes::U8Raw starting_, ending_;
         console::escodes::RGBColor start_col_, end_col_;
 
@@ -483,19 +483,19 @@ namespace pgbar {
          * If the passed parameters is not a valid RGB color string.
          */
         Derived& end_color( types::ROStr _end_color ) & { __PGBAR_METHOD( EndColor, _end_color, ); }
-        // Set the length of the bar indicator.
-        Derived& bar_length( types::Size _length ) & noexcept { __PGBAR_METHOD( BarLength, _length, ); }
+        // Set the width of the bar indicator.
+        Derived& bar_width( types::Size _width ) & noexcept { __PGBAR_METHOD( BarWidth, _width, ); }
 
-        __PGBAR_NODISCARD types::Size bar_length() const noexcept
+        __PGBAR_NODISCARD types::Size bar_width() const noexcept
         {
           concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          return bar_length_;
+          return bar_width_;
         }
 
 #undef __PGBAR_METHOD
         __PGBAR_CXX20_CNSTXPR void swap( BasicIndicator& lhs ) noexcept
         {
-          std::swap( bar_length_, lhs.bar_length_ );
+          std::swap( bar_width_, lhs.bar_width_ );
           starting_.swap( lhs.starting_ );
           ending_.swap( lhs.ending_ );
           start_col_.swap( lhs.start_col_ );
@@ -780,7 +780,7 @@ namespace pgbar {
         }
 
 #define __PGBAR_DEFAULT_SPEED u8"   inf " // The width prepared for "999.99 "
-        static constexpr types::Size _fixed_length = sizeof( __PGBAR_DEFAULT_SPEED ) - 1;
+        static constexpr types::Size _fixed_width = sizeof( __PGBAR_DEFAULT_SPEED ) - 1;
 
       protected:
         std::array<charcodes::U8Raw, 4> units_;
@@ -829,7 +829,7 @@ namespace pgbar {
 
         __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr types::Size fixed_len_speed() const noexcept
         {
-          return _fixed_length + units_[nth_longest_unit_].width();
+          return _fixed_width + units_[nth_longest_unit_].width();
         }
 
       public:
@@ -1011,7 +1011,7 @@ namespace pgbar {
                            option::Ending,
                            option::StartColor,
                            option::EndColor,
-                           option::BarLength );
+                           option::BarWidth );
       __PGBAR_BIND_OPTION( assets::Prefix, option::Prefix, option::PrefixColor );
       __PGBAR_BIND_OPTION( assets::Postfix, option::Postfix, option::PostfixColor );
       __PGBAR_BIND_OPTION( assets::Segment,
