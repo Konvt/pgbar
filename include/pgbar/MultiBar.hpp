@@ -263,7 +263,7 @@ namespace pgbar {
 #endif
 
   // Generates a MultiBar type containing Count instances of the given Bar type.
-  template<typename Bar, _details::types::Size Count = 1>
+  template<typename Bar, _details::types::Size Count>
   using MakeMulti_t = _details::traits::FillWith_t<MultiBar, Bar, Count>;
 
   // Creates a MultiBar using existing bar instances.
