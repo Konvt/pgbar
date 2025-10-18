@@ -14,25 +14,25 @@ namespace pgbar {
       template<typename... Ts>
       struct TypeSet : TypeList<Ts>... {};
 
-      template<typename... Ts, typename T>
-      struct TpContain<TypeSet<Ts...>, T> : std::is_base_of<TypeList<T>, TypeSet<Ts...>> {};
+      template<typename... Es, typename T>
+      struct TpContain<TypeSet<Es...>, T> : std::is_base_of<TypeList<T>, TypeSet<Es...>> {};
 
-      template<typename... Ts, typename T>
-      struct TpAppend<TypeSet<Ts...>, T> {
+      template<typename... Es, typename T>
+      struct TpAppend<TypeSet<Es...>, T> {
       private:
         template<bool Cond, typename NewOne>
         struct _Select;
         template<typename NewOne>
         struct _Select<true, NewOne> {
-          using type = TypeSet<Ts...>;
+          using type = TypeSet<Es...>;
         };
         template<typename NewOne>
         struct _Select<false, NewOne> {
-          using type = TypeSet<Ts..., NewOne>;
+          using type = TypeSet<Es..., NewOne>;
         };
 
       public:
-        using type = typename _Select<TpContain<TypeSet<Ts...>, T>::value, T>::type;
+        using type = typename _Select<TpContain<TypeSet<Es...>, T>::value, T>::type;
       };
 
       template<typename... Es, template<typename...> class Collection>

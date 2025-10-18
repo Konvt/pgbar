@@ -2474,6 +2474,26 @@ int main()
   // the other two progress bars are initialized by default.
 }
 ```
+
+In addition, when explicitly writing a `MultiBar` containing `n` repeated progress bars (for example, when declaring class members), `pgbar` provides a template alias to simplify type acquisition:
+
+```cpp
+#include "pgbar/pgbar.hpp"
+
+struct Foo {
+  pgbar::MakeMulti_t<pgbar::BlockBar<>, 3> bars;
+  // ...
+};
+
+int main()
+{
+  static_assert(
+    std::is_same<decltype( Foo::bars ),
+                 pgbar::MultiBar<pgbar::BlockBar<>, pgbar::BlockBar<>, pgbar::BlockBar<>>>::value,
+    "" );
+  Foo foo { pgbar::make_multi<3>( pgbar::config::Block() ) };
+}
+```
 ### Rendering strategy
 The rendering strategy of `MutliBar` is the same as that of the sole progress bar, but the rendering behavior is slightly different.
 

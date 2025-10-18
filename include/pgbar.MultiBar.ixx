@@ -7,5 +7,6 @@ export import pgbar.Core;
 
 export namespace pgbar {
   using pgbar::make_multi;
+  using pgbar::MakeMulti_t;
   using pgbar::MultiBar;
 }

@@ -2472,6 +2472,26 @@ int main()
   // bar5 和 bar6 只有第一个进度条对象被初始化为参数指定的内容，其他两个进度条均被默认初始化
 }
 ```
+
+此外，如果需要显式写出包含 `n` 个重复进度条的 `MultiBar` 时（例如声明类成员），`pgbar` 提供了一个模板别名以简化类型获取：
+
+```cpp
+#include "pgbar/pgbar.hpp"
+
+struct Foo {
+  pgbar::MakeMulti_t<pgbar::BlockBar<>, 3> bars;
+  // ...
+};
+
+int main()
+{
+  static_assert(
+    std::is_same<decltype( Foo::bars ),
+                 pgbar::MultiBar<pgbar::BlockBar<>, pgbar::BlockBar<>, pgbar::BlockBar<>>>::value,
+    "" );
+  Foo foo { pgbar::make_multi<3>( pgbar::config::Block() ) };
+}
+```
 ### 渲染策略
 `MutliBar` 的渲染策略与独立进度条相同，但渲染行为略有差异。
 
