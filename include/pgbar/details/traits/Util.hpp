@@ -18,7 +18,7 @@ namespace pgbar {
         };
 
       public:
-        using type = typename Helper<Fill_t<T, N>>::type;
+        using type = typename Helper<TpFill_t<T, N>>::type;
       };
       template<template<typename...> class Template, typename T, types::Size N>
       using FillWith_t = typename FillWith<Template, T, N>::type;
