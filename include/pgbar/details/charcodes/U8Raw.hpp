@@ -1,5 +1,5 @@
-#ifndef __PGBAR_U8RAW
-#define __PGBAR_U8RAW
+#ifndef PGBAR__U8RAW
+#define PGBAR__U8RAW
 
 #include "../../exception/Error.hpp"
 #include "CodeChart.hpp"
@@ -8,7 +8,7 @@
 #include <utility>
 
 namespace pgbar {
-  namespace __details {
+  namespace _details {
     namespace charcodes {
       // A simple UTF-8 string implementation, but it does not provide specific utf-8 codec operations.
       class U8Raw {
@@ -19,7 +19,7 @@ namespace pgbar {
         types::String bytes_;
 
         /// @return The utf codepoint and the number of byte of the utf-8 character.
-        static __PGBAR_CXX20_CNSTXPR std::pair<types::UCodePoint, types::Size> next_char(
+        static PGBAR__CXX20_CNSTXPR std::pair<types::UCodePoint, types::Size> next_char(
           const types::Char* raw_u8_str,
           types::Size length )
         {
@@ -27,11 +27,11 @@ namespace pgbar {
           const auto first_byte = static_cast<types::UCodePoint>( static_cast<std::uint8_t>( *raw_u8_str ) );
           auto validator        = [raw_u8_str, length]( types::Size expected_len ) {
             if ( expected_len > length )
-              __PGBAR_UNLIKELY throw exception::InvalidArgument( "pgbar: incomplete UTF-8 string" );
+              PGBAR__UNLIKELY throw exception::InvalidArgument( "pgbar: incomplete UTF-8 string" );
 
             for ( types::Size i = 1; i < expected_len; ++i ) {
               if ( ( raw_u8_str[i] & 0xC0 ) != 0x80 )
-                __PGBAR_UNLIKELY throw exception::InvalidArgument( "pgbar: broken UTF-8 character" );
+                PGBAR__UNLIKELY throw exception::InvalidArgument( "pgbar: broken UTF-8 character" );
             }
             return expected_len;
           };
@@ -54,11 +54,11 @@ namespace pgbar {
                                      | ( static_cast<types::UCodePoint>( raw_u8_str[3] ) & 0x3F ),
                                    validator( 4 ) );
           else
-            __PGBAR_UNLIKELY throw exception::InvalidArgument( "pgbar: not a standard UTF-8 string" );
+            PGBAR__UNLIKELY throw exception::InvalidArgument( "pgbar: not a standard UTF-8 string" );
         }
 
       public:
-        __PGBAR_NODISCARD static __PGBAR_INLINE_FN __PGBAR_CNSTEVAL std::array<CodeChart, 47>
+        PGBAR__NODISCARD static PGBAR__INLINE_FN PGBAR__CNSTEVAL std::array<CodeChart, 47>
           code_charts() noexcept
         {
           // See the Unicode CodeCharts documentation for complete code points.
@@ -82,11 +82,11 @@ namespace pgbar {
              { 0xFFF80, 0xFFFFF, 2 }, { 0x10FF80, 0x10FFFF, 2 } }
           };
         }
-        __PGBAR_NODISCARD static __PGBAR_CXX20_CNSTXPR CodeChart::RenderWidth char_width(
+        PGBAR__NODISCARD static PGBAR__CXX20_CNSTXPR CodeChart::RenderWidth char_width(
           types::UCodePoint codepoint ) noexcept
         {
           constexpr const auto charts = code_charts();
-          __PGBAR_ASSERT( std::is_sorted( charts.cbegin(), charts.cend() ) );
+          PGBAR__ASSERT( std::is_sorted( charts.cbegin(), charts.cend() ) );
           // Compare with the `if-else` version, here we can search for code points with O(logn).
           const auto itr = std::lower_bound( charts.cbegin(), charts.cend(), codepoint );
           if ( itr != charts.cend() && itr->contains( codepoint ) )
@@ -101,13 +101,13 @@ namespace pgbar {
          *
          * @return Returns the render width of the given string.
          */
-        __PGBAR_NODISCARD static __PGBAR_CXX20_CNSTXPR types::Size render_width( types::ROStr u8_str )
+        PGBAR__NODISCARD static PGBAR__CXX20_CNSTXPR types::Size render_width( types::ROStr u8_str )
         {
           types::Size width     = 0;
           const auto raw_u8_str = u8_str.data();
           for ( types::Size i = 0; i < u8_str.size(); ) {
             const auto startpoint = raw_u8_str + i;
-            __PGBAR_TRUST( startpoint >= raw_u8_str );
+            PGBAR__TRUST( startpoint >= raw_u8_str );
             auto parsed = next_char( startpoint, std::distance( startpoint, u8_str.data() + u8_str.size() ) );
             width += static_cast<types::Size>( char_width( parsed.first ) );
             i += parsed.second;
@@ -115,21 +115,21 @@ namespace pgbar {
           return width;
         }
 
-        __PGBAR_CXX20_CNSTXPR U8Raw() noexcept( std::is_nothrow_default_constructible<types::String>::value )
+        PGBAR__CXX20_CNSTXPR U8Raw() noexcept( std::is_nothrow_default_constructible<types::String>::value )
           : width_ { 0 }
         {}
-        __PGBAR_CXX20_CNSTXPR explicit U8Raw( types::String u8_bytes ) : U8Raw()
+        PGBAR__CXX20_CNSTXPR explicit U8Raw( types::String u8_bytes ) : U8Raw()
         {
           width_ = render_width( u8_bytes );
           bytes_ = std::move( u8_bytes );
         }
-        __PGBAR_CXX20_CNSTXPR U8Raw( const Self& )             = default;
-        __PGBAR_CXX20_CNSTXPR U8Raw( Self&& )                  = default;
-        __PGBAR_CXX20_CNSTXPR Self& operator=( const Self& ) & = default;
-        __PGBAR_CXX20_CNSTXPR Self& operator=( Self&& ) &      = default;
-        __PGBAR_CXX20_CNSTXPR ~U8Raw()                         = default;
+        PGBAR__CXX20_CNSTXPR U8Raw( const Self& )             = default;
+        PGBAR__CXX20_CNSTXPR U8Raw( Self&& )                  = default;
+        PGBAR__CXX20_CNSTXPR Self& operator=( const Self& ) & = default;
+        PGBAR__CXX20_CNSTXPR Self& operator=( Self&& ) &      = default;
+        PGBAR__CXX20_CNSTXPR ~U8Raw()                         = default;
 
-        __PGBAR_CXX20_CNSTXPR Self& operator=( types::ROStr u8_bytes ) &
+        PGBAR__CXX20_CNSTXPR Self& operator=( types::ROStr u8_bytes ) &
         {
           const auto new_width = render_width( u8_bytes );
           auto new_bytes       = types::String( u8_bytes );
@@ -137,100 +137,96 @@ namespace pgbar {
           width_ = new_width;
           return *this;
         }
-        __PGBAR_CXX20_CNSTXPR Self& operator=( types::String u8_bytes ) &
+        PGBAR__CXX20_CNSTXPR Self& operator=( types::String u8_bytes ) &
         {
           width_ = render_width( u8_bytes );
           bytes_.swap( u8_bytes );
           return *this;
         }
 
-        __PGBAR_CXX20_CNSTXPR bool empty() const noexcept { return bytes_.empty(); }
-        __PGBAR_CXX20_CNSTXPR types::Size size() const noexcept { return bytes_.size(); }
-        __PGBAR_CXX20_CNSTXPR types::Size width() const noexcept { return width_; }
-        __PGBAR_CXX20_CNSTXPR types::ROStr str() & noexcept { return bytes_; }
-        __PGBAR_CXX20_CNSTXPR types::ROStr str() const& noexcept { return bytes_; }
-        __PGBAR_CXX20_CNSTXPR types::String&& str() && noexcept { return std::move( bytes_ ); }
+        PGBAR__CXX20_CNSTXPR bool empty() const noexcept { return bytes_.empty(); }
+        PGBAR__CXX20_CNSTXPR types::Size size() const noexcept { return bytes_.size(); }
+        PGBAR__CXX20_CNSTXPR types::Size width() const noexcept { return width_; }
+        PGBAR__CXX20_CNSTXPR types::ROStr str() & noexcept { return bytes_; }
+        PGBAR__CXX20_CNSTXPR types::ROStr str() const& noexcept { return bytes_; }
+        PGBAR__CXX20_CNSTXPR types::String&& str() && noexcept { return std::move( bytes_ ); }
 
-        __PGBAR_CXX20_CNSTXPR void clear() noexcept( noexcept( bytes_.clear() ) )
+        PGBAR__CXX20_CNSTXPR void clear() noexcept( noexcept( bytes_.clear() ) )
         {
           bytes_.clear();
           width_ = 0;
         }
-        __PGBAR_CXX20_CNSTXPR void shrink_to_fit() noexcept( noexcept( bytes_.shrink_to_fit() ) )
+        PGBAR__CXX20_CNSTXPR void shrink_to_fit() noexcept( noexcept( bytes_.shrink_to_fit() ) )
         { // The standard does not seem to specify whether the function is noexcept,
           // so let's make a judgment here.
           // At least I didn't see it on cppreference.
           bytes_.shrink_to_fit();
         }
 
-        __PGBAR_CXX20_CNSTXPR void swap( Self& lhs ) noexcept
+        PGBAR__CXX20_CNSTXPR void swap( Self& lhs ) noexcept
         {
           std::swap( width_, lhs.width_ );
           bytes_.swap( lhs.bytes_ );
         }
-        __PGBAR_CXX20_CNSTXPR friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
+        PGBAR__CXX20_CNSTXPR friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
 
-        __PGBAR_CXX20_CNSTXPR explicit operator types::String() & { return bytes_; }
-        __PGBAR_CXX20_CNSTXPR explicit operator types::String() const& { return bytes_; }
-        __PGBAR_CXX20_CNSTXPR explicit operator types::String&&() && noexcept { return std::move( bytes_ ); }
-        __PGBAR_CXX20_CNSTXPR operator types::ROStr() const noexcept { return str(); }
+        PGBAR__CXX20_CNSTXPR explicit operator types::String() & { return bytes_; }
+        PGBAR__CXX20_CNSTXPR explicit operator types::String() const& { return bytes_; }
+        PGBAR__CXX20_CNSTXPR explicit operator types::String&&() && noexcept { return std::move( bytes_ ); }
+        PGBAR__CXX20_CNSTXPR operator types::ROStr() const noexcept { return str(); }
 
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::String operator+(
-          Self&& a,
-          const Self& b )
+        PGBAR__NODISCARD friend PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR types::String operator+( Self&& a,
+                                                                                               const Self& b )
         {
           return std::move( a.bytes_ ) + b.bytes_;
         }
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::String operator+(
-          const Self& a,
-          const Self& b )
+        PGBAR__NODISCARD friend PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR types::String operator+( const Self& a,
+                                                                                               const Self& b )
         {
           return a.bytes_ + b.bytes_;
         }
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::String operator+(
+        PGBAR__NODISCARD friend PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR types::String operator+(
           types::String&& a,
           const Self& b )
         {
           return std::move( a ) + b.bytes_;
         }
         template<types::Size N>
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::String operator+(
+        PGBAR__NODISCARD friend PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR types::String operator+(
           const char ( &a )[N],
           const Self& b )
         {
           return a + b.bytes_;
         }
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::String operator+(
-          const char* a,
-          const Self& b )
+        PGBAR__NODISCARD friend PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR types::String operator+( const char* a,
+                                                                                               const Self& b )
         {
           return a + b.bytes_;
         }
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::String operator+(
-          types::ROStr a,
-          const Self& b )
+        PGBAR__NODISCARD friend PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR types::String operator+( types::ROStr a,
+                                                                                               const Self& b )
         {
           return types::String( a ) + b;
         }
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::String operator+(
+        PGBAR__NODISCARD friend PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR types::String operator+(
           Self&& a,
           types::ROStr b )
         {
           a.bytes_.append( b );
           return std::move( a.bytes_ );
         }
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::String operator+(
+        PGBAR__NODISCARD friend PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR types::String operator+(
           const Self& a,
           types::ROStr b )
         {
           return a.bytes_ + types::String( b );
         }
 
-#if __PGBAR_CXX20
+#if PGBAR__CXX20
         static_assert( sizeof( char8_t ) == sizeof( char ),
-                       "pgbar::__details::chaset::U8Raw: Unexpected type size mismatch" );
+                       "pgbar::_details::chaset::U8Raw: Unexpected type size mismatch" );
 
-        __PGBAR_CXX20_CNSTXPR explicit U8Raw( types::LitU8 u8_sv ) : U8Raw()
+        PGBAR__CXX20_CNSTXPR explicit U8Raw( types::LitU8 u8_sv ) : U8Raw()
         {
           auto new_bytes = types::String( u8_sv.size(), '\0' );
           std::copy( u8_sv.cbegin(), u8_sv.cend(), new_bytes.begin() );
@@ -238,7 +234,7 @@ namespace pgbar {
           bytes_ = std::move( new_bytes );
         }
 
-        __PGBAR_CXX20_CNSTXPR explicit operator std::u8string() const
+        PGBAR__CXX20_CNSTXPR explicit operator std::u8string() const
         {
           std::u8string ret;
           ret.resize( bytes_.size() );
@@ -246,22 +242,21 @@ namespace pgbar {
           return ret;
         }
 
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::String operator+(
-          types::LitU8 a,
-          const Self& b )
+        PGBAR__NODISCARD friend PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR types::String operator+( types::LitU8 a,
+                                                                                               const Self& b )
         {
           types::String tmp;
           tmp.reserve( a.size() );
           std::copy( a.cbegin(), a.cend(), std::back_inserter( tmp ) );
           return std::move( tmp ) + b.bytes_;
         }
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN types::String operator+( Self&& a, types::LitU8 b )
+        PGBAR__NODISCARD friend PGBAR__INLINE_FN types::String operator+( Self&& a, types::LitU8 b )
         {
           a.bytes_.reserve( a.bytes_.size() + b.size() );
           std::copy( b.cbegin(), b.cend(), std::back_inserter( a.bytes_ ) );
           return std::move( a.bytes_ );
         }
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN types::String operator+( const Self& a, types::LitU8 b )
+        PGBAR__NODISCARD friend PGBAR__INLINE_FN types::String operator+( const Self& a, types::LitU8 b )
         {
           auto tmp = a.bytes_;
           tmp.reserve( a.bytes_.size() + b.size() );
@@ -271,7 +266,7 @@ namespace pgbar {
 #endif
       };
     } // namespace charcodes
-  } // namespace __details
+  } // namespace _details
 } // namespace pgbar
 
 #endif

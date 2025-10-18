@@ -1,29 +1,29 @@
-#ifndef __PGBAR_COLOR
-#define __PGBAR_COLOR
+#ifndef PGBAR__COLOR
+#define PGBAR__COLOR
 
 #include "../../../color/Color.hpp"
 #include "../../io/Stringbuf.hpp"
-#if __PGBAR_CXX17
+#if PGBAR__CXX17
 # include <charconv>
 #endif
 
 namespace pgbar {
-  namespace __details {
+  namespace _details {
     namespace console {
       namespace escodes {
 #ifdef PGBAR_NOCOLOR
-        __PGBAR_CXX17_INLINE constexpr types::LitU8 fontreset = u8"";
-        __PGBAR_CXX17_INLINE constexpr types::LitU8 fontbold  = u8"";
+        PGBAR__CXX17_INLINE constexpr types::LitU8 fontreset = u8"";
+        PGBAR__CXX17_INLINE constexpr types::LitU8 fontbold  = u8"";
 #else
-        __PGBAR_CXX17_INLINE constexpr types::LitU8 fontreset = u8"\x1B[0m";
-        __PGBAR_CXX17_INLINE constexpr types::LitU8 fontbold  = u8"\x1B[1m";
+        PGBAR__CXX17_INLINE constexpr types::LitU8 fontreset = u8"\x1B[0m";
+        PGBAR__CXX17_INLINE constexpr types::LitU8 fontbold  = u8"\x1B[1m";
 #endif
-        __PGBAR_CXX17_INLINE constexpr types::LitU8 savecursor  = u8"\x1B[s";
-        __PGBAR_CXX17_INLINE constexpr types::LitU8 resetcursor = u8"\x1B[u";
-        __PGBAR_CXX17_INLINE constexpr types::LitU8 linewipe    = u8"\x1B[K";
-        __PGBAR_CXX17_INLINE constexpr types::LitU8 prevline    = u8"\x1b[A";
-        __PGBAR_CXX17_INLINE constexpr types::Char nextline     = '\n';
-        __PGBAR_CXX17_INLINE constexpr types::Char linestart    = '\r';
+        PGBAR__CXX17_INLINE constexpr types::LitU8 savecursor  = u8"\x1B[s";
+        PGBAR__CXX17_INLINE constexpr types::LitU8 resetcursor = u8"\x1B[u";
+        PGBAR__CXX17_INLINE constexpr types::LitU8 linewipe    = u8"\x1B[K";
+        PGBAR__CXX17_INLINE constexpr types::LitU8 prevline    = u8"\x1b[A";
+        PGBAR__CXX17_INLINE constexpr types::Char nextline     = '\n';
+        PGBAR__CXX17_INLINE constexpr types::Char linestart    = '\r';
 
         class RGBColor {
           using Self = RGBColor;
@@ -31,39 +31,39 @@ namespace pgbar {
           std::array<types::Char, 17> sgr_; // Select Graphic Rendition
           std::uint8_t length_;
 
-          static __PGBAR_CXX23_CNSTXPR types::Char* to_char( types::Char* first,
-                                                             types::Char* last,
-                                                             std::uint8_t value ) noexcept
+          static PGBAR__CXX23_CNSTXPR types::Char* to_char( types::Char* first,
+                                                            types::Char* last,
+                                                            std::uint8_t value ) noexcept
           {
-#if __PGBAR_CXX17
+#if PGBAR__CXX17
             auto result = std::to_chars( first, last, value );
-            __PGBAR_TRUST( result.ec == std::errc() );
+            PGBAR__TRUST( result.ec == std::errc() );
             return result.ptr;
 #else
             types::Size offset = 1;
             if ( value >= 100 ) {
-              __PGBAR_TRUST( last - first >= 3 );
+              PGBAR__TRUST( last - first >= 3 );
               first[0] = '0' + value / 100;
               first[1] = '0' + ( value / 10 % 10 );
               first[2] = '0' + ( value % 10 );
               offset += 2;
             } else if ( value >= 10 ) {
-              __PGBAR_TRUST( last - first >= 2 );
+              PGBAR__TRUST( last - first >= 2 );
               first[0] = '0' + value / 10;
               first[1] = '0' + ( value % 10 );
               offset += 1;
             } else
               first[0] = '0' + value;
-            __PGBAR_TRUST( last - first >= 1 );
+            PGBAR__TRUST( last - first >= 1 );
             return first + offset;
 #endif
           }
 
-          __PGBAR_CXX23_CNSTXPR void from_hex( types::HexRGB hex_val ) & noexcept
+          PGBAR__CXX23_CNSTXPR void from_hex( types::HexRGB hex_val ) & noexcept
           {
 #ifndef PGBAR_NOCOLOR
             length_ = 1;
-            if ( hex_val == __PGBAR_DEFAULT ) {
+            if ( hex_val == PGBAR__DEFAULT ) {
               sgr_[0] = '0';
               return;
             }
@@ -71,15 +71,15 @@ namespace pgbar {
             length_ = 2;
             sgr_[0] = '3';
             switch ( hex_val & 0x00FFFFFF ) { // discard the high 8 bits
-            case __PGBAR_BLACK:   sgr_[1] = '0'; break;
-            case __PGBAR_RED:     sgr_[1] = '1'; break;
-            case __PGBAR_GREEN:   sgr_[1] = '2'; break;
-            case __PGBAR_YELLOW:  sgr_[1] = '3'; break;
-            case __PGBAR_BLUE:    sgr_[1] = '4'; break;
-            case __PGBAR_MAGENTA: sgr_[1] = '5'; break;
-            case __PGBAR_CYAN:    sgr_[1] = '6'; break;
-            case __PGBAR_WHITE:   sgr_[1] = '7'; break;
-            default:              {
+            case PGBAR__BLACK:   sgr_[1] = '0'; break;
+            case PGBAR__RED:     sgr_[1] = '1'; break;
+            case PGBAR__GREEN:   sgr_[1] = '2'; break;
+            case PGBAR__YELLOW:  sgr_[1] = '3'; break;
+            case PGBAR__BLUE:    sgr_[1] = '4'; break;
+            case PGBAR__MAGENTA: sgr_[1] = '5'; break;
+            case PGBAR__CYAN:    sgr_[1] = '6'; break;
+            case PGBAR__WHITE:   sgr_[1] = '7'; break;
+            default:             {
               sgr_[1] = '8', sgr_[2] = ';', sgr_[3] = '2', sgr_[4] = ';';
               auto tail = to_char( sgr_.data() + 5, sgr_.data() + sgr_.size(), ( hex_val >> 16 ) & 0xFF );
               *tail     = ';';
@@ -91,7 +91,7 @@ namespace pgbar {
             }
 #endif
           }
-          __PGBAR_CXX23_CNSTXPR void from_str( types::ROStr hex_str ) &
+          PGBAR__CXX23_CNSTXPR void from_str( types::ROStr hex_str ) &
           {
             if ( ( hex_str.size() != 7 && hex_str.size() != 4 ) || hex_str.front() != '#' )
               throw exception::InvalidArgument( "pgbar: invalid hex color format" );
@@ -130,42 +130,42 @@ namespace pgbar {
           }
 
         public:
-          __PGBAR_CXX23_CNSTXPR RGBColor() noexcept { clear(); }
+          PGBAR__CXX23_CNSTXPR RGBColor() noexcept { clear(); }
 
-          __PGBAR_CXX23_CNSTXPR RGBColor( types::HexRGB hex_val ) noexcept : RGBColor()
+          PGBAR__CXX23_CNSTXPR RGBColor( types::HexRGB hex_val ) noexcept : RGBColor()
           {
             from_hex( hex_val );
           }
-          __PGBAR_CXX23_CNSTXPR RGBColor( types::ROStr hex_str ) : RGBColor() { from_str( hex_str ); }
+          PGBAR__CXX23_CNSTXPR RGBColor( types::ROStr hex_str ) : RGBColor() { from_str( hex_str ); }
 
-          __PGBAR_CXX23_CNSTXPR RGBColor( const Self& lhs ) noexcept = default;
-          __PGBAR_CXX23_CNSTXPR Self& operator=( const Self& lhs ) & = default;
+          PGBAR__CXX23_CNSTXPR RGBColor( const Self& lhs ) noexcept = default;
+          PGBAR__CXX23_CNSTXPR Self& operator=( const Self& lhs ) & = default;
 
-          __PGBAR_CXX23_CNSTXPR Self& operator=( types::HexRGB hex_val ) & noexcept
+          PGBAR__CXX23_CNSTXPR Self& operator=( types::HexRGB hex_val ) & noexcept
           {
             from_hex( hex_val );
             return *this;
           }
-          __PGBAR_CXX23_CNSTXPR Self& operator=( types::ROStr hex_str ) &
+          PGBAR__CXX23_CNSTXPR Self& operator=( types::ROStr hex_str ) &
           {
             from_str( hex_str );
             return *this;
           }
 
-          __PGBAR_INLINE_FN __PGBAR_CXX23_CNSTXPR void clear() noexcept
+          PGBAR__INLINE_FN PGBAR__CXX23_CNSTXPR void clear() noexcept
           {
             std::fill( sgr_.begin(), sgr_.end(), '\0' );
             length_ = 0;
           }
 
-          __PGBAR_CXX23_CNSTXPR void swap( RGBColor& lhs ) noexcept
+          PGBAR__CXX23_CNSTXPR void swap( RGBColor& lhs ) noexcept
           {
             std::swap( sgr_, lhs.sgr_ );
             std::swap( length_, lhs.length_ );
           }
-          __PGBAR_CXX23_CNSTXPR friend void swap( RGBColor& a, RGBColor& b ) noexcept { a.swap( b ); }
+          PGBAR__CXX23_CNSTXPR friend void swap( RGBColor& a, RGBColor& b ) noexcept { a.swap( b ); }
 
-          __PGBAR_INLINE_FN friend io::Stringbuf& operator<<( io::Stringbuf& buf, const Self& col )
+          PGBAR__INLINE_FN friend io::Stringbuf& operator<<( io::Stringbuf& buf, const Self& col )
           {
 #ifndef PGBAR_NOCOLOR
             buf.append( '\x1B' )
@@ -178,7 +178,7 @@ namespace pgbar {
         };
       } // namespace escodes
     } // namespace console
-  } // namespace __details
+  } // namespace _details
 } // namespace pgbar
 
 #endif

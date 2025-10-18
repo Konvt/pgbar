@@ -1,11 +1,11 @@
-#ifndef __PGBAR_TRAITS_UTIL
-#define __PGBAR_TRAITS_UTIL
+#ifndef PGBAR__TRAITS_UTIL
+#define PGBAR__TRAITS_UTIL
 
 #include "Backport.hpp"
 #include "TypeList.hpp"
 
 namespace pgbar {
-  namespace __details {
+  namespace _details {
     namespace traits {
       template<template<typename...> class Template, typename T, types::Size N>
       struct FillWith {
@@ -38,7 +38,7 @@ namespace pgbar {
                 decltype( check( std::declval<typename std::remove_cv<Instance>::type>() ) )>::value;
       };
     } // namespace traits
-  } // namespace __details
+  } // namespace _details
 } // namespace pgbar
 
 #endif

@@ -1,17 +1,17 @@
-#ifndef __PGBAR_TRAITS_BACKPORT
-#define __PGBAR_TRAITS_BACKPORT
+#ifndef PGBAR__TRAITS_BACKPORT
+#define PGBAR__TRAITS_BACKPORT
 
 #include "../types/Types.hpp"
 #include <type_traits>
-#if __PGBAR_CXX20
+#if PGBAR__CXX20
 # include <concepts>
 # include <ranges>
 #endif
 
 namespace pgbar {
-  namespace __details {
+  namespace _details {
     namespace traits {
-#if __PGBAR_CXX14
+#if PGBAR__CXX14
       template<types::Size... Ns>
       using IndexSeq = std::integer_sequence<types::Size, Ns...>;
 
@@ -51,7 +51,7 @@ namespace pgbar {
       using MakeIndexSeq = typename _MakeIndexSeqHelper<N>::type;
 #endif
 
-#if __PGBAR_CXX17
+#if PGBAR__CXX17
       template<bool B>
       using BoolConstant = std::bool_constant<B>;
 
@@ -113,7 +113,7 @@ namespace pgbar {
        */
       template<typename T>
       struct IteratorOf {
-#if __PGBAR_CXX20
+#if PGBAR__CXX20
       private:
         // Provide a default fallback to avoid the problem of the type not existing
         // in the immediate context derivation.
@@ -176,7 +176,7 @@ namespace pgbar {
       template<typename T>
       using IteratorOf_t = typename IteratorOf<T>::type;
 
-#if __PGBAR_CXX20
+#if PGBAR__CXX20
       template<typename T>
       struct is_sized_iterator
         : BoolConstant<std::movable<T> && std::weakly_incrementable<T> && std::indirectly_readable<T>
@@ -206,7 +206,7 @@ namespace pgbar {
       struct is_sized_iterator<P*> : std::true_type {};
 #endif
 
-#if __PGBAR_CXX20
+#if PGBAR__CXX20
       template<typename T>
       struct is_bounded_range : BoolConstant<std::ranges::sized_range<T>> {};
 #else
@@ -230,7 +230,7 @@ namespace pgbar {
       struct is_bounded_range<T[N]> : std::true_type {};
 #endif
     } // namespace traits
-  } // namespace __details
+  } // namespace _details
 } // namespace pgbar
 
 #endif

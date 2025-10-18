@@ -1,11 +1,11 @@
-#ifndef __PGBAR_MANAGEDBAR
-#define __PGBAR_MANAGEDBAR
+#ifndef PGBAR__MANAGEDBAR
+#define PGBAR__MANAGEDBAR
 
 #include "../prefabs/BasicBar.hpp"
 #include <memory>
 
 namespace pgbar {
-  namespace __details {
+  namespace _details {
     namespace assets {
       template<Channel, Policy, Region>
       class DynamicContext;
@@ -19,8 +19,8 @@ namespace pgbar {
 
         Context context_;
 
-        __PGBAR_INLINE_FN void do_halt( bool forced ) noexcept final { context_->pop( this, forced ); }
-        __PGBAR_INLINE_FN void do_boot() & final { context_->append( this ); }
+        PGBAR__INLINE_FN void do_halt( bool forced ) noexcept final { context_->pop( this, forced ); }
+        PGBAR__INLINE_FN void do_boot() & final { context_->append( this ); }
 
       public:
         ManagedBar( Context context, C&& config ) noexcept
@@ -54,10 +54,10 @@ namespace pgbar {
          */
         virtual ~ManagedBar() noexcept { halt(); }
 
-        __PGBAR_INLINE_FN void halt() noexcept { this->abort(); }
+        PGBAR__INLINE_FN void halt() noexcept { this->abort(); }
       };
     } // namespace prefabs
-  } // namespace __details
+  } // namespace _details
 } // namespace pgbar
 
 #endif

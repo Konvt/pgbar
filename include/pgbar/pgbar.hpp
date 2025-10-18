@@ -15,49 +15,49 @@
 # include "DynamicBar.hpp"
 # include "MultiBar.hpp"
 
-# undef __PGBAR_BIND_BEHAVIOUR
-# undef __PGBAR_BIND_OPTION
+# undef PGBAR__BIND_BEHAVIOUR
+# undef PGBAR__BIND_OPTION
 
-# undef __PGBAR_EMPTY_COMPONENT
-# undef __PGBAR_NONEMPTY_COMPONENT
+# undef PGBAR__EMPTY_COMPONENT
+# undef PGBAR__NONEMPTY_COMPONENT
 
-# undef __PGBAR_INHERIT_REGISTER
+# undef PGBAR__INHERIT_REGISTER
 
-# undef __PGBAR_BUILTIN
-# undef __PGBAR_WRAP
+# undef PGBAR__BUILTIN
+# undef PGBAR__WRAP
 
-# undef __PGBAR_CC_STD
-# undef __PGBAR_WIN
-# undef __PGBAR_UNIX
-# undef __PGBAR_UNKNOWN
-# undef __PGBAR_CXX23
-# undef __PGBAR_TRUST
-# undef __PGBAR_ASSUME
-# undef __PGBAR_CXX23_CNSTXPR
-# undef __PGBAR_INLINE_FN
-# undef __PGBAR_NODISCARD
-# undef __PGBAR_CXX20
-# undef __PGBAR_CNSTEVAL
-# undef __PGBAR_CXX20_CNSTXPR
-# undef __PGBAR_CXX17
-# undef __PGBAR_CXX17_CNSTXPR
-# undef __PGBAR_CXX17_INLINE
-# undef __PGBAR_FALLTHROUGH
-# undef __PGBAR_UNLIKELY
-# undef __PGBAR_CXX14
-# undef __PGBAR_CXX14_CNSTXPR
-# undef __PGBAR_CXX11
+# undef PGBAR__CC_STD
+# undef PGBAR__WIN
+# undef PGBAR__UNIX
+# undef PGBAR__UNKNOWN
+# undef PGBAR__CXX23
+# undef PGBAR__TRUST
+# undef PGBAR__ASSUME
+# undef PGBAR__CXX23_CNSTXPR
+# undef PGBAR__INLINE_FN
+# undef PGBAR__NODISCARD
+# undef PGBAR__CXX20
+# undef PGBAR__CNSTEVAL
+# undef PGBAR__CXX20_CNSTXPR
+# undef PGBAR__CXX17
+# undef PGBAR__CXX17_CNSTXPR
+# undef PGBAR__CXX17_INLINE
+# undef PGBAR__FALLTHROUGH
+# undef PGBAR__UNLIKELY
+# undef PGBAR__CXX14
+# undef PGBAR__CXX14_CNSTXPR
+# undef PGBAR__CXX11
 
-# undef __PGBAR_BLACK
-# undef __PGBAR_RED
-# undef __PGBAR_GREEN
-# undef __PGBAR_YELLOW
-# undef __PGBAR_BLUE
-# undef __PGBAR_MAGENTA
-# undef __PGBAR_CYAN
-# undef __PGBAR_WHITE
-# undef __PGBAR_DEFAULT
+# undef PGBAR__BLACK
+# undef PGBAR__RED
+# undef PGBAR__GREEN
+# undef PGBAR__YELLOW
+# undef PGBAR__BLUE
+# undef PGBAR__MAGENTA
+# undef PGBAR__CYAN
+# undef PGBAR__WHITE
+# undef PGBAR__DEFAULT
 
-# undef __PGBAR_ASSERT
+# undef PGBAR__ASSERT
 
 #endif

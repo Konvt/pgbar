@@ -10,45 +10,45 @@ namespace pgbar {
   namespace option {
     // The purpose of generating code with macros here is to annotate each type and method to provide more
     // friendly IDE access.
-#define __PGBAR_BASE( ValueType ) \
-public                            \
-  __details::wrappers::OptionWrapper<ValueType>
-#define __PGBAR_DEFAULT_OPTION( StructName, ValueType, ParamName )            \
-  constexpr StructName( ValueType ParamName ) noexcept                        \
-    : __details::wrappers::OptionWrapper<ValueType>( std::move( ParamName ) ) \
+#define PGBAR__BASE( ValueType ) \
+public                           \
+  _details::wrappers::OptionWrapper<ValueType>
+#define PGBAR__DEFAULT_OPTION( StructName, ValueType, ParamName )            \
+  constexpr StructName( ValueType ParamName ) noexcept                       \
+    : _details::wrappers::OptionWrapper<ValueType>( std::move( ParamName ) ) \
   {}
-#define __PGBAR_NULLABLE_OPTION( StructName, ValueType, ParamName ) \
-  constexpr StructName() = default;                                 \
-  __PGBAR_DEFAULT_OPTION( StructName, ValueType, ParamName )
+#define PGBAR__NULLABLE_OPTION( StructName, ValueType, ParamName ) \
+  constexpr StructName() = default;                                \
+  PGBAR__DEFAULT_OPTION( StructName, ValueType, ParamName )
 
     // A wrapper that stores the value of the bit option setting.
-    struct Style : __PGBAR_BASE( __details::types::Byte ) {
-      __PGBAR_NULLABLE_OPTION( Style, __details::types::Byte, _settings )
+    struct Style : PGBAR__BASE( _details::types::Byte ) {
+      PGBAR__NULLABLE_OPTION( Style, _details::types::Byte, _settings )
     };
 
     // A wrapper that stores the value of the color effect setting.
-    struct Colored : __PGBAR_BASE( bool ) {
-      __PGBAR_NULLABLE_OPTION( Colored, bool, _enable )
+    struct Colored : PGBAR__BASE( bool ) {
+      PGBAR__NULLABLE_OPTION( Colored, bool, _enable )
     };
 
     // A wrapper that stores the value of the font boldness setting.
-    struct Bolded : __PGBAR_BASE( bool ) {
-      __PGBAR_NULLABLE_OPTION( Bolded, bool, _enable )
+    struct Bolded : PGBAR__BASE( bool ) {
+      PGBAR__NULLABLE_OPTION( Bolded, bool, _enable )
     };
 
     // A wrapper that stores the number of tasks.
-    struct Tasks : __PGBAR_BASE( std::uint64_t ) {
-      __PGBAR_DEFAULT_OPTION( Tasks, std::uint64_t, _num_tasks )
+    struct Tasks : PGBAR__BASE( std::uint64_t ) {
+      PGBAR__DEFAULT_OPTION( Tasks, std::uint64_t, _num_tasks )
     };
 
     // A wrapper that stores the flag of direction.
-    struct Reversed : __PGBAR_BASE( bool ) {
-      __PGBAR_NULLABLE_OPTION( Reversed, bool, _flag )
+    struct Reversed : PGBAR__BASE( bool ) {
+      PGBAR__NULLABLE_OPTION( Reversed, bool, _flag )
     };
 
     // A wrapper that stores the width of the bar indicator, in the character unit.
-    struct BarWidth : __PGBAR_BASE( __details::types::Size ) {
-      __PGBAR_DEFAULT_OPTION( BarWidth, __details::types::Size, _num_char )
+    struct BarWidth : PGBAR__BASE( _details::types::Size ) {
+      PGBAR__DEFAULT_OPTION( BarWidth, _details::types::Size, _num_char )
     };
 
     /**
@@ -64,8 +64,8 @@ public                            \
      *
      * The effective range is between -128 (slowest) and 127 (fastest).
      */
-    struct Shift : __PGBAR_BASE( std::int8_t ) {
-      __PGBAR_DEFAULT_OPTION( Shift, std::int8_t, _shift_factor )
+    struct Shift : PGBAR__BASE( std::int8_t ) {
+      PGBAR__DEFAULT_OPTION( Shift, std::int8_t, _shift_factor )
     };
 
     /**
@@ -80,135 +80,135 @@ public                            \
      *
      * - Typical usage: 1000 (decimal) or 1024 (binary) scaling.
      */
-    struct Magnitude : __PGBAR_BASE( std::uint16_t ) {
-      __PGBAR_DEFAULT_OPTION( Magnitude, std::uint16_t, _magnitude )
+    struct Magnitude : PGBAR__BASE( std::uint16_t ) {
+      PGBAR__DEFAULT_OPTION( Magnitude, std::uint16_t, _magnitude )
     };
 
-#undef __PGBAR_NULLABLE_OPTION
-#undef __PGBAR_DEFAULT_OPTION
-#if __PGBAR_CXX20
-# define __PGBAR_DEFAULT_OPTION( StructName, ParamName )                  \
- private:                                                                 \
-   using Data = __details::charcodes::U8Raw;                              \
-   using Base = __details::wrappers::OptionWrapper<Data>;                 \
-                                                                          \
- public:                                                                  \
-   __PGBAR_CXX20_CNSTXPR StructName() = default;                          \
-   /**                                                                    \
-    * @throw exception::InvalidArgument                                   \
-    *                                                                     \
-    * If the passed parameter is not coding in UTF-8.                     \
-    */                                                                    \
-   __PGBAR_CXX20_CNSTXPR StructName( __details::types::String ParamName ) \
-     : Base( Data( std::move( ParamName ) ) )                             \
-   {}                                                                     \
-   StructName( __details::types::LitU8 ParamName ) : Base( Data( std::move( ParamName ) ) ) {}
+#undef PGBAR__NULLABLE_OPTION
+#undef PGBAR__DEFAULT_OPTION
+#if PGBAR__CXX20
+# define PGBAR__DEFAULT_OPTION( StructName, ParamName )                 \
+ private:                                                               \
+   using Data = _details::charcodes::U8Raw;                             \
+   using Base = _details::wrappers::OptionWrapper<Data>;                \
+                                                                        \
+ public:                                                                \
+   PGBAR__CXX20_CNSTXPR StructName() = default;                         \
+   /**                                                                  \
+    * @throw exception::InvalidArgument                                 \
+    *                                                                   \
+    * If the passed parameter is not coding in UTF-8.                   \
+    */                                                                  \
+   PGBAR__CXX20_CNSTXPR StructName( _details::types::String ParamName ) \
+     : Base( Data( std::move( ParamName ) ) )                           \
+   {}                                                                   \
+   StructName( _details::types::LitU8 ParamName ) : Base( Data( std::move( ParamName ) ) ) {}
 #else
-# define __PGBAR_DEFAULT_OPTION( StructName, ParamName )                  \
-   __PGBAR_CXX20_CNSTXPR StructName() = default;                          \
-   __PGBAR_CXX20_CNSTXPR StructName( __details::types::String ParamName ) \
-     : __details::wrappers::OptionWrapper<__details::charcodes::U8Raw>(   \
-         __details::charcodes::U8Raw( std::move( ParamName ) ) )          \
+# define PGBAR__DEFAULT_OPTION( StructName, ParamName )                 \
+   PGBAR__CXX20_CNSTXPR StructName() = default;                         \
+   PGBAR__CXX20_CNSTXPR StructName( _details::types::String ParamName ) \
+     : _details::wrappers::OptionWrapper<_details::charcodes::U8Raw>(   \
+         _details::charcodes::U8Raw( std::move( ParamName ) ) )         \
    {}
 #endif
 
     // A wrapper that stores the characters of the filler in the bar indicator.
-    struct Filler : __PGBAR_BASE( __details::charcodes::U8Raw ) {
-      __PGBAR_DEFAULT_OPTION( Filler, _filler )
+    struct Filler : PGBAR__BASE( _details::charcodes::U8Raw ) {
+      PGBAR__DEFAULT_OPTION( Filler, _filler )
     };
 
     // A wrapper that stores the characters of the remains in the bar indicator.
-    struct Remains : __PGBAR_BASE( __details::charcodes::U8Raw ) {
-      __PGBAR_DEFAULT_OPTION( Remains, _remains )
+    struct Remains : PGBAR__BASE( _details::charcodes::U8Raw ) {
+      PGBAR__DEFAULT_OPTION( Remains, _remains )
     };
 
     // A wrapper that stores characters located to the left of the bar indicator.
-    struct Starting : __PGBAR_BASE( __details::charcodes::U8Raw ) {
-      __PGBAR_DEFAULT_OPTION( Starting, _starting )
+    struct Starting : PGBAR__BASE( _details::charcodes::U8Raw ) {
+      PGBAR__DEFAULT_OPTION( Starting, _starting )
     };
 
     // A wrapper that stores characters located to the right of the bar indicator.
-    struct Ending : __PGBAR_BASE( __details::charcodes::U8Raw ) {
-      __PGBAR_DEFAULT_OPTION( Ending, _ending )
+    struct Ending : PGBAR__BASE( _details::charcodes::U8Raw ) {
+      PGBAR__DEFAULT_OPTION( Ending, _ending )
     };
 
     // A wrapper that stores the prefix text.
-    struct Prefix : __PGBAR_BASE( __details::charcodes::U8Raw ) {
-      __PGBAR_DEFAULT_OPTION( Prefix, _prefix )
+    struct Prefix : PGBAR__BASE( _details::charcodes::U8Raw ) {
+      PGBAR__DEFAULT_OPTION( Prefix, _prefix )
     };
 
     // A wrapper that stores the postfix text.
-    struct Postfix : __PGBAR_BASE( __details::charcodes::U8Raw ) {
-      __PGBAR_DEFAULT_OPTION( Postfix, _postfix )
+    struct Postfix : PGBAR__BASE( _details::charcodes::U8Raw ) {
+      PGBAR__DEFAULT_OPTION( Postfix, _postfix )
     };
 
     // A wrapper that stores the separator component used to separate different infomation.
-    struct Divider : __PGBAR_BASE( __details::charcodes::U8Raw ) {
-      __PGBAR_DEFAULT_OPTION( Divider, _divider )
+    struct Divider : PGBAR__BASE( _details::charcodes::U8Raw ) {
+      PGBAR__DEFAULT_OPTION( Divider, _divider )
     };
 
     // A wrapper that stores the border component located to the left of the whole indicator.
-    struct LeftBorder : __PGBAR_BASE( __details::charcodes::U8Raw ) {
-      __PGBAR_DEFAULT_OPTION( LeftBorder, _l_border )
+    struct LeftBorder : PGBAR__BASE( _details::charcodes::U8Raw ) {
+      PGBAR__DEFAULT_OPTION( LeftBorder, _l_border )
     };
 
     // A wrapper that stores the border component located to the right of the whole indicator.
-    struct RightBorder : __PGBAR_BASE( __details::charcodes::U8Raw ) {
-      __PGBAR_DEFAULT_OPTION( RightBorder, _r_border )
+    struct RightBorder : PGBAR__BASE( _details::charcodes::U8Raw ) {
+      PGBAR__DEFAULT_OPTION( RightBorder, _r_border )
     };
 
-#undef __PGBAR_DEFAULT_OPTION
-#define __PGBAR_DEFAULT_OPTION( StructName, ParamName )                                                \
-private:                                                                                               \
-  using Data = __details::console::escodes::RGBColor;                                                  \
-  using Base = __details::wrappers::OptionWrapper<Data>;                                               \
-                                                                                                       \
-public:                                                                                                \
-  __PGBAR_CXX23_CNSTXPR StructName() = default;                                                        \
-  __PGBAR_CXX23_CNSTXPR StructName( __details::types::ROStr ParamName ) : Base( Data( ParamName ) ) {} \
-  __PGBAR_CXX23_CNSTXPR StructName( __details::types::HexRGB ParamName ) : Base( Data( ParamName ) ) {}
+#undef PGBAR__DEFAULT_OPTION
+#define PGBAR__DEFAULT_OPTION( StructName, ParamName )                                               \
+private:                                                                                             \
+  using Data = _details::console::escodes::RGBColor;                                                 \
+  using Base = _details::wrappers::OptionWrapper<Data>;                                              \
+                                                                                                     \
+public:                                                                                              \
+  PGBAR__CXX23_CNSTXPR StructName() = default;                                                       \
+  PGBAR__CXX23_CNSTXPR StructName( _details::types::ROStr ParamName ) : Base( Data( ParamName ) ) {} \
+  PGBAR__CXX23_CNSTXPR StructName( _details::types::HexRGB ParamName ) : Base( Data( ParamName ) ) {}
 
     // A wrapper that stores the prefix text color.
-    struct PrefixColor : __PGBAR_BASE( __details::console::escodes::RGBColor ) {
-      __PGBAR_DEFAULT_OPTION( PrefixColor, _prfx_color )
+    struct PrefixColor : PGBAR__BASE( _details::console::escodes::RGBColor ) {
+      PGBAR__DEFAULT_OPTION( PrefixColor, _prfx_color )
     };
 
     // A wrapper that stores the postfix text color.
-    struct PostfixColor : __PGBAR_BASE( __details::console::escodes::RGBColor ) {
-      __PGBAR_DEFAULT_OPTION( PostfixColor, _pstfx_color )
+    struct PostfixColor : PGBAR__BASE( _details::console::escodes::RGBColor ) {
+      PGBAR__DEFAULT_OPTION( PostfixColor, _pstfx_color )
     };
 
     // A wrapper that stores the color of component located to the left of the bar indicator.
-    struct StartColor : __PGBAR_BASE( __details::console::escodes::RGBColor ) {
-      __PGBAR_DEFAULT_OPTION( StartColor, _start_color )
+    struct StartColor : PGBAR__BASE( _details::console::escodes::RGBColor ) {
+      PGBAR__DEFAULT_OPTION( StartColor, _start_color )
     };
 
     // A wrapper that stores the color of component located to the right of the bar indicator.
-    struct EndColor : __PGBAR_BASE( __details::console::escodes::RGBColor ) {
-      __PGBAR_DEFAULT_OPTION( EndColor, _end_color )
+    struct EndColor : PGBAR__BASE( _details::console::escodes::RGBColor ) {
+      PGBAR__DEFAULT_OPTION( EndColor, _end_color )
     };
 
     // A wrapper that stores the color of the filler in the bar indicator.
-    struct FillerColor : __PGBAR_BASE( __details::console::escodes::RGBColor ) {
-      __PGBAR_DEFAULT_OPTION( FillerColor, _filler_color )
+    struct FillerColor : PGBAR__BASE( _details::console::escodes::RGBColor ) {
+      PGBAR__DEFAULT_OPTION( FillerColor, _filler_color )
     };
 
     // A wrapper that stores the color of the remains in the bar indicator.
-    struct RemainsColor : __PGBAR_BASE( __details::console::escodes::RGBColor ) {
-      __PGBAR_DEFAULT_OPTION( RemainsColor, _remains_color )
+    struct RemainsColor : PGBAR__BASE( _details::console::escodes::RGBColor ) {
+      PGBAR__DEFAULT_OPTION( RemainsColor, _remains_color )
     };
 
     // A wrapper that stores the color of the lead in the bar indicator.
-    struct LeadColor : __PGBAR_BASE( __details::console::escodes::RGBColor ) {
-      __PGBAR_DEFAULT_OPTION( LeadColor, _lead_color )
+    struct LeadColor : PGBAR__BASE( _details::console::escodes::RGBColor ) {
+      PGBAR__DEFAULT_OPTION( LeadColor, _lead_color )
     };
 
     // A wrapper that stores the color of the whole infomation indicator.
-    struct InfoColor : __PGBAR_BASE( __details::console::escodes::RGBColor ) {
-      __PGBAR_DEFAULT_OPTION( InfoColor, _info_color )
+    struct InfoColor : PGBAR__BASE( _details::console::escodes::RGBColor ) {
+      PGBAR__DEFAULT_OPTION( InfoColor, _info_color )
     };
 
-#undef __PGBAR_DEFAULT_OPTION
+#undef PGBAR__DEFAULT_OPTION
 
     /**
      * A wrapper that stores ordered units for information rate formatting (e.g. B/s, kB/s).
@@ -229,7 +229,7 @@ public:                                                                         
      * @throw exception::InvalidArgument
      *   Thrown if any input string fails UTF-8 validation or the array size mismatches.
      */
-    struct SpeedUnit : __PGBAR_BASE( __PGBAR_WRAP( std::array<__details::charcodes::U8Raw, 4> ) ) {
+    struct SpeedUnit : PGBAR__BASE( PGBAR__WRAP( std::array<_details::charcodes::U8Raw, 4> ) ) {
       /**
        * @throw exception::InvalidArgument
        *
@@ -239,74 +239,74 @@ public:                                                                         
        * The given each unit will be treated as 1,000 times greater than the previous one
        * (from left to right).
        */
-      __PGBAR_CXX20_CNSTXPR SpeedUnit( std::array<__details::types::String, 4> _units )
+      PGBAR__CXX20_CNSTXPR SpeedUnit( std::array<_details::types::String, 4> _units )
       {
         std::transform(
           std::make_move_iterator( _units.begin() ),
           std::make_move_iterator( _units.end() ),
           data_.begin(),
-          []( __details::types::String&& ele ) { return __details::charcodes::U8Raw( std::move( ele ) ); } );
+          []( _details::types::String&& ele ) { return _details::charcodes::U8Raw( std::move( ele ) ); } );
       }
-#if __PGBAR_CXX20
+#if PGBAR__CXX20
       /**
        * @param _units
        * The given each unit will be treated as 1,000 times greater than the previous one
        * (from left to right).
        */
-      __PGBAR_CXX20_CNSTXPR SpeedUnit( std::array<__details::types::LitU8, 4> _units )
+      PGBAR__CXX20_CNSTXPR SpeedUnit( std::array<_details::types::LitU8, 4> _units )
       {
         std::transform(
           _units.cbegin(),
           _units.cend(),
           data_.begin(),
-          []( const __details::types::LitU8& ele ) { return __details::charcodes::U8Raw( ele ); } );
+          []( const _details::types::LitU8& ele ) { return _details::charcodes::U8Raw( ele ); } );
       }
 #endif
     };
 
     // A wrapper that stores the `lead` animated element.
-    struct Lead : __PGBAR_BASE( std::vector<__details::charcodes::U8Text> ) {
+    struct Lead : PGBAR__BASE( std::vector<_details::charcodes::U8Text> ) {
     private:
-      using Base = __details::wrappers::OptionWrapper<std::vector<__details::charcodes::U8Text>>;
+      using Base = _details::wrappers::OptionWrapper<std::vector<_details::charcodes::U8Text>>;
 
     public:
-      __PGBAR_CXX20_CNSTXPR Lead() = default;
+      PGBAR__CXX20_CNSTXPR Lead() = default;
       /**
        * @throw exception::InvalidArgument
        *
        * If the passed parameters are not coding in UTF-8.
        */
-      __PGBAR_CXX20_CNSTXPR Lead( std::vector<__details::types::String> _leads )
+      PGBAR__CXX20_CNSTXPR Lead( std::vector<_details::types::String> _leads )
       {
         std::transform(
           std::make_move_iterator( _leads.begin() ),
           std::make_move_iterator( _leads.end() ),
           std::back_inserter( data_ ),
-          []( __details::types::String&& ele ) { return __details::charcodes::U8Text( std::move( ele ) ); } );
+          []( _details::types::String&& ele ) { return _details::charcodes::U8Text( std::move( ele ) ); } );
       }
       /**
        * @throw exception::InvalidArgument
        *
        * If the passed parameters are not coding in UTF-8.
        */
-      __PGBAR_CXX20_CNSTXPR Lead( __details::types::String _lead )
-        : Base( { __details::charcodes::U8Text( std::move( _lead ) ) } )
+      PGBAR__CXX20_CNSTXPR Lead( _details::types::String _lead )
+        : Base( { _details::charcodes::U8Text( std::move( _lead ) ) } )
       {}
-#if __PGBAR_CXX20
-      __PGBAR_CXX20_CNSTXPR Lead( const std::vector<__details::types::LitU8>& _leads )
+#if PGBAR__CXX20
+      PGBAR__CXX20_CNSTXPR Lead( const std::vector<_details::types::LitU8>& _leads )
       {
         std::transform(
           _leads.cbegin(),
           _leads.cend(),
           std::back_inserter( data_ ),
-          []( const __details::types::LitU8& ele ) { return __details::charcodes::U8Text( ele ); } );
+          []( const _details::types::LitU8& ele ) { return _details::charcodes::U8Text( ele ); } );
       }
-      Lead( const __details::types::LitU8& _lead ) : Base( { __details::charcodes::U8Text( _lead ) } ) {}
+      Lead( const _details::types::LitU8& _lead ) : Base( { _details::charcodes::U8Text( _lead ) } ) {}
 #endif
     };
 
-#undef __PGBAR_DEFAULT_OPTION
-#undef __PGBAR_BASE
+#undef PGBAR__DEFAULT_OPTION
+#undef PGBAR__BASE
   } // namespace option
 } // namespace pgbar
 

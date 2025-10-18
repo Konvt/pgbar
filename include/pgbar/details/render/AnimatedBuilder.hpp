@@ -1,5 +1,5 @@
-#ifndef __PGBAR_ANIMATEDBUILDER
-#define __PGBAR_ANIMATEDBUILDER
+#ifndef PGBAR__ANIMATEDBUILDER
+#define PGBAR__ANIMATEDBUILDER
 
 #include "../io/Stringbuf.hpp"
 #include "../utils/Backport.hpp"
@@ -7,7 +7,7 @@
 // #include "../prefabs/BasicConfig.hpp"
 
 namespace pgbar {
-  namespace __details {
+  namespace _details {
     namespace render {
       template<typename Config, typename Impl>
       struct AnimatedBuilder : public CommonBuilder<Config> {
@@ -65,7 +65,7 @@ namespace pgbar {
         using Base::Base;
       };
     } // namespace render
-  } // namespace __details
+  } // namespace _details
 } // namespace pgbar
 
 #endif

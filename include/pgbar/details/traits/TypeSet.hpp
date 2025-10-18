@@ -1,11 +1,11 @@
-#ifndef __PGBAR_TYPESET
-#define __PGBAR_TYPESET
+#ifndef PGBAR__TYPESET
+#define PGBAR__TYPESET
 
 #include "Algorithm.hpp"
 #include "TypeList.hpp"
 
 namespace pgbar {
-  namespace __details {
+  namespace _details {
     namespace traits {
       /**
        * A TypeList without duplicates;
@@ -58,7 +58,7 @@ namespace pgbar {
         static constexpr bool value = Helper<TypeSet<>, TypeList<Elements...>>::value;
       };
     } // namespace traits
-  } // namespace __details
+  } // namespace _details
 } // namespace pgbar
 
 #endif

@@ -1,36 +1,36 @@
-#ifndef __PGBAR_COMMONBUILDER
-#define __PGBAR_COMMONBUILDER
+#ifndef PGBAR__COMMONBUILDER
+#define PGBAR__COMMONBUILDER
 
 #include "../io/Stringbuf.hpp"
 #include "../utils/Backport.hpp"
 // #include "../prefabs/BasicConfig.hpp"
 
 namespace pgbar {
-  namespace __details {
+  namespace _details {
     namespace render {
       template<typename Config>
       struct CommonBuilder : public Config {
         using Config::Config;
-        __PGBAR_CXX23_CNSTXPR CommonBuilder( const CommonBuilder& lhs )              = default;
-        __PGBAR_CXX23_CNSTXPR CommonBuilder( CommonBuilder&& rhs )                   = default;
-        __PGBAR_CXX23_CNSTXPR CommonBuilder& operator=( const CommonBuilder& lhs ) & = default;
-        __PGBAR_CXX23_CNSTXPR CommonBuilder& operator=( CommonBuilder&& rhs ) &      = default;
+        PGBAR__CXX23_CNSTXPR CommonBuilder( const CommonBuilder& lhs )              = default;
+        PGBAR__CXX23_CNSTXPR CommonBuilder( CommonBuilder&& rhs )                   = default;
+        PGBAR__CXX23_CNSTXPR CommonBuilder& operator=( const CommonBuilder& lhs ) & = default;
+        PGBAR__CXX23_CNSTXPR CommonBuilder& operator=( CommonBuilder&& rhs ) &      = default;
         constexpr CommonBuilder( const Config& config )
           noexcept( std::is_nothrow_copy_constructible<Config>::value )
           : Config( config )
         {}
         constexpr CommonBuilder( Config&& config ) noexcept : Config( std::move( config ) ) {}
-        __PGBAR_CXX20_CNSTXPR ~CommonBuilder() = default;
+        PGBAR__CXX20_CNSTXPR ~CommonBuilder() = default;
 
-#define __PGBAR_METHOD( ParamType, Operation, Noexcept )                        \
-  __PGBAR_CXX14_CNSTXPR CommonBuilder& operator=( ParamType config ) & Noexcept \
-  {                                                                             \
-    Config::operator=( Operation( config ) );                                   \
-    return *this;                                                               \
+#define PGBAR__METHOD( ParamType, Operation, Noexcept )                        \
+  PGBAR__CXX14_CNSTXPR CommonBuilder& operator=( ParamType config ) & Noexcept \
+  {                                                                            \
+    Config::operator=( Operation( config ) );                                  \
+    return *this;                                                              \
   }
-        __PGBAR_METHOD( const Config&, , noexcept( std::is_nothrow_copy_assignable<Config>::value ) )
-        __PGBAR_METHOD( Config&&, std::move, noexcept )
-#undef __PGBAR_METHOD
+        PGBAR__METHOD( const Config&, , noexcept( std::is_nothrow_copy_assignable<Config>::value ) )
+        PGBAR__METHOD( Config&&, std::move, noexcept )
+#undef PGBAR__METHOD
 
       protected:
         /**
@@ -42,7 +42,7 @@ namespace pgbar {
                                      std::uint64_t num_all_tasks,
                                      const std::chrono::steady_clock::time_point& zero_point ) const
         {
-          __PGBAR_TRUST( num_task_done <= num_all_tasks );
+          PGBAR__TRUST( num_task_done <= num_all_tasks );
           using Self = Config;
           if ( this->visual_masks_[utils::as_val( Self::Mask::Cnt )]
                || this->visual_masks_[utils::as_val( Self::Mask::Sped )]
@@ -74,7 +74,7 @@ namespace pgbar {
         }
       };
     } // namespace render
-  } // namespace __details
+  } // namespace _details
 } // namespace pgbar
 
 #endif

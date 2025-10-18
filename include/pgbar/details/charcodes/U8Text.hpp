@@ -1,12 +1,12 @@
-#ifndef __PGBAR_U8TEXT
-#define __PGBAR_U8TEXT
+#ifndef PGBAR__U8TEXT
+#define PGBAR__U8TEXT
 
 #include "U8Raw.hpp"
 #include <numeric>
 #include <vector>
 
 namespace pgbar {
-  namespace __details {
+  namespace _details {
     namespace charcodes {
       // A UTF-8 string that supports splitting strings by character width.
       class U8Text : public U8Raw {
@@ -18,7 +18,7 @@ namespace pgbar {
 
       public:
         /// @return The starting offset and the rendered width of each character.
-        __PGBAR_NODISCARD static __PGBAR_CXX20_CNSTXPR
+        PGBAR__NODISCARD static PGBAR__CXX20_CNSTXPR
           std::vector<std::pair<types::Size, CodeChart::RenderWidth>>
           parse_char( types::ROStr u8_str )
         {
@@ -26,7 +26,7 @@ namespace pgbar {
           const auto raw_u8_str = u8_str.data();
           for ( types::Size i = 0; i < u8_str.size(); ) {
             const auto startpoint = raw_u8_str + i;
-            __PGBAR_TRUST( startpoint >= raw_u8_str );
+            PGBAR__TRUST( startpoint >= raw_u8_str );
             auto resolved = U8Raw::next_char( startpoint, ( u8_str.data() + u8_str.size() ) - startpoint );
             characters.emplace_back( i, U8Raw::char_width( resolved.first ) );
             i += resolved.second;
@@ -34,10 +34,10 @@ namespace pgbar {
           return characters;
         }
 
-        __PGBAR_CXX20_CNSTXPR U8Text() noexcept( std::is_nothrow_default_constructible<U8Raw>::value )
+        PGBAR__CXX20_CNSTXPR U8Text() noexcept( std::is_nothrow_default_constructible<U8Raw>::value )
           : U8Raw()
         {}
-        __PGBAR_CXX20_CNSTXPR explicit U8Text( types::String u8_bytes ) : U8Text()
+        PGBAR__CXX20_CNSTXPR explicit U8Text( types::String u8_bytes ) : U8Text()
         {
           chars_ = parse_char( u8_bytes );
           width_ = std::accumulate(
@@ -49,13 +49,13 @@ namespace pgbar {
             } );
           bytes_ = std::move( u8_bytes );
         }
-        __PGBAR_CXX20_CNSTXPR U8Text( const Self& )            = default;
-        __PGBAR_CXX20_CNSTXPR U8Text( Self&& )                 = default;
-        __PGBAR_CXX20_CNSTXPR Self& operator=( const Self& ) & = default;
-        __PGBAR_CXX20_CNSTXPR Self& operator=( Self&& ) &      = default;
-        __PGBAR_CXX20_CNSTXPR ~U8Text()                        = default;
+        PGBAR__CXX20_CNSTXPR U8Text( const Self& )            = default;
+        PGBAR__CXX20_CNSTXPR U8Text( Self&& )                 = default;
+        PGBAR__CXX20_CNSTXPR Self& operator=( const Self& ) & = default;
+        PGBAR__CXX20_CNSTXPR Self& operator=( Self&& ) &      = default;
+        PGBAR__CXX20_CNSTXPR ~U8Text()                        = default;
 
-        __PGBAR_CXX20_CNSTXPR Self& operator=( types::ROStr u8_bytes ) &
+        PGBAR__CXX20_CNSTXPR Self& operator=( types::ROStr u8_bytes ) &
         {
           auto new_chars = parse_char( u8_bytes );
           auto new_bytes = types::String( u8_bytes );
@@ -70,7 +70,7 @@ namespace pgbar {
           bytes_.swap( new_bytes );
           return *this;
         }
-        __PGBAR_CXX20_CNSTXPR Self& operator=( types::String u8_bytes ) &
+        PGBAR__CXX20_CNSTXPR Self& operator=( types::String u8_bytes ) &
         {
           auto new_chars = parse_char( u8_bytes );
           std::swap( chars_, new_chars );
@@ -86,13 +86,13 @@ namespace pgbar {
           return *this;
         }
 
-        __PGBAR_CXX20_CNSTXPR void clear()
+        PGBAR__CXX20_CNSTXPR void clear()
           noexcept( noexcept( std::declval<U8Raw&>().clear() ) && noexcept( chars_.clear() ) )
         {
           U8Raw::clear();
           chars_.clear();
         }
-        __PGBAR_CXX20_CNSTXPR void shrink_to_fit()
+        PGBAR__CXX20_CNSTXPR void shrink_to_fit()
           noexcept( noexcept( std::declval<U8Raw&>().shrink_to_fit() ) && noexcept( chars_.shrink_to_fit() ) )
         {
           U8Raw::shrink_to_fit();
@@ -105,11 +105,11 @@ namespace pgbar {
          * @return The split result and the width of each part, where the first element is the result not
          * exceeding the width.
          */
-        __PGBAR_INLINE_FN std::pair<std::array<const types::Char*, 3>, std::pair<types::Size, types::Size>>
+        PGBAR__INLINE_FN std::pair<std::array<const types::Char*, 3>, std::pair<types::Size, types::Size>>
           split_by( types::Size width ) const noexcept
         {
           if ( bytes_.empty() )
-            __PGBAR_UNLIKELY return {
+            PGBAR__UNLIKELY return {
               { nullptr, nullptr, nullptr },
               std::make_pair( 0, 0 )
             };
@@ -128,15 +128,15 @@ namespace pgbar {
           };
         }
 
-        __PGBAR_CXX20_CNSTXPR void swap( Self& lhs ) noexcept
+        PGBAR__CXX20_CNSTXPR void swap( Self& lhs ) noexcept
         {
           U8Raw::swap( lhs );
           chars_.swap( lhs.chars_ );
         }
-        __PGBAR_CXX20_CNSTXPR friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
+        PGBAR__CXX20_CNSTXPR friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
 
-#if __PGBAR_CXX20
-        __PGBAR_CXX20_CNSTXPR explicit U8Text( types::LitU8 u8_sv ) : U8Text()
+#if PGBAR__CXX20
+        PGBAR__CXX20_CNSTXPR explicit U8Text( types::LitU8 u8_sv ) : U8Text()
         {
           auto new_bytes = types::String( u8_sv.size(), '\0' );
           std::copy( u8_sv.cbegin(), u8_sv.cend(), new_bytes.begin() );
@@ -153,7 +153,7 @@ namespace pgbar {
 #endif
       };
     } // namespace charcodes
-  } // namespace __details
+  } // namespace _details
 } // namespace pgbar
 
 #endif

@@ -1,14 +1,14 @@
-#ifndef __PGBAR_TEMPLATELIST
-#define __PGBAR_TEMPLATELIST
+#ifndef PGBAR__TEMPLATELIST
+#define PGBAR__TEMPLATELIST
 
 namespace pgbar {
-  namespace __details {
+  namespace _details {
     namespace traits {
       // A lightweight tuple type that stores multiple template class types.
       template<template<typename...> class... Ts>
       struct TemplateList {};
     } // namespace traits
-  } // namespace __details
+  } // namespace _details
 } // namespace pgbar
 
 #endif

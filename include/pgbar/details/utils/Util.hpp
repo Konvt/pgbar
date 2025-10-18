@@ -1,18 +1,18 @@
-#ifndef __PGBAR_UTILS_UTIL
-#define __PGBAR_UTILS_UTIL
+#ifndef PGBAR__UTILS_UTIL
+#define PGBAR__UTILS_UTIL
 
 #include "../traits/Backport.hpp"
 #include "../types/Types.hpp"
 #include <cmath>
 #include <tuple>
-#if __PGBAR_CXX17
+#if PGBAR__CXX17
 # include <charconv>
 #else
 # include <limits>
 #endif
 
 namespace pgbar {
-  namespace __details {
+  namespace _details {
     namespace utils {
       // Perfectly forward the I-th element of a tuple, constructing one by default if it's out of bound.
       template<types::Size I,
@@ -21,15 +21,15 @@ namespace pgbar {
                typename = typename std::enable_if<traits::AllOf<
                  traits::BoolConstant<( I < std::tuple_size<typename std::decay<Tuple>::type>::value )>,
                  std::is_default_constructible<T>>::value>::type>
-      __PGBAR_INLINE_FN constexpr auto pick_or( Tuple&& tup ) noexcept
+      PGBAR__INLINE_FN constexpr auto pick_or( Tuple&& tup ) noexcept
         -> decltype( std::get<I>( std::forward<Tuple>( tup ) ) )
       {
         static_assert( std::is_convertible<typename std::tuple_element<I, Tuple>::type, T>::value,
-                       "pgbar::__details::traits::pick_or: Incompatible type" );
+                       "pgbar::_details::traits::pick_or: Incompatible type" );
         return std::get<I>( std::forward<Tuple>( tup ) );
       }
       template<types::Size I, typename T, typename Tuple>
-      __PGBAR_INLINE_FN constexpr auto pick_or( Tuple&& )
+      PGBAR__INLINE_FN constexpr auto pick_or( Tuple&& )
         noexcept( std::is_nothrow_default_constructible<T>::value ) -> typename std::enable_if<
           traits::AllOf<
             traits::BoolConstant<( I >= std::tuple_size<typename std::decay<Tuple>::type>::value )>,
@@ -40,7 +40,7 @@ namespace pgbar {
       }
 
       template<typename Numeric>
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR
+      PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX14_CNSTXPR
         typename std::enable_if<std::is_unsigned<Numeric>::value, types::Size>::type
         count_digits( Numeric val ) noexcept
       {
@@ -50,7 +50,7 @@ namespace pgbar {
         return digits;
       }
       template<typename Numeric>
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR
+      PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX14_CNSTXPR
         typename std::enable_if<std::is_signed<Numeric>::value, types::Size>::type
         count_digits( Numeric val ) noexcept
       {
@@ -59,7 +59,7 @@ namespace pgbar {
 
       // Format an integer number.
       template<typename Integer>
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN
+      PGBAR__NODISCARD PGBAR__INLINE_FN
         typename std::enable_if<std::is_integral<Integer>::value, types::String>::type
         format( Integer val ) noexcept( noexcept( std::to_string( val ) ) )
       {
@@ -77,7 +77,7 @@ namespace pgbar {
 
       // Format a finite floating point number.
       template<typename Floating>
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN
+      PGBAR__NODISCARD PGBAR__INLINE_FN
         typename std::enable_if<std::is_floating_point<Floating>::value, types::String>::type
         format( Floating val, int precision ) noexcept( false )
       {
@@ -86,20 +86,20 @@ namespace pgbar {
          * on floating-point numbers;
 
          * So the implementation here is provided manually. */
-        __PGBAR_ASSERT( std::isfinite( val ) );
-        __PGBAR_TRUST( precision >= 0 );
-#if __PGBAR_CXX17
+        PGBAR__ASSERT( std::isfinite( val ) );
+        PGBAR__TRUST( precision >= 0 );
+#if PGBAR__CXX17
         const auto abs_rounded_val = std::round( std::abs( val ) );
         const auto int_digits      = count_digits( abs_rounded_val );
 
         types::String formatted;
-# if __PGBAR_CXX23
+# if PGBAR__CXX23
         formatted.resize_and_overwrite(
           int_digits + precision + 2,
           [val, precision]( types::Char* buf, types::Size n ) noexcept {
             const auto result = std::to_chars( buf, buf + n, val, std::chars_format::fixed, precision );
-            __PGBAR_TRUST( result.ec == std::errc {} );
-            __PGBAR_TRUST( result.ptr >= buf );
+            PGBAR__TRUST( result.ec == std::errc {} );
+            PGBAR__TRUST( result.ptr >= buf );
             return static_cast<types::Size>( result.ptr - buf );
           } );
 # else
@@ -110,14 +110,14 @@ namespace pgbar {
                                            val,
                                            std::chars_format::fixed,
                                            precision );
-        __PGBAR_TRUST( result.ec == std::errc {} );
-        __PGBAR_ASSERT( result.ptr >= formatted.data() );
+        PGBAR__TRUST( result.ec == std::errc {} );
+        PGBAR__ASSERT( result.ptr >= formatted.data() );
         formatted.resize( result.ptr - formatted.data() );
 # endif
 #else
         const auto scale           = std::pow( 10, precision );
         const auto abs_rounded_val = std::round( std::abs( val ) * scale ) / scale;
-        __PGBAR_ASSERT( abs_rounded_val <= ( std::numeric_limits<std::uint64_t>::max )() );
+        PGBAR__ASSERT( abs_rounded_val <= ( std::numeric_limits<std::uint64_t>::max )() );
         const auto integer = static_cast<std::uint64_t>( abs_rounded_val );
         const auto fraction =
           static_cast<std::uint64_t>( std::round( ( abs_rounded_val - integer ) * scale ) );
@@ -128,7 +128,7 @@ namespace pgbar {
         if ( precision > 0 ) {
           formatted.push_back( '.' );
           const auto fract_digits = count_digits( fraction );
-          __PGBAR_TRUST( fract_digits <= static_cast<types::Size>( precision ) );
+          PGBAR__TRUST( fract_digits <= static_cast<types::Size>( precision ) );
           formatted.append( precision - fract_digits, '0' ).append( format( fraction ) );
         }
 #endif
@@ -138,20 +138,20 @@ namespace pgbar {
       enum class TxtLayout { Left, Right, Center }; // text layout
       // Format the `str`.
       template<TxtLayout Style>
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::String format( types::Size width,
-                                                                                      types::Size len_str,
-                                                                                      types::ROStr str )
+      PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR types::String format( types::Size width,
+                                                                                   types::Size len_str,
+                                                                                   types::ROStr str )
         noexcept( false )
       {
         if ( width == 0 )
-          __PGBAR_UNLIKELY return {};
+          PGBAR__UNLIKELY return {};
         if ( len_str >= width )
           return types::String( str );
-        if __PGBAR_CXX17_CNSTXPR ( Style == TxtLayout::Right ) {
+        if PGBAR__CXX17_CNSTXPR ( Style == TxtLayout::Right ) {
           auto tmp = types::String( width - len_str, ' ' );
           tmp.append( str );
           return tmp;
-        } else if __PGBAR_CXX17_CNSTXPR ( Style == TxtLayout::Left ) {
+        } else if PGBAR__CXX17_CNSTXPR ( Style == TxtLayout::Left ) {
           auto tmp = types::String( str );
           tmp.append( width - len_str, ' ' );
           return tmp;
@@ -163,14 +163,14 @@ namespace pgbar {
         }
       }
       template<TxtLayout Style>
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR types::String format( types::Size width,
-                                                                                      types::ROStr __str )
+      PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR types::String format( types::Size width,
+                                                                                   types::ROStr __str )
         noexcept( false )
       {
         return format<Style>( width, __str.size(), __str );
       }
     } // namespace utils
-  } // namespace __details
+  } // namespace _details
 } // namespace pgbar
 
 #endif

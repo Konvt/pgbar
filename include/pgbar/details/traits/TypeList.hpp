@@ -1,12 +1,12 @@
-#ifndef __PGBAR_TYPELIST
-#define __PGBAR_TYPELIST
+#ifndef PGBAR__TYPELIST
+#define PGBAR__TYPELIST
 
 #include "Algorithm.hpp"
 #include "Backport.hpp"
 #include <type_traits>
 
 namespace pgbar {
-  namespace __details {
+  namespace _details {
     namespace traits {
       /**
        * A lightweight tuple type that stores multiple types.
@@ -65,7 +65,7 @@ namespace pgbar {
       struct TpStartsWith<TypeList<Head, Tail...>, T, Ts...>
         : AllOf<std::is_same<Head, T>, TpStartsWith<TypeList<Tail...>, Ts...>> {};
     } // namespace traits
-  } // namespace __details
+  } // namespace _details
 } // namespace pgbar
 
 #endif

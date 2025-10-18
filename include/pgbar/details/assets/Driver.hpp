@@ -1,5 +1,5 @@
-#ifndef __PGBAR_DRIVER
-#define __PGBAR_DRIVER
+#ifndef PGBAR__DRIVER
+#define PGBAR__DRIVER
 
 #include "../../Indicator.hpp"
 #include "../../slice/BoundedSpan.hpp"
@@ -19,15 +19,15 @@ namespace pgbar {
     class TrackedSpan;
   }
 
-  namespace __details {
+  namespace _details {
     namespace assets {
       template<typename Base, typename Derived>
       class TaskCounter : public Base {
         // Throws the exception::InvalidState if current object is active.
-        __PGBAR_INLINE_FN void throw_if_active()
+        PGBAR__INLINE_FN void throw_if_active()
         {
           if ( this->active() )
-            __PGBAR_UNLIKELY throw exception::InvalidState( "pgbar: try to iterate using an active object" );
+            PGBAR__UNLIKELY throw exception::InvalidState( "pgbar: try to iterate using an active object" );
         }
 
       protected:
@@ -43,19 +43,19 @@ namespace pgbar {
           noexcept( std::is_nothrow_constructible<Base, Args...>::value )
           : Base( std::forward<Args>( args )... ), task_cnt_ { 0 }
         {}
-        __PGBAR_CXX14_CNSTXPR TaskCounter( TaskCounter&& rhs ) noexcept : Base( std::move( rhs ) )
+        PGBAR__CXX14_CNSTXPR TaskCounter( TaskCounter&& rhs ) noexcept : Base( std::move( rhs ) )
         {
           task_cnt_.store( 0, std::memory_order_relaxed );
         }
-        __PGBAR_CXX14_CNSTXPR TaskCounter& operator=( TaskCounter&& rhs ) & noexcept
+        PGBAR__CXX14_CNSTXPR TaskCounter& operator=( TaskCounter&& rhs ) & noexcept
         {
           Base::operator=( std::move( rhs ) );
           return *this;
         }
-        __PGBAR_CXX20_CNSTXPR ~TaskCounter() = default;
+        PGBAR__CXX20_CNSTXPR ~TaskCounter() = default;
 
         // Get the progress of the task.
-        __PGBAR_NODISCARD std::uint64_t progress() const noexcept
+        PGBAR__NODISCARD std::uint64_t progress() const noexcept
         {
           return task_cnt_.load( std::memory_order_acquire );
         }
@@ -66,11 +66,11 @@ namespace pgbar {
          * @return Return a range `[startpoint, endpoint)` that moves unidirectionally.
          */
         template<typename N>
-#if __PGBAR_CXX20
+#if PGBAR__CXX20
           requires std::is_arithmetic_v<N>
-        __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR slice::TrackedSpan<slice::NumericSpan<N>, Derived>
+        PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR slice::TrackedSpan<slice::NumericSpan<N>, Derived>
 #else
-        __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR
+        PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR
           typename std::enable_if<std::is_arithmetic<N>::value,
                                   slice::TrackedSpan<slice::NumericSpan<N>, Derived>>::type
 #endif
@@ -84,11 +84,11 @@ namespace pgbar {
           };
         }
         template<typename N, typename Proc>
-#if __PGBAR_CXX20
+#if PGBAR__CXX20
           requires std::is_arithmetic_v<N>
-        __PGBAR_CXX14_CNSTXPR void
+        PGBAR__CXX14_CNSTXPR void
 #else
-        __PGBAR_CXX14_CNSTXPR typename std::enable_if<std::is_arithmetic<N>::value>::type
+        PGBAR__CXX14_CNSTXPR typename std::enable_if<std::is_arithmetic<N>::value>::type
 #endif
           iterate( N startpoint, N endpoint, N step, Proc&& op )
         {
@@ -97,12 +97,12 @@ namespace pgbar {
         }
 
         template<typename N>
-#if __PGBAR_CXX20
+#if PGBAR__CXX20
           requires std::is_floating_point_v<N>
-        __PGBAR_NODISCARD slice::TrackedSpan<slice::NumericSpan<N>, Derived>
+        PGBAR__NODISCARD slice::TrackedSpan<slice::NumericSpan<N>, Derived>
 #else
-        __PGBAR_NODISCARD typename std::enable_if<std::is_floating_point<N>::value,
-                                                  slice::TrackedSpan<slice::NumericSpan<N>, Derived>>::type
+        PGBAR__NODISCARD typename std::enable_if<std::is_floating_point<N>::value,
+                                                 slice::TrackedSpan<slice::NumericSpan<N>, Derived>>::type
 #endif
           iterate( N endpoint, N step ) &
         {
@@ -113,7 +113,7 @@ namespace pgbar {
           };
         }
         template<typename N, typename Proc>
-#if __PGBAR_CXX20
+#if PGBAR__CXX20
           requires std::is_floating_point_v<N>
         void
 #else
@@ -127,11 +127,11 @@ namespace pgbar {
 
         // Only available for integer types.
         template<typename N>
-#if __PGBAR_CXX20
+#if PGBAR__CXX20
           requires std::is_integral_v<N>
-        __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR slice::TrackedSpan<slice::NumericSpan<N>, Derived>
+        PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR slice::TrackedSpan<slice::NumericSpan<N>, Derived>
 #else
-        __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR
+        PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR
           typename std::enable_if<std::is_integral<N>::value,
                                   slice::TrackedSpan<slice::NumericSpan<N>, Derived>>::type
 #endif
@@ -144,11 +144,11 @@ namespace pgbar {
           };
         }
         template<typename N, typename Proc>
-#if __PGBAR_CXX20
+#if PGBAR__CXX20
           requires std::is_integral_v<N>
-        __PGBAR_CXX14_CNSTXPR void
+        PGBAR__CXX14_CNSTXPR void
 #else
-        __PGBAR_CXX14_CNSTXPR typename std::enable_if<std::is_integral<N>::value>::type
+        PGBAR__CXX14_CNSTXPR typename std::enable_if<std::is_integral<N>::value>::type
 #endif
           iterate( N startpoint, N endpoint, Proc&& op )
         {
@@ -157,11 +157,11 @@ namespace pgbar {
         }
 
         template<typename N>
-#if __PGBAR_CXX20
+#if PGBAR__CXX20
           requires std::is_integral_v<N>
-        __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR slice::TrackedSpan<slice::NumericSpan<N>, Derived>
+        PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR slice::TrackedSpan<slice::NumericSpan<N>, Derived>
 #else
-        __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR
+        PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR
           typename std::enable_if<std::is_integral<N>::value,
                                   slice::TrackedSpan<slice::NumericSpan<N>, Derived>>::type
 #endif
@@ -174,11 +174,11 @@ namespace pgbar {
           };
         }
         template<typename N, typename Proc>
-#if __PGBAR_CXX20
+#if PGBAR__CXX20
           requires std::is_integral_v<N>
-        __PGBAR_CXX14_CNSTXPR void
+        PGBAR__CXX14_CNSTXPR void
 #else
-        __PGBAR_CXX14_CNSTXPR typename std::enable_if<std::is_integral<N>::value>::type
+        PGBAR__CXX14_CNSTXPR typename std::enable_if<std::is_integral<N>::value>::type
 #endif
           iterate( N endpoint, Proc&& op )
         {
@@ -188,11 +188,11 @@ namespace pgbar {
 
         // Visualize unidirectional traversal of a iterator interval defined by parameters.
         template<typename I>
-#if __PGBAR_CXX20
+#if PGBAR__CXX20
           requires traits::is_sized_iterator<I>::value
-        __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR slice::TrackedSpan<slice::IteratorSpan<I>, Derived>
+        PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR slice::TrackedSpan<slice::IteratorSpan<I>, Derived>
 #else
-        __PGBAR_NODISCARD __PGBAR_CXX14_CNSTXPR
+        PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR
           typename std::enable_if<traits::is_sized_iterator<I>::value,
                                   slice::TrackedSpan<slice::IteratorSpan<I>, Derived>>::type
 #endif
@@ -206,11 +206,11 @@ namespace pgbar {
           };
         }
         template<typename I, typename Proc>
-#if __PGBAR_CXX20
+#if PGBAR__CXX20
           requires traits::is_sized_iterator<I>::value
-        __PGBAR_CXX14_CNSTXPR void
+        PGBAR__CXX14_CNSTXPR void
 #else
-        __PGBAR_CXX14_CNSTXPR typename std::enable_if<traits::is_sized_iterator<I>::value>::type
+        PGBAR__CXX14_CNSTXPR typename std::enable_if<traits::is_sized_iterator<I>::value>::type
 #endif
           iterate( I startpoint, I endpoint, Proc&& op )
         {
@@ -221,13 +221,13 @@ namespace pgbar {
         // Visualize unidirectional traversal of a abstract range interval defined by `container`'s
         // slice.
         template<class R>
-#if __PGBAR_CXX20
+#if PGBAR__CXX20
           requires( traits::is_bounded_range<std::remove_reference_t<R>>::value
                     && !std::ranges::view<std::remove_reference_t<R>> )
-        __PGBAR_NODISCARD __PGBAR_CXX17_CNSTXPR
+        PGBAR__NODISCARD PGBAR__CXX17_CNSTXPR
           slice::TrackedSpan<slice::BoundedSpan<std::remove_reference_t<R>>, Derived>
 #else
-        __PGBAR_NODISCARD __PGBAR_CXX17_CNSTXPR typename std::enable_if<
+        PGBAR__NODISCARD PGBAR__CXX17_CNSTXPR typename std::enable_if<
           traits::is_bounded_range<typename std::remove_reference<R>::type>::value,
           slice::TrackedSpan<slice::BoundedSpan<typename std::remove_reference<R>::type>, Derived>>::type
 #endif
@@ -236,21 +236,21 @@ namespace pgbar {
           throw_if_active();
           return { { container }, static_cast<Derived&>( *this ) };
         }
-#if __PGBAR_CXX20
+#if PGBAR__CXX20
         template<class R>
           requires( traits::is_bounded_range<R>::value && std::ranges::view<R> )
-        __PGBAR_NODISCARD __PGBAR_CXX17_CNSTXPR slice::TrackedSpan<R, Derived> iterate( R view ) &
+        PGBAR__NODISCARD PGBAR__CXX17_CNSTXPR slice::TrackedSpan<R, Derived> iterate( R view ) &
         {
           throw_if_active();
           return { std::move( view ), static_cast<Derived&>( *this ) };
         }
 #endif
         template<class R, typename Proc>
-#if __PGBAR_CXX20
+#if PGBAR__CXX20
           requires traits::is_bounded_range<std::remove_reference_t<R>>::value
-        __PGBAR_CXX17_CNSTXPR void
+        PGBAR__CXX17_CNSTXPR void
 #else
-        __PGBAR_CXX17_CNSTXPR typename std::enable_if<
+        PGBAR__CXX17_CNSTXPR typename std::enable_if<
           traits::is_bounded_range<typename std::remove_reference<R>::type>::value>::type
 #endif
           iterate( R&& range, Proc&& op )
@@ -269,12 +269,12 @@ namespace pgbar {
         using Base::Base;
         constexpr FrameCounter() = default;
         constexpr FrameCounter( FrameCounter&& rhs ) noexcept : Base( std::move( rhs ) ) {}
-        __PGBAR_CXX14_CNSTXPR FrameCounter& operator=( FrameCounter&& rhs ) & noexcept
+        PGBAR__CXX14_CNSTXPR FrameCounter& operator=( FrameCounter&& rhs ) & noexcept
         {
           Base::operator=( std::move( rhs ) );
           return *this;
         }
-        __PGBAR_CXX20_CNSTXPR ~FrameCounter() = default;
+        PGBAR__CXX20_CNSTXPR ~FrameCounter() = default;
       };
 
       template<typename Base, typename Derived>
@@ -287,11 +287,11 @@ namespace pgbar {
                Region Area>
       class CoreBar<Base, Derived<Soul, Outlet, Mode, Area>> : public Base {
         static_assert( traits::is_config<Soul>::value,
-                       "pgbar::__details::prefabs::CoreBar: Invalid config type" );
+                       "pgbar::_details::prefabs::CoreBar: Invalid config type" );
         using Self   = CoreBar;
         using Subcls = Derived<Soul, Outlet, Mode, Area>;
 
-        __PGBAR_INLINE_FN void make_frame()
+        PGBAR__INLINE_FN void make_frame()
         {
           switch ( static_cast<Subcls*>( this )->categorize() ) {
           case StateCategory::Awake: {
@@ -306,7 +306,7 @@ namespace pgbar {
           default: return;
           }
         }
-        __PGBAR_INLINE_FN friend void make_frame( Self& self ) { self.make_frame(); }
+        PGBAR__INLINE_FN friend void make_frame( Self& self ) { self.make_frame(); }
 
       protected:
         enum class StateCategory : std::uint8_t { Stop, Awake, Refresh, Finish };
@@ -321,7 +321,7 @@ namespace pgbar {
         virtual void do_halt( bool forced = false ) noexcept
         {
           auto& executor = render::Renderer<Outlet, Mode>::itself();
-          __PGBAR_ASSERT( executor.empty() == false );
+          PGBAR__ASSERT( executor.empty() == false );
           if ( !forced )
             executor.attempt();
           executor.appoint_then( []() noexcept { io::OStream<Outlet>::itself().release(); } );
@@ -335,7 +335,7 @@ namespace pgbar {
                  const auto istty = console::TermContext<Outlet>::itself().connected();
                  switch ( static_cast<Subcls*>( this )->categorize() ) {
                  case StateCategory::Awake: {
-                   if __PGBAR_CXX17_CNSTXPR ( Area == Region::Fixed )
+                   if PGBAR__CXX17_CNSTXPR ( Area == Region::Fixed )
                      if ( istty )
                        ostream << console::escodes::savecursor;
                    static_cast<Subcls*>( this )->startframe();
@@ -344,7 +344,7 @@ namespace pgbar {
                  } break;
                  case StateCategory::Refresh: {
                    if ( istty ) {
-                     if __PGBAR_CXX17_CNSTXPR ( Area == Region::Fixed )
+                     if PGBAR__CXX17_CNSTXPR ( Area == Region::Fixed )
                        ostream << console::escodes::resetcursor;
                      else
                        ostream << console::escodes::prevline << console::escodes::linestart
@@ -356,7 +356,7 @@ namespace pgbar {
                  } break;
                  case StateCategory::Finish: {
                    if ( istty ) {
-                     if __PGBAR_CXX17_CNSTXPR ( Area == Region::Fixed )
+                     if PGBAR__CXX17_CNSTXPR ( Area == Region::Fixed )
                        ostream << console::escodes::resetcursor;
                      else
                        ostream << console::escodes::prevline << console::escodes::linestart
@@ -372,7 +372,7 @@ namespace pgbar {
                  default: return;
                  }
                } ) )
-            __PGBAR_UNLIKELY throw exception::InvalidState(
+            PGBAR__UNLIKELY throw exception::InvalidState(
               "pgbar: another progress bar instance is already running" );
 
           io::OStream<Outlet>::itself() << io::release; // reset the state.
@@ -400,7 +400,7 @@ namespace pgbar {
         }
         ~CoreBar() noexcept = default;
 
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool active() const noexcept final
+        PGBAR__NODISCARD PGBAR__INLINE_FN bool active() const noexcept final
         {
           return static_cast<const Subcls*>( this )->categorize() != StateCategory::Stop;
         }
@@ -408,20 +408,20 @@ namespace pgbar {
         {
           std::lock_guard<std::mutex> lock { mtx_ };
           static_cast<Subcls*>( this )->do_reset();
-          __PGBAR_ASSERT( active() == false );
+          PGBAR__ASSERT( active() == false );
         }
         void abort() noexcept final
         {
           std::lock_guard<std::mutex> lock { mtx_ };
           static_cast<Subcls*>( this )->do_reset( true );
-          __PGBAR_ASSERT( active() == false );
+          PGBAR__ASSERT( active() == false );
         }
 
-        __PGBAR_INLINE_FN Soul& config() & noexcept { return config_; }
-        __PGBAR_INLINE_FN const Soul& config() const& noexcept { return config_; }
-        __PGBAR_INLINE_FN Soul&& config() && noexcept { return std::move( config_ ); }
+        PGBAR__INLINE_FN Soul& config() & noexcept { return config_; }
+        PGBAR__INLINE_FN const Soul& config() const& noexcept { return config_; }
+        PGBAR__INLINE_FN Soul&& config() && noexcept { return std::move( config_ ); }
 
-        __PGBAR_CXX20_CNSTXPR void swap( CoreBar& lhs ) noexcept
+        PGBAR__CXX20_CNSTXPR void swap( CoreBar& lhs ) noexcept
         {
           Base::swap( lhs );
           config_.swap( lhs.config_ );
@@ -438,17 +438,17 @@ namespace pgbar {
           std::uint8_t nil_;
 
           constexpr Callback() noexcept : nil_ {} {}
-          __PGBAR_CXX23_CNSTXPR ~Callback() noexcept {}
+          PGBAR__CXX23_CNSTXPR ~Callback() noexcept {}
         } hook_;
         enum class Tag : std::uint8_t { Nil, Nullary, Unary } tag_;
 
-        __PGBAR_CXX23_CNSTXPR void destroy() noexcept
+        PGBAR__CXX23_CNSTXPR void destroy() noexcept
         {
           switch ( tag_ ) {
           case Tag::Nullary: utils::destruct_at( hook_.on_ ); break;
           case Tag::Unary:   utils::destruct_at( hook_.on_self_ ); break;
 
-          case Tag::Nil: __PGBAR_FALLTHROUGH;
+          case Tag::Nil: PGBAR__FALLTHROUGH;
           default:       break;
           }
           hook_.nil_ = 0;
@@ -468,7 +468,7 @@ namespace pgbar {
               wrappers::UniqueFunction<void( Derived& )>( std::move( hook_.on_self_ ) );
             break;
 
-          case Tag::Nil: __PGBAR_FALLTHROUGH;
+          case Tag::Nil: PGBAR__FALLTHROUGH;
           default:       break;
           }
           lhs.tag_ = tag_;
@@ -476,13 +476,13 @@ namespace pgbar {
         }
 
       protected:
-        __PGBAR_INLINE_FN void react() &
+        PGBAR__INLINE_FN void react() &
         {
           switch ( tag_ ) {
           case Tag::Nullary: hook_.on_(); break;
           case Tag::Unary:   hook_.on_self_( static_cast<Derived&>( *this ) ); break;
 
-          case Tag::Nil: __PGBAR_FALLTHROUGH;
+          case Tag::Nil: PGBAR__FALLTHROUGH;
           default:       break;
           }
         }
@@ -507,10 +507,10 @@ namespace pgbar {
           rhs.move_to( *this );
           return *this;
         }
-        __PGBAR_CXX23_CNSTXPR ~ReactiveBar() noexcept { destroy(); }
+        PGBAR__CXX23_CNSTXPR ~ReactiveBar() noexcept { destroy(); }
 
         template<typename F>
-#if __PGBAR_CXX20
+#if PGBAR__CXX20
           requires( !std::is_null_pointer_v<std::decay_t<F>>
                     && std::is_constructible_v<wrappers::UniqueFunction<void()>, F> )
         Derived&
@@ -529,7 +529,7 @@ namespace pgbar {
           return static_cast<Derived&>( *this );
         }
         template<typename F>
-#if __PGBAR_CXX20
+#if PGBAR__CXX20
           requires( !std::is_null_pointer_v<std::decay_t<F>>
                     && std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F> )
         Derived&
@@ -556,13 +556,13 @@ namespace pgbar {
         }
 
         template<typename F>
-#if __PGBAR_CXX20
+#if PGBAR__CXX20
           requires( !std::is_null_pointer_v<std::decay_t<F>>
                     && (std::is_constructible_v<wrappers::UniqueFunction<void()>, F>
                         || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F>))
-        __PGBAR_INLINE_FN friend Derived&
+        PGBAR__INLINE_FN friend Derived&
 #else
-        __PGBAR_INLINE_FN friend typename std::enable_if<
+        PGBAR__INLINE_FN friend typename std::enable_if<
           traits::AllOf<
             traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
             traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F>,
@@ -574,13 +574,13 @@ namespace pgbar {
           return bar.action( std::forward<F>( fn ) );
         }
         template<typename F>
-#if __PGBAR_CXX20
+#if PGBAR__CXX20
           requires( !std::is_null_pointer_v<std::decay_t<F>>
                     && (std::is_constructible_v<wrappers::UniqueFunction<void()>, F>
                         || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F>))
-        __PGBAR_INLINE_FN friend Derived&
+        PGBAR__INLINE_FN friend Derived&
 #else
-        __PGBAR_INLINE_FN friend typename std::enable_if<
+        PGBAR__INLINE_FN friend typename std::enable_if<
           traits::AllOf<
             traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
             traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F>,
@@ -592,13 +592,13 @@ namespace pgbar {
           return bar.action( std::forward<F>( fn ) );
         }
         template<typename F>
-#if __PGBAR_CXX20
+#if PGBAR__CXX20
           requires( !std::is_null_pointer_v<std::decay_t<F>>
                     && (std::is_constructible_v<wrappers::UniqueFunction<void()>, F>
                         || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F>))
-        __PGBAR_INLINE_FN friend Derived&
+        PGBAR__INLINE_FN friend Derived&
 #else
-        __PGBAR_INLINE_FN friend typename std::enable_if<
+        PGBAR__INLINE_FN friend typename std::enable_if<
           traits::AllOf<
             traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
             traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F>,
@@ -610,13 +610,13 @@ namespace pgbar {
           return bar.action( std::forward<F>( fn ) );
         }
         template<typename F>
-#if __PGBAR_CXX20
+#if PGBAR__CXX20
           requires( !std::is_null_pointer_v<std::decay_t<F>>
                     && (std::is_constructible_v<wrappers::UniqueFunction<void()>, F>
                         || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F>))
-        __PGBAR_INLINE_FN friend Derived&&
+        PGBAR__INLINE_FN friend Derived&&
 #else
-        __PGBAR_INLINE_FN friend typename std::enable_if<
+        PGBAR__INLINE_FN friend typename std::enable_if<
           traits::AllOf<
             traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
             traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F>,
@@ -628,13 +628,13 @@ namespace pgbar {
           return std::move( bar.action( std::forward<F>( fn ) ) );
         }
         template<typename F>
-#if __PGBAR_CXX20
+#if PGBAR__CXX20
           requires( !std::is_null_pointer_v<std::decay_t<F>>
                     && (std::is_constructible_v<wrappers::UniqueFunction<void()>, F>
                         || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F>))
-        __PGBAR_INLINE_FN friend Derived&&
+        PGBAR__INLINE_FN friend Derived&&
 #else
-        __PGBAR_INLINE_FN friend typename std::enable_if<
+        PGBAR__INLINE_FN friend typename std::enable_if<
           traits::AllOf<
             traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
             traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F>,
@@ -646,23 +646,23 @@ namespace pgbar {
           return std::move( bar.action( std::forward<F>( fn ) ) );
         }
 
-        __PGBAR_INLINE_FN friend Derived& operator|=( Self& bar, std::nullptr_t ) noexcept
+        PGBAR__INLINE_FN friend Derived& operator|=( Self& bar, std::nullptr_t ) noexcept
         {
           return bar.action();
         }
-        __PGBAR_INLINE_FN friend Derived& operator|( Self& bar, std::nullptr_t ) noexcept
+        PGBAR__INLINE_FN friend Derived& operator|( Self& bar, std::nullptr_t ) noexcept
         {
           return bar.action();
         }
-        __PGBAR_INLINE_FN friend Derived& operator|( std::nullptr_t, Self& bar ) noexcept
+        PGBAR__INLINE_FN friend Derived& operator|( std::nullptr_t, Self& bar ) noexcept
         {
           return bar.action();
         }
-        __PGBAR_INLINE_FN friend Derived&& operator|( Self&& bar, std::nullptr_t ) noexcept
+        PGBAR__INLINE_FN friend Derived&& operator|( Self&& bar, std::nullptr_t ) noexcept
         {
           return std::move( bar.action() );
         }
-        __PGBAR_INLINE_FN friend Derived&& operator|( std::nullptr_t, Self&& bar ) noexcept
+        PGBAR__INLINE_FN friend Derived&& operator|( std::nullptr_t, Self&& bar ) noexcept
         {
           return std::move( bar.action() );
         }
@@ -697,7 +697,7 @@ namespace pgbar {
             }
             break;
 
-          case Tag::Nil: __PGBAR_FALLTHROUGH;
+          case Tag::Nil: PGBAR__FALLTHROUGH;
           default:
             if ( lhs.tag_ != Tag::Nil )
               lhs.move_to( *this );
@@ -712,16 +712,16 @@ namespace pgbar {
 
       public:
         using Base::Base;
-        constexpr TickableBar( Self&& rhs )                   = default;
-        __PGBAR_CXX14_CNSTXPR Self& operator=( Self&& rhs ) & = default;
-        __PGBAR_CXX20_CNSTXPR virtual ~TickableBar()          = default;
+        constexpr TickableBar( Self&& rhs )                  = default;
+        PGBAR__CXX14_CNSTXPR Self& operator=( Self&& rhs ) & = default;
+        PGBAR__CXX20_CNSTXPR virtual ~TickableBar()          = default;
 
-        __PGBAR_INLINE_FN void tick() &
+        PGBAR__INLINE_FN void tick() &
         {
           static_cast<Derived*>( this )->do_tick(
             [this]() noexcept { this->task_cnt_.fetch_add( 1, std::memory_order_release ); } );
         }
-        __PGBAR_INLINE_FN void tick( std::uint64_t next_step ) &
+        PGBAR__INLINE_FN void tick( std::uint64_t next_step ) &
         {
           static_cast<Derived*>( this )->do_tick( [&]() noexcept {
             const auto task_cnt = this->task_cnt_.load( std::memory_order_acquire );
@@ -736,7 +736,7 @@ namespace pgbar {
          *
          * @param percentage Value range: [0, 100].
          */
-        __PGBAR_INLINE_FN void tick_to( std::uint8_t percentage ) &
+        PGBAR__INLINE_FN void tick_to( std::uint8_t percentage ) &
         {
           static_cast<Derived*>( this )->do_tick( [&]() noexcept {
             auto updater = [this]( std::uint64_t target ) noexcept {
@@ -749,7 +749,7 @@ namespace pgbar {
             };
             if ( percentage <= 100 ) {
               const auto target = static_cast<std::uint64_t>( this->task_end_ * percentage * 0.01 );
-              __PGBAR_ASSERT( target <= this->task_end_ );
+              PGBAR__ASSERT( target <= this->task_end_ );
               updater( target );
             } else
               updater( this->task_end_ );
@@ -776,37 +776,37 @@ namespace pgbar {
         std::atomic<State> state_;
 
       protected:
-        __PGBAR_INLINE_FN void startframe() &
+        PGBAR__INLINE_FN void startframe() &
         {
           refreshframe();
           auto expected = State::Awake;
           this->state_.compare_exchange_strong( expected, State::Refresh, std::memory_order_release );
         }
-        __PGBAR_INLINE_FN void refreshframe() &
+        PGBAR__INLINE_FN void refreshframe() &
         {
-          __PGBAR_ASSERT( this->task_cnt_ <= this->task_end_ );
+          PGBAR__ASSERT( this->task_cnt_ <= this->task_end_ );
           this->config_.build( io::OStream<Outlet>::itself(),
                                this->task_cnt_.load( std::memory_order_acquire ),
                                this->task_end_,
                                this->zero_point_ );
         }
-        __PGBAR_INLINE_FN void endframe() &
+        PGBAR__INLINE_FN void endframe() &
         {
           refreshframe();
           this->state_.store( State::Stop, std::memory_order_release );
         }
 
-        __PGBAR_INLINE_FN typename Base::StateCategory categorize() const noexcept
+        PGBAR__INLINE_FN typename Base::StateCategory categorize() const noexcept
         {
           return state_.load( std::memory_order_acquire );
         }
 
         // Only when "forced" is true will it be noexcept.
-        __PGBAR_INLINE_FN void do_reset( bool forced = false )
+        PGBAR__INLINE_FN void do_reset( bool forced = false )
         {
           if ( state_.load( std::memory_order_acquire ) != State::Stop ) {
             if ( forced )
-              __PGBAR_UNLIKELY state_.store( State::Stop, std::memory_order_release );
+              PGBAR__UNLIKELY state_.store( State::Stop, std::memory_order_release );
             else {
               this->react();
               state_.store( State::Finish, std::memory_order_release );
@@ -819,13 +819,13 @@ namespace pgbar {
         void do_tick( F&& ticker ) & noexcept( false )
         {
           switch ( state_.load( std::memory_order_acquire ) ) {
-          case State::Stop:  __PGBAR_FALLTHROUGH;
+          case State::Stop:  PGBAR__FALLTHROUGH;
           case State::Awake: {
             std::lock_guard<std::mutex> lock { this->mtx_ };
             if ( state_.load( std::memory_order_acquire ) == State::Stop ) {
               this->task_end_ = this->config_.tasks();
               if ( this->task_end_ == 0 )
-                __PGBAR_UNLIKELY throw exception::InvalidState( "pgbar: the number of tasks is zero" );
+                PGBAR__UNLIKELY throw exception::InvalidState( "pgbar: the number of tasks is zero" );
 
               if ( config::disable_styling() && !config::intty( Outlet ) )
                 this->config_.colored( false ).bolded( false );
@@ -840,23 +840,23 @@ namespace pgbar {
               }
             }
           }
-            __PGBAR_FALLTHROUGH;
+            PGBAR__FALLTHROUGH;
           case State::Refresh: {
             ticker();
 
             if ( this->task_cnt_.load( std::memory_order_acquire ) >= this->task_end_ )
-              __PGBAR_UNLIKELY
+              PGBAR__UNLIKELY
               {
                 if ( this->mtx_.try_lock() ) {
                   std::lock_guard<std::mutex> lock { this->mtx_, std::adopt_lock };
                   do_reset();
                 }
               }
-            else if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Sync )
+            else if PGBAR__CXX17_CNSTXPR ( Mode == Policy::Sync )
               render::Renderer<Outlet, Mode>::itself().execute();
           } break;
 
-          default: __PGBAR_UNREACHABLE;
+          default: PGBAR__UNREACHABLE;
           }
         }
 
@@ -898,7 +898,7 @@ namespace pgbar {
         std::atomic<State> state_;
 
       protected:
-        __PGBAR_INLINE_FN void startframe() &
+        PGBAR__INLINE_FN void startframe() &
         {
           this->idx_frame_ = 0;
           refreshframe();
@@ -908,9 +908,9 @@ namespace pgbar {
                                                                : State::ProgressRefresh,
                                           std::memory_order_release );
         }
-        __PGBAR_INLINE_FN void refreshframe() &
+        PGBAR__INLINE_FN void refreshframe() &
         {
-          __PGBAR_ASSERT( this->task_cnt_ <= this->task_end_ );
+          PGBAR__ASSERT( this->task_cnt_ <= this->task_end_ );
           this->config_.build( io::OStream<Outlet>::itself(),
                                this->idx_frame_,
                                this->task_cnt_.load( std::memory_order_acquire ),
@@ -918,9 +918,9 @@ namespace pgbar {
                                this->zero_point_ );
           ++this->idx_frame_;
         }
-        __PGBAR_INLINE_FN void endframe() &
+        PGBAR__INLINE_FN void endframe() &
         {
-          __PGBAR_ASSERT( this->task_cnt_ <= this->task_end_ );
+          PGBAR__ASSERT( this->task_cnt_ <= this->task_end_ );
           this->config_.build( io::OStream<Outlet>::itself(),
                                this->idx_frame_,
                                this->task_cnt_.load( std::memory_order_acquire ),
@@ -929,11 +929,11 @@ namespace pgbar {
           state_.store( State::Stop, std::memory_order_release );
         }
 
-        __PGBAR_INLINE_FN typename Base::StateCategory categorize() const noexcept
+        PGBAR__INLINE_FN typename Base::StateCategory categorize() const noexcept
         {
           switch ( state_.load( std::memory_order_acquire ) ) {
           case State::Awake:           return Base::StateCategory::Awake;
-          case State::ProgressRefresh: __PGBAR_FALLTHROUGH;
+          case State::ProgressRefresh: PGBAR__FALLTHROUGH;
           case State::ActivityRefresh: return Base::StateCategory::Refresh;
           case State::Finish:          return Base::StateCategory::Finish;
           default:                     break;
@@ -942,11 +942,11 @@ namespace pgbar {
         }
 
         // Only when "forced" is true will it be noexcept.
-        __PGBAR_INLINE_FN void do_reset( bool forced = false )
+        PGBAR__INLINE_FN void do_reset( bool forced = false )
         {
           if ( state_.load( std::memory_order_acquire ) != State::Stop ) {
             if ( forced )
-              __PGBAR_UNLIKELY state_.store( State::Stop, std::memory_order_release );
+              PGBAR__UNLIKELY state_.store( State::Stop, std::memory_order_release );
             else {
               this->react();
               state_.store( State::Finish, std::memory_order_release );
@@ -959,7 +959,7 @@ namespace pgbar {
         void do_tick( F&& ticker ) & noexcept( false )
         {
           switch ( this->state_.load( std::memory_order_acquire ) ) {
-          case State::Stop:  __PGBAR_FALLTHROUGH;
+          case State::Stop:  PGBAR__FALLTHROUGH;
           case State::Awake: {
             std::lock_guard<std::mutex> lock { this->mtx_ };
             if ( this->state_.load( std::memory_order_acquire ) == State::Stop ) {
@@ -981,28 +981,28 @@ namespace pgbar {
             if ( this->state_.load( std::memory_order_acquire ) == State::ActivityRefresh )
               return;
           }
-            __PGBAR_FALLTHROUGH;
+            PGBAR__FALLTHROUGH;
           case State::ProgressRefresh: {
             ticker();
 
             if ( this->task_cnt_.load( std::memory_order_acquire ) >= this->task_end_ )
-              __PGBAR_UNLIKELY
+              PGBAR__UNLIKELY
               {
                 if ( this->mtx_.try_lock() ) {
                   std::lock_guard<std::mutex> lock { this->mtx_, std::adopt_lock };
                   do_reset();
                 }
               }
-            else if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Sync )
+            else if PGBAR__CXX17_CNSTXPR ( Mode == Policy::Sync )
               render::Renderer<Outlet, Mode>::itself().execute();
           } break;
 
           case State::ActivityRefresh: {
-            if __PGBAR_CXX17_CNSTXPR ( Mode == Policy::Sync )
+            if PGBAR__CXX17_CNSTXPR ( Mode == Policy::Sync )
               render::Renderer<Outlet, Mode>::itself().execute();
           } break;
 
-          default: __PGBAR_UNREACHABLE;
+          default: PGBAR__UNREACHABLE;
           }
         }
 
@@ -1038,14 +1038,14 @@ namespace pgbar {
         void warmup() &
         {
           if ( this->task_end_ == 0 )
-            __PGBAR_UNLIKELY throw exception::InvalidState( "pgbar: the number of tasks is zero" );
+            PGBAR__UNLIKELY throw exception::InvalidState( "pgbar: the number of tasks is zero" );
         }
 
       public:
         using Base::Base;
-        constexpr BoundedFrameBar( BoundedFrameBar&& )                          = default;
-        __PGBAR_CXX14_CNSTXPR BoundedFrameBar& operator=( BoundedFrameBar&& ) & = default;
-        __PGBAR_CXX20_CNSTXPR ~BoundedFrameBar()                                = default;
+        constexpr BoundedFrameBar( BoundedFrameBar&& )                         = default;
+        PGBAR__CXX14_CNSTXPR BoundedFrameBar& operator=( BoundedFrameBar&& ) & = default;
+        PGBAR__CXX20_CNSTXPR ~BoundedFrameBar()                                = default;
       };
 
       template<typename Base, typename Derived>
@@ -1063,22 +1063,22 @@ namespace pgbar {
 
       public:
         using Base::Base;
-        constexpr NullableFrameBar( NullableFrameBar&& )                          = default;
-        __PGBAR_CXX14_CNSTXPR NullableFrameBar& operator=( NullableFrameBar&& ) & = default;
-        __PGBAR_CXX20_CNSTXPR ~NullableFrameBar()                                 = default;
+        constexpr NullableFrameBar( NullableFrameBar&& )                         = default;
+        PGBAR__CXX14_CNSTXPR NullableFrameBar& operator=( NullableFrameBar&& ) & = default;
+        PGBAR__CXX20_CNSTXPR ~NullableFrameBar()                                 = default;
       };
     } // namespace assets
 
     namespace traits {
-      __PGBAR_INHERIT_REGISTER( assets::ReactiveBar, assets::CoreBar );
-      __PGBAR_INHERIT_REGISTER( assets::TickableBar, assets::TaskCounter, assets::CoreBar );
-      __PGBAR_INHERIT_REGISTER( assets::PlainBar, assets::TickableBar, assets::ReactiveBar );
-      __PGBAR_INHERIT_REGISTER( assets::FrameBar,
-                                assets::FrameCounter,
-                                assets::ReactiveBar,
-                                assets::TickableBar );
-      __PGBAR_INHERIT_REGISTER( assets::BoundedFrameBar, assets::FrameBar );
-      __PGBAR_INHERIT_REGISTER( assets::NullableFrameBar, assets::FrameBar );
+      PGBAR__INHERIT_REGISTER( assets::ReactiveBar, assets::CoreBar );
+      PGBAR__INHERIT_REGISTER( assets::TickableBar, assets::TaskCounter, assets::CoreBar );
+      PGBAR__INHERIT_REGISTER( assets::PlainBar, assets::TickableBar, assets::ReactiveBar );
+      PGBAR__INHERIT_REGISTER( assets::FrameBar,
+                               assets::FrameCounter,
+                               assets::ReactiveBar,
+                               assets::TickableBar );
+      PGBAR__INHERIT_REGISTER( assets::BoundedFrameBar, assets::FrameBar );
+      PGBAR__INHERIT_REGISTER( assets::NullableFrameBar, assets::FrameBar );
 
       // In pgbar, the configuration type is "first-class type";
       // thus, we hope to be able to automatically generate the progress bar type
@@ -1091,13 +1091,13 @@ namespace pgbar {
       template<typename Config>
       using BehaviourFor_t = typename BehaviourFor<Config>::type;
 
-#define __PGBAR_BIND_BEHAVIOUR( Config, ... ) \
-  template<>                                  \
-  struct BehaviourFor<Config> {               \
-    using type = C3Container<__VA_ARGS__>;    \
+#define PGBAR__BIND_BEHAVIOUR( Config, ... ) \
+  template<>                                 \
+  struct BehaviourFor<Config> {              \
+    using type = C3Container<__VA_ARGS__>;   \
   }
     } // namespace traits
-  } // namespace __details
+  } // namespace _details
 } // namespace pgbar
 
 #endif

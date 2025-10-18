@@ -1,5 +1,5 @@
-#ifndef __PGBAR_BASICCONFIG
-#define __PGBAR_BASICCONFIG
+#ifndef PGBAR__BASICCONFIG
+#define PGBAR__BASICCONFIG
 
 #include "../assets/TUI.hpp"
 #include "../concurrent/Backport.hpp"
@@ -8,7 +8,7 @@
 #include <mutex>
 
 namespace pgbar {
-  namespace __details {
+  namespace _details {
     namespace prefabs {
       template<template<typename...> class BarType, typename Derived>
       class BasicConfig
@@ -27,7 +27,7 @@ namespace pgbar {
         static_assert(
           traits::AnyOf<traits::TmpContain<traits::C3_t<BarType>, assets::BasicIndicator>,
                         traits::TmpContain<traits::C3_t<BarType>, assets::BasicAnimation>>::value,
-          "pgbar::__details::prefabs::BasicConfig: Invalid progress bar type" );
+          "pgbar::_details::prefabs::BasicConfig: Invalid progress bar type" );
 
         using Self = BasicConfig;
         using Base =
@@ -48,8 +48,8 @@ namespace pgbar {
                                              traits::OptionFor_t<assets::Postfix>,
                                              traits::OptionFor_t<assets::Segment>>;
 
-        friend __PGBAR_INLINE_FN __PGBAR_CXX20_CNSTXPR void unpacker( BasicConfig& cfg,
-                                                                      option::Style&& val ) noexcept
+        friend PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR void unpacker( BasicConfig& cfg,
+                                                                    option::Style&& val ) noexcept
         {
           cfg.visual_masks_ = val.value();
         }
@@ -62,7 +62,7 @@ namespace pgbar {
 
           Modifier( Self& self ) noexcept : self_ { self }, owner_ { true } { self_.rw_mtx_.lock(); }
           Modifier( Self& self, std::adopt_lock_t ) noexcept : self_ { self }, owner_ { true } {}
-#if !__PGBAR_CXX17
+#if !PGBAR__CXX17
           // There was not standard NRVO support before C++17.
           Modifier( Modifier&& rhs ) noexcept : self_ { rhs.self_ }, owner_ { true }
           {
@@ -78,24 +78,24 @@ namespace pgbar {
           Modifier( const Modifier& )              = delete;
           Modifier& operator=( const Modifier& ) & = delete;
 
-#define __PGBAR_METHOD( MethodName, EnumName )                      \
+#define PGBAR__METHOD( MethodName, EnumName )                       \
   Modifier&& MethodName()&& noexcept                                \
   {                                                                 \
     if ( owner_.load( std::memory_order_acquire ) )                 \
       self_.visual_masks_.set( utils::as_val( EnumName ), Enable ); \
     return static_cast<Modifier&&>( *this );                        \
   }
-          __PGBAR_METHOD( percent, Mask::Per )
-          __PGBAR_METHOD( animation, Mask::Ani )
-          __PGBAR_METHOD( counter, Mask::Cnt )
-          __PGBAR_METHOD( speed, Mask::Sped )
-          __PGBAR_METHOD( elapsed, Mask::Elpsd )
-          __PGBAR_METHOD( countdown, Mask::Cntdwn )
-#undef __PGBAR_METHOD
+          PGBAR__METHOD( percent, Mask::Per )
+          PGBAR__METHOD( animation, Mask::Ani )
+          PGBAR__METHOD( counter, Mask::Cnt )
+          PGBAR__METHOD( speed, Mask::Sped )
+          PGBAR__METHOD( elapsed, Mask::Elpsd )
+          PGBAR__METHOD( countdown, Mask::Cntdwn )
+#undef PGBAR__METHOD
           Modifier&& entire() && noexcept
           {
             if ( owner_.load( std::memory_order_acquire ) ) {
-              if __PGBAR_CXX17_CNSTXPR ( Enable )
+              if PGBAR__CXX17_CNSTXPR ( Enable )
                 self_.visual_masks_.set();
               else
                 self_.visual_masks_.reset();
@@ -115,7 +115,7 @@ namespace pgbar {
         enum class Mask : std::uint8_t { Per = 0, Ani, Cnt, Sped, Elpsd, Cntdwn };
         std::bitset<6> visual_masks_;
 
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN types::Size common_render_size() const noexcept
+        PGBAR__NODISCARD PGBAR__INLINE_FN types::Size common_render_size() const noexcept
         {
           return this->fixed_len_prefix() + this->fixed_len_postfix()
                + ( visual_masks_[utils::as_val( Mask::Per )] ? this->fixed_len_percent() : 0 )
@@ -142,7 +142,7 @@ namespace pgbar {
         // Enable all components
         static constexpr types::Byte Entire = ~0;
 
-#if __PGBAR_CXX20
+#if PGBAR__CXX20
         template<typename... Args>
           requires( traits::Distinct<traits::TypeList<Args...>>::value
                     && ( traits::TpContain<PermittedSet, Args>::value && ... ) )
@@ -152,7 +152,7 @@ namespace pgbar {
                    traits::AllOf<traits::Distinct<traits::TypeList<Args...>>,
                                  traits::TpContain<PermittedSet, Args>...>::value>::type>
 #endif
-        __PGBAR_CXX23_CNSTXPR BasicConfig( Args... args )
+        PGBAR__CXX23_CNSTXPR BasicConfig( Args... args )
         {
           static_cast<Derived*>( this )->template initialize<traits::TypeSet<Args...>>();
           (void)std::initializer_list<bool> { ( unpacker( *this, std::move( args ) ), false )... };
@@ -173,7 +173,7 @@ namespace pgbar {
         }
         Self& operator=( const Self& lhs ) & noexcept( std::is_nothrow_copy_assignable<Base>::value )
         {
-          __PGBAR_TRUST( this != &lhs );
+          PGBAR__TRUST( this != &lhs );
           std::unique_lock<concurrent::SharedMutex> lock1 { this->rw_mtx_, std::defer_lock };
           concurrent::SharedLock<concurrent::SharedMutex> lock2 { lhs.rw_mtx_, std::defer_lock };
           std::lock( lock1, lock2 );
@@ -184,7 +184,7 @@ namespace pgbar {
         }
         Self& operator=( Self&& rhs ) & noexcept
         {
-          __PGBAR_ASSERT( this != &rhs );
+          PGBAR__ASSERT( this != &rhs );
           std::lock( this->rw_mtx_, rhs.rw_mtx_ );
           std::lock_guard<concurrent::SharedMutex> lock1 { this->rw_mtx_, std::adopt_lock };
           std::lock_guard<concurrent::SharedMutex> lock2 { rhs.rw_mtx_, std::adopt_lock };
@@ -209,7 +209,7 @@ namespace pgbar {
         }
 
         template<typename Arg, typename... Args>
-#if __PGBAR_CXX20
+#if PGBAR__CXX20
           requires( traits::Distinct<traits::TypeList<Arg, Args...>>::value
                     && traits::TpContain<PermittedSet, Arg>::value
                     && ( traits::TpContain<PermittedSet, Args>::value && ... ) )
@@ -232,16 +232,16 @@ namespace pgbar {
           return static_cast<Derived&>( *this );
         }
 
-        __PGBAR_NODISCARD types::Size fixed_width() const noexcept
+        PGBAR__NODISCARD types::Size fixed_width() const noexcept
         {
           concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
           return static_cast<const Derived*>( this )->fixed_render_size();
         }
 
-        __PGBAR_NODISCARD Modifier<true> enable() & noexcept { return Modifier<true>( *this ); }
-        __PGBAR_NODISCARD Modifier<false> disable() & noexcept { return Modifier<false>( *this ); }
+        PGBAR__NODISCARD Modifier<true> enable() & noexcept { return Modifier<true>( *this ); }
+        PGBAR__NODISCARD Modifier<false> disable() & noexcept { return Modifier<false>( *this ); }
 
-        __PGBAR_CXX23_CNSTXPR void swap( BasicConfig& lhs ) noexcept
+        PGBAR__CXX23_CNSTXPR void swap( BasicConfig& lhs ) noexcept
         {
           std::lock( this->rw_mtx_, lhs.rw_mtx_ );
           std::lock_guard<concurrent::SharedMutex> lock1 { this->rw_mtx_, std::adopt_lock };
@@ -250,7 +250,7 @@ namespace pgbar {
           swap( visual_masks_, lhs.visual_masks_ );
           Base::swap( lhs );
         }
-        friend __PGBAR_CXX23_CNSTXPR void swap( BasicConfig& a, BasicConfig& b ) noexcept { a.swap( b ); }
+        friend PGBAR__CXX23_CNSTXPR void swap( BasicConfig& a, BasicConfig& b ) noexcept { a.swap( b ); }
       };
     } // namespace prefabs
 
@@ -268,7 +268,7 @@ namespace pgbar {
                 decltype( check( std::declval<typename std::remove_cv<C>::type>() ) )>::value;
       };
     } // namespace traits
-  } // namespace __details
+  } // namespace _details
 } // namespace pgbar
 
 #endif

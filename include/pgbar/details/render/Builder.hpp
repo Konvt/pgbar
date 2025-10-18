@@ -1,8 +1,8 @@
-#ifndef __PGBAR_BUILDER
-#define __PGBAR_BUILDER
+#ifndef PGBAR__BUILDER
+#define PGBAR__BUILDER
 
 namespace pgbar {
-  namespace __details {
+  namespace _details {
     namespace render {
       // Extension points.
       template<typename Config>
