@@ -12,6 +12,12 @@ namespace pgbar {
 
     std::shared_ptr<Context> core_;
 
+    __PGBAR_INLINE_FN void setup_if_null() &
+    {
+      if ( core_ == nullptr )
+        __PGBAR_UNLIKELY core_ = std::make_shared<Context>();
+    }
+
   public:
     DynamicBar()                     = default;
     DynamicBar( const Self& )        = delete;
@@ -32,7 +38,7 @@ namespace pgbar {
     {
       return core_ != nullptr ? core_->size() : 0;
     }
-    __PGBAR_INLINE_FN void reset() noexcept
+    __PGBAR_INLINE_FN void abort() noexcept
     {
       if ( core_ != nullptr )
         core_->halt();
@@ -61,8 +67,7 @@ namespace pgbar {
 #endif
       insert( __details::prefabs::BasicBar<Config, Outlet, Mode, Area>&& bar )
     {
-      if ( core_ == nullptr )
-        __PGBAR_UNLIKELY core_ = std::make_shared<Context>();
+      setup_if_null();
       return __details::utils::make_unique<__details::prefabs::ManagedBar<Config, Outlet, Mode, Area>>(
         core_,
         std::move( bar ) );
@@ -78,8 +83,7 @@ namespace pgbar {
 #endif
       insert( Config cfg )
     {
-      if ( core_ == nullptr )
-        __PGBAR_UNLIKELY core_ = std::make_shared<Context>();
+      setup_if_null();
       return __details::utils::make_unique<__details::prefabs::ManagedBar<Config, Outlet, Mode, Area>>(
         core_,
         std::move( cfg ) );
@@ -101,8 +105,7 @@ namespace pgbar {
 #endif
       insert( Options&&... options )
     {
-      if ( core_ == nullptr )
-        __PGBAR_UNLIKELY core_ = std::make_shared<Context>();
+      setup_if_null();
       return __details::utils::make_unique<
         __details::prefabs::ManagedBar<typename Bar::Config, Outlet, Mode, Area>>(
         core_,
@@ -120,8 +123,7 @@ namespace pgbar {
 #endif
       insert( Options&&... options )
     {
-      if ( core_ == nullptr )
-        __PGBAR_UNLIKELY core_ = std::make_shared<Context>();
+      setup_if_null();
       return __details::utils::make_unique<__details::prefabs::ManagedBar<Config, Outlet, Mode, Area>>(
         core_,
         std::forward<Options>( options )... );

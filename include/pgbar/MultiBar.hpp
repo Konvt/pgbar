@@ -90,12 +90,12 @@ namespace pgbar {
       package_ = std::move( rhs );
       return *this;
     }
-    ~MultiBar() noexcept { reset(); }
+    ~MultiBar() noexcept { abort(); }
 
     // Check whether a progress bar is running
     __PGBAR_NODISCARD __PGBAR_INLINE_FN bool active() const noexcept { return package_.online(); }
-    // Reset all the progress bars.
-    __PGBAR_INLINE_FN void reset() noexcept { package_.halt(); }
+    // Abort all the progress bars.
+    __PGBAR_INLINE_FN void abort() noexcept { package_.halt(); }
     // Returns the number of progress bars.
     __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CNSTEVAL __details::types::Size size() const noexcept
     {
@@ -153,6 +153,11 @@ namespace pgbar {
     __PGBAR_INLINE_FN void reset()
     {
       at<Pos>().reset();
+    }
+    template<__details::types::Size Pos>
+    __PGBAR_INLINE_FN void abort() noexcept
+    {
+      at<Pos>().abort();
     }
     template<__details::types::Size Pos>
     __PGBAR_INLINE_FN void wait() const noexcept

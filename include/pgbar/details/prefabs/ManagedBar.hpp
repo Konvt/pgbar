@@ -42,19 +42,19 @@ namespace pgbar {
 
         /**
          * The object model of C++ requires that derived classes be destructed first.
-         * When the derived class is destructed and the base class destructor attempts to call `do_reset`,
+         * When the derived class is destructed and the base class destructor attempts to call `abort`,
          * the internal virtual function `do_halt` will point to a non-existent derived class.
 
-         * Therefore, here it is necessary to explicitly re-call the base class's `do_reset`
+         * Therefore, here it is necessary to explicitly re-call the base class's `abort`
          * to shut down any possible running state.
 
-         * After calling `do_reset`, the object state will switch to Stop,
-         * and further calls to `do_reset` will have no effect.
-         * So even if the base class destructor calls `do_reset` again, it is safe.
+         * After calling `abort`, the object state will switch to Stop,
+         * and further calls to `abort` will have no effect.
+         * So even if the base class destructor calls `abort` again, it is safe.
          */
         virtual ~ManagedBar() noexcept { halt(); }
 
-        __PGBAR_INLINE_FN void halt() noexcept { this->do_reset( true ); }
+        __PGBAR_INLINE_FN void halt() noexcept { this->abort(); }
       };
     } // namespace prefabs
   } // namespace __details
