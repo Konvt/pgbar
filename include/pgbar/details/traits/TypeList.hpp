@@ -31,7 +31,7 @@ namespace pgbar {
         : Combine<TpAppend_t<TypeList<Es...>, T>, Collection<Ts...>> {};
 
       template<typename Element, types::Size N>
-      struct Fill {
+      struct TpFill {
       private:
         template<bool Cond, typename List>
         struct _Select;
@@ -41,21 +41,21 @@ namespace pgbar {
         struct _Select<true, List> {
           using type = List;
         };
-        using Half_t = typename Fill<Element, N / 2>::type;
+        using Half_t = typename TpFill<Element, N / 2>::type;
 
       public:
         using type = typename _Select<( N % 2 == 0 ), Combine_t<Half_t, Half_t>>::type;
       };
       template<typename Element>
-      struct Fill<Element, 0> {
+      struct TpFill<Element, 0> {
         using type = TypeList<>;
       };
       template<typename Element>
-      struct Fill<Element, 1> {
+      struct TpFill<Element, 1> {
         using type = TypeList<Element>;
       };
       template<typename Element, types::Size N>
-      using Fill_t = typename Fill<Element, N>::type;
+      using TpFill_t = typename TpFill<Element, N>::type;
 
       template<typename... Ts>
       struct TpStartsWith<TypeList<>, Ts...> : std::true_type {};
