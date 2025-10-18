@@ -17,21 +17,34 @@ namespace pgbar {
       template<typename... Ts>
       struct TypeList {};
 
+      template<typename... Es, typename Element>
+      struct TpAppend<TypeList<Es...>, Element> {
+        using type = TypeList<Es..., Element>;
+      };
+
+      template<typename... Es, template<typename...> class Collection>
+      struct Combine<TypeList<Es...>, Collection<>> {
+        using type = TypeList<Es...>;
+      };
+      template<typename... Es, template<typename...> class Collection, typename T, typename... Ts>
+      struct Combine<TypeList<Es...>, Collection<T, Ts...>>
+        : Combine<TpAppend_t<TypeList<Es...>, T>, Collection<Ts...>> {};
+
       template<typename Element, types::Size N>
       struct Fill {
       private:
         template<bool Cond, typename List>
         struct _Select;
         template<typename List>
-        struct _Select<true, List> : TpPrepend<List, Element> {};
+        struct _Select<false, List> : TpAppend<List, Element> {};
         template<typename List>
-        struct _Select<false, List> {
+        struct _Select<true, List> {
           using type = List;
         };
         using Half_t = typename Fill<Element, N / 2>::type;
 
       public:
-        using type = typename _Select<N % 2 == 0, Combine_t<Half_t, Half_t>>::type;
+        using type = typename _Select<( N % 2 == 0 ), Combine_t<Half_t, Half_t>>::type;
       };
       template<typename Element>
       struct Fill<Element, 0> {
@@ -43,11 +56,6 @@ namespace pgbar {
       };
       template<typename Element, types::Size N>
       using Fill_t = typename Fill<Element, N>::type;
-
-      template<typename... Ts, typename T>
-      struct TpPrepend<TypeList<Ts...>, T> {
-        using type = TypeList<T, Ts...>;
-      };
 
       template<typename... Ts>
       struct TpStartsWith<TypeList<>, Ts...> : std::true_type {};
