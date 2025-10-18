@@ -205,7 +205,7 @@ namespace pgbar {
         void halt() noexcept
         {
           if ( online() && !__details::render::Renderer<Outlet, Mode>::itself().empty() )
-            (void)std::initializer_list<bool> { ( this->ElementAt_t<Tags>::do_reset( true ), false )... };
+            (void)std::initializer_list<bool> { ( this->ElementAt_t<Tags>::abort(), false )... };
           __PGBAR_ASSERT( alive_cnt_ == 0 );
           __PGBAR_ASSERT( online() == false );
         }

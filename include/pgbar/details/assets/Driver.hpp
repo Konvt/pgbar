@@ -24,7 +24,7 @@ namespace pgbar {
       template<typename Base, typename Derived>
       class TaskCounter : public Base {
         // Throws the exception::InvalidState if current object is active.
-        __PGBAR_INLINE_FN void throw_if_active() &
+        __PGBAR_INLINE_FN void throw_if_active()
         {
           if ( this->active() )
             __PGBAR_UNLIKELY throw exception::InvalidState( "pgbar: try to iterate using an active object" );
@@ -408,6 +408,12 @@ namespace pgbar {
         {
           std::lock_guard<std::mutex> lock { mtx_ };
           static_cast<Subcls*>( this )->do_reset();
+          __PGBAR_ASSERT( active() == false );
+        }
+        void abort() noexcept final
+        {
+          std::lock_guard<std::mutex> lock { mtx_ };
+          static_cast<Subcls*>( this )->do_reset( true );
           __PGBAR_ASSERT( active() == false );
         }
 
@@ -869,11 +875,7 @@ namespace pgbar {
           Base::operator=( std::move( rhs ) );
           return *this;
         }
-        ~PlainBar() noexcept
-        {
-          std::lock_guard<std::mutex> lock { this->mtx_ };
-          do_reset( true );
-        }
+        ~PlainBar() noexcept { this->abort(); }
       };
 
       template<typename Base, typename Derived>
@@ -1019,11 +1021,7 @@ namespace pgbar {
           Base::operator=( std::move( rhs ) );
           return *this;
         }
-        ~FrameBar() noexcept
-        {
-          std::lock_guard<std::mutex> lock { this->mtx_ };
-          do_reset( true );
-        }
+        ~FrameBar() noexcept { this->abort(); }
       };
 
       template<typename Base, typename Derived>

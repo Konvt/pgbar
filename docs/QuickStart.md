@@ -556,6 +556,8 @@ int main()
 
 The type of the callback function passed must satisfy `std::is_move_constructible`; and **should not** call any methods other than `config()` and `progress()` within the callback, otherwise it will lead to a *deadlock*.
 
+If you want to manually terminate the operation of an object and skip the execution of the callback function, you can call the object's `abort()` method.
+
 - - -
 
 ## `BlockBar`
@@ -1015,6 +1017,8 @@ int main()
 
 The type of the callback function passed must satisfy `std::is_move_constructible`; and **should not** call any methods other than `config()` and `progress()` within the callback, otherwise it will lead to a *deadlock*.
 
+If you want to manually terminate the operation of an object and skip the execution of the callback function, you can call the object's `abort()` method.
+
 - - -
 
 ## `SpinBar`
@@ -1440,6 +1444,8 @@ int main()
 ```
 
 The type of the callback function passed must satisfy `std::is_move_constructible`; and **should not** call any methods other than `config()` and `progress()` within the callback, otherwise it will lead to a *deadlock*.
+
+If you want to manually terminate the operation of an object and skip the execution of the callback function, you can call the object's `abort()` method.
 
 - - -
 
@@ -1897,6 +1903,8 @@ int main()
 
 The type of the callback function passed must satisfy `std::is_move_constructible`; and **should not** call any methods other than `config()` and `progress()` within the callback, otherwise it will lead to a *deadlock*.
 
+If you want to manually terminate the operation of an object and skip the execution of the callback function, you can call the object's `abort()` method.
+
 - - -
 
 ## `FlowBar`
@@ -2353,6 +2361,8 @@ int main()
 
 The type of the callback function passed must satisfy `std::is_move_constructible`; and **should not** call any methods other than `config()` and `progress()` within the callback, otherwise it will lead to a *deadlock*.
 
+If you want to manually terminate the operation of an object and skip the execution of the callback function, you can call the object's `abort()` method.
+
 - - -
 
 # Progress Bar Synthesizer
@@ -2423,7 +2433,7 @@ int main()
     pgbar::MultiBar( pgbar::config::Line(), pgbar::config::Block(), pgbar::config::Line() );
   // The object's type will be MultiBar pointing to pgbar::Channel::Stderr
 
-  static_assert( std::is_same<decltype( mbar3 ), decltype( mbar2 )>::value, "" );
+  static_assert( std::is_same<decltype( mbar3 ), decltype( mbar2 )>::value );
 #endif
 }
 ```
@@ -2432,7 +2442,7 @@ All methods of the sole progress bar can be accessed as template functions in `M
 
 Like the sole progress bar type, `MultiBar` is a movable and swappable type; Likewise, it should not be moved or swapped while `MultiBar` is running.
 
-In particular, if `MultiBar`'s own `reset()` method is called, then all sole progress bars belonging to the `MultiBar` object will immediately terminate, the effect of this termination is equivalent to the destruction of these independent progress bars, but they are not really destroyed here.
+In particular, if `MultiBar`'s own `abort()` method is called, then all sole progress bars belonging to the `MultiBar` object will immediately terminate, the effect of this termination is equivalent to the destruction of these independent progress bars, but they are not really destroyed here.
 
 See [FAQ - Life cycle of the progress bar object](#life-cycle-of-the-progress-bar-object) for the effect of destruction-induced progress bar termination.
 ### Helper functions
@@ -2537,13 +2547,13 @@ int main()
 ### How to use
 `pgbar::DynamicBar` is a factory type. It (almost) holds no data and is only responsible for establishing certain lifecycle relationships for different progress bar types.
 
-`DynamicBar` is different from other types. This type receives the progress bar type or configuration class type and returns a `std::shared_ptr` object pointing to the corresponding progress bar type; All actions that call the progress bar method require dereferencing this returned pointer object.
+`DynamicBar` is different from other types. This type receives the progress bar type or configuration class type and returns a `std::unique_ptr` object pointing to the corresponding progress bar type; All actions that call the progress bar method require dereferencing this returned pointer object.
 
-Each `std::shared_ptr` returned by `DynamicBar` can enable the progress bar rendering of the terminal; However, the terminal rendering work will stop only when all `std::shared_ptr` are destructed or stopped running.
+Each `std::unique_ptr` returned by `DynamicBar` can enable the progress bar rendering of the terminal; However, the terminal rendering work will stop only when all `std::unique_ptr` are destructed or stopped running.
 
-`DynamicBar` can be destructed when multiple `std::shared_ptr` have been created, which will only result in the inability to check whether this `DynamicBar` is running anymore. And it is also impossible to close all the progress bar objects pointed to by `std::shared_ptr` created by it through this `DynamicBar`.
+`DynamicBar` can be destructed when multiple `std::unique_ptr` have been created, which will only result in the inability to check whether this `DynamicBar` is running anymore. And it is also impossible to close all the progress bar objects pointed to by `std::unique_ptr` created by it through this `DynamicBar`.
 
-If the `std::shared_ptr` object returned by `DynamicBar` is destructed because all references are invalid, then if `DynamicBar` is running at this time, it can also safely identify all invalid objects and remove them from the rendering list later.
+If the `std::unique_ptr` object returned by `DynamicBar` is destructed because all references are invalid, then if `DynamicBar` is running at this time, it can also safely identify all invalid objects and remove them from the rendering list.
 
 Based on the above principle, `DynamicBar` can receive any number of progress bar objects at runtime and coordinate the order in which they are rendered to the terminal in the background. The output order of the progress bars will depend on the time when they are started. The later the progress bars are started, the lower they will appear in the terminal.
 
@@ -2564,7 +2574,7 @@ int main()
     pgbar::DynamicBar<> dbar;
 
     auto bar1 = dbar.insert<pgbar::ProgressBar<>>();
-    // bar1, bar2 are all objects of type std::shared_ptr</* ProgressBar */>.
+    // bar1, bar2 are all objects of type std::unique_ptr</* ProgressBar */>.
     auto bar2 = dbar.insert(
       pgbar::config::Line( pgbar::option::Prefix( "No.2" ), pgbar::option::Tasks( 8000 ) ) );
 
@@ -2609,13 +2619,13 @@ int main()
 }
 ```
 ### Helper functions
-Because `DynamicBar` allows being destructed in the presence of multiple `std::shared_ptr` created by it, `pgbar` provides a `make_dynamic` function. It is used to simplify the object construction process in the case of not caring about `DynamicBar` and all the `std::shared_ptr` it manages.
+Because `DynamicBar` allows being destructed in the presence of multiple `std::unique_ptr` created by it, `pgbar` provides a `make_dynamic` function. It is used to simplify the object construction process in the case of not caring about `DynamicBar` and all the `std::unique_ptr` it manages.
 
-Note: The object type returned by this function is `std::shared_ptr`, and the object pointed to by `std::shared_ptr` itself **does not have the function of reverse checking whether it belongs to the same `DynamicBar`** with another object; So it is necessary to separately distinguish the `std::shared_ptr` returned by different functions.
+Note: The object type returned by this function is `std::unique_ptr`, and the object pointed to by `std::unique_ptr` itself **does not have the function of reverse checking whether it belongs to the same `DynamicBar`** with another object; So it is necessary to separately distinguish the `std::unique_ptr` returned by different functions.
 
-A reasonable strategy is to use only all `std::shared_ptr` returned by the same function each time.
+A reasonable strategy is to use only all `std::unique_ptr` returned by the same function each time.
 
-> Mixture of different sources of `std::shared_ptr` tend to throw an exception `pgbar::exception::InvalidState`, told that already exists a running instances of the progress bar.
+> Mixture of different sources of `std::unique_ptr` tend to throw an exception `pgbar::exception::InvalidState`, told that already exists a running instances of the progress bar.
 
 ```cpp
 #include "pgbar/pgbar.hpp"
@@ -2623,24 +2633,24 @@ A reasonable strategy is to use only all `std::shared_ptr` returned by the same 
 
 int main()
 {
-  // Obtain std::shared_ptr with the same number of parameters
+  // Obtain std::unique_ptr with the same number of parameters
   auto bars1 = pgbar::make_dynamic<pgbar::Channel::Stdout>( pgbar::config::Line(), pgbar::config::Block() );
   auto bars2 = pgbar::make_dynamic<>( pgbar::ProgressBar<>(), pgbar::BlockBar<>() );
   // To store different progress bar types, both bars1 and bars2 are of the std::tuple type,
-  // containing multiple std::shared_ptr objects.
+  // containing multiple std::unique_ptr objects.
   // If the C++ standard used is greater than 17,
   // then structured binding can be used to directly obtain the content of the return value
 #if __cplusplus >= 201703L
   auto& [progressbar, blockbar] = bars1;
 #endif
 
-  // Create a std::vector<std::shared_ptr</* Bar Type */>> where all progress bar types are the same.
+  // Create a std::vector<std::unique_ptr</* Bar Type */>> where all progress bar types are the same.
   // And initialize all the internal progress bar objects using the configuration objects provided by the parameters.
   auto bar3 = pgbar::make_dynamic<pgbar::Channel::Stdout>( pgbar::config::Spin(), 6 );
   auto bar4 = pgbar::make_dynamic( pgbar::SpinBar<pgbar::Channel::Stdout>(), 6 );
   // The configuration data of all progress bars inside bar3 and bar4 are the same.
 
-  // Create a std::vector<std::shared_ptr</* Bar Type */>> where all progress bar types are the same.
+  // Create a std::vector<std::unique_ptr</* Bar Type */>> where all progress bar types are the same.
   // The provided parameters will act in sequence on the internal progress bar object.
   auto bar5 = pgbar::make_dynamic<pgbar::config::Sweep>( 3, pgbar::config::Sweep() );
   auto bar6 =

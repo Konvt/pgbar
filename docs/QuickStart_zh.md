@@ -556,6 +556,8 @@ int main()
 
 传递的回调函数类型必须满足 `std::is_move_constructible`；并且**不应该**在回调内部调用除了 `config()` 和 `progress()` 之外的方法，否则会导致*死锁*。
 
+如果希望手动终止对象运行、并且跳过回调函数的执行，那么可以调用对象的 `abort()` 方法。
+
 - - -
 
 ## `BlockBar`
@@ -1015,6 +1017,8 @@ int main()
 
 传递的回调函数类型必须满足 `std::is_move_constructible`；并且**不应该**在回调内部调用除了 `config()` 和 `progress()` 之外的方法，否则会导致*死锁*。
 
+如果希望手动终止对象运行、并且跳过回调函数的执行，那么可以调用对象的 `abort()` 方法。
+
 - - -
 
 ## `SpinBar`
@@ -1440,6 +1444,8 @@ int main()
 ```
 
 传递的回调函数类型必须满足 `std::is_move_constructible`；并且**不应该**在回调内部调用除了 `config()` 和 `progress()` 之外的方法，否则会导致*死锁*。
+
+如果希望手动终止对象运行、并且跳过回调函数的执行，那么可以调用对象的 `abort()` 方法。
 
 - - -
 
@@ -1898,6 +1904,8 @@ int main()
 
 传递的回调函数类型必须满足 `std::is_move_constructible`；并且**不应该**在回调内部调用除了 `config()` 和 `progress()` 之外的方法，否则会导致*死锁*。
 
+如果希望手动终止对象运行、并且跳过回调函数的执行，那么可以调用对象的 `abort()` 方法。
+
 - - -
 
 ## `FlowBar`
@@ -2355,6 +2363,8 @@ int main()
 
 传递的回调函数类型必须满足 `std::is_move_constructible`；并且**不应该**在回调内部调用除了 `config()` 和 `progress()` 之外的方法，否则会导致*死锁*。
 
+如果希望手动终止对象运行、并且跳过回调函数的执行，那么可以调用对象的 `abort()` 方法。
+
 - - -
 
 # 进度条合成器
@@ -2424,7 +2434,7 @@ int main()
   auto mbar3 = pgbar::MultiBar( pgbar::config::Line(), pgbar::config::Block(), pgbar::config::Line() );
   // 这个对象的类型将会是指向 pgbar::Channel::Stderr 的 MultiBar
 
-  static_assert( std::is_same<decltype( mbar3 ), decltype( mbar2 )>::value, "" );
+  static_assert( std::is_same<decltype( mbar3 ), decltype( mbar2 )>::value );
 #endif
 }
 ```
@@ -2433,7 +2443,7 @@ int main()
 
 与独立进度条类型相同，`MultiBar` 也是一个 movable 且 swappable 的类型；并且也同样不应该在 `MultiBar` 运行过程中移动或交换它。
 
-特别需要注意的是，如果调用 `MultiBar` 自己的 `reset()` 方法，那么所有归属于该 `MultiBar` 对象的独立进度条都会立刻终止运行，这种终止运行的效果等价于析构这些独立进度条，但这里不会真的析构它们。
+特别需要注意的是，如果调用 `MultiBar` 自己的 `abort()` 方法，那么所有归属于该 `MultiBar` 对象的独立进度条都会立刻终止运行，这种终止运行的效果等价于析构这些独立进度条，但这里不会真的析构它们。
 
 析构导致的进度条终止效果可以见[FAQ-进度条对象的生命周期](#进度条对象的生命周期)。
 ### 辅助函数
@@ -2535,13 +2545,13 @@ int main()
 ### 交互方式
 `pgbar::DynamicBar` 是一个工厂类型，它（几乎）不持有任何数据，只负责为不同的进度条类型建立起一定的生命周期关系。
 
-`DynamicBar` 与其他类型不同，该类型接收进度条类型或配置类类型，并返回一个指向对应进度条类型的 `std::shared_ptr` 对象；所有调用进度条方法的行为都需要解引用这个返回的指针对象。
+`DynamicBar` 与其他类型不同，该类型接收进度条类型或配置类类型，并返回一个指向对应进度条类型的 `std::unique_ptr` 对象；所有调用进度条方法的行为都需要解引用这个返回的指针对象。
 
-`DynamicBar` 所返回的每一个 `std::shared_ptr` 都可以开启终端的进度条渲染；但只有所有的 `std::shared_ptr` 都被析构或者停止运行，终端渲染工作才会停止。
+`DynamicBar` 所返回的每一个 `std::unique_ptr` 都可以开启终端的进度条渲染；但只有所有的 `std::unique_ptr` 都被析构或者停止运行，终端渲染工作才会停止。
 
-`DynamicBar` 可以在已创建多个 `std::shared_ptr` 的情况下被析构，这只会导致不能再查看这个 `DynamicBar` 是否正在运行，并且也不能经由这个 `DynamicBar` 关闭所有由它创建的 `std::shared_ptr` 指向的进度条对象。
+`DynamicBar` 可以在已创建多个 `std::unique_ptr` 的情况下被析构，这只会导致不能再查看这个 `DynamicBar` 是否正在运行，并且也不能经由这个 `DynamicBar` 关闭所有由它创建的 `std::unique_ptr` 指向的进度条对象。
 
-如果 `DynamicBar` 返回的 `std::shared_ptr` 对象因为引用全部失效而被析构，那么如果此时 `DynamicBar` 正在运行中，它也能安全的识别所有已失效对象，并在稍后将它们移除出渲染列表。
+如果 `DynamicBar` 返回的 `std::unique_ptr` 对象因为引用全部失效而被析构，那么如果此时 `DynamicBar` 正在运行中，它也能安全的识别所有已失效对象，并将它们移除出渲染列表。
 
 根据以上原理，`DynamicBar` 可以在运行时接收任意多的进度条对象，并在后台协调它们向终端渲染的顺序；进度条的输出顺序将取决于它们被启动时的时间，越晚启动的进度条会出现在终端更下方。
 
@@ -2562,7 +2572,7 @@ int main()
     pgbar::DynamicBar<> dbar;
 
     auto bar1 = dbar.insert<pgbar::ProgressBar<>>();
-    // bar1, bar2 都是 std::shared_ptr</* ProgressBar */> 类型的对象
+    // bar1, bar2 都是 std::unique_ptr</* ProgressBar */> 类型的对象
     auto bar2 = dbar.insert(
       pgbar::config::Line( pgbar::option::Prefix( "No.2" ), pgbar::option::Tasks( 8000 ) ) );
 
@@ -2607,13 +2617,13 @@ int main()
 }
 ```
 ### 辅助函数
-因为 `DynamicBar` 允许在由它创建的多个 `std::shared_ptr` 存在的情况下被析构，所以 `pgbar` 提供了一个 `make_dynamic` 函数，用以简化不关心 `DynamicBar` 以及它所掌管的所有 `std::shared_ptr` 情况下的对象构造过程。
+因为 `DynamicBar` 允许在由它创建的多个 `std::unique_ptr` 存在的情况下被析构，所以 `pgbar` 提供了一个 `make_dynamic` 函数，用以简化不关心 `DynamicBar` 以及它所掌管的所有 `std::unique_ptr` 情况下的对象构造过程。
 
-注意：这个函数返回的对象类型是 `std::shared_ptr`，而 `std::shared_ptr` 指向的对象本身**没有反向判断自身与另一个对象是否归属于同一个 `DynamicBar`**的功能；所以需要额外区分不同函数返回的 `std::shared_ptr`。
+注意：这个函数返回的对象类型是 `std::unique_ptr`，而 `std::unique_ptr` 指向的对象本身**没有反向判断自身与另一个对象是否归属于同一个 `DynamicBar`**的功能；所以需要额外区分不同函数返回的 `std::unique_ptr`。
 
-合理的策略是每次只使用同一个函数返回的所有 `std::shared_ptr`。
+合理的策略是每次只使用同一个函数返回的所有 `std::unique_ptr`。
 
-> 混用不同来源的 `std::shared_ptr` 往往会抛出异常 `pgbar::exception::InvalidState`，告知已经存在一个正在运行的进度条实例。
+> 混用不同来源的 `std::unique_ptr` 往往会抛出异常 `pgbar::exception::InvalidState`，告知已经存在一个正在运行的进度条实例。
 
 ```cpp
 #include "pgbar/pgbar.hpp"
@@ -2621,22 +2631,22 @@ int main()
 
 int main()
 {
-  // 获得与参数数量相同的 std::shared_ptr
+  // 获得与参数数量相同的 std::unique_ptr
   auto bars1 = pgbar::make_dynamic<pgbar::Channel::Stdout>( pgbar::config::Line(), pgbar::config::Block() );
   auto bars2 = pgbar::make_dynamic<>( pgbar::ProgressBar<>(), pgbar::BlockBar<>() );
-  // 为了存储不同进度条类型，bars1 和 bars2 都是 std::tuple 类型，内含多个 std::shared_ptr 对象
+  // 为了存储不同进度条类型，bars1 和 bars2 都是 std::tuple 类型，内含多个 std::unique_ptr 对象
   // 如果使用的 C++ 标准大于 17，那么可以使用结构化绑定直接获取返回值的内容
 #if __cplusplus >= 201703L
   auto& [progressbar, blockbar] = bars1;
 #endif
 
-  // 创建一个所有进度条类型都相同的 std::vector<std::shared_ptr</* Bar Type */>>
+  // 创建一个所有进度条类型都相同的 std::vector<std::unique_ptr</* Bar Type */>>
   // 并使用参数提供的配置对象初始化内部所有进度条对象
   auto bar3 = pgbar::make_dynamic<pgbar::Channel::Stdout>( pgbar::config::Spin(), 6 );
   auto bar4 = pgbar::make_dynamic( pgbar::SpinBar<pgbar::Channel::Stdout>(), 6 );
   // bar3 和 bar4 内部的所有进度条的配置数据都是相同的
 
-  // 创建一个所有进度条类型都相同的 std::vector<std::shared_ptr</* Bar Type */>>
+  // 创建一个所有进度条类型都相同的 std::vector<std::unique_ptr</* Bar Type */>>
   // 提供的参数会按顺序作用在内部的进度条对象上
   auto bar5 = pgbar::make_dynamic<pgbar::config::Sweep>( 3, pgbar::config::Sweep() );
   auto bar6 =

@@ -149,6 +149,14 @@ namespace pgbar {
         template<typename Sorted, typename... OtherLists>
         struct Linearize<Sorted, C3Container<>, C3Container<>, C3Container<>, OtherLists...>
           : Linearize<Sorted, OtherLists...> {};
+        template<typename Sorted, typename... OtherLists>
+        struct Linearize<Sorted,
+                         C3Container<>,
+                         C3Container<>,
+                         C3Container<>,
+                         C3Container<>,
+                         C3Container<>,
+                         OtherLists...> : Linearize<Sorted, OtherLists...> {};
 
       public:
         using type =
