@@ -1,10 +1,10 @@
-#ifndef __PGBAR_DYNAMICCONTEXT
-#define __PGBAR_DYNAMICCONTEXT
+#ifndef PGBAR__DYNAMICCONTEXT
+#define PGBAR__DYNAMICCONTEXT
 
 #include "../prefabs/ManagedBar.hpp"
 
 namespace pgbar {
-  namespace __details {
+  namespace _details {
     namespace assets {
       template<Channel Outlet, Policy Mode, Region Area>
       class DynamicContext final {
@@ -17,8 +17,8 @@ namespace pgbar {
           {
             static_assert(
               traits::AllOf<std::is_base_of<Indicator, Derived>, traits::is_bar<Derived>>::value,
-              "pgbar::__details::assets::DynamicContext::Slot::halt: Derived must inherit from Indicator" );
-            __PGBAR_TRUST( item != nullptr );
+              "pgbar::_details::assets::DynamicContext::Slot::halt: Derived must inherit from Indicator" );
+            PGBAR__TRUST( item != nullptr );
             static_cast<Derived*>( item )->halt();
           }
           template<typename Derived>
@@ -26,8 +26,8 @@ namespace pgbar {
           {
             static_assert(
               traits::AllOf<std::is_base_of<Indicator, Derived>, traits::is_bar<Derived>>::value,
-              "pgbar::__details::assets::DynamicContext::Slot::render: Derived must inherit from Indicator" );
-            __PGBAR_TRUST( item != nullptr );
+              "pgbar::_details::assets::DynamicContext::Slot::render: Derived must inherit from Indicator" );
+            PGBAR__TRUST( item != nullptr );
             make_frame( static_cast<Derived&>( *item ) );
           }
 
@@ -98,13 +98,13 @@ namespace pgbar {
              * If the output stream is not bound to a terminal, there is no line discard policy;
              * all rendered items will trigger a newline character to be rendered.
              */
-            if __PGBAR_CXX17_CNSTXPR ( Area == Region::Relative )
+            if PGBAR__CXX17_CNSTXPR ( Area == Region::Relative )
               if ( !any_rendered && !this_rendered )
                 continue;
             if ( ( !istty && this_rendered )
                  || ( istty && ( !hide_done || items_[i].target_ != nullptr ) ) ) {
               ostream << console::escodes::nextline;
-              if __PGBAR_CXX17_CNSTXPR ( Area == Region::Relative )
+              if PGBAR__CXX17_CNSTXPR ( Area == Region::Relative )
                 num_modified_lines_.fetch_add( any_alive, std::memory_order_relaxed );
             }
             if ( istty && hide_done ) {
@@ -122,7 +122,7 @@ namespace pgbar {
             return slot.target_ != nullptr;
           } );
           items_.erase( items_.cbegin(), itr );
-          if __PGBAR_CXX17_CNSTXPR ( Area == Region::Fixed )
+          if PGBAR__CXX17_CNSTXPR ( Area == Region::Fixed )
             num_modified_lines_.fetch_add( std::distance( items_.cbegin(), itr ), std::memory_order_release );
         }
 
@@ -144,7 +144,7 @@ namespace pgbar {
           std::lock_guard<concurrent::SharedMutex> lock2 { res_mtx_ };
           for ( types::Size i = 0; i < items_.size(); ++i ) {
             if ( items_[i].target_ != nullptr ) {
-              __PGBAR_ASSERT( items_[i].halt_ != nullptr );
+              PGBAR__ASSERT( items_[i].halt_ != nullptr );
               ( *items_[i].halt_ )( items_[i].target_ );
             }
           }
@@ -168,7 +168,7 @@ namespace pgbar {
                    const auto hide_done = config::hide_completed();
                    switch ( state_.load( std::memory_order_acquire ) ) {
                    case State::Awake: {
-                     if __PGBAR_CXX17_CNSTXPR ( Area == Region::Fixed )
+                     if PGBAR__CXX17_CNSTXPR ( Area == Region::Fixed )
                        if ( istty )
                          ostream << console::escodes::savecursor;
                      {
@@ -183,7 +183,7 @@ namespace pgbar {
                      {
                        concurrent::SharedLock<concurrent::SharedMutex> lock { res_mtx_ };
                        if ( istty ) {
-                         if __PGBAR_CXX17_CNSTXPR ( Area == Region::Fixed ) {
+                         if PGBAR__CXX17_CNSTXPR ( Area == Region::Fixed ) {
                            ostream << console::escodes::resetcursor;
                            if ( !hide_done ) {
                              const auto num_discarded = num_modified_lines_.load( std::memory_order_acquire );
@@ -208,7 +208,7 @@ namespace pgbar {
                    default: return;
                    }
                  } ) )
-              __PGBAR_UNLIKELY throw exception::InvalidState(
+              PGBAR__UNLIKELY throw exception::InvalidState(
                 "pgbar: another progress bar instance is already running" );
 
             io::OStream<Outlet>::itself() << io::release;
@@ -238,9 +238,9 @@ namespace pgbar {
         void pop( const Indicator* item, bool forced = false ) noexcept
         {
           auto& executor = render::Renderer<Outlet, Mode>::itself();
-          __PGBAR_ASSERT( executor.empty() == false );
+          PGBAR__ASSERT( executor.empty() == false );
           std::lock_guard<std::mutex> lock1 { sched_mtx_ };
-          __PGBAR_ASSERT( size() != 0 );
+          PGBAR__ASSERT( size() != 0 );
           if ( !forced )
             executor.attempt();
 
@@ -264,14 +264,14 @@ namespace pgbar {
           }
         }
 
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN types::Size size() const noexcept
+        PGBAR__NODISCARD PGBAR__INLINE_FN types::Size size() const noexcept
         {
           concurrent::SharedLock<concurrent::SharedMutex> lock { res_mtx_ };
           return items_.size();
         }
       };
     } // namespace assets
-  } // namespace __details
+  } // namespace _details
 } // namespace pgbar
 
 #endif

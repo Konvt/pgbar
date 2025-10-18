@@ -1,18 +1,18 @@
-#ifndef __PGBAR_ALGORITHM
-#define __PGBAR_ALGORITHM
+#ifndef PGBAR__ALGORITHM
+#define PGBAR__ALGORITHM
 
 #include "../types/Types.hpp"
 #include "Backport.hpp"
-#if !__PGBAR_BUILTIN( __type_pack_element )
+#if !PGBAR__BUILTIN( __type_pack_element )
 # include <tuple>
 #endif
 
 namespace pgbar {
-  namespace __details {
+  namespace _details {
     namespace traits {
       template<types::Size Nth, typename... Ts>
       struct TypeAt
-#if __PGBAR_BUILTIN( __type_pack_element )
+#if PGBAR__BUILTIN( __type_pack_element )
       {
         using type = __type_pack_element<Nth, Ts...>;
       };
@@ -93,7 +93,7 @@ namespace pgbar {
       template<typename Head, typename Tail>
       struct Merge<Head, Tail> : Combine<Head, Tail> {};
     } // namespace traits
-  } // namespace __details
+  } // namespace _details
 } // namespace pgbar
 
 #endif

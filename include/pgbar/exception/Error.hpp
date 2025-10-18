@@ -1,9 +1,9 @@
 #ifndef PGBAR_ERROR
 #define PGBAR_ERROR
 
-#include "../details/config/Core.hpp"
+#include "../details/core/Core.hpp"
 #include <exception>
-#if __PGBAR_CXX17
+#if PGBAR__CXX17
 # include <string_view>
 #endif
 
@@ -16,7 +16,7 @@ namespace pgbar {
      */
     class Error : public std::exception {
     protected:
-#if __PGBAR_CXX17
+#if PGBAR__CXX17
       std::string_view message_;
 #else
       const char* message_;
@@ -27,9 +27,9 @@ namespace pgbar {
       Error( const char ( &mes )[N] ) noexcept : message_ { mes }
       {}
       ~Error() override = default;
-      __PGBAR_NODISCARD const char* what() const noexcept override
+      PGBAR__NODISCARD const char* what() const noexcept override
       {
-#if __PGBAR_CXX17
+#if PGBAR__CXX17
         return message_.data();
 #else
         return message_;

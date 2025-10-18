@@ -1,12 +1,12 @@
-#ifndef __PGBAR_EXCEPTIONBOX
-#define __PGBAR_EXCEPTIONBOX
+#ifndef PGBAR__EXCEPTIONBOX
+#define PGBAR__EXCEPTIONBOX
 
 #include "Backport.hpp"
 #include <exception>
 #include <mutex>
 
 namespace pgbar {
-  namespace __details {
+  namespace _details {
     namespace concurrent {
       // A nullable container that holds an exception pointer.
       class ExceptionBox final {
@@ -27,21 +27,21 @@ namespace pgbar {
         }
         ExceptionBox& operator=( ExceptionBox&& rhs ) & noexcept
         {
-          __PGBAR_TRUST( this != &rhs );
+          PGBAR__TRUST( this != &rhs );
           // Exception pointers should not be discarded due to movement semantics.
           // Thus we only swap them here.
           swap( rhs );
           return *this;
         }
 
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool empty() const noexcept
+        PGBAR__NODISCARD PGBAR__INLINE_FN bool empty() const noexcept
         {
           SharedLock<SharedMutex> lock { rw_mtx_ };
           return !static_cast<bool>( exception_ );
         }
 
         // Store the exception if it is empty and return true, otherwise return false.
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool try_store( std::exception_ptr e ) & noexcept
+        PGBAR__NODISCARD PGBAR__INLINE_FN bool try_store( std::exception_ptr e ) & noexcept
         {
           std::lock_guard<SharedMutex> lock { rw_mtx_ };
           if ( exception_ )
@@ -49,12 +49,12 @@ namespace pgbar {
           exception_ = std::move( e );
           return true;
         }
-        __PGBAR_INLINE_FN std::exception_ptr load() const noexcept
+        PGBAR__INLINE_FN std::exception_ptr load() const noexcept
         {
           SharedLock<SharedMutex> lock { rw_mtx_ };
           return exception_;
         }
-        __PGBAR_INLINE_FN Self& clear() noexcept
+        PGBAR__INLINE_FN Self& clear() noexcept
         {
           std::lock_guard<SharedMutex> lock { rw_mtx_ };
           exception_ = std::exception_ptr();
@@ -75,7 +75,7 @@ namespace pgbar {
 
         void swap( ExceptionBox& lhs ) noexcept
         {
-          __PGBAR_TRUST( this != &lhs );
+          PGBAR__TRUST( this != &lhs );
           std::lock( this->rw_mtx_, lhs.rw_mtx_ );
           std::lock_guard<concurrent::SharedMutex> lock1 { this->rw_mtx_, std::adopt_lock };
           std::lock_guard<concurrent::SharedMutex> lock2 { lhs.rw_mtx_, std::adopt_lock };
@@ -85,7 +85,7 @@ namespace pgbar {
         friend void swap( ExceptionBox& a, ExceptionBox& b ) noexcept { a.swap( b ); }
       };
     } // namespace concurrent
-  } // namespace __details
+  } // namespace _details
 } // namespace pgbar
 
 #endif

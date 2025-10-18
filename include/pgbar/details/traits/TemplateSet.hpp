@@ -1,11 +1,11 @@
-#ifndef __PGBAR_TEMPLATESET
-#define __PGBAR_TEMPLATESET
+#ifndef PGBAR__TEMPLATESET
+#define PGBAR__TEMPLATESET
 
 #include "Algorithm.hpp"
 #include "TemplateList.hpp"
 
 namespace pgbar {
-  namespace __details {
+  namespace _details {
     namespace traits {
       template<template<typename...> class... Ts>
       struct TemplateSet : TemplateList<Ts>... {};
@@ -49,7 +49,7 @@ namespace pgbar {
         using type = typename _Select<TmpContain<TemplateSet<Es...>, T>::value, T>::type;
       };
     } // namespace traits
-  } // namespace __details
+  } // namespace _details
 } // namespace pgbar
 
 #endif

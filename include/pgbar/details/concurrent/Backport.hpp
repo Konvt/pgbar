@@ -1,19 +1,19 @@
-#ifndef __PGBAR_CONCURRENT_BACKPORT
-#define __PGBAR_CONCURRENT_BACKPORT
+#ifndef PGBAR__CONCURRENT_BACKPORT
+#define PGBAR__CONCURRENT_BACKPORT
 
-#include "../config/Core.hpp"
-#if !__PGBAR_CXX17
+#include "../core/Core.hpp"
+#if !PGBAR__CXX17
 # include <atomic>
 # include <mutex>
 #endif
-#if __PGBAR_CXX14
+#if PGBAR__CXX14
 # include <shared_mutex>
 #endif
 
 namespace pgbar {
-  namespace __details {
+  namespace _details {
     namespace concurrent {
-#if __PGBAR_CXX17
+#if PGBAR__CXX17
       using SharedMutex = std::shared_mutex;
 #else
       // A simple `Shared Mutex` implementation for any C++ version.
@@ -40,7 +40,7 @@ namespace pgbar {
         SharedMutex() noexcept : num_readers_ { 0 } {}
         ~SharedMutex() = default;
 
-        __PGBAR_INLINE_FN void lock() & noexcept
+        PGBAR__INLINE_FN void lock() & noexcept
         {
           while ( true ) {
             while ( num_readers_.load( std::memory_order_acquire ) != 0 )
@@ -53,7 +53,7 @@ namespace pgbar {
               writer_mtx_.unlock();
           }
         }
-        __PGBAR_INLINE_FN bool try_lock() & noexcept
+        PGBAR__INLINE_FN bool try_lock() & noexcept
         {
           if ( num_readers_.load( std::memory_order_acquire ) == 0 && writer_mtx_.try_lock() ) {
             if ( num_readers_.load( std::memory_order_acquire ) == 0 )
@@ -63,36 +63,36 @@ namespace pgbar {
           }
           return false;
         }
-        __PGBAR_INLINE_FN void unlock() & noexcept { writer_mtx_.unlock(); }
+        PGBAR__INLINE_FN void unlock() & noexcept { writer_mtx_.unlock(); }
 
         void lock_shared() & noexcept
         {
           writer_mtx_.lock();
 
           num_readers_.fetch_add( 1, std::memory_order_release );
-          __PGBAR_ASSERT( num_readers_ > 0 ); // overflow checking
+          PGBAR__ASSERT( num_readers_ > 0 ); // overflow checking
 
           writer_mtx_.unlock();
         }
-        __PGBAR_INLINE_FN bool try_lock_shared() & noexcept
+        PGBAR__INLINE_FN bool try_lock_shared() & noexcept
         {
           if ( writer_mtx_.try_lock() ) {
             num_readers_.fetch_add( 1, std::memory_order_release );
-            __PGBAR_ASSERT( num_readers_ > 0 );
+            PGBAR__ASSERT( num_readers_ > 0 );
             writer_mtx_.unlock();
             return true;
           }
           return false;
         }
-        __PGBAR_INLINE_FN void unlock_shared() & noexcept
+        PGBAR__INLINE_FN void unlock_shared() & noexcept
         {
-          __PGBAR_ASSERT( num_readers_ > 0 ); // underflow checking
+          PGBAR__ASSERT( num_readers_ > 0 ); // underflow checking
           num_readers_.fetch_sub( 1, std::memory_order_release );
         }
       };
 #endif
 
-#if __PGBAR_CXX14
+#if PGBAR__CXX14
       template<typename Mtx>
       using SharedLock = std::shared_lock<Mtx>;
 #else
@@ -114,13 +114,13 @@ namespace pgbar {
         SharedLock( mutex_type& m, std::adopt_lock_t ) noexcept : mtx_ { m } {}
         ~SharedLock() noexcept { mtx_.unlock_shared(); }
 
-        __PGBAR_INLINE_FN void lock() & noexcept { mtx_.lock_shared(); }
-        __PGBAR_INLINE_FN bool try_lock() & noexcept { return mtx_.try_lock_shared(); }
-        __PGBAR_INLINE_FN void unlock() & noexcept { mtx_.unlock_shared(); }
+        PGBAR__INLINE_FN void lock() & noexcept { mtx_.lock_shared(); }
+        PGBAR__INLINE_FN bool try_lock() & noexcept { return mtx_.try_lock_shared(); }
+        PGBAR__INLINE_FN void unlock() & noexcept { mtx_.unlock_shared(); }
       };
 #endif
     } // namespace concurrent
-  } // namespace __details
+  } // namespace _details
 } // namespace pgbar
 
 #endif

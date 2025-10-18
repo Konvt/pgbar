@@ -1,5 +1,5 @@
-#ifndef __PGBAR_RUNNER
-#define __PGBAR_RUNNER
+#ifndef PGBAR__RUNNER
+#define PGBAR__RUNNER
 
 #include "../concurrent/ExceptionBox.hpp"
 #include "../concurrent/Util.hpp"
@@ -9,7 +9,7 @@
 #include <thread>
 
 namespace pgbar {
-  namespace __details {
+  namespace _details {
     namespace render {
       template<Channel Tag>
       class Runner final {
@@ -30,14 +30,14 @@ namespace pgbar {
         {
           console::TermContext<Tag>::itself().virtual_term();
 
-          __PGBAR_ASSERT( td_.get_id() == std::thread::id() );
+          PGBAR__ASSERT( td_.get_id() == std::thread::id() );
           state_.store( State::Dormant, std::memory_order_release );
           try {
             td_ = std::thread( [this]() {
               try {
                 while ( state_.load( std::memory_order_acquire ) != State::Dead ) {
                   switch ( state_.load( std::memory_order_acquire ) ) {
-                  case State::Dormant: __PGBAR_FALLTHROUGH;
+                  case State::Dormant: PGBAR__FALLTHROUGH;
                   case State::Suspend: {
                     std::unique_lock<std::mutex> lock { mtx_ };
                     auto expected = State::Suspend;
@@ -123,8 +123,8 @@ namespace pgbar {
           // The operations below are all thread safe without locking.
           // Also, only one thread needs to be able to execute concurrently.
           box_.rethrow();
-          __PGBAR_ASSERT( state_ != State::Dead );
-          __PGBAR_ASSERT( task_ != nullptr );
+          PGBAR__ASSERT( state_ != State::Dead );
+          PGBAR__ASSERT( task_ != nullptr );
           auto expected = State::Dormant;
           if ( state_.compare_exchange_strong( expected, State::Active, std::memory_order_release ) ) {
             std::lock_guard<std::mutex> lock { mtx_ };
@@ -138,13 +138,13 @@ namespace pgbar {
           std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
           task_ = nullptr;
         }
-        __PGBAR_NODISCARD bool try_appoint( wrappers::UniqueFunction<void()>&& task ) & noexcept( false )
+        PGBAR__NODISCARD bool try_appoint( wrappers::UniqueFunction<void()>&& task ) & noexcept( false )
         {
           std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
           if ( task_ != nullptr )
             return false;
           // Under normal circumstances, `online() == false` implies that `task_ == nullptr`.
-          __PGBAR_ASSERT( online() == false );
+          PGBAR__ASSERT( online() == false );
           task_.swap( task );
           return true;
         }
@@ -156,18 +156,18 @@ namespace pgbar {
         }
         void throw_if() noexcept( false ) { box_.rethrow(); }
 
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool empty() const noexcept
+        PGBAR__NODISCARD PGBAR__INLINE_FN bool empty() const noexcept
         {
           std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ };
           return task_ == nullptr;
         }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool online() const noexcept
+        PGBAR__NODISCARD PGBAR__INLINE_FN bool online() const noexcept
         {
           return state_.load( std::memory_order_acquire ) == State::Active;
         }
       };
     } // namespace render
-  } // namespace __details
+  } // namespace _details
 } // namespace pgbar
 
 #endif

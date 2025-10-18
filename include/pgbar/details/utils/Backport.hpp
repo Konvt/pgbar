@@ -1,10 +1,10 @@
-#ifndef __PGBAR_UTILS_BACKPORT
-#define __PGBAR_UTILS_BACKPORT
+#ifndef PGBAR__UTILS_BACKPORT
+#define PGBAR__UTILS_BACKPORT
 
-#include "../config/Core.hpp"
+#include "../core/Core.hpp"
 #include <memory>
 #include <utility>
-#if __PGBAR_CXX17
+#if PGBAR__CXX17
 # include <functional>
 # include <new>
 #else
@@ -14,17 +14,17 @@
 #endif
 
 namespace pgbar {
-  namespace __details {
+  namespace _details {
     namespace utils {
-#if __PGBAR_CXX23
+#if PGBAR__CXX23
       template<typename E>
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CNSTEVAL auto as_val( E enum_val ) noexcept
+      PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CNSTEVAL auto as_val( E enum_val ) noexcept
       {
         return std::to_underlying( enum_val );
       }
 #else
       template<typename E>
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CNSTEVAL typename std::underlying_type<E>::type as_val(
+      PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CNSTEVAL typename std::underlying_type<E>::type as_val(
         E enum_val ) noexcept
       {
         return static_cast<typename std::underlying_type<E>::type>( enum_val );
@@ -33,22 +33,22 @@ namespace pgbar {
 
       // Available only for objects that constructed by placement new.
       template<typename T>
-      __PGBAR_CXX20_CNSTXPR void destruct_at( T& object ) noexcept( std::is_nothrow_destructible<T>::value )
+      PGBAR__CXX20_CNSTXPR void destruct_at( T& object ) noexcept( std::is_nothrow_destructible<T>::value )
       {
-#if __PGBAR_CXX17
+#if PGBAR__CXX17
         std::destroy_at( std::addressof( object ) );
 #else
         static_assert( !std::is_array<T>::value,
-                       "pgbar::__details::utils::destruct_at: The program is ill-formed" );
+                       "pgbar::_details::utils::destruct_at: The program is ill-formed" );
         object.~T();
 #endif
       }
 
       // Available only for buffers that use placement new.
       template<typename To, typename From>
-      __PGBAR_INLINE_FN constexpr To* launder_as( From* src ) noexcept
+      PGBAR__INLINE_FN constexpr To* launder_as( From* src ) noexcept
       {
-#if __PGBAR_CXX17
+#if PGBAR__CXX17
         return std::launder( reinterpret_cast<To*>( src ) );
 #else
         /**
@@ -60,31 +60,31 @@ namespace pgbar {
 #endif
       }
 
-#if __PGBAR_CXX14
+#if PGBAR__CXX14
       template<typename T, typename... Args>
-      __PGBAR_INLINE_FN __PGBAR_CXX23_CNSTXPR auto make_unique( Args&&... args )
+      PGBAR__INLINE_FN PGBAR__CXX23_CNSTXPR auto make_unique( Args&&... args )
       {
         return std::make_unique<T>( std::forward<Args>( args )... );
       }
 #else
       // picking up the standard's mess...
       template<typename T, typename... Args>
-      __PGBAR_INLINE_FN __PGBAR_CXX23_CNSTXPR std::unique_ptr<T> make_unique( Args&&... args )
+      PGBAR__INLINE_FN PGBAR__CXX23_CNSTXPR std::unique_ptr<T> make_unique( Args&&... args )
       {
         return std::unique_ptr<T>( new T( std::forward<Args>( args )... ) );
       }
 #endif
 
-#if __PGBAR_CXX17
+#if PGBAR__CXX17
       template<typename Fn, typename... Args>
-      __PGBAR_INLINE_FN constexpr decltype( auto ) invoke( Fn&& fn, Args&&... args )
+      PGBAR__INLINE_FN constexpr decltype( auto ) invoke( Fn&& fn, Args&&... args )
         noexcept( std::is_nothrow_invocable_v<Fn, Args...> )
       {
         return std::invoke( std::forward<Fn>( fn ), std::forward<Args>( args )... );
       }
 #else
       template<typename C, typename MemFn, typename Object, typename... Args>
-      __PGBAR_INLINE_FN constexpr auto invoke( MemFn C::* method, Object&& object, Args&&... args )
+      PGBAR__INLINE_FN constexpr auto invoke( MemFn C::* method, Object&& object, Args&&... args )
         noexcept( noexcept( ( std::forward<Object>( object ).*method )( std::forward<Args>( args )... ) ) ) ->
         typename std::enable_if<
           traits::AllOf<std::is_member_function_pointer<MemFn C::*>,
@@ -95,7 +95,7 @@ namespace pgbar {
         return ( std::forward<Object>( object ).*method )( std::forward<Args>( args )... );
       }
       template<typename C, typename MemFn, typename Object, typename... Args>
-      __PGBAR_INLINE_FN constexpr auto invoke( MemFn C::* method, Object&& object, Args&&... args )
+      PGBAR__INLINE_FN constexpr auto invoke( MemFn C::* method, Object&& object, Args&&... args )
         noexcept( noexcept( ( object.get().*method )( std::forward<Args>( args )... ) ) ) ->
         typename std::enable_if<
           traits::AllOf<std::is_member_function_pointer<MemFn C::*>,
@@ -105,7 +105,7 @@ namespace pgbar {
         return ( object.get().*method )( std::forward<Args>( args )... );
       }
       template<typename C, typename MemFn, typename Object, typename... Args>
-      __PGBAR_INLINE_FN constexpr auto invoke( MemFn C::* method, Object&& object, Args&&... args )
+      PGBAR__INLINE_FN constexpr auto invoke( MemFn C::* method, Object&& object, Args&&... args )
         noexcept( noexcept( ( ( *std::forward<Object>( object ) )
                               .*method )( std::forward<Args>( args )... ) ) ) ->
         typename std::enable_if<
@@ -119,7 +119,7 @@ namespace pgbar {
         return ( ( *std::forward<Object>( object ) ).*method )( std::forward<Args>( args )... );
       }
       template<typename C, typename MemObj, typename Object>
-      __PGBAR_INLINE_FN constexpr auto invoke( MemObj C::* member, Object&& object ) noexcept ->
+      PGBAR__INLINE_FN constexpr auto invoke( MemObj C::* member, Object&& object ) noexcept ->
         typename std::enable_if<
           traits::AllOf<std::is_member_object_pointer<MemObj C::*>,
                         traits::AnyOf<std::is_base_of<C, typename std::decay<Object>::type>,
@@ -129,7 +129,7 @@ namespace pgbar {
         return std::forward<Object>( object ).*member;
       }
       template<typename C, typename MemObj, typename Object>
-      __PGBAR_INLINE_FN constexpr auto invoke( MemObj C::* member, Object&& object ) noexcept ->
+      PGBAR__INLINE_FN constexpr auto invoke( MemObj C::* member, Object&& object ) noexcept ->
         typename std::enable_if<
           traits::AllOf<std::is_member_object_pointer<MemObj C::*>,
                         traits::InstanceOf<typename std::decay<Object>::type, std::reference_wrapper>>::value,
@@ -138,7 +138,7 @@ namespace pgbar {
         return object.get().*member;
       }
       template<typename C, typename MemObj, typename Object>
-      __PGBAR_INLINE_FN constexpr auto invoke( MemObj C::* member, Object&& object )
+      PGBAR__INLINE_FN constexpr auto invoke( MemObj C::* member, Object&& object )
         noexcept( noexcept( ( *std::forward<Object>( object ) ).*member ) ) -> typename std::enable_if<
           traits::AllOf<std::is_member_object_pointer<MemObj C::*>,
                         traits::Not<traits::AnyOf<std::is_base_of<C, typename std::decay<Object>::type>,
@@ -150,7 +150,7 @@ namespace pgbar {
         return ( *std::forward<Object>( object ) ).*member;
       }
       template<typename Fn, typename... Args>
-      __PGBAR_INLINE_FN constexpr auto invoke( Fn&& fn, Args&&... args )
+      PGBAR__INLINE_FN constexpr auto invoke( Fn&& fn, Args&&... args )
         noexcept( noexcept( std::forward<Fn>( fn )( std::forward<Args>( args )... ) ) ) ->
         typename std::enable_if<
           traits::Not<
@@ -164,7 +164,7 @@ namespace pgbar {
     } // namespace utils
 
     namespace traits {
-#if __PGBAR_CXX17
+#if PGBAR__CXX17
       template<typename Ret, typename Fn, typename... Args>
       using InvocableTo = std::is_invocable_r<Ret, Fn, Args...>;
 #else
@@ -183,6 +183,6 @@ namespace pgbar {
       };
 #endif
     }
-  } // namespace __details
+  } // namespace _details
 } // namespace pgbar
 #endif

@@ -3,27 +3,27 @@
 
 #include "../details/types/Types.hpp"
 
-#define __PGBAR_DEFAULT 0xC105EA11 // C1O5E -> ClOSE, A11 -> All
-#define __PGBAR_BLACK   0x000000
-#define __PGBAR_RED     0xFF0000
-#define __PGBAR_GREEN   0x00FF00
-#define __PGBAR_YELLOW  0xFFFF00
-#define __PGBAR_BLUE    0x0000FF
-#define __PGBAR_MAGENTA 0x800080
-#define __PGBAR_CYAN    0x00FFFF
-#define __PGBAR_WHITE   0xFFFFFF
+#define PGBAR__DEFAULT 0xC105EA11 // C1O5E -> ClOSE, A11 -> All
+#define PGBAR__BLACK   0x000000
+#define PGBAR__RED     0xFF0000
+#define PGBAR__GREEN   0x00FF00
+#define PGBAR__YELLOW  0xFFFF00
+#define PGBAR__BLUE    0x0000FF
+#define PGBAR__MAGENTA 0x800080
+#define PGBAR__CYAN    0x00FFFF
+#define PGBAR__WHITE   0xFFFFFF
 
 namespace pgbar {
   namespace color {
-    __PGBAR_CXX17_INLINE constexpr __details::types::HexRGB None    = __PGBAR_DEFAULT;
-    __PGBAR_CXX17_INLINE constexpr __details::types::HexRGB Black   = __PGBAR_BLACK;
-    __PGBAR_CXX17_INLINE constexpr __details::types::HexRGB Red     = __PGBAR_RED;
-    __PGBAR_CXX17_INLINE constexpr __details::types::HexRGB Green   = __PGBAR_GREEN;
-    __PGBAR_CXX17_INLINE constexpr __details::types::HexRGB Yellow  = __PGBAR_YELLOW;
-    __PGBAR_CXX17_INLINE constexpr __details::types::HexRGB Blue    = __PGBAR_BLUE;
-    __PGBAR_CXX17_INLINE constexpr __details::types::HexRGB Magenta = __PGBAR_MAGENTA;
-    __PGBAR_CXX17_INLINE constexpr __details::types::HexRGB Cyan    = __PGBAR_CYAN;
-    __PGBAR_CXX17_INLINE constexpr __details::types::HexRGB White   = __PGBAR_WHITE;
+    PGBAR__CXX17_INLINE constexpr _details::types::HexRGB None    = PGBAR__DEFAULT;
+    PGBAR__CXX17_INLINE constexpr _details::types::HexRGB Black   = PGBAR__BLACK;
+    PGBAR__CXX17_INLINE constexpr _details::types::HexRGB Red     = PGBAR__RED;
+    PGBAR__CXX17_INLINE constexpr _details::types::HexRGB Green   = PGBAR__GREEN;
+    PGBAR__CXX17_INLINE constexpr _details::types::HexRGB Yellow  = PGBAR__YELLOW;
+    PGBAR__CXX17_INLINE constexpr _details::types::HexRGB Blue    = PGBAR__BLUE;
+    PGBAR__CXX17_INLINE constexpr _details::types::HexRGB Magenta = PGBAR__MAGENTA;
+    PGBAR__CXX17_INLINE constexpr _details::types::HexRGB Cyan    = PGBAR__CYAN;
+    PGBAR__CXX17_INLINE constexpr _details::types::HexRGB White   = PGBAR__WHITE;
   } // namespace color
 } // namespace pgbar
 

@@ -14,20 +14,20 @@ namespace pgbar {
      */
     template<typename I>
     class IteratorSpan
-#if __PGBAR_CXX20
+#if PGBAR__CXX20
       : public std::ranges::view_interface<IteratorSpan<I>>
 #endif
     {
-      static_assert( __details::traits::is_sized_iterator<I>::value,
+      static_assert( _details::traits::is_sized_iterator<I>::value,
                      "pgbar::slice::IteratorSpan: Only available for sized iterator types" );
       static_assert(
-        std::is_convertible<typename std::iterator_traits<I>::difference_type, __details::types::Size>::value,
+        std::is_convertible<typename std::iterator_traits<I>::difference_type, _details::types::Size>::value,
         "pgbar::slice::IteratorSpan: The 'difference_type' must be convertible to Size" );
 
       I start_, end_;
-      __details::types::Size size_;
+      _details::types::Size size_;
 
-#if __PGBAR_CXX20
+#if PGBAR__CXX20
       using Reference_t = std::iter_reference_t<I>;
 #else
       using Reference_t = typename std::iterator_traits<I>::reference;
@@ -39,13 +39,13 @@ namespace pgbar {
 
       public:
         using iterator_category = typename std::conditional<
-          __details::traits::AnyOf<
+          _details::traits::AnyOf<
             std::is_same<typename std::iterator_traits<I>::iterator_category, std::input_iterator_tag>,
             std::is_same<typename std::iterator_traits<I>::iterator_category,
                          std::output_iterator_tag>>::value,
           typename std::iterator_traits<I>::iterator_category,
           std::forward_iterator_tag>::type;
-#if __PGBAR_CXX20
+#if PGBAR__CXX20
         using value_type      = std::iter_value_t<I>;
         using difference_type = std::iter_difference_t<I>;
         using reference       = std::iter_reference_t<I>;
@@ -60,65 +60,61 @@ namespace pgbar {
         constexpr iterator( I startpoint ) noexcept( std::is_nothrow_move_constructible<I>::value )
           : current_ { std::move( startpoint ) }
         {}
-        constexpr iterator( const iterator& )                          = default;
-        constexpr iterator( iterator&& )                               = default;
-        __PGBAR_CXX14_CNSTXPR iterator& operator=( const iterator& ) & = default;
-        __PGBAR_CXX14_CNSTXPR iterator& operator=( iterator&& ) &      = default;
-        __PGBAR_CXX20_CNSTXPR ~iterator()                              = default;
+        constexpr iterator( const iterator& )                         = default;
+        constexpr iterator( iterator&& )                              = default;
+        PGBAR__CXX14_CNSTXPR iterator& operator=( const iterator& ) & = default;
+        PGBAR__CXX14_CNSTXPR iterator& operator=( iterator&& ) &      = default;
+        PGBAR__CXX20_CNSTXPR ~iterator()                              = default;
 
-        __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator& operator++() &
+        PGBAR__INLINE_FN PGBAR__CXX14_CNSTXPR iterator& operator++() &
         {
           ++current_;
           return *this;
         }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR iterator operator++( int ) &
+        PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX14_CNSTXPR iterator operator++( int ) &
         {
           auto before = *this;
           operator++();
           return before;
         }
 
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR reference operator*() const
+        PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX14_CNSTXPR reference operator*() const
         {
           return *current_;
         }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX17_CNSTXPR pointer operator->() const noexcept
+        PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX17_CNSTXPR pointer operator->() const noexcept
         {
           return current_;
         }
 
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr bool operator==( const iterator& itr,
-                                                                              const I& ir )
+        PGBAR__NODISCARD friend PGBAR__INLINE_FN constexpr bool operator==( const iterator& itr, const I& ir )
         {
           return itr.current_ == ir;
         }
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr bool operator==( const I& ir,
-                                                                              const iterator& itr )
+        PGBAR__NODISCARD friend PGBAR__INLINE_FN constexpr bool operator==( const I& ir, const iterator& itr )
         {
           return itr == ir;
         }
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr bool operator!=( const iterator& itr,
-                                                                              const I& ir )
+        PGBAR__NODISCARD friend PGBAR__INLINE_FN constexpr bool operator!=( const iterator& itr, const I& ir )
         {
           return !( itr == ir );
         }
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr bool operator!=( const I& ir,
-                                                                              const iterator& itr )
+        PGBAR__NODISCARD friend PGBAR__INLINE_FN constexpr bool operator!=( const I& ir, const iterator& itr )
         {
           return !( itr == ir );
         }
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr bool operator==( const iterator& a,
-                                                                              const iterator& b )
+        PGBAR__NODISCARD friend PGBAR__INLINE_FN constexpr bool operator==( const iterator& a,
+                                                                            const iterator& b )
         {
           return a.current_ == b.current_;
         }
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr bool operator!=( const iterator& a,
-                                                                              const iterator& b )
+        PGBAR__NODISCARD friend PGBAR__INLINE_FN constexpr bool operator!=( const iterator& a,
+                                                                            const iterator& b )
         {
           return !( a == b );
         }
-        __PGBAR_NODISCARD friend __PGBAR_INLINE_FN constexpr difference_type operator-( const iterator& a,
-                                                                                        const iterator& b )
+        PGBAR__NODISCARD friend PGBAR__INLINE_FN constexpr difference_type operator-( const iterator& a,
+                                                                                      const iterator& b )
         {
           return std::distance( a.current_, b.current_ );
         }
@@ -126,72 +122,72 @@ namespace pgbar {
         constexpr explicit operator bool() const { return current_ != I(); }
       };
 
-      __PGBAR_CXX17_CNSTXPR IteratorSpan( I startpoint, I endpoint )
+      PGBAR__CXX17_CNSTXPR IteratorSpan( I startpoint, I endpoint )
         : start_ { std::move( startpoint ) }, end_ { std::move( endpoint ) }
       {
-#if __PGBAR_CXX20
+#if PGBAR__CXX20
         const auto length = std::ranges::distance( start_, end_ );
 #else
         const auto length = std::distance( start_, end_ );
 #endif
         if ( length < 0 )
           throw exception::InvalidArgument( "pgbar: negative iterator range" );
-        size_ = static_cast<__details::types::Size>( length );
+        size_ = static_cast<_details::types::Size>( length );
       }
-      __PGBAR_CXX17_CNSTXPR IteratorSpan( const IteratorSpan& )              = default;
-      __PGBAR_CXX17_CNSTXPR IteratorSpan( IteratorSpan&& )                   = default;
-      __PGBAR_CXX17_CNSTXPR IteratorSpan& operator=( const IteratorSpan& ) & = default;
-      __PGBAR_CXX17_CNSTXPR IteratorSpan& operator=( IteratorSpan&& ) &      = default;
+      PGBAR__CXX17_CNSTXPR IteratorSpan( const IteratorSpan& )              = default;
+      PGBAR__CXX17_CNSTXPR IteratorSpan( IteratorSpan&& )                   = default;
+      PGBAR__CXX17_CNSTXPR IteratorSpan& operator=( const IteratorSpan& ) & = default;
+      PGBAR__CXX17_CNSTXPR IteratorSpan& operator=( IteratorSpan&& ) &      = default;
       // Intentional non-virtual destructors.
-      __PGBAR_CXX20_CNSTXPR ~IteratorSpan()                                  = default;
+      PGBAR__CXX20_CNSTXPR ~IteratorSpan()                                  = default;
 
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR Reference_t front() const noexcept
+      PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX14_CNSTXPR Reference_t front() const noexcept
       {
         return *start_;
       }
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR Reference_t back() const noexcept
+      PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX14_CNSTXPR Reference_t back() const noexcept
       {
         return *std::next( start_, size_ - 1 );
       }
 
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN __PGBAR_CNSTEVAL __details::types::Size step() const noexcept
+      PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CNSTEVAL _details::types::Size step() const noexcept
       {
         return 1;
       }
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr __details::types::Size size() const noexcept
+      PGBAR__NODISCARD PGBAR__INLINE_FN constexpr _details::types::Size size() const noexcept
       {
         return size_;
       }
 
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr bool empty() const noexcept { return size_ == 0; }
+      PGBAR__NODISCARD PGBAR__INLINE_FN constexpr bool empty() const noexcept { return size_ == 0; }
 
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr iterator begin() const
-        noexcept( __details::traits::AllOf<std::is_nothrow_move_constructible<I>,
-                                           std::is_nothrow_copy_constructible<I>>::value )
+      PGBAR__NODISCARD PGBAR__INLINE_FN constexpr iterator begin() const
+        noexcept( _details::traits::AllOf<std::is_nothrow_move_constructible<I>,
+                                          std::is_nothrow_copy_constructible<I>>::value )
       {
         return { this->start_ };
       }
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN constexpr iterator end() const
-        noexcept( __details::traits::AllOf<std::is_nothrow_move_constructible<I>,
-                                           std::is_nothrow_copy_constructible<I>>::value )
+      PGBAR__NODISCARD PGBAR__INLINE_FN constexpr iterator end() const
+        noexcept( _details::traits::AllOf<std::is_nothrow_move_constructible<I>,
+                                          std::is_nothrow_copy_constructible<I>>::value )
       {
         return { this->end_ };
       }
 
-      __PGBAR_CXX20_CNSTXPR void swap( IteratorSpan<I>& lhs ) noexcept
+      PGBAR__CXX20_CNSTXPR void swap( IteratorSpan<I>& lhs ) noexcept
       {
-        __PGBAR_TRUST( this != &lhs );
+        PGBAR__TRUST( this != &lhs );
         using std::swap;
         swap( start_, lhs.start_ );
         swap( end_, lhs.end_ );
         swap( size_, lhs.size_ );
       }
-      friend __PGBAR_CXX20_CNSTXPR void swap( IteratorSpan<I>& a, IteratorSpan<I>& b ) noexcept
+      friend PGBAR__CXX20_CNSTXPR void swap( IteratorSpan<I>& a, IteratorSpan<I>& b ) noexcept
       {
         a.swap( b );
       }
 
-      __PGBAR_CXX17_CNSTXPR explicit operator bool() const noexcept { return !empty(); }
+      PGBAR__CXX17_CNSTXPR explicit operator bool() const noexcept { return !empty(); }
     };
   } // namespace slice
 } // namespace pgbar

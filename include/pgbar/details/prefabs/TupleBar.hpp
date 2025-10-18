@@ -1,5 +1,5 @@
-#ifndef __PGBAR_TUPLEBAR
-#define __PGBAR_TUPLEBAR
+#ifndef PGBAR__TUPLEBAR
+#define PGBAR__TUPLEBAR
 
 #include "../assets/TupleSlot.hpp"
 #include "../prefabs/BasicBar.hpp"
@@ -8,7 +8,7 @@
 #include <tuple>
 
 namespace pgbar {
-  namespace __details {
+  namespace _details {
     namespace prefabs {
       template<typename Seq, typename... Bars>
       class TupleBar;
@@ -16,9 +16,9 @@ namespace pgbar {
       class TupleBar<traits::IndexSeq<Tags...>, prefabs::BasicBar<Configs, Outlet, Mode, Area>...> final
         : public assets::TupleSlot<prefabs::BasicBar<Configs, Outlet, Mode, Area>, Tags>... {
         static_assert( sizeof...( Tags ) == sizeof...( Configs ),
-                       "pgbar::__details::prefabs::TupleBar: Unexpected type mismatch" );
+                       "pgbar::_details::prefabs::TupleBar: Unexpected type mismatch" );
         static_assert( sizeof...( Configs ) > 0,
-                       "pgbar::__details::prefabs::TupleBar: The number of progress bars cannot be zero" );
+                       "pgbar::_details::prefabs::TupleBar: The number of progress bars cannot be zero" );
 
         template<types::Size Pos>
         using ElementAt_t =
@@ -36,13 +36,13 @@ namespace pgbar {
         std::bitset<sizeof...( Configs )> active_mask_;
 
         template<types::Size Pos>
-        __PGBAR_INLINE_FN __PGBAR_CXX14_CNSTXPR typename std::enable_if<( Pos >= sizeof...( Configs ) )>::type
+        PGBAR__INLINE_FN PGBAR__CXX14_CNSTXPR typename std::enable_if<( Pos >= sizeof...( Configs ) )>::type
           do_render() &
         {}
         template<types::Size Pos = 0>
         inline typename std::enable_if<( Pos < sizeof...( Configs ) )>::type do_render() &
         {
-          __PGBAR_ASSERT( online() );
+          PGBAR__ASSERT( online() );
           auto& ostream        = io::OStream<Outlet>::itself();
           const auto istty     = console::TermContext<Outlet>::itself().connected();
           const auto hide_done = config::hide_completed();
@@ -86,7 +86,7 @@ namespace pgbar {
           // Any default arguments provided in the derived class are ignored.
           if ( online() ) {
             auto& executor = render::Renderer<Outlet, Mode>::itself();
-            __PGBAR_ASSERT( executor.empty() == false );
+            PGBAR__ASSERT( executor.empty() == false );
             std::lock_guard<std::mutex> lock { sched_mtx_ };
             if ( !forced )
               executor.attempt();
@@ -106,7 +106,7 @@ namespace pgbar {
                    const auto istty = console::TermContext<Outlet>::itself().connected();
                    switch ( state_.load( std::memory_order_acquire ) ) {
                    case State::Awake: {
-                     if __PGBAR_CXX17_CNSTXPR ( Area == Region::Fixed )
+                     if PGBAR__CXX17_CNSTXPR ( Area == Region::Fixed )
                        if ( istty )
                          ostream << console::escodes::savecursor;
                      {
@@ -123,7 +123,7 @@ namespace pgbar {
                      {
                        std::lock_guard<concurrent::SharedMutex> lock { res_mtx_ };
                        if ( istty ) {
-                         if __PGBAR_CXX17_CNSTXPR ( Area == Region::Fixed )
+                         if PGBAR__CXX17_CNSTXPR ( Area == Region::Fixed )
                            ostream << console::escodes::resetcursor;
                          else
                            ostream.append( console::escodes::prevline, active_mask_.count() )
@@ -136,7 +136,7 @@ namespace pgbar {
                    default: break;
                    }
                  } ) )
-              __PGBAR_UNLIKELY throw exception::InvalidState(
+              PGBAR__UNLIKELY throw exception::InvalidState(
                 "pgbar: another progress bar instance is already running" );
 
             io::OStream<Outlet>::itself() << io::release;
@@ -151,7 +151,7 @@ namespace pgbar {
           } else
             executor.attempt();
           alive_cnt_.fetch_add( 1, std::memory_order_release );
-          __PGBAR_ASSERT( alive_cnt_ <= sizeof...( Configs ) );
+          PGBAR__ASSERT( alive_cnt_ <= sizeof...( Configs ) );
         }
 
         template<typename Tuple, types::Size... Is>
@@ -164,7 +164,7 @@ namespace pgbar {
           , state_ { State::Stop }
         {
           static_assert( std::tuple_size<typename std::decay<Tuple>::type>::value <= sizeof...( Is ),
-                         "pgbar::__details::prefabs::TupleBar::ctor: Unexpected tuple size mismatch" );
+                         "pgbar::_details::prefabs::TupleBar::ctor: Unexpected tuple size mismatch" );
         }
 
       public:
@@ -204,16 +204,16 @@ namespace pgbar {
 
         void halt() noexcept
         {
-          if ( online() && !__details::render::Renderer<Outlet, Mode>::itself().empty() )
+          if ( online() && !_details::render::Renderer<Outlet, Mode>::itself().empty() )
             (void)std::initializer_list<bool> { ( this->ElementAt_t<Tags>::abort(), false )... };
-          __PGBAR_ASSERT( alive_cnt_ == 0 );
-          __PGBAR_ASSERT( online() == false );
+          PGBAR__ASSERT( alive_cnt_ == 0 );
+          PGBAR__ASSERT( online() == false );
         }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN bool online() const noexcept
+        PGBAR__NODISCARD PGBAR__INLINE_FN bool online() const noexcept
         {
           return state_.load( std::memory_order_acquire ) != State::Stop;
         }
-        __PGBAR_NODISCARD __PGBAR_INLINE_FN types::Size active_size() const noexcept
+        PGBAR__NODISCARD PGBAR__INLINE_FN types::Size active_size() const noexcept
         {
           concurrent::SharedLock<concurrent::SharedMutex> lock { res_mtx_ };
           return active_mask_.count();
@@ -221,32 +221,32 @@ namespace pgbar {
 
         void swap( TupleBar& rhs ) noexcept
         {
-          __PGBAR_TRUST( this != &rhs );
-          __PGBAR_ASSERT( online() == false );
-          __PGBAR_ASSERT( rhs.online() == false );
+          PGBAR__TRUST( this != &rhs );
+          PGBAR__ASSERT( online() == false );
+          PGBAR__ASSERT( rhs.online() == false );
           (void)std::initializer_list<bool> {
             ( this->ElementAt_t<Tags>::swap( static_cast<ElementAt_t<Tags>&>( rhs ) ), false )...
           };
         }
 
         template<types::Size Pos>
-        __PGBAR_INLINE_FN ElementAt_t<Pos>& at() & noexcept
+        PGBAR__INLINE_FN ElementAt_t<Pos>& at() & noexcept
         {
           return static_cast<ElementAt_t<Pos>&>( *this );
         }
         template<types::Size Pos>
-        __PGBAR_INLINE_FN const ElementAt_t<Pos>& at() const& noexcept
+        PGBAR__INLINE_FN const ElementAt_t<Pos>& at() const& noexcept
         {
           return static_cast<const ElementAt_t<Pos>&>( *this );
         }
         template<types::Size Pos>
-        __PGBAR_INLINE_FN ElementAt_t<Pos>&& at() && noexcept
+        PGBAR__INLINE_FN ElementAt_t<Pos>&& at() && noexcept
         {
           return std::move( static_cast<ElementAt_t<Pos>&>( *this ) );
         }
       };
     } // namespace prefabs
-  } // namespace __details
+  } // namespace _details
 } // namespace pgbar
 
 #endif

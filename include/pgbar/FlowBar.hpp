@@ -8,13 +8,13 @@
 #include "slice/TrackedSpan.hpp"
 
 namespace pgbar {
-  namespace __details {
+  namespace _details {
     namespace assets {
       template<typename Base, typename Derived>
       class FlowIndic : public Base {
       protected:
-        __PGBAR_CXX23_CNSTXPR io::Stringbuf& build_flow( io::Stringbuf& buffer,
-                                                         types::Size num_frame_cnt ) const
+        PGBAR__CXX23_CNSTXPR io::Stringbuf& build_flow( io::Stringbuf& buffer,
+                                                        types::Size num_frame_cnt ) const
         {
           if ( this->bar_width_ == 0 )
             return buffer;
@@ -80,16 +80,16 @@ namespace pgbar {
         }
 
       public:
-        __PGBAR_EMPTY_COMPONENT( FlowIndic )
+        PGBAR__EMPTY_COMPONENT( FlowIndic )
       };
     } // namespace assets
 
     namespace traits {
-      __PGBAR_INHERIT_REGISTER( assets::FlowIndic,
-                                assets::Filler,
-                                assets::BasicAnimation,
-                                assets::BasicIndicator,
-                                assets::Reversible );
+      PGBAR__INHERIT_REGISTER( assets::FlowIndic,
+                               assets::Filler,
+                               assets::BasicAnimation,
+                               assets::BasicIndicator,
+                               assets::Reversible );
       template<>
       struct OptionFor<assets::FlowIndic>
         : Merge<OptionFor_t<assets::Countable>,
@@ -99,50 +99,50 @@ namespace pgbar {
                 OptionFor_t<assets::BasicAnimation>,
                 OptionFor_t<assets::BasicIndicator>> {};
     }
-  } // namespace __details
+  } // namespace _details
 
   namespace config {
-    class Flow : public __details::prefabs::BasicConfig<__details::assets::FlowIndic, Flow> {
-      using Base = __details::prefabs::BasicConfig<__details::assets::FlowIndic, Flow>;
+    class Flow : public _details::prefabs::BasicConfig<_details::assets::FlowIndic, Flow> {
+      using Base = _details::prefabs::BasicConfig<_details::assets::FlowIndic, Flow>;
       friend Base;
 
       template<typename ArgSet>
       void initialize()
       {
-        static_assert( __details::traits::InstanceOf<ArgSet, __details::traits::TypeSet>::value,
+        static_assert( _details::traits::InstanceOf<ArgSet, _details::traits::TypeSet>::value,
                        "pgbar::config::Flow::initialize: Invalid template type" );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::Reversed>::value )
+        if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Reversed>::value )
           unpacker( *this, option::Reversed( false ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::Shift>::value )
+        if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Shift>::value )
           unpacker( *this, option::Shift( -3 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::Starting>::value )
+        if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Starting>::value )
           unpacker( *this, option::Starting( u8"[" ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::Ending>::value )
+        if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Ending>::value )
           unpacker( *this, option::Ending( u8"]" ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::BarWidth>::value )
+        if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::BarWidth>::value )
           unpacker( *this, option::BarWidth( 30 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::Filler>::value )
+        if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Filler>::value )
           unpacker( *this, option::Filler( u8" " ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::Lead>::value )
+        if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Lead>::value )
           unpacker( *this, option::Lead( u8"====" ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::Divider>::value )
+        if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Divider>::value )
           unpacker( *this, option::Divider( u8" | " ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::InfoColor>::value )
+        if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::InfoColor>::value )
           unpacker( *this, option::InfoColor( color::Cyan ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::SpeedUnit>::value )
+        if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::SpeedUnit>::value )
           unpacker( *this, option::SpeedUnit( { u8"Hz", u8"kHz", u8"MHz", u8"GHz" } ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::Magnitude>::value )
+        if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Magnitude>::value )
           unpacker( *this, option::Magnitude( 1000 ) );
-        if __PGBAR_CXX17_CNSTXPR ( !__details::traits::TpContain<ArgSet, option::Style>::value )
+        if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Style>::value )
           unpacker( *this, option::Style( Base::Ani | Base::Elpsd ) );
       }
 
     protected:
-      __PGBAR_NODISCARD __PGBAR_INLINE_FN __details::types::Size fixed_render_size() const noexcept
+      PGBAR__NODISCARD PGBAR__INLINE_FN _details::types::Size fixed_render_size() const noexcept
       {
         return this->common_render_size()
-             + ( this->visual_masks_[__details::utils::as_val( Base::Mask::Ani )] ? this->fixed_len_bar()
-                                                                                  : 0 );
+             + ( this->visual_masks_[_details::utils::as_val( Base::Mask::Ani )] ? this->fixed_len_bar()
+                                                                                 : 0 );
       }
 
     public:
@@ -151,13 +151,13 @@ namespace pgbar {
       Flow( Flow&& )                   = default;
       Flow& operator=( const Flow& ) & = default;
       Flow& operator=( Flow&& ) &      = default;
-      __PGBAR_CXX20_CNSTXPR ~Flow()    = default;
+      PGBAR__CXX20_CNSTXPR ~Flow()     = default;
     };
   } // namespace config
 
-  namespace __details {
+  namespace _details {
     namespace traits {
-      __PGBAR_BIND_BEHAVIOUR( config::Flow, assets::NullableFrameBar );
+      PGBAR__BIND_BEHAVIOUR( config::Flow, assets::NullableFrameBar );
     }
 
     namespace render {
@@ -168,8 +168,8 @@ namespace pgbar {
         friend Base;
 
       protected:
-        __PGBAR_INLINE_FN io::Stringbuf& build_animation( io::Stringbuf& buffer,
-                                                          types::Size num_frame_cnt ) const
+        PGBAR__INLINE_FN io::Stringbuf& build_animation( io::Stringbuf& buffer,
+                                                         types::Size num_frame_cnt ) const
         {
           return this->build_flow( buffer, num_frame_cnt );
         }
@@ -177,14 +177,13 @@ namespace pgbar {
       public:
         using Base::Base;
 
-        __PGBAR_INLINE_FN io::Stringbuf& build(
-          io::Stringbuf& buffer,
-          types::Size num_frame_cnt,
-          std::uint64_t num_task_done,
-          std::uint64_t num_all_tasks,
-          const std::chrono::steady_clock::time_point& zero_point ) const
+        PGBAR__INLINE_FN io::Stringbuf& build( io::Stringbuf& buffer,
+                                               types::Size num_frame_cnt,
+                                               std::uint64_t num_task_done,
+                                               std::uint64_t num_all_tasks,
+                                               const std::chrono::steady_clock::time_point& zero_point ) const
         {
-          __PGBAR_TRUST( num_task_done <= num_all_tasks );
+          PGBAR__TRUST( num_task_done <= num_all_tasks );
           const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
 
           concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
@@ -193,7 +192,7 @@ namespace pgbar {
         }
       };
     } // namespace render
-  } // namespace __details
+  } // namespace _details
 
   /**
    * A progress bar with a flowing indicator, where the lead moves in a single direction within the bar area.
@@ -202,7 +201,7 @@ namespace pgbar {
    * {LeftBorder}{Prefix}{Percent}{Starting}{Filler}{Lead}{Filler}{Ending}{Counter}{Speed}{Elapsed}{Countdown}{Postfix}{RightBorder}
    */
   template<Channel Outlet = Channel::Stderr, Policy Mode = Policy::Async, Region Area = Region::Fixed>
-  using FlowBar = __details::prefabs::BasicBar<config::Flow, Outlet, Mode, Area>;
+  using FlowBar = _details::prefabs::BasicBar<config::Flow, Outlet, Mode, Area>;
 } // namespace pgbar
 
 #endif

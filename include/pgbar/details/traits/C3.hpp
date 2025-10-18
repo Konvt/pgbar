@@ -1,11 +1,11 @@
-#ifndef __PGBAR_C3
-#define __PGBAR_C3
+#ifndef PGBAR__C3
+#define PGBAR__C3
 
 #include "Backport.hpp"
 #include "TemplateSet.hpp"
 
 namespace pgbar {
-  namespace __details {
+  namespace _details {
     namespace traits {
       // The type used in the C3 algorithm to store template types.
       template<template<typename...> class... Ts>
@@ -46,7 +46,7 @@ namespace pgbar {
       using InheritOrder_t = typename InheritOrder<Node>::type;
 
 // A helper macro to register the inheritance structure of a template class.
-#define __PGBAR_INHERIT_REGISTER( Node, ... )           \
+#define PGBAR__INHERIT_REGISTER( Node, ... )            \
   template<>                                            \
   struct InheritOrder<Node> {                           \
     using type = TmpPrepend_t<C3_t<__VA_ARGS__>, Node>; \
@@ -78,7 +78,7 @@ namespace pgbar {
         struct FeasibleList<C3Container<>, MergedLists...> : std::false_type {
           // MergedLists contain the source list of Candidate.
           static_assert( sizeof...( MergedLists ) > 1,
-                         "pgbar::__details::traits::C3::FeasibleList: MergedLists is always non-empty" );
+                         "pgbar::_details::traits::C3::FeasibleList: MergedLists is always non-empty" );
         };
         template<template<typename...> class Candidate,
                  template<typename...> class... Rests,
@@ -203,7 +203,7 @@ namespace pgbar {
         using type = typename LI<C3Container<VB, VBs...>>::template type<RBC, Args...>;
       };
     } // namespace traits
-  } // namespace __details
+  } // namespace _details
 } // namespace pgbar
 
 #endif
