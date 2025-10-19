@@ -21,7 +21,6 @@ namespace pgbar {
 
         ExceptionBox( ExceptionBox&& rhs ) noexcept : ExceptionBox()
         {
-          std::lock_guard<SharedMutex> lock { rhs.rw_mtx_ };
           using std::swap;
           swap( exception_, rhs.exception_ );
         }
@@ -76,9 +75,6 @@ namespace pgbar {
         void swap( ExceptionBox& lhs ) noexcept
         {
           PGBAR__TRUST( this != &lhs );
-          std::lock( this->rw_mtx_, lhs.rw_mtx_ );
-          std::lock_guard<concurrent::SharedMutex> lock1 { this->rw_mtx_, std::adopt_lock };
-          std::lock_guard<concurrent::SharedMutex> lock2 { lhs.rw_mtx_, std::adopt_lock };
           using std::swap; // ADL custom point
           swap( exception_, lhs.exception_ );
         }

@@ -195,9 +195,21 @@ namespace pgbar {
           : assets::TupleSlot<prefabs::BasicBar<Configs, Outlet, Mode, Area>, Tags>( std::move( rhs ) )...
           , alive_cnt_ { 0 }
           , state_ { State::Stop }
-        {}
-        TupleBar& operator=( TupleBar&& ) & = default;
-        ~TupleBar()                         = default;
+        {
+          PGBAR__ASSERT( rhs.online() == false );
+        }
+        TupleBar& operator=( TupleBar&& rhs ) & noexcept
+        {
+          PGBAR__TRUST( this != &rhs );
+          PGBAR__ASSERT( online() == false );
+          PGBAR__ASSERT( rhs.online() == false );
+          (void)std::initializer_list<bool> { (
+            assets::TupleSlot<prefabs::BasicBar<Configs, Outlet, Mode, Area>, Tags>::operator=(
+              std::move( rhs ) ),
+            false )... };
+          return *this;
+        }
+        ~TupleBar() noexcept { kill(); }
 
         void shut()
         {
@@ -223,13 +235,13 @@ namespace pgbar {
           return active_mask_.count();
         }
 
-        void swap( TupleBar& rhs ) noexcept
+        void swap( TupleBar& lhs ) noexcept
         {
-          PGBAR__TRUST( this != &rhs );
+          PGBAR__TRUST( this != &lhs );
           PGBAR__ASSERT( online() == false );
           PGBAR__ASSERT( rhs.online() == false );
           (void)std::initializer_list<bool> {
-            ( this->ElementAt_t<Tags>::swap( static_cast<ElementAt_t<Tags>&>( rhs ) ), false )...
+            ( this->ElementAt_t<Tags>::swap( static_cast<ElementAt_t<Tags>&>( lhs ) ), false )...
           };
         }
 

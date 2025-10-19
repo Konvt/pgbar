@@ -72,21 +72,11 @@ namespace pgbar {
       : package_ { std::move( bar ), std::move( bars )... }
     {}
 
-    MultiBar( const Self& )          = delete;
-    Self& operator=( const Self& ) & = delete;
-    MultiBar( Self&& rhs ) noexcept : package_ { std::move( rhs.package_ ) }
-    {
-      PGBAR__ASSERT( rhs.active() == false );
-    }
-    Self& operator=( Self&& rhs ) & noexcept
-    {
-      PGBAR__TRUST( this != &rhs );
-      PGBAR__ASSERT( active() == false );
-      PGBAR__ASSERT( rhs.active() == false );
-      package_ = std::move( rhs );
-      return *this;
-    }
-    ~MultiBar() noexcept { abort(); }
+    MultiBar( const Self& )                  = delete;
+    Self& operator=( const Self& ) &         = delete;
+    MultiBar( Self&& rhs ) noexcept          = default;
+    Self& operator=( Self&& rhs ) & noexcept = default;
+    ~MultiBar()                              = default;
 
     // Check whether a progress bar is running
     PGBAR__NODISCARD PGBAR__INLINE_FN bool active() const noexcept { return package_.online(); }
@@ -231,7 +221,7 @@ namespace pgbar {
       return at<Pos>().action();
     }
 
-    void swap( Self& rhs ) noexcept { package_.swap( rhs.package_ ); }
+    void swap( Self& lhs ) noexcept { package_.swap( lhs.package_ ); }
     friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
 
     template<_details::types::Size Pos, typename Mb>
