@@ -13,13 +13,22 @@ namespace pgbar {
           using Self = Slot;
 
           template<typename Derived>
-          static void halt( Indicator* item ) noexcept
+          static void shut( Indicator* item )
           {
             static_assert(
               traits::AllOf<std::is_base_of<Indicator, Derived>, traits::is_bar<Derived>>::value,
-              "pgbar::_details::assets::DynamicContext::Slot::halt: Derived must inherit from Indicator" );
+              "pgbar::_details::assets::DynamicContext::Slot::shut: Derived must inherit from Indicator" );
             PGBAR__TRUST( item != nullptr );
-            static_cast<Derived*>( item )->halt();
+            static_cast<Derived*>( item )->reset();
+          }
+          template<typename Derived>
+          static void kill( Indicator* item ) noexcept
+          {
+            static_assert(
+              traits::AllOf<std::is_base_of<Indicator, Derived>, traits::is_bar<Derived>>::value,
+              "pgbar::_details::assets::DynamicContext::Slot::kill: Derived must inherit from Indicator" );
+            PGBAR__TRUST( item != nullptr );
+            static_cast<Derived*>( item )->abort();
           }
           template<typename Derived>
           static void render( Indicator* item )
@@ -32,13 +41,15 @@ namespace pgbar {
           }
 
         public:
-          void ( *halt_ )( Indicator* ) noexcept;
+          void ( *shut_ )( Indicator* );
+          void ( *kill_ )( Indicator* ) noexcept;
           void ( *render_ )( Indicator* );
           Indicator* target_;
 
           template<typename Config>
           Slot( prefabs::ManagedBar<Config, Outlet, Mode, Area>* item ) noexcept
-            : halt_ { halt<prefabs::ManagedBar<Config, Outlet, Mode, Area>> }
+            : shut_ { shut<prefabs::ManagedBar<Config, Outlet, Mode, Area>> }
+            , kill_ { kill<prefabs::ManagedBar<Config, Outlet, Mode, Area>> }
             , render_ { render<prefabs::BasicBar<Config, Outlet, Mode, Area>> }
             , target_ { item }
           {}
@@ -126,30 +137,39 @@ namespace pgbar {
             num_modified_lines_.fetch_add( std::distance( items_.cbegin(), itr ), std::memory_order_release );
         }
 
+        template<bool Forced>
+        void do_shut() noexcept( Forced )
+        {
+          std::lock_guard<std::mutex> lock1 { sched_mtx_ };
+          std::lock_guard<concurrent::SharedMutex> lock2 { res_mtx_ };
+          if ( state_.load( std::memory_order_acquire ) != State::Stop ) {
+            for ( types::Size i = 0; i < items_.size(); ++i ) {
+              if ( items_[i].target_ != nullptr ) {
+                if PGBAR__CXX17_CNSTXPR ( Forced ) {
+                  PGBAR__ASSERT( items_[i].kill_ != nullptr );
+                  ( *items_[i].kill_ )( items_[i].target_ );
+                } else {
+                  PGBAR__ASSERT( items_[i].shut_ != nullptr );
+                  ( *items_[i].shut_ )( items_[i].target_ );
+                }
+              }
+            }
+            render::Renderer<Outlet, Mode>::itself().appoint();
+          }
+          state_.store( State::Stop, std::memory_order_release );
+          items_.clear();
+        }
+
       public:
         DynamicContext() noexcept
           : items_ {}, num_modified_lines_ { 0 }, res_mtx_ {}, sched_mtx_ {}, state_ { State::Stop }
         {}
         DynamicContext( const DynamicContext& )              = delete;
         DynamicContext& operator=( const DynamicContext& ) & = delete;
-        ~DynamicContext() noexcept { halt(); }
+        ~DynamicContext() noexcept { kill(); }
 
-        void halt() noexcept
-        {
-          std::lock_guard<std::mutex> lock1 { sched_mtx_ };
-          if ( state_.load( std::memory_order_acquire ) != State::Stop )
-            render::Renderer<Outlet, Mode>::itself().appoint();
-          state_.store( State::Stop, std::memory_order_release );
-
-          std::lock_guard<concurrent::SharedMutex> lock2 { res_mtx_ };
-          for ( types::Size i = 0; i < items_.size(); ++i ) {
-            if ( items_[i].target_ != nullptr ) {
-              PGBAR__ASSERT( items_[i].halt_ != nullptr );
-              ( *items_[i].halt_ )( items_[i].target_ );
-            }
-          }
-          items_.clear();
-        }
+        void shut() { do_shut<false>(); }
+        void kill() noexcept { do_shut<true>(); }
 
         template<typename C>
         void append( prefabs::ManagedBar<C, Outlet, Mode, Area>* item ) & noexcept( false )
@@ -264,7 +284,7 @@ namespace pgbar {
           }
         }
 
-        PGBAR__NODISCARD PGBAR__INLINE_FN types::Size size() const noexcept
+        PGBAR__NODISCARD PGBAR__INLINE_FN types::Size online_count() const noexcept
         {
           concurrent::SharedLock<concurrent::SharedMutex> lock { res_mtx_ };
           return items_.size();

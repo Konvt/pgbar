@@ -54,15 +54,12 @@ namespace pgbar {
 #if PGBAR__CXX20
              >
       requires( sizeof...( Cfgs ) <= sizeof...( Configs ) && _details::traits::is_config<Cfg>::value
-                && ( _details::traits::is_config<Cfgs>::value && ... )
                 && _details::traits::
                   TpStartsWith<_details::traits::TypeList<Cfg, Cfgs...>, Config, Configs...>::value )
 #else
              ,
              typename = typename std::enable_if<_details::traits::AllOf<
                _details::traits::BoolConstant< ( sizeof...( Cfgs ) <= sizeof...( Configs ) )>,
-               _details::traits::is_config<Cfg>,
-               _details::traits::is_config<Cfgs>...,
                _details::traits::TpStartsWith<
                  _details::traits::TypeList<Cfg,
                  Cfgs...>,
@@ -93,8 +90,10 @@ namespace pgbar {
 
     // Check whether a progress bar is running
     PGBAR__NODISCARD PGBAR__INLINE_FN bool active() const noexcept { return package_.online(); }
+    // Reset all the progress bars.
+    PGBAR__INLINE_FN void reset() { package_.shut(); }
     // Abort all the progress bars.
-    PGBAR__INLINE_FN void abort() noexcept { package_.halt(); }
+    PGBAR__INLINE_FN void abort() noexcept { package_.kill(); }
     // Returns the number of progress bars.
     PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CNSTEVAL _details::types::Size size() const noexcept
     {
@@ -103,7 +102,7 @@ namespace pgbar {
     // Returns the number of progress bars which is running.
     PGBAR__NODISCARD PGBAR__INLINE_FN _details::types::Size active_size() const noexcept
     {
-      return package_.active_size();
+      return package_.online_count();
     }
     // Wait for all progress bars to stop.
     void wait() const noexcept
@@ -130,7 +129,7 @@ namespace pgbar {
     template<_details::types::Size Pos>
     PGBAR__INLINE_FN BarAt_t<Pos>&& at() && noexcept
     {
-      return std::move( package_ ).template at<Pos>();
+      return std::move( package_.template at<Pos>() );
     }
 
     template<_details::types::Size Pos>
@@ -236,9 +235,8 @@ namespace pgbar {
     friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
 
     template<_details::types::Size Pos, typename Mb>
-    friend PGBAR__INLINE_FN constexpr auto get( Mb&& self ) noexcept ->
-      typename std::enable_if<std::is_same<typename std::decay<Mb>::type, Self>::value,
-                              decltype( std::forward<Mb>( self ).template at<Pos>() )>::type
+    friend PGBAR__INLINE_FN constexpr auto get( Mb&& self ) noexcept
+      -> decltype( std::forward<Mb>( self ).template at<Pos>() )
     {
       return std::forward<Mb>( self ).template at<Pos>();
     }

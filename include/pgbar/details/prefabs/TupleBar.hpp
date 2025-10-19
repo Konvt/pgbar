@@ -174,12 +174,9 @@ namespace pgbar {
         // SFINAE is used here to prevent infinite recursive matching of errors.
         template<typename Cfg,
                  typename... Cfgs,
-                 typename = typename std::enable_if<
-                   traits::AllOf<traits::is_config<typename std::decay<Cfg>::type>,
-                                 traits::is_config<typename std::decay<Cfgs>::type>...,
-                                 traits::TpStartsWith<traits::TypeList<typename std::decay<Cfg>::type,
-                                                                       typename std::decay<Cfgs>::type...>,
-                                                      Configs...>>::value>::type>
+                 typename = typename std::enable_if<traits::TpStartsWith<
+                   traits::TypeList<typename std::decay<Cfg>::type, typename std::decay<Cfgs>::type...>,
+                   Configs...>::value>::type>
         TupleBar( Cfg&& cfg, Cfgs&&... cfgs ) noexcept( sizeof...( Cfgs ) + 1 == sizeof...( Configs ) )
           : TupleBar( std::forward_as_tuple( std::forward<Cfg>( cfg ), std::forward<Cfgs>( cfgs )... ),
                       traits::MakeIndexSeq<sizeof...( Cfgs ) + 1>() )
@@ -202,7 +199,14 @@ namespace pgbar {
         TupleBar& operator=( TupleBar&& ) & = default;
         ~TupleBar()                         = default;
 
-        void halt() noexcept
+        void shut()
+        {
+          if ( online() && !_details::render::Renderer<Outlet, Mode>::itself().empty() )
+            (void)std::initializer_list<bool> { ( this->ElementAt_t<Tags>::reset(), false )... };
+          PGBAR__ASSERT( alive_cnt_ == 0 );
+          PGBAR__ASSERT( online() == false );
+        }
+        void kill() noexcept
         {
           if ( online() && !_details::render::Renderer<Outlet, Mode>::itself().empty() )
             (void)std::initializer_list<bool> { ( this->ElementAt_t<Tags>::abort(), false )... };
@@ -213,7 +217,7 @@ namespace pgbar {
         {
           return state_.load( std::memory_order_acquire ) != State::Stop;
         }
-        PGBAR__NODISCARD PGBAR__INLINE_FN types::Size active_size() const noexcept
+        PGBAR__NODISCARD PGBAR__INLINE_FN types::Size online_count() const noexcept
         {
           concurrent::SharedLock<concurrent::SharedMutex> lock { res_mtx_ };
           return active_mask_.count();
@@ -230,7 +234,7 @@ namespace pgbar {
         }
 
         template<types::Size Pos>
-        PGBAR__INLINE_FN ElementAt_t<Pos>& at() & noexcept
+        PGBAR__INLINE_FN ElementAt_t<Pos>& at() noexcept
         {
           return static_cast<ElementAt_t<Pos>&>( *this );
         }
@@ -238,11 +242,6 @@ namespace pgbar {
         PGBAR__INLINE_FN const ElementAt_t<Pos>& at() const& noexcept
         {
           return static_cast<const ElementAt_t<Pos>&>( *this );
-        }
-        template<types::Size Pos>
-        PGBAR__INLINE_FN ElementAt_t<Pos>&& at() && noexcept
-        {
-          return std::move( static_cast<ElementAt_t<Pos>&>( *this ) );
         }
       };
     } // namespace prefabs
