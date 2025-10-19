@@ -52,9 +52,7 @@ namespace pgbar {
          * and further calls to `abort` will have no effect.
          * So even if the base class destructor calls `abort` again, it is safe.
          */
-        virtual ~ManagedBar() noexcept { halt(); }
-
-        PGBAR__INLINE_FN void halt() noexcept { this->abort(); }
+        virtual ~ManagedBar() noexcept { this->abort(); }
       };
     } // namespace prefabs
   } // namespace _details

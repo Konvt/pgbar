@@ -46,7 +46,7 @@ namespace pgbar {
     PGBAR__NODISCARD PGBAR__INLINE_FN bool active() const noexcept
     {
       _details::concurrent::SharedLock<_details::concurrent::SharedMutex> lock { mtx_ };
-      return core_ != nullptr && core_->size() != 0;
+      return core_ != nullptr && core_->online_count() != 0;
     }
     PGBAR__NODISCARD PGBAR__INLINE_FN _details::types::Size size() const noexcept
     {
@@ -56,13 +56,19 @@ namespace pgbar {
     PGBAR__NODISCARD PGBAR__INLINE_FN _details::types::Size active_size() const noexcept
     {
       _details::concurrent::SharedLock<_details::concurrent::SharedMutex> lock { mtx_ };
-      return core_ != nullptr ? core_->size() : 0;
+      return core_ != nullptr ? core_->online_count() : 0;
+    }
+    PGBAR__INLINE_FN void reset()
+    {
+      std::lock_guard<_details::concurrent::SharedMutex> lock { mtx_ };
+      if ( core_ != nullptr )
+        core_->shut();
     }
     PGBAR__INLINE_FN void abort() noexcept
     {
       std::lock_guard<_details::concurrent::SharedMutex> lock { mtx_ };
       if ( core_ != nullptr )
-        core_->halt();
+        core_->kill();
     }
 
     // Wait until the indicator is Stop.
