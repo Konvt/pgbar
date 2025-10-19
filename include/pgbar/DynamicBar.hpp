@@ -29,15 +29,14 @@ namespace pgbar {
     Self& operator=( const Self& ) & = delete;
     DynamicBar( Self&& rhs ) noexcept
     {
-      std::lock_guard<_details::concurrent::SharedMutex> lock { rhs.mtx_ };
+      PGBAR__ASSERT( rhs.active() == false );
       core_ = std::move( rhs.core_ );
     }
     Self& operator=( Self&& rhs ) & noexcept
     {
       PGBAR__TRUST( this != &rhs );
-      std::lock( mtx_, rhs.mtx_ );
-      std::lock_guard<_details::concurrent::SharedMutex> lock1 { mtx_, std::adopt_lock };
-      std::lock_guard<_details::concurrent::SharedMutex> lock2 { rhs.mtx_, std::adopt_lock };
+      PGBAR__ASSERT( active() == false );
+      PGBAR__ASSERT( rhs.active() == false );
       core_ = std::move( rhs.core_ );
       return *this;
     }
@@ -159,9 +158,8 @@ namespace pgbar {
     void swap( Self& lhs ) noexcept
     {
       PGBAR__TRUST( this != &lhs );
-      std::lock( mtx_, lhs.mtx_ );
-      std::lock_guard<_details::concurrent::SharedMutex> lock1 { mtx_, std::adopt_lock };
-      std::lock_guard<_details::concurrent::SharedMutex> lock2 { lhs.mtx_, std::adopt_lock };
+      PGBAR__ASSERT( active() == false );
+      PGBAR__ASSERT( lhs.active() == false );
       core_.swap( lhs.core_ );
     }
     friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }

@@ -495,15 +495,11 @@ namespace pgbar {
         ReactiveBar( Self&& rhs ) noexcept( std::is_nothrow_move_constructible<Base>::value )
           : Base( std::move( rhs ) )
         {
-          std::lock_guard<std::mutex> lock { rhs.mtx_ };
           rhs.move_to( *this );
         }
         Self& operator=( Self&& rhs ) & noexcept( std::is_nothrow_move_assignable<Base>::value )
         {
           Base::operator=( std::move( rhs ) );
-          std::lock( this->mtx_, rhs.mtx_ );
-          std::lock_guard<std::mutex> lock1 { this->mtx_, std::adopt_lock };
-          std::lock_guard<std::mutex> lock2 { rhs.mtx_, std::adopt_lock };
           rhs.move_to( *this );
           return *this;
         }
@@ -523,7 +519,6 @@ namespace pgbar {
           action( F&& fn ) & noexcept(
             std::is_nothrow_constructible<wrappers::UniqueFunction<void()>, F>::value )
         {
-          std::lock_guard<std::mutex> lock { this->mtx_ };
           new ( std::addressof( hook_.on_ ) ) wrappers::UniqueFunction<void()>( std::forward<F>( fn ) );
           tag_ = Tag::Nullary;
           return static_cast<Derived&>( *this );
@@ -542,7 +537,6 @@ namespace pgbar {
           action( F&& fn ) & noexcept(
             std::is_nothrow_constructible<wrappers::UniqueFunction<void( Derived& )>, F>::value )
         {
-          std::lock_guard<std::mutex> lock { this->mtx_ };
           new ( std::addressof( hook_.on_self_ ) )
             wrappers::UniqueFunction<void( Derived& )>( std::forward<F>( fn ) );
           tag_ = Tag::Unary;
@@ -550,7 +544,6 @@ namespace pgbar {
         }
         Derived& action() noexcept
         {
-          std::lock_guard<std::mutex> lock { this->mtx_ };
           destroy();
           return static_cast<Derived&>( *this );
         }
@@ -670,9 +663,6 @@ namespace pgbar {
         void swap( Self& lhs ) noexcept
         {
           Base::swap( lhs );
-          std::lock( this->mtx_, lhs.mtx_ );
-          std::lock_guard<std::mutex> lock1 { this->mtx_, std::adopt_lock };
-          std::lock_guard<std::mutex> lock2 { lhs.mtx_, std::adopt_lock };
           switch ( tag_ ) {
           case Tag::Nullary:
             if ( lhs.tag_ == Tag::Nullary )

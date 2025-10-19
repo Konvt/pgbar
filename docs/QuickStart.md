@@ -2442,7 +2442,7 @@ All methods of the sole progress bar can be accessed as template functions in `M
 
 Like the sole progress bar type, `MultiBar` is a movable and swappable type; Likewise, it should not be moved or swapped while `MultiBar` is running.
 
-In particular, if `MultiBar`'s own `abort()` method is called, then all sole progress bars belonging to the `MultiBar` object will immediately terminate, the effect of this termination is equivalent to the destruction of these independent progress bars, but they are not really destroyed here.
+Attempting to move or swap a `MultiBar` in multiple threads simultaneously, or moving or swapping it in one thread while calling other methods of `MultiBar` in other threads, is thread-unsafe.
 
 See [FAQ - Life cycle of the progress bar object](#life-cycle-of-the-progress-bar-object) for the effect of destruction-induced progress bar termination.
 ### Helper functions
@@ -2576,6 +2576,8 @@ Each `std::unique_ptr` returned by `DynamicBar` can enable the progress bar rend
 If the `std::unique_ptr` object returned by `DynamicBar` is destructed because all references are invalid, then if `DynamicBar` is running at this time, it can also safely identify all invalid objects and remove them from the rendering list.
 
 Based on the above principle, `DynamicBar` can receive any number of progress bar objects at runtime and coordinate the order in which they are rendered to the terminal in the background. The output order of the progress bars will depend on the time when they are started. The later the progress bars are started, the lower they will appear in the terminal.
+
+Attempting to move or swap a `DynamicBar` in multiple threads simultaneously, or moving or swapping it in one thread while calling other methods of `DynamicBar` in other threads, is thread-unsafe.
 
 Similarly, `DynamicBar` also requires that all incoming progress bar types must point to the same output stream.
 

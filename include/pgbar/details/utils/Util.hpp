@@ -98,7 +98,7 @@ namespace pgbar {
           int_digits + precision + 2,
           [val, precision]( types::Char* buf, types::Size n ) noexcept {
             const auto result = std::to_chars( buf, buf + n, val, std::chars_format::fixed, precision );
-            PGBAR__TRUST( result.ec == std::errc {} );
+            PGBAR__TRUST( result.ec == std::errc() );
             PGBAR__TRUST( result.ptr >= buf );
             return static_cast<types::Size>( result.ptr - buf );
           } );
@@ -110,7 +110,7 @@ namespace pgbar {
                                            val,
                                            std::chars_format::fixed,
                                            precision );
-        PGBAR__TRUST( result.ec == std::errc {} );
+        PGBAR__TRUST( result.ec == std::errc() );
         PGBAR__ASSERT( result.ptr >= formatted.data() );
         formatted.resize( result.ptr - formatted.data() );
 # endif
