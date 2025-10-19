@@ -2,7 +2,6 @@
 #define PGBAR_DYNAMICBAR
 
 #include "details/assets/DynamicContext.hpp"
-#include <tuple>
 
 namespace pgbar {
   template<Channel Outlet = Channel::Stderr, Policy Mode = Policy::Async, Region Area = Region::Fixed>
@@ -11,35 +10,57 @@ namespace pgbar {
     using Context = _details::assets::DynamicContext<Outlet, Mode, Area>;
 
     std::shared_ptr<Context> core_;
+    mutable _details::concurrent::SharedMutex mtx_;
 
     PGBAR__INLINE_FN void setup_if_null() &
     {
       if ( core_ == nullptr )
-        PGBAR__UNLIKELY core_ = std::make_shared<Context>();
+        PGBAR__UNLIKELY
+        {
+          std::lock_guard<_details::concurrent::SharedMutex> lock { mtx_ };
+          if ( core_ == nullptr )
+            core_ = std::make_shared<Context>();
+        }
     }
 
   public:
     DynamicBar()                     = default;
     DynamicBar( const Self& )        = delete;
     Self& operator=( const Self& ) & = delete;
-    DynamicBar( Self&& )             = default;
-    Self& operator=( Self&& ) &      = default;
-    ~DynamicBar()                    = default;
+    DynamicBar( Self&& rhs ) noexcept
+    {
+      std::lock_guard<_details::concurrent::SharedMutex> lock { rhs.mtx_ };
+      core_ = std::move( rhs.core_ );
+    }
+    Self& operator=( Self&& rhs ) & noexcept
+    {
+      PGBAR__TRUST( this != &rhs );
+      std::lock( mtx_, rhs.mtx_ );
+      std::lock_guard<_details::concurrent::SharedMutex> lock1 { mtx_, std::adopt_lock };
+      std::lock_guard<_details::concurrent::SharedMutex> lock2 { rhs.mtx_, std::adopt_lock };
+      core_ = std::move( rhs.core_ );
+      return *this;
+    }
+    ~DynamicBar() = default;
 
     PGBAR__NODISCARD PGBAR__INLINE_FN bool active() const noexcept
     {
+      _details::concurrent::SharedLock<_details::concurrent::SharedMutex> lock { mtx_ };
       return core_ != nullptr && core_->size() != 0;
     }
     PGBAR__NODISCARD PGBAR__INLINE_FN _details::types::Size size() const noexcept
     {
+      _details::concurrent::SharedLock<_details::concurrent::SharedMutex> lock { mtx_ };
       return core_ != nullptr ? core_.use_count() - 1 : 0;
     }
     PGBAR__NODISCARD PGBAR__INLINE_FN _details::types::Size active_size() const noexcept
     {
+      _details::concurrent::SharedLock<_details::concurrent::SharedMutex> lock { mtx_ };
       return core_ != nullptr ? core_->size() : 0;
     }
     PGBAR__INLINE_FN void abort() noexcept
     {
+      std::lock_guard<_details::concurrent::SharedMutex> lock { mtx_ };
       if ( core_ != nullptr )
         core_->halt();
     }
@@ -132,6 +153,9 @@ namespace pgbar {
     void swap( Self& lhs ) noexcept
     {
       PGBAR__TRUST( this != &lhs );
+      std::lock( mtx_, lhs.mtx_ );
+      std::lock_guard<_details::concurrent::SharedMutex> lock1 { mtx_, std::adopt_lock };
+      std::lock_guard<_details::concurrent::SharedMutex> lock2 { lhs.mtx_, std::adopt_lock };
       core_.swap( lhs.core_ );
     }
     friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
