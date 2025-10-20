@@ -498,7 +498,9 @@ namespace pgbar {
           rhs.move_to( *this );
         }
         Self& operator=( Self&& rhs ) & noexcept( std::is_nothrow_move_assignable<Base>::value )
-        {
+        { // The thread insecurity here is deliberately designed.
+          // Because for a move-only type, transferring ownership simultaneously
+          // in multiple locations should not occur.
           Base::operator=( std::move( rhs ) );
           rhs.move_to( *this );
           return *this;

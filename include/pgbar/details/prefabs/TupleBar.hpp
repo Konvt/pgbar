@@ -199,7 +199,9 @@ namespace pgbar {
           PGBAR__ASSERT( rhs.online() == false );
         }
         TupleBar& operator=( TupleBar&& rhs ) & noexcept
-        {
+        { // The thread insecurity here is deliberately designed.
+          // After all, for a type where a base class reference can be exposed,
+          // we cannot apply the lock within the type to the outside.
           PGBAR__TRUST( this != &rhs );
           PGBAR__ASSERT( online() == false );
           PGBAR__ASSERT( rhs.online() == false );
@@ -236,7 +238,8 @@ namespace pgbar {
         }
 
         void swap( TupleBar& lhs ) noexcept
-        {
+        { // The thread insecurity here is deliberately designed.
+          // The reason can be found in the move assignment.
           PGBAR__TRUST( this != &lhs );
           PGBAR__ASSERT( online() == false );
           PGBAR__ASSERT( rhs.online() == false );

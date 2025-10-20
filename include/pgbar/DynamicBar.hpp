@@ -33,7 +33,9 @@ namespace pgbar {
       core_ = std::move( rhs.core_ );
     }
     Self& operator=( Self&& rhs ) & noexcept
-    {
+    { // The thread insecurity here is deliberately designed.
+      // Because for a move-only type, transferring ownership simultaneously
+      // in multiple locations should not occur.
       PGBAR__TRUST( this != &rhs );
       PGBAR__ASSERT( active() == false );
       PGBAR__ASSERT( rhs.active() == false );
@@ -156,7 +158,8 @@ namespace pgbar {
     }
 
     void swap( Self& lhs ) noexcept
-    {
+    { // The thread insecurity here is deliberately designed.
+      // The reason can be found in the move assignment.
       PGBAR__TRUST( this != &lhs );
       PGBAR__ASSERT( active() == false );
       PGBAR__ASSERT( lhs.active() == false );
