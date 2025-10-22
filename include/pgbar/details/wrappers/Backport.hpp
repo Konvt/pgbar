@@ -28,6 +28,8 @@ namespace pgbar {
         union alignas( std::max_align_t ) AnyFn {
           Data buf_[sizeof( void* ) * 2];
           Data* dptr_;
+
+          constexpr AnyFn() noexcept : dptr_ { nullptr } {}
         };
         struct VTable final {
           const typename Derived::Invoker invoke;
@@ -46,24 +48,24 @@ namespace pgbar {
         const VTable* vtable_;
         AnyFn callee_;
 
-        static PGBAR__CXX14_CNSTXPR void destroy_null( AnyFn& ) noexcept {}
-        static PGBAR__CXX14_CNSTXPR void move_null( AnyFn&, AnyFn& ) noexcept {}
+        static PGBAR__NOINLINE PGBAR__CXX14_CNSTXPR void destroy_null( AnyFn& ) noexcept {}
+        static PGBAR__NOINLINE PGBAR__CXX14_CNSTXPR void move_null( AnyFn&, AnyFn& ) noexcept {}
 
         template<typename T>
-        static PGBAR__CXX14_CNSTXPR void destroy_inline( AnyFn& fn ) noexcept
+        static PGBAR__NOINLINE PGBAR__CXX14_CNSTXPR void destroy_inline( AnyFn& fn ) noexcept
         {
           const auto ptr = utils::launder_as<T>( &fn.buf_ );
           ptr->~T();
         }
         template<typename T>
-        static void move_inline( AnyFn& dst, AnyFn& src ) noexcept
+        static PGBAR__NOINLINE void move_inline( AnyFn& dst, AnyFn& src ) noexcept
         {
           new ( &dst.buf_ ) T( std::move( *utils::launder_as<T>( &src.buf_ ) ) );
           destroy_inline<T>( src );
         }
 
         template<typename T>
-        static PGBAR__CXX20_CNSTXPR void destroy_dynamic( AnyFn& fn ) noexcept
+        static PGBAR__NOINLINE PGBAR__CXX20_CNSTXPR void destroy_dynamic( AnyFn& fn ) noexcept
         {
           const auto dptr = utils::launder_as<T>( fn.dptr_ );
           dptr->~T();
@@ -74,10 +76,10 @@ namespace pgbar {
 # endif
         }
         template<typename T>
-        static PGBAR__CXX14_CNSTXPR void move_dynamic( AnyFn& dst, AnyFn& src ) noexcept
+        static PGBAR__NOINLINE PGBAR__CXX14_CNSTXPR void move_dynamic( AnyFn& dst, AnyFn& src ) noexcept
         {
           dst.dptr_ = src.dptr_;
-          src.dptr_ = nullptr;
+          src.dptr_ = &table_null();
         }
 
         template<typename F>
@@ -145,8 +147,10 @@ namespace pgbar {
           const VTable* vtable = nullptr;
           AnyFn tmp;
           store_fn( vtable, tmp, std::forward<F>( fn ) );
+          PGBAR__TRUST( vtable != nullptr );
           reset();
           std::swap( vtable_, vtable );
+          PGBAR__TRUST( this->vtable_ != nullptr );
           vtable_->move( callee_, tmp );
         }
 
@@ -164,6 +168,8 @@ namespace pgbar {
           PGBAR__TRUST( rhs.vtable_ != nullptr );
           reset();
           std::swap( vtable_, rhs.vtable_ );
+          PGBAR__TRUST( this->vtable_ != nullptr );
+          PGBAR__TRUST( rhs.vtable_ != nullptr );
           vtable_->move( callee_, rhs.callee_ );
           return *this;
         }
@@ -178,6 +184,8 @@ namespace pgbar {
           lhs.vtable_->move( callee_, lhs.callee_ );
           vtable_->move( lhs.callee_, tmp );
           std::swap( vtable_, lhs.vtable_ );
+          PGBAR__TRUST( this->vtable_ != nullptr );
+          PGBAR__TRUST( lhs.vtable_ != nullptr );
         }
         PGBAR__CXX23_CNSTXPR friend void swap( FnStorageBlock& a, FnStorageBlock& b ) noexcept
         {
@@ -244,20 +252,21 @@ namespace pgbar {
 # endif
           ;
 
-        static PGBAR__CXX14_CNSTXPR R invoke_null( const AnyFn&, Param_t<Args>... ) noexcept( Noexcept )
+        static PGBAR__NOINLINE PGBAR__CXX14_CNSTXPR R invoke_null( const AnyFn&, Param_t<Args>... )
+          noexcept( Noexcept )
         {
           PGBAR__UNREACHABLE;
           // The standard says this should trigger an undefined behavior.
         }
         template<typename T>
-        static PGBAR__CXX14_CNSTXPR R invoke_inline( const AnyFn& fn, Param_t<Args>... args )
+        static PGBAR__NOINLINE PGBAR__CXX14_CNSTXPR R invoke_inline( const AnyFn& fn, Param_t<Args>... args )
           noexcept( Noexcept )
         {
           const auto ptr = utils::launder_as<Fn_t<T>>( ( &const_cast<AnyFn&>( fn ).buf_ ) );
           return utils::invoke( forward_as<CrefInfo>( *ptr ), std::forward<Args>( args )... );
         }
         template<typename T>
-        static PGBAR__CXX14_CNSTXPR R invoke_dynamic( const AnyFn& fn, Param_t<Args>... args )
+        static PGBAR__NOINLINE PGBAR__CXX14_CNSTXPR R invoke_dynamic( const AnyFn& fn, Param_t<Args>... args )
           noexcept( Noexcept )
         {
           const auto dptr = utils::launder_as<Fn_t<T>>( fn.dptr_ );
@@ -295,6 +304,7 @@ namespace pgbar {
         UniqueFunction( F&& fn ) noexcept( Base::template Inlinable<typename std::decay<F>::type>::value )
         {
           Base::store_fn( this->vtable_, this->callee_, std::forward<F>( fn ) );
+          PGBAR__TRUST( this->vtable_ != nullptr );
         }
         // In C++11, `std::in_place_type` does not exist, and we will not use it either.
         // Therefore, we do not provide an overloaded constructor for this type here.

@@ -118,12 +118,15 @@
 // pgbar does not detect the differences in compiler versions
 // which released before the publication of the C++11 standard.
 # define PGBAR__INLINE_FN __attribute__( ( always_inline ) ) inline
+# define PGBAR__NOINLINE  __attribute__( ( noinline ) )
 #elif defined( _MSC_VER )
 // For msvc, it is a proprietary compiler implementation,
 // and I believe it supports this builtin.
 # define PGBAR__INLINE_FN __forceinline
+# define PGBAR__NOINLINE  __declspec( noinline )
 #else
 # define PGBAR__INLINE_FN inline
+# define PGBAR__NOINLINE
 #endif
 
 #ifdef __has_builtin

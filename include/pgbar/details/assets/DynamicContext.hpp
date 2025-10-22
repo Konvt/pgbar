@@ -260,7 +260,7 @@ namespace pgbar {
           auto& executor = render::Renderer<Outlet, Mode>::itself();
           PGBAR__ASSERT( executor.empty() == false );
           std::lock_guard<std::mutex> lock1 { sched_mtx_ };
-          PGBAR__ASSERT( size() != 0 );
+          PGBAR__ASSERT( online_count() != 0 );
           if ( !forced )
             executor.attempt();
 

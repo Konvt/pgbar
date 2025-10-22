@@ -150,7 +150,7 @@ namespace pgbar {
         return *std::next( start_, size_ - 1 );
       }
 
-      PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CNSTEVAL _details::types::Size step() const noexcept
+      PGBAR__NODISCARD PGBAR__INLINE_FN constexpr _details::types::Size step() const noexcept
       {
         return 1;
       }
