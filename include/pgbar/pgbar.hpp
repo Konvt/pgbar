@@ -34,6 +34,7 @@
 # undef PGBAR__TRUST
 # undef PGBAR__ASSUME
 # undef PGBAR__CXX23_CNSTXPR
+# undef PGBAR__NOINLINE
 # undef PGBAR__INLINE_FN
 # undef PGBAR__NODISCARD
 # undef PGBAR__CXX20
