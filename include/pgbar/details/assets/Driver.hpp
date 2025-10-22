@@ -407,13 +407,13 @@ namespace pgbar {
         void reset() final
         {
           std::lock_guard<std::mutex> lock { mtx_ };
-          static_cast<Subcls*>( this )->do_reset();
+          static_cast<Subcls*>( this )->template do_reset<false>();
           PGBAR__ASSERT( active() == false );
         }
         void abort() noexcept final
         {
           std::lock_guard<std::mutex> lock { mtx_ };
-          static_cast<Subcls*>( this )->do_reset( true );
+          static_cast<Subcls*>( this )->template do_reset<true>();
           PGBAR__ASSERT( active() == false );
         }
 
@@ -440,7 +440,7 @@ namespace pgbar {
           constexpr Callback() noexcept : nil_ {} {}
           PGBAR__CXX23_CNSTXPR ~Callback() noexcept {}
         } hook_;
-        enum class Tag : std::uint8_t { Nil, Nullary, Unary } tag_;
+        enum class Tag : std::uint8_t { Nil, Nullary, Unary } tag_ = Tag::Nil;
 
         PGBAR__CXX23_CNSTXPR void destroy() noexcept
         {
@@ -521,6 +521,7 @@ namespace pgbar {
           action( F&& fn ) & noexcept(
             std::is_nothrow_constructible<wrappers::UniqueFunction<void()>, F>::value )
         {
+          std::lock_guard<std::mutex> lock { this->mtx_ };
           new ( std::addressof( hook_.on_ ) ) wrappers::UniqueFunction<void()>( std::forward<F>( fn ) );
           tag_ = Tag::Nullary;
           return static_cast<Derived&>( *this );
@@ -539,6 +540,7 @@ namespace pgbar {
           action( F&& fn ) & noexcept(
             std::is_nothrow_constructible<wrappers::UniqueFunction<void( Derived& )>, F>::value )
         {
+          std::lock_guard<std::mutex> lock { this->mtx_ };
           new ( std::addressof( hook_.on_self_ ) )
             wrappers::UniqueFunction<void( Derived& )>( std::forward<F>( fn ) );
           tag_ = Tag::Unary;
@@ -546,6 +548,7 @@ namespace pgbar {
         }
         Derived& action() noexcept
         {
+          std::lock_guard<std::mutex> lock { this->mtx_ };
           destroy();
           return static_cast<Derived&>( *this );
         }
@@ -794,16 +797,17 @@ namespace pgbar {
         }
 
         // Only when "forced" is true will it be noexcept.
-        PGBAR__INLINE_FN void do_reset( bool forced = false )
+        template<bool Forced>
+        PGBAR__INLINE_FN void do_reset() noexcept( Forced )
         {
           if ( state_.load( std::memory_order_acquire ) != State::Stop ) {
-            if ( forced )
-              PGBAR__UNLIKELY state_.store( State::Stop, std::memory_order_release );
+            if PGBAR__CXX17_CNSTXPR ( Forced )
+              state_.store( State::Stop, std::memory_order_release );
             else {
               this->react();
               state_.store( State::Finish, std::memory_order_release );
             }
-            this->do_halt( forced );
+            this->do_halt( Forced );
           } else
             state_.store( State::Stop, std::memory_order_release );
         }
@@ -841,7 +845,7 @@ namespace pgbar {
               {
                 if ( this->mtx_.try_lock() ) {
                   std::lock_guard<std::mutex> lock { this->mtx_, std::adopt_lock };
-                  do_reset();
+                  do_reset<false>();
                 }
               }
             else if PGBAR__CXX17_CNSTXPR ( Mode == Policy::Sync )
@@ -867,7 +871,11 @@ namespace pgbar {
           Base::operator=( std::move( rhs ) );
           return *this;
         }
-        ~PlainBar() noexcept { this->abort(); }
+        ~PlainBar() noexcept
+        {
+          std::lock_guard<std::mutex> lock { this->mtx_ };
+          do_reset<true>();
+        }
       };
 
       template<typename Base, typename Derived>
@@ -934,16 +942,17 @@ namespace pgbar {
         }
 
         // Only when "forced" is true will it be noexcept.
-        PGBAR__INLINE_FN void do_reset( bool forced = false )
+        template<bool Forced>
+        PGBAR__INLINE_FN void do_reset() noexcept( Forced )
         {
           if ( state_.load( std::memory_order_acquire ) != State::Stop ) {
-            if ( forced )
-              PGBAR__UNLIKELY state_.store( State::Stop, std::memory_order_release );
+            if PGBAR__CXX17_CNSTXPR ( Forced )
+              state_.store( State::Stop, std::memory_order_release );
             else {
               this->react();
               state_.store( State::Finish, std::memory_order_release );
             }
-            this->do_halt( forced );
+            this->do_halt( Forced );
           } else
             state_.store( State::Stop, std::memory_order_release );
         }
@@ -982,7 +991,7 @@ namespace pgbar {
               {
                 if ( this->mtx_.try_lock() ) {
                   std::lock_guard<std::mutex> lock { this->mtx_, std::adopt_lock };
-                  do_reset();
+                  do_reset<false>();
                 }
               }
             else if PGBAR__CXX17_CNSTXPR ( Mode == Policy::Sync )
@@ -1013,7 +1022,11 @@ namespace pgbar {
           Base::operator=( std::move( rhs ) );
           return *this;
         }
-        ~FrameBar() noexcept { this->abort(); }
+        ~FrameBar() noexcept
+        {
+          std::lock_guard<std::mutex> lock { this->mtx_ };
+          do_reset<true>();
+        }
       };
 
       template<typename Base, typename Derived>

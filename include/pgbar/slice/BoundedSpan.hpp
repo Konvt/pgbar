@@ -49,7 +49,7 @@ namespace pgbar {
         return rn.size();
       }
       template<typename Rn, _details::types::Size N>
-      static PGBAR__INLINE_FN PGBAR__CNSTEVAL _details::types::Size size( Rn ( & )[N] ) noexcept
+      static PGBAR__INLINE_FN constexpr _details::types::Size size( Rn ( & )[N] ) noexcept
       {
         return N;
       }
@@ -88,7 +88,7 @@ namespace pgbar {
       {
         return *std::next( begin(), size() - 1 );
       }
-      PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CNSTEVAL _details::types::Size step() const noexcept
+      PGBAR__NODISCARD PGBAR__INLINE_FN constexpr _details::types::Size step() const noexcept
       {
         return 1;
       }
