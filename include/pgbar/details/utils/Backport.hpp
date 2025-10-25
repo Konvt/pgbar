@@ -11,6 +11,9 @@
 # include "../traits/Backport.hpp"
 # include "../traits/Util.hpp"
 # include "../utils/Backport.hpp"
+# if PGBAR__WIN && !defined( __GNUC__ ) && !defined( __clang__ )
+#  include <winnt.h>
+# endif
 #endif
 
 namespace pgbar {
@@ -46,19 +49,33 @@ namespace pgbar {
 
       // Available only for buffers that use placement new.
       template<typename To, typename From>
-      PGBAR__INLINE_FN constexpr To* launder_as( From* src ) noexcept
+      PGBAR__INLINE_FN PGBAR__CXX17_CNSTXPR To* launder_as( From* src ) noexcept
       {
 #if PGBAR__CXX17
         return std::launder( reinterpret_cast<To*>( src ) );
-#else
-        /**
-         * Before c++17 there was no way to prevent compilers from over-optimizing different types
-         * of pointers with rules like strict aliases,
-         * so we should trust reinerpret_cast to give us what we want.
-         */
-        return reinterpret_cast<To*>( src );
+#elif defined( __GNUC__ )
+# if __GNUC__ >= 7
+        return __builtin_launder( reinterpret_cast<To*>( src ) );
+# else
+        // same as the impl of folly::launder (v2017.09.04)
+        __asm__( "" : "+r"( src ) );
+# endif
+#elif defined( __clang__ )
+# if __clang_major__ >= 8
+        return __builtin_launder( reinterpret_cast<To*>( src ) );
+# endif
+#elif PGBAR__WIN
+        _ReadWriteBarrier();
 #endif
+        // By default, we can only trust that reinterpret_cast can give us what we want.
+        return reinterpret_cast<To*>( src );
       }
+      void launder_as( void* )                = delete;
+      void launder_as( void const* )          = delete;
+      void launder_as( void volatile* )       = delete;
+      void launder_as( void const volatile* ) = delete;
+      template<typename T, typename... Args>
+      void launder_as( T ( * )( Args... ) ) = delete;
 
 #if PGBAR__CXX14
       template<typename T, typename... Args>
