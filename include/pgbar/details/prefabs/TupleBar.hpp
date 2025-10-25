@@ -249,7 +249,7 @@ namespace pgbar {
         }
 
         template<types::Size Pos>
-        PGBAR__INLINE_FN ElementAt_t<Pos>& at() noexcept
+        PGBAR__INLINE_FN ElementAt_t<Pos>& at() & noexcept
         {
           return static_cast<ElementAt_t<Pos>&>( *this );
         }
@@ -257,6 +257,11 @@ namespace pgbar {
         PGBAR__INLINE_FN const ElementAt_t<Pos>& at() const& noexcept
         {
           return static_cast<const ElementAt_t<Pos>&>( *this );
+        }
+        template<types::Size Pos>
+        PGBAR__INLINE_FN ElementAt_t<Pos>& at() && noexcept
+        {
+          return std::move( at<Pos>() );
         }
       };
     } // namespace prefabs
