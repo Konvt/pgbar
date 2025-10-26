@@ -11,9 +11,6 @@
 # include "../traits/Backport.hpp"
 # include "../traits/Util.hpp"
 # include "../utils/Backport.hpp"
-# if PGBAR__WIN && !defined( __GNUC__ ) && !defined( __clang__ )
-#  include <winnt.h>
-# endif
 #endif
 
 namespace pgbar {
@@ -49,7 +46,7 @@ namespace pgbar {
 
       // Available only for buffers that use placement new.
       template<typename To, typename From>
-      PGBAR__INLINE_FN PGBAR__CXX17_CNSTXPR To* launder_as( From* src ) noexcept
+      PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX17_CNSTXPR To* launder_as( From* src ) noexcept
       {
 #if PGBAR__CXX17
         return std::launder( reinterpret_cast<To*>( src ) );
@@ -64,29 +61,39 @@ namespace pgbar {
 # if __clang_major__ >= 8
         return __builtin_launder( reinterpret_cast<To*>( src ) );
 # endif
-#elif PGBAR__WIN
-        _ReadWriteBarrier();
 #endif
         // By default, we can only trust that reinterpret_cast can give us what we want.
         return reinterpret_cast<To*>( src );
       }
-      void launder_as( void* )                = delete;
-      void launder_as( void const* )          = delete;
-      void launder_as( void volatile* )       = delete;
-      void launder_as( void const volatile* ) = delete;
-      template<typename T, typename... Args>
-      void launder_as( T ( * )( Args... ) ) = delete;
+      template<typename To>
+      To* launder_as( void* src ) = delete;
+      template<typename To>
+      To* launder_as( const void* src ) = delete;
+      template<typename To>
+      To* launder_as( volatile void* src ) = delete;
+      template<typename To>
+      To* launder_as( const volatile void* src ) = delete;
+      template<typename To, typename R, typename... Args>
+      To* launder_as( R ( * )( Args... ) ) = delete;
+      template<typename To, typename R, typename... Args>
+      To* launder_as( R ( * )( Args...... ) ) = delete;
+#if __PGBAR_CXX17
+      template<typename To, typename R, typename... Args>
+      To* launder_as( R ( * )( Args... ) noexcept ) = delete;
+      template<typename To, typename R, typename... Args>
+      To* launder_as( R ( * )( Args...... ) noexcept ) = delete;
+#endif
 
 #if PGBAR__CXX14
       template<typename T, typename... Args>
-      PGBAR__INLINE_FN PGBAR__CXX23_CNSTXPR auto make_unique( Args&&... args )
+      PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX23_CNSTXPR auto make_unique( Args&&... args )
       {
         return std::make_unique<T>( std::forward<Args>( args )... );
       }
 #else
       // picking up the standard's mess...
       template<typename T, typename... Args>
-      PGBAR__INLINE_FN PGBAR__CXX23_CNSTXPR std::unique_ptr<T> make_unique( Args&&... args )
+      PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX23_CNSTXPR std::unique_ptr<T> make_unique( Args&&... args )
       {
         return std::unique_ptr<T>( new T( std::forward<Args>( args )... ) );
       }
