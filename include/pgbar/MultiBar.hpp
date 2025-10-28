@@ -224,11 +224,20 @@ namespace pgbar {
     void swap( Self& lhs ) noexcept { package_.swap( lhs.package_ ); }
     friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
 
-    template<_details::types::Size Pos, typename Mb>
-    friend PGBAR__INLINE_FN constexpr auto get( Mb&& self ) noexcept
-      -> decltype( std::forward<Mb>( self ).template at<Pos>() )
+    template<_details::types::Size Pos>
+    PGBAR__INLINE_FN constexpr BarAt_t<Pos>& get( Self& self ) noexcept
     {
-      return std::forward<Mb>( self ).template at<Pos>();
+      return self.template at<Pos>();
+    }
+    template<_details::types::Size Pos>
+    PGBAR__INLINE_FN constexpr const BarAt_t<Pos>& get( const Self& self ) noexcept
+    {
+      return self.template at<Pos>();
+    }
+    template<_details::types::Size Pos>
+    PGBAR__INLINE_FN constexpr BarAt_t<Pos>&& get( Self&& self ) noexcept
+    {
+      return std::move( self ).template at<Pos>();
     }
   };
 
@@ -300,9 +309,21 @@ namespace pgbar {
 
   namespace _details {
     namespace assets {
+      template<types::Size Cnt, Channel O, Policy M, Region A, typename B, types::Size... Is>
+      PGBAR__NODISCARD PGBAR__INLINE_FN typename std::enable_if<
+        traits::is_bar<typename std::decay<B>::type>::value,
+        MakeMulti_t<prefabs::BasicBar<typename std::decay<B>::type::Config, O, M, A>, Cnt>>::type
+        make_multi_helper( B&& bar, const traits::IndexSeq<Is...>& )
+          noexcept( traits::BoolConstant<( Cnt == 1 )>::value )
+      {
+        using Bar = typename std::decay<B>::type;
+        std::array<typename Bar::Config, Cnt - 1> cfgs { { ( (void)( Is ), bar.config() )... } };
+        return { std::forward<B>( bar ), Bar( std::move( cfgs[Is] ) )... };
+      }
       template<types::Size Cnt, Channel O, Policy M, Region A, typename C, types::Size... Is>
-      PGBAR__NODISCARD PGBAR__INLINE_FN
-        MakeMulti_t<prefabs::BasicBar<typename std::decay<C>::type, O, M, A>, Cnt>
+      PGBAR__NODISCARD PGBAR__INLINE_FN typename std::enable_if<
+        traits::is_config<typename std::decay<C>::type>::value,
+        MakeMulti_t<prefabs::BasicBar<typename std::decay<C>::type, O, M, A>, Cnt>>::type
         make_multi_helper( C&& cfg, const traits::IndexSeq<Is...>& ) noexcept(
           traits::AllOf<traits::BoolConstant<( Cnt == 1 )>, traits::Not<std::is_lvalue_reference<C>>>::value )
       {
@@ -328,7 +349,7 @@ namespace pgbar {
 #endif
     make_multi( _details::prefabs::BasicBar<Config, O, M, A>&& bar ) noexcept( Cnt == 1 )
   {
-    return _details::assets::make_multi_helper<Cnt, O, M, A>( std::move( bar ).config(),
+    return _details::assets::make_multi_helper<Cnt, O, M, A>( std::move( bar ),
                                                               _details::traits::MakeIndexSeq<Cnt - 1>() );
   }
   /**
