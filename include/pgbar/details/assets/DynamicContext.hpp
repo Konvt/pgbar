@@ -154,7 +154,7 @@ namespace pgbar {
                 }
               }
             }
-            render::Renderer<Outlet, Mode>::itself().appoint();
+            render::Renderer<Outlet, Mode>::itself().dismiss();
           }
           state_.store( State::Stop, std::memory_order_release );
           items_.clear();
@@ -280,7 +280,7 @@ namespace pgbar {
 
           if ( suspend_flag ) {
             state_.store( State::Stop, std::memory_order_release );
-            executor.appoint_then( []() noexcept { io::OStream<Outlet>::itself().release(); } );
+            executor.dismiss_then( []() noexcept { io::OStream<Outlet>::itself().release(); } );
           }
         }
 

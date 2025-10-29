@@ -324,7 +324,7 @@ namespace pgbar {
           PGBAR__ASSERT( executor.empty() == false );
           if ( !forced )
             executor.attempt();
-          executor.appoint_then( []() noexcept { io::OStream<Outlet>::itself().release(); } );
+          executor.dismiss_then( []() noexcept { io::OStream<Outlet>::itself().release(); } );
         }
         virtual void do_boot() & noexcept( false )
         {
@@ -379,7 +379,7 @@ namespace pgbar {
           try {
             executor.activate();
           } catch ( ... ) {
-            executor.appoint();
+            executor.dismiss();
             throw;
           }
         }

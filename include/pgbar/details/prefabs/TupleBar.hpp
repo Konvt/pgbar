@@ -92,7 +92,7 @@ namespace pgbar {
               executor.attempt();
             if ( alive_cnt_.fetch_sub( 1, std::memory_order_acq_rel ) == 1 ) {
               state_.store( State::Stop, std::memory_order_release );
-              executor.appoint_then( []() noexcept { io::OStream<Outlet>::itself().release(); } );
+              executor.dismiss_then( []() noexcept { io::OStream<Outlet>::itself().release(); } );
             }
           }
         }
@@ -145,7 +145,7 @@ namespace pgbar {
               executor.activate();
             } catch ( ... ) {
               state_.store( State::Stop, std::memory_order_release );
-              executor.appoint();
+              executor.dismiss();
               throw;
             }
           } else
