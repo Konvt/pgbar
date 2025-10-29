@@ -32,7 +32,7 @@ namespace pgbar {
           constexpr AnyFn() noexcept : dptr_ { nullptr } {}
         };
         struct VTable final {
-          const typename Derived::Invoker invoke;
+          const typename Derived::Delegate invoke;
           // The handling of function types by msvc is very strange:
           // it often triggers internal compiler errors for no apparent reason,
           // so here we have to manually write the function pointer type.
@@ -213,40 +213,9 @@ namespace pgbar {
         template<typename T>
         using Fn_t = typename std::
           conditional<std::is_const<typename std::remove_reference<CrefInfo>::type>::value, const T, T>::type;
-        template<typename As, typename T>
-        static PGBAR__INLINE_FN constexpr typename std::enable_if<
-          !std::is_reference<As>::value,
-          typename std::conditional<std::is_const<typename std::remove_reference<As>::type>::value,
-                                    const T&&,
-                                    T&&>::type>::type
-          forward_as( T&& param ) noexcept
-        {
-          return std::forward<T>( param );
-        }
-        template<typename As, typename T>
-        static PGBAR__INLINE_FN constexpr typename std::enable_if<
-          std::is_lvalue_reference<As>::value,
-          typename std::conditional<traits::AnyOf<std::is_const<typename std::remove_reference<As>::type>,
-                                                  std::is_rvalue_reference<T>>::value,
-                                    const typename std::remove_reference<T>::type&,
-                                    typename std::remove_reference<T>::type&>::type>::type
-          forward_as( T&& param ) noexcept
-        {
-          return param;
-        }
-        template<typename As, typename T>
-        static PGBAR__INLINE_FN constexpr typename std::enable_if<
-          std::is_rvalue_reference<As>::value,
-          typename std::conditional<std::is_const<typename std::remove_reference<As>::type>::value,
-                                    const typename std::remove_reference<T>::type&&,
-                                    typename std::remove_reference<T>::type>::type&&>::type
-          forward_as( T&& param ) noexcept
-        {
-          return std::move( param );
-        }
 
       protected:
-        using Invoker = R ( * )( const AnyFn&, Param_t<Args>... )
+        using Delegate = R ( * )( const AnyFn&, Param_t<Args>... )
 # if PGBAR__CXX17
           noexcept( Noexcept )
 # endif
@@ -263,14 +232,14 @@ namespace pgbar {
           noexcept( Noexcept )
         {
           const auto ptr = utils::launder_as<Fn_t<T>>( ( &const_cast<AnyFn&>( fn ).buf_ ) );
-          return utils::invoke( forward_as<CrefInfo>( *ptr ), std::forward<Args>( args )... );
+          return utils::invoke( utils::forward_as<CrefInfo>( *ptr ), std::forward<Args>( args )... );
         }
         template<typename T>
         static PGBAR__NOINLINE PGBAR__CXX14_CNSTXPR R invoke_dynamic( const AnyFn& fn, Param_t<Args>... args )
           noexcept( Noexcept )
         {
           const auto dptr = utils::launder_as<Fn_t<T>>( fn.dptr_ );
-          return utils::invoke( forward_as<CrefInfo>( *dptr ), std::forward<Args>( args )... );
+          return utils::invoke( utils::forward_as<CrefInfo>( *dptr ), std::forward<Args>( args )... );
         }
 
         constexpr FnInvokeBlock()                                          = default;
@@ -284,7 +253,8 @@ namespace pgbar {
       class UniqueFunction;
       template<typename R, typename... Args>
       class UniqueFunction<R( Args... )>
-        : public FnInvokeBlock<UniqueFunction<R( Args... )>, int, R, false, Args...> {
+        : public FnInvokeBlock<UniqueFunction<R( Args... )>, int&, R, false, Args...> {
+        // Function types without ref qualifier will be treated as non-const lvalue reference types.
         using Base = FnStorageBlock<UniqueFunction>;
 
       public:
