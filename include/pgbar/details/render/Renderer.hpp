@@ -44,7 +44,7 @@ namespace pgbar {
 
         Renderer( const Self& )          = delete;
         Self& operator=( const Self& ) & = delete;
-        ~Renderer() noexcept { appoint(); }
+        ~Renderer() noexcept { dismiss(); }
 
         // `activate` guarantees to perform the render task at least once.
         void activate() & noexcept( false )
@@ -74,22 +74,22 @@ namespace pgbar {
         }
 
         template<typename F>
-        void appoint_then( F&& noexpt_fn ) noexcept
+        void dismiss_then( F&& noexpt_fn ) noexcept
         {
           static_assert( noexcept( (void)noexpt_fn() ),
-                         "pgbar::_details::render::Renderer::appoint_then: Unsafe functor types" );
+                         "pgbar::_details::render::Renderer::dismiss_then: Unsafe functor types" );
 
           std::lock_guard<concurrent::SharedMutex> lock { mtx_ };
           if ( task_ != nullptr ) {
             state_.store( State::Quit, std::memory_order_release );
-            AsyncSlot<Tag>::itself().appoint();
+            AsyncSlot<Tag>::itself().dismiss();
             task_ = nullptr;
           }
           (void)noexpt_fn();
         }
-        void appoint() noexcept
+        void dismiss() noexcept
         {
-          appoint_then( []() noexcept {} );
+          dismiss_then( []() noexcept {} );
         }
         PGBAR__NODISCARD bool try_appoint( wrappers::UniqueFunction<void()>&& task ) & noexcept( false )
         {
@@ -180,7 +180,7 @@ namespace pgbar {
         Renderer( const Self& )        = delete;
         Self& operator=( const Self& ) = delete;
 
-        ~Renderer() noexcept { appoint(); }
+        ~Renderer() noexcept { dismiss(); }
 
         // `activate` guarantees to perform the render task at least once.
         void activate() & noexcept( false )
@@ -202,10 +202,10 @@ namespace pgbar {
         }
 
         template<typename F>
-        void appoint_then( F&& noexpt_fn ) noexcept
+        void dismiss_then( F&& noexpt_fn ) noexcept
         {
           static_assert( noexcept( (void)noexpt_fn() ),
-                         "pgbar::_details::render::Renderer::appoint_then: Unsafe functor types" );
+                         "pgbar::_details::render::Renderer::dismiss_then: Unsafe functor types" );
 
           std::lock_guard<concurrent::SharedMutex> lock { res_mtx_ };
           if ( task_ != nullptr ) {
@@ -214,14 +214,14 @@ namespace pgbar {
               std::lock_guard<std::mutex> lock { sched_mtx_ };
               cond_var_.notify_one();
             }
-            AsyncSlot<Tag>::itself().appoint();
+            AsyncSlot<Tag>::itself().dismiss();
             task_ = nullptr;
           }
           (void)noexpt_fn();
         }
-        void appoint() noexcept
+        void dismiss() noexcept
         {
-          appoint_then( []() noexcept {} );
+          dismiss_then( []() noexcept {} );
         }
 
         PGBAR__NODISCARD bool try_appoint( wrappers::UniqueFunction<void()>&& task ) & noexcept( false )

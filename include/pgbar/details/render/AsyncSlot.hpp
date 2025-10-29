@@ -51,7 +51,7 @@ namespace pgbar {
                   } break;
                   case State::Suspend: {
                     // An intermediate state, ensure that the background thread does not access task_ again
-                    // when it is suspended; otherwise, a race condition on task_ may occur in appoint().
+                    // when it is suspended; otherwise, a race condition on task_ may occur in dismiss().
                     auto expected = State::Suspend;
                     state_.compare_exchange_strong( expected, State::Dormant, std::memory_order_release );
                   } break;
@@ -145,7 +145,7 @@ namespace pgbar {
           }
         }
 
-        void appoint() noexcept
+        void dismiss() noexcept
         {
           suspend();
           std::lock_guard<concurrent::SharedMutex> lock { res_mtx_ };
