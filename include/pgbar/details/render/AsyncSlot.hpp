@@ -26,7 +26,7 @@ namespace pgbar {
         mutable concurrent::SharedMutex res_mtx_;
         mutable std::mutex sched_mtx_;
 
-        enum class State : std::uint8_t { Dormant, Active, Suspend, Dead };
+        enum class State : std::uint8_t { Idle, Dormant, Active, Dead };
         std::atomic<State> state_;
 
         void launch() & noexcept( false )
@@ -39,6 +39,14 @@ namespace pgbar {
               try {
                 while ( state_.load( std::memory_order_acquire ) != State::Dead ) {
                   switch ( state_.load( std::memory_order_acquire ) ) {
+                  case State::Idle: {
+                    // An intermediate state,
+                    // ensure that the background thread does not access task_ again when it is suspended;
+                    // otherwise, a race condition on task_ may occur in dismiss().
+                    auto expected = State::Idle;
+                    state_.compare_exchange_strong( expected, State::Dormant, std::memory_order_release );
+                  }
+                    PGBAR__FALLTHROUGH;
                   case State::Dormant: {
                     std::unique_lock<std::mutex> lock { sched_mtx_ };
                     cond_var_.wait( lock, [this]() noexcept {
@@ -48,12 +56,6 @@ namespace pgbar {
                   case State::Active: {
                     concurrent::SharedLock<concurrent::SharedMutex> lock { res_mtx_ };
                     task_();
-                  } break;
-                  case State::Suspend: {
-                    // An intermediate state, ensure that the background thread does not access task_ again
-                    // when it is suspended; otherwise, a race condition on task_ may occur in dismiss().
-                    auto expected = State::Suspend;
-                    state_.compare_exchange_strong( expected, State::Dormant, std::memory_order_release );
                   } break;
                   default: return;
                   }
@@ -109,12 +111,12 @@ namespace pgbar {
         void suspend() noexcept
         {
           auto expected = State::Active;
-          if ( state_.compare_exchange_strong( expected, State::Suspend, std::memory_order_release ) ) {
+          if ( state_.compare_exchange_strong( expected, State::Idle, std::memory_order_release ) ) {
             // Discard the current cycle's captured exception.
             // Reason: Delaying the exception and throwing it on the next `activate()` call is meaningless,
             // as it refers to a previous cycle's failure and will no longer be relevant in the new cycle.
             concurrent::spin_wait(
-              [this]() noexcept { return state_.load( std::memory_order_acquire ) != State::Suspend; } );
+              [this]() noexcept { return state_.load( std::memory_order_acquire ) != State::Idle; } );
             box_.clear();
           }
         }
@@ -139,7 +141,7 @@ namespace pgbar {
           auto try_update = [this]( State expected ) noexcept {
             return state_.compare_exchange_strong( expected, State::Active, std::memory_order_release );
           };
-          if ( try_update( State::Dormant ) || try_update( State::Suspend ) ) {
+          if ( try_update( State::Idle ) || try_update( State::Dormant ) ) {
             std::lock_guard<std::mutex> lock { sched_mtx_ };
             cond_var_.notify_one();
           }

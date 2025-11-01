@@ -166,10 +166,10 @@ namespace pgbar {
         mutable concurrent::SharedMutex res_mtx_;
         mutable std::mutex sched_mtx_;
 
-        enum class State : std::uint8_t { Dormant, Finish, Active, Quit };
+        enum class State : std::uint8_t { Finish, Dormant, Active, Quit };
         std::atomic<State> state_;
 
-        Renderer() noexcept : task_ {}, cond_var_ {}, res_mtx_ {}, sched_mtx_ {}, state_ { State::Dormant } {}
+        Renderer() noexcept : task_ {}, cond_var_ {}, res_mtx_ {}, sched_mtx_ {}, state_ { State::Quit } {}
 
       public:
         static Self& itself() noexcept
@@ -231,11 +231,13 @@ namespace pgbar {
                  while ( state_.load( std::memory_order_acquire ) != State::Quit )
                    try {
                      switch ( state_.load( std::memory_order_acquire ) ) {
-                     case State::Dormant: PGBAR__FALLTHROUGH;
-                     case State::Finish:  {
-                       std::unique_lock<std::mutex> lock { sched_mtx_ };
+                     case State::Finish: {
                        auto expected = State::Finish;
                        state_.compare_exchange_strong( expected, State::Dormant, std::memory_order_release );
+                     }
+                       PGBAR__FALLTHROUGH;
+                     case State::Dormant: {
+                       std::unique_lock<std::mutex> lock { sched_mtx_ };
                        cond_var_.wait( lock, [this]() noexcept {
                          return state_.load( std::memory_order_acquire ) != State::Dormant;
                        } );

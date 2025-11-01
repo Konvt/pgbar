@@ -25,8 +25,13 @@ int main()
     pgbar::config::Block( pgbar::option::Lead( { " ", "▖", "▞", "▛" } ),
                           pgbar::option::InfoColor( "#8AB7EB" ) ) );
   mbar.config<0>().tasks( ( std::tuple_size<decltype( mbar )>::value - 1 ) * 2 );
+  // Bind a callback that will be executed at the end of the iteration below.
   mbar.at<0>() |=
     [&]( pgbar::FlowBar<>& self ) { self.config().filler_color( pgbar::color::Green ).lead( "" ); };
+  // Bind a callback to mark that the current bar has been compeleted.
+  mbar.at<1>() |= [&]() { mbar.tick<0>(); };
+  mbar.at<2>() |= [&]() { mbar.tick<0>(); };
+  mbar.at<3>() |= [&]() { mbar.tick<0>(); };
 
   vector<thread> pool;
   pool.emplace_back( [&]() {
@@ -37,7 +42,6 @@ int main()
       mbar.tick<1>();
       this_thread::sleep_for( chrono::microseconds( uniform_int_distribution<>( 1, 1025 )( rd ) ) );
     }
-    mbar.tick<0>();
   } );
   pool.emplace_back( [&]() {
     mt19937 rd { random_device {}() };
@@ -45,14 +49,12 @@ int main()
     mbar.iterate<2>( 10000, [&rd]( int ) {
       this_thread::sleep_for( chrono::microseconds( uniform_int_distribution<>( 10, 1100 )( rd ) ) );
     } );
-    mbar.tick<0>();
   } );
   pool.emplace_back( [&]() {
     mt19937 rd { random_device {}() };
     mbar.tick<0>();
     for ( auto _ : mbar.iterate<3>( 80000 ) )
       this_thread::sleep_for( chrono::microseconds( uniform_int_distribution<>( 1, 1005 )( rd ) ) );
-    mbar.tick<0>();
   } );
 
   for ( auto& td : pool ) {

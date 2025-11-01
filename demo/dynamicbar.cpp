@@ -9,7 +9,7 @@ int main()
 {
   pgbar::DynamicBar<> dbar;
 
-  auto bar1 = dbar.insert<pgbar::ProgressBar<>>();
+  auto /* std::unique<BarType> */ bar1 = dbar.insert<pgbar::ProgressBar<>>();
   auto bar2 =
     dbar.insert( pgbar::config::Line( pgbar::option::Prefix( "No.2" ), pgbar::option::Tasks( 8000 ) ) );
 
@@ -32,18 +32,19 @@ int main()
   pool.emplace_back( [&dbar]() {
     auto bar =
       dbar.insert<pgbar::config::Line>( pgbar::option::Prefix( "No.3" ), pgbar::option::Tasks( 1000 ) );
+    // Do some ticks, then reset the current bar before completing.
     for ( int i = 0; i < 500; ++i ) {
       bar->tick();
       this_thread::sleep_for( chrono::milliseconds( 5 ) );
     }
     bar->reset();
 
-    // The "No.3" bar will reappear at the bottom of the terminal.
+    // Restart a new iteration, and the "No.3" bar will reappear at the bottom of the terminal.
     for ( int i = 0; i < 400; ++i ) {
       bar->tick();
       this_thread::sleep_for( chrono::milliseconds( 5 ) );
     }
-    // let it be destructed.
+    // Finally let it be destructed during running; it's safe.
   } );
 
   for ( auto& td : pool )
