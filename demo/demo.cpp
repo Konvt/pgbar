@@ -28,6 +28,7 @@ int main()
   vector<thread> pool;
   pool.emplace_back( [&]() {
     bool flag = true;
+    // Bind a callback executed at the end of the iteration below.
     bar.at<0>() |= [&]( pgbar::ProgressBar<>& self ) {
       if ( flag )
         self.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
