@@ -112,37 +112,37 @@ namespace pgbar {
       friend Base;
 
       template<typename ArgSet>
-      void initialize()
+      static void inject( Base& self )
       {
         // The types in the tuple are never repeated.
         static_assert( _details::traits::InstanceOf<ArgSet, _details::traits::TypeSet>::value,
                        "pgbar::config::Line::initialize: Invalid template type" );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Reversed>::value )
-          unpacker( *this, option::Reversed( false ) );
+          unpacker( self, option::Reversed( false ) );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Shift>::value )
-          unpacker( *this, option::Shift( -2 ) );
+          unpacker( self, option::Shift( -2 ) );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Lead>::value )
-          unpacker( *this, option::Lead( u8">" ) );
+          unpacker( self, option::Lead( u8">" ) );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Starting>::value )
-          unpacker( *this, option::Starting( u8"[" ) );
+          unpacker( self, option::Starting( u8"[" ) );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Ending>::value )
-          unpacker( *this, option::Ending( u8"]" ) );
+          unpacker( self, option::Ending( u8"]" ) );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::BarWidth>::value )
-          unpacker( *this, option::BarWidth( 30 ) );
+          unpacker( self, option::BarWidth( 30 ) );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Filler>::value )
-          unpacker( *this, option::Filler( u8"=" ) );
+          unpacker( self, option::Filler( u8"=" ) );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Remains>::value )
-          unpacker( *this, option::Remains( u8" " ) );
+          unpacker( self, option::Remains( u8" " ) );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Divider>::value )
-          unpacker( *this, option::Divider( u8" | " ) );
+          unpacker( self, option::Divider( u8" | " ) );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::InfoColor>::value )
-          unpacker( *this, option::InfoColor( color::Cyan ) );
+          unpacker( self, option::InfoColor( color::Cyan ) );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::SpeedUnit>::value )
-          unpacker( *this, option::SpeedUnit( { u8"Hz", u8"kHz", u8"MHz", u8"GHz" } ) );
+          unpacker( self, option::SpeedUnit( { u8"Hz", u8"kHz", u8"MHz", u8"GHz" } ) );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Magnitude>::value )
-          unpacker( *this, option::Magnitude( 1000 ) );
+          unpacker( self, option::Magnitude( 1000 ) );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Style>::value )
-          unpacker( *this, option::Style( Base::Entire ) );
+          unpacker( self, option::Style( Base::Entire ) );
       }
 
     protected:

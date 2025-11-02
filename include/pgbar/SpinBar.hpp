@@ -46,24 +46,24 @@ namespace pgbar {
       friend Base;
 
       template<typename ArgSet>
-      void initialize()
+      static void inject( Base& self )
       {
         static_assert( _details::traits::InstanceOf<ArgSet, _details::traits::TypeSet>::value,
                        "pgbar::config::Spin::initialize: Invalid template type" );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Shift>::value )
-          unpacker( *this, option::Shift( -3 ) );
+          unpacker( self, option::Shift( -3 ) );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Lead>::value )
-          unpacker( *this, option::Lead( { u8"/", u8"-", u8"\\", u8"|" } ) );
+          unpacker( self, option::Lead( { u8"/", u8"-", u8"\\", u8"|" } ) );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Divider>::value )
-          unpacker( *this, option::Divider( u8" | " ) );
+          unpacker( self, option::Divider( u8" | " ) );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::InfoColor>::value )
-          unpacker( *this, option::InfoColor( color::Cyan ) );
+          unpacker( self, option::InfoColor( color::Cyan ) );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::SpeedUnit>::value )
-          unpacker( *this, option::SpeedUnit( { u8"Hz", u8"kHz", u8"MHz", u8"GHz" } ) );
+          unpacker( self, option::SpeedUnit( { u8"Hz", u8"kHz", u8"MHz", u8"GHz" } ) );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Magnitude>::value )
-          unpacker( *this, option::Magnitude( 1000 ) );
+          unpacker( self, option::Magnitude( 1000 ) );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Style>::value )
-          unpacker( *this, option::Style( Base::Ani | Base::Elpsd ) );
+          unpacker( self, option::Style( Base::Ani | Base::Elpsd ) );
       }
 
     protected:
