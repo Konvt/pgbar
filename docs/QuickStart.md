@@ -2499,7 +2499,7 @@ The rendering strategy of `MutliBar` is the same as that of the sole progress ba
 
 Because `MutliBar` renders multiple progress bars simultaneously on multiple lines, when using `pgbar::Region::Relative`, the number of lines occupied by the rendering structure of the progress bar will be determined by the number of progress bar types accommodated by `MutliBar`.
 
-The number of progress bars accommodated by `MutliBar` can be obtained by the `active_size()` method, and the number of rows occupied by the rendering structure will be the number returned by this method +1.
+The number of progress bars accommodated by `MutliBar` can be obtained by the `active_count()` method, and the number of rows occupied by the rendering structure will be the number returned by this method +1.
 
 For example:
 
@@ -2522,8 +2522,8 @@ int main()
   }
 
   std::cerr << "Extra log information";
-  // Notice: At least `active_size() + 1` nextline must be inserted after the output information
-  for ( size_t i = 0; i < bar.active_size() + 1; ++i )
+  // Notice: At least `active_count() + 1` nextline must be inserted after the output information
+  for ( size_t i = 0; i < bar.active_count() + 1; ++i )
     std::cerr << '\n';
   std::cerr << std::flush;
 
@@ -2698,7 +2698,7 @@ The rendering strategy of `DynamicBar` is the same as that of the sole progress 
 
 Because `DynamicBar` renders multiple progress bars simultaneously on multiple lines, when using `pgbar::Region::Relative`, the number of lines occupied by the rendering structure of the progress bar will be determined by the number of running progress bars in `DynamicBar`.
 
-The number of running progress bars by `DynamicBar` can be obtained by the `active_size()` method, and the number of rows occupied by the rendering structure will be the number returned by this method +1.
+The number of running progress bars by `DynamicBar` can be obtained by the `active_count()` method, and the number of rows occupied by the rendering structure will be the number returned by this method +1.
 
 For example:
 
@@ -2722,8 +2722,8 @@ int main()
   }
 
   std::cerr << "Extra log information";
-  // Notice: At least `active_size() + 1` nextline must be inserted after the output information
-  for ( size_t i = 0; i < dbar.active_size() + 1; ++i )
+  // Notice: At least `active_count() + 1` nextline must be inserted after the output information
+  for ( size_t i = 0; i < dbar.active_count() + 1; ++i )
     std::cerr << '\n';
   std::cerr << std::flush;
 

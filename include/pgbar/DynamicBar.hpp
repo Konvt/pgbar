@@ -54,7 +54,7 @@ namespace pgbar {
       _details::concurrent::SharedLock<_details::concurrent::SharedMutex> lock { mtx_ };
       return core_ != nullptr ? core_.use_count() - 1 : 0;
     }
-    PGBAR__NODISCARD PGBAR__INLINE_FN _details::types::Size active_size() const noexcept
+    PGBAR__NODISCARD PGBAR__INLINE_FN _details::types::Size active_count() const noexcept
     {
       _details::concurrent::SharedLock<_details::concurrent::SharedMutex> lock { mtx_ };
       return core_ != nullptr ? core_->online_count() : 0;

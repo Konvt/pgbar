@@ -1,3 +1,5 @@
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/Konvt/pgbar)
+
 ## 特点
 - **Header-only**: 所有功能都包含在 `include/pgbar` 下的单个 `.hpp` 文件中。
 - **低运行时开销**: 纳秒级别的调用开销。[^1]
