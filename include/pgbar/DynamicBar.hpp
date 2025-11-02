@@ -1,13 +1,13 @@
 #ifndef PGBAR_DYNAMICBAR
 #define PGBAR_DYNAMICBAR
 
-#include "details/assets/DynamicContext.hpp"
+#include "details/assets/DynContext.hpp"
 
 namespace pgbar {
   template<Channel Outlet = Channel::Stderr, Policy Mode = Policy::Async, Region Area = Region::Fixed>
   class DynamicBar {
     using Self    = DynamicBar;
-    using Context = _details::assets::DynamicContext<Outlet, Mode, Area>;
+    using Context = _details::assets::DynContext<Outlet, Mode, Area>;
 
     std::shared_ptr<Context> core_;
     mutable _details::concurrent::SharedMutex mtx_;

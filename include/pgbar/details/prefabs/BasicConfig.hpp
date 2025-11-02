@@ -154,7 +154,7 @@ namespace pgbar {
 #endif
         PGBAR__CXX23_CNSTXPR BasicConfig( Args... args )
         {
-          static_cast<Derived*>( this )->template initialize<traits::TypeSet<Args...>>();
+          Derived::template inject<traits::TypeSet<Args...>>( *this );
           (void)std::initializer_list<bool> { ( unpacker( *this, std::move( args ) ), false )... };
         }
 

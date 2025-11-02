@@ -8,14 +8,14 @@ namespace pgbar {
   namespace _details {
     namespace assets {
       template<Channel, Policy, Region>
-      class DynamicContext;
+      class DynContext;
     }
 
     namespace prefabs {
       template<typename C, Channel O, Policy M, Region A>
       class ManagedBar final : public BasicBar<C, O, M, A> {
         using Base    = BasicBar<C, O, M, A>;
-        using Context = std::shared_ptr<assets::DynamicContext<O, M, A>>;
+        using Context = std::shared_ptr<assets::DynContext<O, M, A>>;
 
         Context context_;
 

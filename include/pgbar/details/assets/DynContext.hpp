@@ -1,5 +1,5 @@
-#ifndef PGBAR__DYNAMICCONTEXT
-#define PGBAR__DYNAMICCONTEXT
+#ifndef PGBAR__DYNCONTEXT
+#define PGBAR__DYNCONTEXT
 
 #include "../prefabs/ManagedBar.hpp"
 
@@ -7,7 +7,7 @@ namespace pgbar {
   namespace _details {
     namespace assets {
       template<Channel Outlet, Policy Mode, Region Area>
-      class DynamicContext final {
+      class DynContext final {
         struct Slot final {
         private:
           using Self = Slot;
@@ -17,7 +17,7 @@ namespace pgbar {
           {
             static_assert(
               traits::AllOf<std::is_base_of<Indicator, Derived>, traits::is_bar<Derived>>::value,
-              "pgbar::_details::assets::DynamicContext::Slot::shut: Derived must inherit from Indicator" );
+              "pgbar::_details::assets::DynContext::Slot::shut: Derived must inherit from Indicator" );
             PGBAR__TRUST( item != nullptr );
             static_cast<Derived*>( item )->reset();
           }
@@ -26,7 +26,7 @@ namespace pgbar {
           {
             static_assert(
               traits::AllOf<std::is_base_of<Indicator, Derived>, traits::is_bar<Derived>>::value,
-              "pgbar::_details::assets::DynamicContext::Slot::kill: Derived must inherit from Indicator" );
+              "pgbar::_details::assets::DynContext::Slot::kill: Derived must inherit from Indicator" );
             PGBAR__TRUST( item != nullptr );
             static_cast<Derived*>( item )->abort();
           }
@@ -35,7 +35,7 @@ namespace pgbar {
           {
             static_assert(
               traits::AllOf<std::is_base_of<Indicator, Derived>, traits::is_bar<Derived>>::value,
-              "pgbar::_details::assets::DynamicContext::Slot::render: Derived must inherit from Indicator" );
+              "pgbar::_details::assets::DynContext::Slot::render: Derived must inherit from Indicator" );
             PGBAR__TRUST( item != nullptr );
             make_frame( static_cast<Derived&>( *item ) );
           }
@@ -60,7 +60,7 @@ namespace pgbar {
         // the variable represents the number of lines that need to be discarded;
         // If Area is equal to Region::Relative,
         // the variable represents the number of nextlines output last time.
-        std::atomic<types::Size> num_modified_lines_;
+        std::atomic<std::uint64_t> num_modified_lines_;
         mutable concurrent::SharedMutex res_mtx_;
         mutable std::mutex sched_mtx_;
 
@@ -161,12 +161,12 @@ namespace pgbar {
         }
 
       public:
-        DynamicContext() noexcept
+        DynContext() noexcept
           : items_ {}, num_modified_lines_ { 0 }, res_mtx_ {}, sched_mtx_ {}, state_ { State::Stop }
         {}
-        DynamicContext( const DynamicContext& )              = delete;
-        DynamicContext& operator=( const DynamicContext& ) & = delete;
-        ~DynamicContext() noexcept { kill(); }
+        DynContext( const DynContext& )              = delete;
+        DynContext& operator=( const DynContext& ) & = delete;
+        ~DynContext() noexcept { kill(); }
 
         void shut() { do_shut<false>(); }
         void kill() noexcept { do_shut<true>(); }
