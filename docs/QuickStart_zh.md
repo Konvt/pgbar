@@ -2497,7 +2497,7 @@ int main()
 
 因为 `MutliBar` 会在多行同时渲染多个进度条，因此使用 `pgbar::Region::Relative` 时，进度条的渲染结构所占的行数将会由 `MutliBar` 容纳的进度条类型数量决定。
 
-`MutliBar` 容纳的进度条数量可由 `active_size()` 方法得到，而渲染结构所占行数将会是该方法返回的数量 +1。
+`MutliBar` 容纳的进度条数量可由 `active_count()` 方法得到，而渲染结构所占行数将会是该方法返回的数量 +1。
 
 示例：
 
@@ -2520,8 +2520,8 @@ int main()
   }
 
   std::cerr << "Extra log information";
-  // Notice: At least `active_size() + 1` nextline must be inserted after the output information
-  for ( size_t i = 0; i < bar.active_size() + 1; ++i )
+  // Notice: At least `active_count() + 1` nextline must be inserted after the output information
+  for ( size_t i = 0; i < bar.active_count() + 1; ++i )
     std::cerr << '\n';
   std::cerr << std::flush;
 
@@ -2692,7 +2692,7 @@ int main()
 
 因为 `DynamicBar` 会在多行同时渲染多个进度条，因此使用 `pgbar::Region::Relative` 时，进度条的渲染结构所占的行数将会由 `DynamicBar` 中正在运行的进度条数量决定。
 
-`DynamicBar` 容纳的进度条数量可由 `active_size()` 方法得到，而渲染结构所占行数将会是该方法返回的数量 +1。
+`DynamicBar` 容纳的进度条数量可由 `active_count()` 方法得到，而渲染结构所占行数将会是该方法返回的数量 +1。
 
 示例：
 
@@ -2716,8 +2716,8 @@ int main()
   }
 
   std::cerr << "Extra log information";
-  // Notice: At least `active_size() + 1` nextline must be inserted after the output information
-  for ( size_t i = 0; i < dbar.active_size() + 1; ++i )
+  // Notice: At least `active_count() + 1` nextline must be inserted after the output information
+  for ( size_t i = 0; i < dbar.active_count() + 1; ++i )
     std::cerr << '\n';
   std::cerr << std::flush;
 

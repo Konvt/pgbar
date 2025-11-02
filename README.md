@@ -1,5 +1,7 @@
 [中文文档见此](docs/README_zh.md)。
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/Konvt/pgbar)
+
 ## Features
 - **Header-only design**: All functionality contained within a single `.hpp` file in `include/pgbar`.
 - **Low-overhead updates**: Nanosecond level cost per call.[^1]

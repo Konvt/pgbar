@@ -90,7 +90,7 @@ namespace pgbar {
       return sizeof...( Configs ) + 1;
     }
     // Returns the number of progress bars which is running.
-    PGBAR__NODISCARD PGBAR__INLINE_FN _details::types::Size active_size() const noexcept
+    PGBAR__NODISCARD PGBAR__INLINE_FN _details::types::Size active_count() const noexcept
     {
       return package_.online_count();
     }
