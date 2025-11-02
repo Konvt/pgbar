@@ -554,7 +554,7 @@ int main()
 }
 ```
 
-The type of the callback function passed must satisfy `std::is_move_constructible`; and **should not** call any methods other than `config()` and `progress()` within the callback, otherwise it will lead to a *deadlock*.
+The type of the callback function passed must satisfy `std::is_move_constructible`; and **should not** call any non-const methods within the callback (such as `tick()` or `reset()`, excepted `config()`), otherwise it will lead to a *deadlock*.
 
 If you want to manually terminate the operation of an object and skip the execution of the callback function, you can call the object's `abort()` method.
 
@@ -1015,7 +1015,7 @@ int main()
 }
 ```
 
-The type of the callback function passed must satisfy `std::is_move_constructible`; and **should not** call any methods other than `config()` and `progress()` within the callback, otherwise it will lead to a *deadlock*.
+The type of the callback function passed must satisfy `std::is_move_constructible`; and **should not** call any non-const methods within the callback (such as `tick()` or `reset()`, excepted `config()`), otherwise it will lead to a *deadlock*.
 
 If you want to manually terminate the operation of an object and skip the execution of the callback function, you can call the object's `abort()` method.
 
@@ -1443,7 +1443,7 @@ int main()
 }
 ```
 
-The type of the callback function passed must satisfy `std::is_move_constructible`; and **should not** call any methods other than `config()` and `progress()` within the callback, otherwise it will lead to a *deadlock*.
+The type of the callback function passed must satisfy `std::is_move_constructible`; and **should not** call any non-const methods within the callback (such as `tick()` or `reset()`, excepted `config()`), otherwise it will lead to a *deadlock*.
 
 If you want to manually terminate the operation of an object and skip the execution of the callback function, you can call the object's `abort()` method.
 
@@ -1901,7 +1901,7 @@ int main()
 }
 ```
 
-The type of the callback function passed must satisfy `std::is_move_constructible`; and **should not** call any methods other than `config()` and `progress()` within the callback, otherwise it will lead to a *deadlock*.
+The type of the callback function passed must satisfy `std::is_move_constructible`; and **should not** call any non-const methods within the callback (such as `tick()` or `reset()`, excepted `config()`), otherwise it will lead to a *deadlock*.
 
 If you want to manually terminate the operation of an object and skip the execution of the callback function, you can call the object's `abort()` method.
 
@@ -2359,7 +2359,7 @@ int main()
 }
 ```
 
-The type of the callback function passed must satisfy `std::is_move_constructible`; and **should not** call any methods other than `config()` and `progress()` within the callback, otherwise it will lead to a *deadlock*.
+The type of the callback function passed must satisfy `std::is_move_constructible`; and **should not** call any non-const methods within the callback (such as `tick()` or `reset()`, excepted `config()`), otherwise it will lead to a *deadlock*.
 
 If you want to manually terminate the operation of an object and skip the execution of the callback function, you can call the object's `abort()` method.
 
