@@ -554,7 +554,7 @@ int main()
 }
 ```
 
-传递的回调函数类型必须满足 `std::is_move_constructible`；并且**不应该**在回调内部调用除了 `config()` 和 `progress()` 之外的方法，否则会导致*死锁*。
+传递的回调函数类型必须满足 `std::is_move_constructible`；并且**不应该**在回调内部调用非 const 方法（例如 `tick()` 或 `reset()`，但 `config()` 除外），否则会导致*死锁*。
 
 如果希望手动终止对象运行、并且跳过回调函数的执行，那么可以调用对象的 `abort()` 方法。
 
@@ -1015,7 +1015,7 @@ int main()
 }
 ```
 
-传递的回调函数类型必须满足 `std::is_move_constructible`；并且**不应该**在回调内部调用除了 `config()` 和 `progress()` 之外的方法，否则会导致*死锁*。
+传递的回调函数类型必须满足 `std::is_move_constructible`；并且**不应该**在回调内部调用非 const 方法（例如 `tick()` 或 `reset()`，但 `config()` 除外），否则会导致*死锁*。
 
 如果希望手动终止对象运行、并且跳过回调函数的执行，那么可以调用对象的 `abort()` 方法。
 
@@ -1443,7 +1443,7 @@ int main()
 }
 ```
 
-传递的回调函数类型必须满足 `std::is_move_constructible`；并且**不应该**在回调内部调用除了 `config()` 和 `progress()` 之外的方法，否则会导致*死锁*。
+传递的回调函数类型必须满足 `std::is_move_constructible`；并且**不应该**在回调内部调用非 const 方法（例如 `tick()` 或 `reset()`，但 `config()` 除外），否则会导致*死锁*。
 
 如果希望手动终止对象运行、并且跳过回调函数的执行，那么可以调用对象的 `abort()` 方法。
 
@@ -1902,7 +1902,7 @@ int main()
 }
 ```
 
-传递的回调函数类型必须满足 `std::is_move_constructible`；并且**不应该**在回调内部调用除了 `config()` 和 `progress()` 之外的方法，否则会导致*死锁*。
+传递的回调函数类型必须满足 `std::is_move_constructible`；并且**不应该**在回调内部调用非 const 方法（例如 `tick()` 或 `reset()`，但 `config()` 除外），否则会导致*死锁*。
 
 如果希望手动终止对象运行、并且跳过回调函数的执行，那么可以调用对象的 `abort()` 方法。
 
@@ -2361,7 +2361,7 @@ int main()
 }
 ```
 
-传递的回调函数类型必须满足 `std::is_move_constructible`；并且**不应该**在回调内部调用除了 `config()` 和 `progress()` 之外的方法，否则会导致*死锁*。
+传递的回调函数类型必须满足 `std::is_move_constructible`；并且**不应该**在回调内部调用非 const 方法（例如 `tick()` 或 `reset()`，但 `config()` 除外），否则会导致*死锁*。
 
 如果希望手动终止对象运行、并且跳过回调函数的执行，那么可以调用对象的 `abort()` 方法。
 
