@@ -16,20 +16,20 @@ namespace pgbar {
   // The Basic components of the progress bar.
   namespace _details {
     namespace assets {
-#define PGBAR__NONEMPTY_COMPONENT( ClassName, Constexpr )         \
-  Constexpr ClassName( const ClassName& )              = default; \
-  Constexpr ClassName( ClassName&& )                   = default; \
-  Constexpr ClassName& operator=( const ClassName& ) & = default; \
-  Constexpr ClassName& operator=( ClassName&& ) &      = default; \
-  PGBAR__CXX20_CNSTXPR ~ClassName()                    = default;
+#define PGBAR__NONEMPTY_COMPONENT( ClassName, Constexpr )        \
+  Constexpr ClassName( const ClassName& )             = default; \
+  Constexpr ClassName( ClassName&& )                  = default; \
+  Constexpr ClassName& operator=( const ClassName& )& = default; \
+  Constexpr ClassName& operator=( ClassName&& )&      = default; \
+  PGBAR__CXX20_CNSTXPR ~ClassName()                   = default;
 
-#define PGBAR__EMPTY_COMPONENT( ClassName )                                  \
-  constexpr ClassName()                                           = default; \
-  constexpr ClassName( const ClassName& )                         = default; \
-  constexpr ClassName( ClassName&& )                              = default; \
-  PGBAR__CXX14_CNSTXPR ClassName& operator=( const ClassName& ) & = default; \
-  PGBAR__CXX14_CNSTXPR ClassName& operator=( ClassName&& ) &      = default; \
-  PGBAR__CXX20_CNSTXPR ~ClassName()                               = default;
+#define PGBAR__EMPTY_COMPONENT( ClassName )                                 \
+  constexpr ClassName()                                          = default; \
+  constexpr ClassName( const ClassName& )                        = default; \
+  constexpr ClassName( ClassName&& )                             = default; \
+  PGBAR__CXX14_CNSTXPR ClassName& operator=( const ClassName& )& = default; \
+  PGBAR__CXX14_CNSTXPR ClassName& operator=( ClassName&& )&      = default; \
+  PGBAR__CXX20_CNSTXPR ~ClassName()                              = default;
 
       template<typename Derived>
       class CoreConfig {
@@ -94,15 +94,9 @@ namespace pgbar {
   return static_cast<Derived&>( *this )
 
         // Enable or disable the color effect.
-        Derived& colored( bool _enable ) & noexcept
-        {
-          PGBAR__METHOD( Colored, _enable );
-        }
+        Derived& colored( bool _enable ) & noexcept { PGBAR__METHOD( Colored, _enable ); }
         // Enable or disable the bold effect.
-        Derived& bolded( bool _enable ) & noexcept
-        {
-          PGBAR__METHOD( Bolded, _enable );
-        }
+        Derived& bolded( bool _enable ) & noexcept { PGBAR__METHOD( Bolded, _enable ); }
 
 #undef PGBAR__METHOD
 #define PGBAR__METHOD( Offset )                                     \
@@ -110,22 +104,13 @@ namespace pgbar {
   return fonts_[utils::as_val( Mask::Offset )]
 
         // Check whether the color effect is enabled.
-        PGBAR__NODISCARD bool colored() const noexcept
-        {
-          PGBAR__METHOD( Colored );
-        }
+        PGBAR__NODISCARD bool colored() const noexcept { PGBAR__METHOD( Colored ); }
         // Check whether the bold effect is enabled.
-        PGBAR__NODISCARD bool bolded() const noexcept
-        {
-          PGBAR__METHOD( Bolded );
-        }
+        PGBAR__NODISCARD bool bolded() const noexcept { PGBAR__METHOD( Bolded ); }
 
 #undef PGBAR__METHOD
 
-        PGBAR__CXX14_CNSTXPR void swap( CoreConfig& lhs ) noexcept
-        {
-          std::swap( fonts_, lhs.fonts_ );
-        }
+        PGBAR__CXX14_CNSTXPR void swap( CoreConfig& lhs ) noexcept { std::swap( fonts_, lhs.fonts_ ); }
       };
 
       template<typename Base, typename Derived>
@@ -248,44 +233,26 @@ namespace pgbar {
          *
          * If the passed parameters are not coding in UTF-8.
          */
-        Derived& lead( std::vector<types::String> _leads ) &
-        {
-          PGBAR__METHOD( Lead, _leads, std::move );
-        }
+        Derived& lead( std::vector<types::String> _leads ) & { PGBAR__METHOD( Lead, _leads, std::move ); }
         /**
          * @throw exception::InvalidArgument
          *
          * If the passed parameters are not coding in UTF-8.
          */
-        Derived& lead( types::String _lead ) &
-        {
-          PGBAR__METHOD( Lead, _lead, std::move );
-        }
+        Derived& lead( types::String _lead ) & { PGBAR__METHOD( Lead, _lead, std::move ); }
 #if PGBAR__CXX20
-        Derived& lead( const std::vector<types::LitU8>& _leads ) &
-        {
-          PGBAR__METHOD( Lead, _leads, );
-        }
-        Derived& lead( types::LitU8 _lead ) &
-        {
-          PGBAR__METHOD( Lead, _lead, );
-        }
+        Derived& lead( const std::vector<types::LitU8>& _leads ) & { PGBAR__METHOD( Lead, _leads, ); }
+        Derived& lead( types::LitU8 _lead ) & { PGBAR__METHOD( Lead, _lead, ); }
 #endif
 
         // Set the color of the component `lead`.
-        Derived& lead_color( types::HexRGB _lead_color ) &
-        {
-          PGBAR__METHOD( LeadColor, _lead_color, );
-        }
+        Derived& lead_color( types::HexRGB _lead_color ) & { PGBAR__METHOD( LeadColor, _lead_color, ); }
         /**
          * @throw exception::InvalidArgument
          *
          * If the passed parameters is not a valid RGB color string.
          */
-        Derived& lead_color( types::ROStr _lead_color ) &
-        {
-          PGBAR__METHOD( LeadColor, _lead_color, );
-        }
+        Derived& lead_color( types::ROStr _lead_color ) & { PGBAR__METHOD( LeadColor, _lead_color, ); }
 
 #undef PGBAR__METHOD
 
@@ -328,15 +295,9 @@ namespace pgbar {
          *
          * If the passed parameters are not coding in UTF-8.
          */
-        Derived& filler( types::String _filler ) &
-        {
-          PGBAR__METHOD( Filler, _filler, std::move );
-        }
+        Derived& filler( types::String _filler ) & { PGBAR__METHOD( Filler, _filler, std::move ); }
 #if PGBAR__CXX20
-        Derived& filler( types::LitU8 _filler ) &
-        {
-          PGBAR__METHOD( Filler, _filler, );
-        }
+        Derived& filler( types::LitU8 _filler ) & { PGBAR__METHOD( Filler, _filler, ); }
 #endif
         Derived& filler_color( types::HexRGB _filler_color ) &
         {
@@ -404,15 +365,9 @@ namespace pgbar {
          *
          * If the passed parameters are not coding in UTF-8.
          */
-        Derived& remains( types::String _remains ) &
-        {
-          PGBAR__METHOD( Remains, _remains, std::move );
-        }
+        Derived& remains( types::String _remains ) & { PGBAR__METHOD( Remains, _remains, std::move ); }
 #if PGBAR__CXX20
-        Derived& remains( types::LitU8 _remains ) &
-        {
-          PGBAR__METHOD( Remains, _remains, );
-        }
+        Derived& remains( types::LitU8 _remains ) & { PGBAR__METHOD( Remains, _remains, ); }
 #endif
 #undef PGBAR__METHOD
 
@@ -500,61 +455,34 @@ namespace pgbar {
          *
          * If the passed parameters are not coding in UTF-8.
          */
-        Derived& starting( types::String _starting ) &
-        {
-          PGBAR__METHOD( Starting, _starting, std::move );
-        }
+        Derived& starting( types::String _starting ) & { PGBAR__METHOD( Starting, _starting, std::move ); }
         /**
          * @throw exception::InvalidArgument
          *
          * If the passed parameters are not coding in UTF-8.
          */
-        Derived& ending( types::String _ending ) &
-        {
-          PGBAR__METHOD( Ending, _ending, std::move );
-        }
+        Derived& ending( types::String _ending ) & { PGBAR__METHOD( Ending, _ending, std::move ); }
 #if PGBAR__CXX20
-        Derived& starting( types::LitU8 _starting ) &
-        {
-          PGBAR__METHOD( Starting, _starting, );
-        }
-        Derived& ending( types::LitU8 _ending ) &
-        {
-          PGBAR__METHOD( Ending, _ending, );
-        }
+        Derived& starting( types::LitU8 _starting ) & { PGBAR__METHOD( Starting, _starting, ); }
+        Derived& ending( types::LitU8 _ending ) & { PGBAR__METHOD( Ending, _ending, ); }
 #endif
 
-        Derived& start_color( types::HexRGB _start_color ) &
-        {
-          PGBAR__METHOD( StartColor, _start_color, );
-        }
+        Derived& start_color( types::HexRGB _start_color ) & { PGBAR__METHOD( StartColor, _start_color, ); }
         /**
          * @throw exception::InvalidArgument
          *
          * If the passed parameters is not a valid RGB color string.
          */
-        Derived& start_color( types::ROStr _start_color ) &
-        {
-          PGBAR__METHOD( StartColor, _start_color, );
-        }
-        Derived& end_color( types::HexRGB _end_color ) &
-        {
-          PGBAR__METHOD( EndColor, _end_color, );
-        }
+        Derived& start_color( types::ROStr _start_color ) & { PGBAR__METHOD( StartColor, _start_color, ); }
+        Derived& end_color( types::HexRGB _end_color ) & { PGBAR__METHOD( EndColor, _end_color, ); }
         /**
          * @throw exception::InvalidArgument
          *
          * If the passed parameters is not a valid RGB color string.
          */
-        Derived& end_color( types::ROStr _end_color ) &
-        {
-          PGBAR__METHOD( EndColor, _end_color, );
-        }
+        Derived& end_color( types::ROStr _end_color ) & { PGBAR__METHOD( EndColor, _end_color, ); }
         // Set the width of the bar indicator.
-        Derived& bar_width( types::Size _width ) & noexcept
-        {
-          PGBAR__METHOD( BarWidth, _width, );
-        }
+        Derived& bar_width( types::Size _width ) & noexcept { PGBAR__METHOD( BarWidth, _width, ); }
 
         PGBAR__NODISCARD types::Size bar_width() const noexcept
         {
@@ -616,31 +544,19 @@ namespace pgbar {
          *
          * If the passed parameters are not coding in UTF-8.
          */
-        Derived& prefix( types::String _prefix ) &
-        {
-          PGBAR__METHOD( Prefix, _prefix, std::move );
-        }
+        Derived& prefix( types::String _prefix ) & { PGBAR__METHOD( Prefix, _prefix, std::move ); }
 
 #if PGBAR__CXX20
-        Derived& prefix( types::LitU8 _prefix ) &
-        {
-          PGBAR__METHOD( Prefix, _prefix, );
-        }
+        Derived& prefix( types::LitU8 _prefix ) & { PGBAR__METHOD( Prefix, _prefix, ); }
 #endif
 
-        Derived& prefix_color( types::HexRGB _prfx_color ) &
-        {
-          PGBAR__METHOD( PrefixColor, _prfx_color, );
-        }
+        Derived& prefix_color( types::HexRGB _prfx_color ) & { PGBAR__METHOD( PrefixColor, _prfx_color, ); }
         /**
          * @throw exception::InvalidArgument
          *
          * If the passed parameters is not a valid RGB color string.
          */
-        Derived& prefix_color( types::ROStr _prfx_color ) &
-        {
-          PGBAR__METHOD( PrefixColor, _prfx_color, );
-        }
+        Derived& prefix_color( types::ROStr _prfx_color ) & { PGBAR__METHOD( PrefixColor, _prfx_color, ); }
 
 #undef PGBAR__METHOD
 
@@ -694,15 +610,9 @@ namespace pgbar {
          *
          * If the passed parameters are not coding in UTF-8.
          */
-        Derived& postfix( types::String _postfix ) &
-        {
-          PGBAR__METHOD( Postfix, _postfix, std::move );
-        }
+        Derived& postfix( types::String _postfix ) & { PGBAR__METHOD( Postfix, _postfix, std::move ); }
 #if PGBAR__CXX20
-        Derived& postfix( types::LitU8 _postfix ) &
-        {
-          PGBAR__METHOD( Postfix, _postfix, );
-        }
+        Derived& postfix( types::LitU8 _postfix ) & { PGBAR__METHOD( Postfix, _postfix, ); }
 #endif
 
         Derived& postfix_color( types::HexRGB _pstfx_color ) &
@@ -771,10 +681,7 @@ namespace pgbar {
          *
          * If the passed parameters are not coding in UTF-8.
          */
-        Derived& divider( types::String _divider ) &
-        {
-          PGBAR__METHOD( Divider, _divider, std::move );
-        }
+        Derived& divider( types::String _divider ) & { PGBAR__METHOD( Divider, _divider, std::move ); }
         /**
          * @throw exception::InvalidArgument
          *
@@ -794,33 +701,18 @@ namespace pgbar {
           PGBAR__METHOD( RightBorder, _r_border, std::move );
         }
 #if PGBAR__CXX20
-        Derived& divider( types::LitU8 _divider ) &
-        {
-          PGBAR__METHOD( Divider, _divider, );
-        }
-        Derived& left_border( types::LitU8 _l_border ) &
-        {
-          PGBAR__METHOD( LeftBorder, _l_border, );
-        }
-        Derived& right_border( types::LitU8 _r_border ) &
-        {
-          PGBAR__METHOD( RightBorder, _r_border, );
-        }
+        Derived& divider( types::LitU8 _divider ) & { PGBAR__METHOD( Divider, _divider, ); }
+        Derived& left_border( types::LitU8 _l_border ) & { PGBAR__METHOD( LeftBorder, _l_border, ); }
+        Derived& right_border( types::LitU8 _r_border ) & { PGBAR__METHOD( RightBorder, _r_border, ); }
 #endif
 
-        Derived& info_color( types::HexRGB _info_color ) &
-        {
-          PGBAR__METHOD( InfoColor, _info_color, );
-        }
+        Derived& info_color( types::HexRGB _info_color ) & { PGBAR__METHOD( InfoColor, _info_color, ); }
         /**
          * @throw exception::InvalidArgument
          *
          * If the passed parameters is not a valid RGB color string.
          */
-        Derived& info_color( types::ROStr _info_color ) &
-        {
-          PGBAR__METHOD( InfoColor, _info_color, );
-        }
+        Derived& info_color( types::ROStr _info_color ) & { PGBAR__METHOD( InfoColor, _info_color, ); }
 
 #undef PGBAR__METHOD
 
@@ -953,20 +845,14 @@ namespace pgbar {
          * The given each unit will be treated as 1,000 times greater than the previous one
          * (from left to right).
          */
-        Derived& speed_unit( std::array<types::String, 4> _units ) &
-        {
-          PGBAR__METHOD( SpeedUnit, _units );
-        }
+        Derived& speed_unit( std::array<types::String, 4> _units ) & { PGBAR__METHOD( SpeedUnit, _units ); }
 #if PGBAR__CXX20
         /**
          * @param _units
          * The given each unit will be treated as 1,000 times greater than the previous one
          * (from left to right).
          */
-        Derived& speed_unit( std::array<types::LitU8, 4> _units ) &
-        {
-          PGBAR__METHOD( SpeedUnit, _units );
-        }
+        Derived& speed_unit( std::array<types::LitU8, 4> _units ) & { PGBAR__METHOD( SpeedUnit, _units ); }
 #endif
 
         /**
@@ -976,10 +862,7 @@ namespace pgbar {
          * Defines the threshold at which values are converted to higher-order units
          * (e.g. 1000 -> "1k", 1000000 -> "1M").
          */
-        Derived& magnitude( std::uint16_t _magnitude ) & noexcept
-        {
-          PGBAR__METHOD( Magnitude, _magnitude );
-        }
+        Derived& magnitude( std::uint16_t _magnitude ) & noexcept { PGBAR__METHOD( Magnitude, _magnitude ); }
 
 #undef PGBAR__METHOD
 
