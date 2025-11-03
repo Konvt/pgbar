@@ -144,39 +144,44 @@ namespace pgbar {
 
 #if PGBAR__CXX20
         template<typename... Args>
-          requires( traits::Distinct<traits::TypeList<Args...>>::value
-                    && ( traits::TpContain<PermittedSet, Args>::value && ... ) )
+          requires( traits::Distinct<traits::TypeList<std::decay_t<Args>...>>::value
+                    && ( traits::TpContain<PermittedSet, std::decay_t<Args>>::value && ... ) )
 #else
         template<typename... Args,
-                 typename = typename std::enable_if<
-                   traits::AllOf<traits::Distinct<traits::TypeList<Args...>>,
-                                 traits::TpContain<PermittedSet, Args>...>::value>::type>
+                 typename = typename std::enable_if<traits::AllOf<
+                   traits::Distinct<traits::TypeList<typename std::decay<Args>::type...>>,
+                   traits::TpContain<PermittedSet, typename std::decay<Args>::type>...>::value>::type>
 #endif
-        PGBAR__CXX23_CNSTXPR BasicConfig( Args... args )
+        PGBAR__CXX23_CNSTXPR BasicConfig( Args&&... args )
         {
-          Derived::template inject<traits::TypeSet<Args...>>( *this );
-          (void)std::initializer_list<bool> { ( unpacker( *this, std::move( args ) ), false )... };
+          Derived::template inject<traits::TypeSet<typename std::decay<Args>::type...>>( *this );
+          (void)std::initializer_list<bool> { ( unpacker( *this, std::forward<Args>( args ) ), false )... };
         }
 
         BasicConfig( const Self& lhs ) noexcept( traits::AllOf<std::is_nothrow_default_constructible<Base>,
                                                                std::is_nothrow_copy_assignable<Base>>::value )
-          : Base( lhs )
         {
-          concurrent::SharedLock<concurrent::SharedMutex> lock { lhs.rw_mtx_ };
+          std::lock_guard<concurrent::SharedMutex> lock { lhs.rw_mtx_ };
+          Base::operator=( lhs );
           visual_masks_ = lhs.visual_masks_;
         }
-        BasicConfig( Self&& rhs ) noexcept : Base( std::move( rhs ) )
+        BasicConfig( Self&& rhs ) noexcept
         {
-          concurrent::SharedLock<concurrent::SharedMutex> lock { rhs.rw_mtx_ };
+          // static_assert(
+          //   std::is_nothrow_default_constructible<Base>::value,
+          //   "To ensure that the mobile constructor is strictly noexcept, "
+          //   "it is necessary to require that the default constructor of the base class is noexcept." );
+          std::lock_guard<concurrent::SharedMutex> lock { rhs.rw_mtx_ };
+          Base::operator=( std::move( rhs ) );
           using std::swap;
           swap( visual_masks_, rhs.visual_masks_ );
         }
         Self& operator=( const Self& lhs ) & noexcept( std::is_nothrow_copy_assignable<Base>::value )
         {
           PGBAR__TRUST( this != &lhs );
-          std::unique_lock<concurrent::SharedMutex> lock1 { this->rw_mtx_, std::defer_lock };
-          concurrent::SharedLock<concurrent::SharedMutex> lock2 { lhs.rw_mtx_, std::defer_lock };
-          std::lock( lock1, lock2 );
+          concurrent::SharedLock<concurrent::SharedMutex> lock1 { lhs.rw_mtx_, std::defer_lock };
+          std::lock( this->rw_mtx_, lock1 );
+          std::lock_guard<concurrent::SharedMutex> lock2 { this->rw_mtx_, std::adopt_lock };
 
           visual_masks_ = lhs.visual_masks_;
           Base::operator=( lhs );
