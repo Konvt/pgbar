@@ -26,12 +26,12 @@ namespace pgbar {
 
       public:
         // Get the current working interval for all threads.
-        PGBAR__NODISCARD static PGBAR__INLINE_FN types::TimeUnit working_interval()
+        PGBAR__NODISCARD static PGBAR__FORCEINLINE types::TimeUnit working_interval()
         {
           return _working_interval.load( std::memory_order_acquire );
         }
         // Adjust the thread working interval between this loop and the next loop.
-        static PGBAR__INLINE_FN void working_interval( types::TimeUnit new_rate )
+        static PGBAR__FORCEINLINE void working_interval( types::TimeUnit new_rate )
         {
           _working_interval.store( new_rate, std::memory_order_release );
         }
@@ -129,8 +129,8 @@ namespace pgbar {
           return true;
         }
 
-        PGBAR__INLINE_FN void execute() & noexcept { /* Empty implementation */ }
-        PGBAR__INLINE_FN void attempt() & noexcept
+        PGBAR__FORCEINLINE void execute() & noexcept { /* Empty implementation */ }
+        PGBAR__FORCEINLINE void attempt() & noexcept
         {
           // Each call should not be discarded.
           std::lock_guard<concurrent::SharedMutex> lock { mtx_ };
@@ -145,7 +145,7 @@ namespace pgbar {
           }
         }
 
-        PGBAR__NODISCARD PGBAR__INLINE_FN bool empty() const noexcept
+        PGBAR__NODISCARD PGBAR__FORCEINLINE bool empty() const noexcept
         {
           concurrent::SharedLock<concurrent::SharedMutex> lock { mtx_ };
           return task_ == nullptr;
@@ -264,7 +264,7 @@ namespace pgbar {
         }
 
         // Assume that the task is not empty and execute it once.
-        PGBAR__INLINE_FN void execute() & noexcept( false )
+        PGBAR__FORCEINLINE void execute() & noexcept( false )
         { /**
            * Although not relevant here,
            * OStream is called non-atomically for each rendering task,
@@ -291,7 +291,7 @@ namespace pgbar {
            */
         }
         // When the task is not empty, execute at least one task.
-        PGBAR__INLINE_FN void attempt() & noexcept
+        PGBAR__FORCEINLINE void attempt() & noexcept
         {
           // The lock here is to ensure that only one thread executes the task_ at any given time.
           // And synchronization semantics require that no call request be dropped.
@@ -315,7 +315,7 @@ namespace pgbar {
           }
         }
 
-        PGBAR__NODISCARD PGBAR__INLINE_FN bool empty() const noexcept
+        PGBAR__NODISCARD PGBAR__FORCEINLINE bool empty() const noexcept
         {
           concurrent::SharedLock<concurrent::SharedMutex> lock { res_mtx_ };
           return task_ == nullptr;

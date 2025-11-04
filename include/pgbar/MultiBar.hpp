@@ -79,18 +79,18 @@ namespace pgbar {
     ~MultiBar()                              = default;
 
     // Check whether a progress bar is running
-    PGBAR__NODISCARD PGBAR__INLINE_FN bool active() const noexcept { return package_.online(); }
+    PGBAR__NODISCARD PGBAR__FORCEINLINE bool active() const noexcept { return package_.online(); }
     // Reset all the progress bars.
-    PGBAR__INLINE_FN void reset() { package_.shut(); }
+    PGBAR__FORCEINLINE void reset() { package_.shut(); }
     // Abort all the progress bars.
-    PGBAR__INLINE_FN void abort() noexcept { package_.kill(); }
+    PGBAR__FORCEINLINE void abort() noexcept { package_.kill(); }
     // Returns the number of progress bars.
-    PGBAR__NODISCARD PGBAR__INLINE_FN constexpr _details::types::Size size() const noexcept
+    PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr _details::types::Size size() const noexcept
     {
       return sizeof...( Configs ) + 1;
     }
     // Returns the number of progress bars which is running.
-    PGBAR__NODISCARD PGBAR__INLINE_FN _details::types::Size active_count() const noexcept
+    PGBAR__NODISCARD PGBAR__FORCEINLINE _details::types::Size active_count() const noexcept
     {
       return package_.online_count();
     }
@@ -107,74 +107,74 @@ namespace pgbar {
     }
 
     template<_details::types::Size Pos>
-    PGBAR__INLINE_FN BarAt_t<Pos>& at() & noexcept
+    PGBAR__FORCEINLINE BarAt_t<Pos>& at() & noexcept
     {
       return package_.template at<Pos>();
     }
     template<_details::types::Size Pos>
-    PGBAR__INLINE_FN const BarAt_t<Pos>& at() const& noexcept
+    PGBAR__FORCEINLINE const BarAt_t<Pos>& at() const& noexcept
     {
       return package_.template at<Pos>();
     }
     template<_details::types::Size Pos>
-    PGBAR__INLINE_FN BarAt_t<Pos>&& at() && noexcept
+    PGBAR__FORCEINLINE BarAt_t<Pos>&& at() && noexcept
     {
       return std::move( package_.template at<Pos>() );
     }
 
     template<_details::types::Size Pos>
-    PGBAR__INLINE_FN void tick() &
+    PGBAR__FORCEINLINE void tick() &
     {
       at<Pos>().tick();
     }
     template<_details::types::Size Pos>
-    PGBAR__INLINE_FN void tick( std::uint64_t next_step ) &
+    PGBAR__FORCEINLINE void tick( std::uint64_t next_step ) &
     {
       at<Pos>().tick( next_step );
     }
     template<_details::types::Size Pos>
-    PGBAR__INLINE_FN void tick_to( std::uint8_t percentage ) &
+    PGBAR__FORCEINLINE void tick_to( std::uint8_t percentage ) &
     {
       at<Pos>().tick_to( percentage );
     }
     template<_details::types::Size Pos>
-    PGBAR__INLINE_FN void reset()
+    PGBAR__FORCEINLINE void reset()
     {
       at<Pos>().reset();
     }
     template<_details::types::Size Pos>
-    PGBAR__INLINE_FN void abort() noexcept
+    PGBAR__FORCEINLINE void abort() noexcept
     {
       at<Pos>().abort();
     }
     template<_details::types::Size Pos>
-    PGBAR__INLINE_FN void wait() const noexcept
+    PGBAR__FORCEINLINE void wait() const noexcept
     {
       at<Pos>().wait();
     }
     template<_details::types::Size Pos, class Rep, class Period>
-    PGBAR__NODISCARD PGBAR__INLINE_FN bool wait_for(
+    PGBAR__NODISCARD PGBAR__FORCEINLINE bool wait_for(
       const std::chrono::duration<Rep, Period>& timeout ) const noexcept
     {
       return at<Pos>().wait_for( timeout );
     }
     template<_details::types::Size Pos>
-    PGBAR__NODISCARD PGBAR__INLINE_FN bool active() const noexcept
+    PGBAR__NODISCARD PGBAR__FORCEINLINE bool active() const noexcept
     {
       return at<Pos>().active();
     }
     template<_details::types::Size Pos>
-    PGBAR__INLINE_FN ConfigAt_t<Pos>& config() &
+    PGBAR__FORCEINLINE ConfigAt_t<Pos>& config() &
     {
       return at<Pos>().config();
     }
     template<_details::types::Size Pos>
-    PGBAR__INLINE_FN const ConfigAt_t<Pos>& config() const&
+    PGBAR__FORCEINLINE const ConfigAt_t<Pos>& config() const&
     {
       return at<Pos>().config();
     }
     template<_details::types::Size Pos>
-    PGBAR__INLINE_FN ConfigAt_t<Pos>&& config() &&
+    PGBAR__FORCEINLINE ConfigAt_t<Pos>&& config() &&
     {
       return at<Pos>().config();
     }
@@ -187,7 +187,7 @@ namespace pgbar {
              ,
       typename = typename std::enable_if<_details::traits::is_iterable_bar<BarAt_t<Pos>>::value>::type>
 #endif
-    PGBAR__INLINE_FN auto iterate( Args&&... args ) & noexcept(
+    PGBAR__FORCEINLINE auto iterate( Args&&... args ) & noexcept(
       noexcept( std::declval<Self&>().template at<Pos>().iterate( std::forward<Args>( args )... ) ) )
       -> decltype( std::declval<Self&>().template at<Pos>().iterate( std::forward<Args>( args )... ) )
     {
@@ -202,7 +202,7 @@ namespace pgbar {
       ,
       typename = typename std::enable_if<_details::traits::is_reactive_bar<BarAt_t<Pos>>::value>::type>
 #endif
-    PGBAR__INLINE_FN BarAt_t<Pos>& action( F&& fn ) & noexcept(
+    PGBAR__FORCEINLINE BarAt_t<Pos>& action( F&& fn ) & noexcept(
       noexcept( std::declval<Self&>().template at<Pos>().action( std::forward<F>( fn ) ) ) )
     {
       return at<Pos>().action( std::forward<F>( fn ) );
@@ -216,7 +216,7 @@ namespace pgbar {
              ,
              typename = typename std::enable_if<_details::traits::is_reactive_bar<BarAt_t<Pos>>::value>::type>
 #endif
-    PGBAR__INLINE_FN BarAt_t<Pos>& action() noexcept
+    PGBAR__FORCEINLINE BarAt_t<Pos>& action() noexcept
     {
       return at<Pos>().action();
     }
@@ -225,17 +225,17 @@ namespace pgbar {
     friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
 
     template<_details::types::Size Pos>
-    PGBAR__INLINE_FN constexpr BarAt_t<Pos>& get( Self& self ) noexcept
+    PGBAR__FORCEINLINE constexpr BarAt_t<Pos>& get( Self& self ) noexcept
     {
       return self.template at<Pos>();
     }
     template<_details::types::Size Pos>
-    PGBAR__INLINE_FN constexpr const BarAt_t<Pos>& get( const Self& self ) noexcept
+    PGBAR__FORCEINLINE constexpr const BarAt_t<Pos>& get( const Self& self ) noexcept
     {
       return self.template at<Pos>();
     }
     template<_details::types::Size Pos>
-    PGBAR__INLINE_FN constexpr BarAt_t<Pos>&& get( Self&& self ) noexcept
+    PGBAR__FORCEINLINE constexpr BarAt_t<Pos>&& get( Self&& self ) noexcept
     {
       return std::move( self ).template at<Pos>();
     }
@@ -268,10 +268,10 @@ namespace pgbar {
 #if PGBAR__CXX20
     requires( _details::traits::is_config<Config>::value
               && ( _details::traits::is_config<Configs>::value && ... ) )
-  PGBAR__NODISCARD PGBAR__INLINE_FN
+  PGBAR__NODISCARD PGBAR__FORCEINLINE
     MultiBar<_details::prefabs::BasicBar<Config, O, M, A>, _details::prefabs::BasicBar<Configs, O, M, A>...>
 #else
-  PGBAR__NODISCARD PGBAR__INLINE_FN
+  PGBAR__NODISCARD PGBAR__FORCEINLINE
     typename std::enable_if<_details::traits::AllOf<_details::traits::is_config<Config>,
                                                     _details::traits::is_config<Configs>...>::value,
                             MultiBar<_details::prefabs::BasicBar<Config, O, M, A>,
@@ -294,7 +294,7 @@ namespace pgbar {
   MultiBar<_details::prefabs::BasicBar<std::decay_t<Config>, Outlet, Mode, Area>,
            _details::prefabs::BasicBar<std::decay_t<Configs>, Outlet, Mode, Area>...>
 #else
-  PGBAR__NODISCARD PGBAR__INLINE_FN typename std::enable_if<
+  PGBAR__NODISCARD PGBAR__FORCEINLINE typename std::enable_if<
     _details::traits::AllOf<_details::traits::is_config<typename std::decay<Config>::type>,
                             _details::traits::is_config<typename std::decay<Configs>::type>...>::value,
     MultiBar<_details::prefabs::BasicBar<typename std::decay<Config>::type, Outlet, Mode, Area>,
@@ -310,7 +310,7 @@ namespace pgbar {
   namespace _details {
     namespace assets {
       template<types::Size Cnt, Channel O, Policy M, Region A, typename B, types::Size... Is>
-      PGBAR__NODISCARD PGBAR__INLINE_FN typename std::enable_if<
+      PGBAR__NODISCARD PGBAR__FORCEINLINE typename std::enable_if<
         traits::is_bar<typename std::decay<B>::type>::value,
         MakeMulti_t<prefabs::BasicBar<typename std::decay<B>::type::Config, O, M, A>, Cnt>>::type
         make_multi_helper( B&& bar, const traits::IndexSeq<Is...>& )
@@ -321,7 +321,7 @@ namespace pgbar {
         return { std::forward<B>( bar ), Bar( std::move( cfgs[Is] ) )... };
       }
       template<types::Size Cnt, Channel O, Policy M, Region A, typename C, types::Size... Is>
-      PGBAR__NODISCARD PGBAR__INLINE_FN typename std::enable_if<
+      PGBAR__NODISCARD PGBAR__FORCEINLINE typename std::enable_if<
         traits::is_config<typename std::decay<C>::type>::value,
         MakeMulti_t<prefabs::BasicBar<typename std::decay<C>::type, O, M, A>, Cnt>>::type
         make_multi_helper( C&& cfg, const traits::IndexSeq<Is...>& ) noexcept(
@@ -340,9 +340,9 @@ namespace pgbar {
   template<_details::types::Size Cnt, typename Config, Channel O, Policy M, Region A>
 #if PGBAR__CXX20
     requires( Cnt > 0 && _details::traits::is_config<Config>::value )
-  PGBAR__NODISCARD PGBAR__INLINE_FN MakeMulti_t<_details::prefabs::BasicBar<Config, O, M, A>, Cnt>
+  PGBAR__NODISCARD PGBAR__FORCEINLINE MakeMulti_t<_details::prefabs::BasicBar<Config, O, M, A>, Cnt>
 #else
-  PGBAR__NODISCARD PGBAR__INLINE_FN
+  PGBAR__NODISCARD PGBAR__FORCEINLINE
     typename std::enable_if<_details::traits::AllOf<_details::traits::BoolConstant<( Cnt > 0 )>,
                                                     _details::traits::is_config<Config>>::value,
                             MakeMulti_t<_details::prefabs::BasicBar<Config, O, M, A>, Cnt>>::type
@@ -363,10 +363,10 @@ namespace pgbar {
            typename Config>
 #if PGBAR__CXX20
     requires( Cnt > 0 && _details::traits::is_config<std::decay_t<Config>>::value )
-  PGBAR__NODISCARD PGBAR__INLINE_FN
+  PGBAR__NODISCARD PGBAR__FORCEINLINE
     MakeMulti_t<_details::prefabs::BasicBar<std::decay_t<Config>, Outlet, Mode, Area>, Cnt>
 #else
-  PGBAR__NODISCARD PGBAR__INLINE_FN typename std::enable_if<
+  PGBAR__NODISCARD PGBAR__FORCEINLINE typename std::enable_if<
     _details::traits::AllOf<_details::traits::BoolConstant<( Cnt > 0 )>,
                             _details::traits::is_config<typename std::decay<Config>::type>>::value,
     MakeMulti_t<_details::prefabs::BasicBar<typename std::decay<Config>::type, Outlet, Mode, Area>,
@@ -392,9 +392,9 @@ namespace pgbar {
               && ( ( ( std::is_same_v<std::remove_cv_t<Bar>, std::decay_t<Objs>> && ... )
                      && !( std::is_lvalue_reference_v<Objs> || ... ) )
                    || ( std::is_same_v<typename Bar::Config, std::decay_t<Objs>> && ... ) ) )
-  PGBAR__NODISCARD PGBAR__INLINE_FN MakeMulti_t<Bar, Cnt>
+  PGBAR__NODISCARD PGBAR__FORCEINLINE MakeMulti_t<Bar, Cnt>
 #else
-  PGBAR__NODISCARD PGBAR__INLINE_FN typename std::enable_if<
+  PGBAR__NODISCARD PGBAR__FORCEINLINE typename std::enable_if<
     _details::traits::AllOf<
       _details::traits::BoolConstant<( Cnt > 0 )>,
       _details::traits::BoolConstant<( sizeof...( Objs ) <= Cnt )>,
@@ -425,9 +425,10 @@ namespace pgbar {
 #if PGBAR__CXX20
     requires( Cnt > 0 && sizeof...( Configs ) <= Cnt && _details::traits::is_config<Config>::value
               && ( std::is_same_v<Config, std::decay_t<Configs>> && ... ) )
-  PGBAR__NODISCARD PGBAR__INLINE_FN MakeMulti_t<_details::prefabs::BasicBar<Config, Outlet, Mode, Area>, Cnt>
+  PGBAR__NODISCARD PGBAR__FORCEINLINE
+    MakeMulti_t<_details::prefabs::BasicBar<Config, Outlet, Mode, Area>, Cnt>
 #else
-  PGBAR__NODISCARD PGBAR__INLINE_FN typename std::enable_if<
+  PGBAR__NODISCARD PGBAR__FORCEINLINE typename std::enable_if<
     _details::traits::AllOf<_details::traits::BoolConstant<( Cnt > 0 )>,
                             _details::traits::BoolConstant<( sizeof...( Configs ) <= Cnt )>,
                             _details::traits::is_config<Config>,
@@ -452,9 +453,10 @@ namespace pgbar {
 #if PGBAR__CXX20
     requires( Cnt > 0 && sizeof...( Configs ) <= Cnt && _details::traits::is_config<Config>::value
               && ( std::is_same_v<Config, std::decay_t<Configs>> && ... ) )
-  PGBAR__NODISCARD PGBAR__INLINE_FN MakeMulti_t<_details::prefabs::BasicBar<Config, Outlet, Mode, Area>, Cnt>
+  PGBAR__NODISCARD PGBAR__FORCEINLINE
+    MakeMulti_t<_details::prefabs::BasicBar<Config, Outlet, Mode, Area>, Cnt>
 #else
-  PGBAR__NODISCARD PGBAR__INLINE_FN typename std::enable_if<
+  PGBAR__NODISCARD PGBAR__FORCEINLINE typename std::enable_if<
     _details::traits::AllOf<_details::traits::BoolConstant<( Cnt > 0 )>,
                             _details::traits::BoolConstant<( sizeof...( Configs ) <= Cnt )>,
                             _details::traits::is_config<Config>,

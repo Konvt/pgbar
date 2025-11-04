@@ -105,7 +105,7 @@ namespace pgbar {
          * @return The split result and the width of each part, where the first element is the result not
          * exceeding the width.
          */
-        PGBAR__INLINE_FN std::pair<std::array<const types::Char*, 3>, std::pair<types::Size, types::Size>>
+        PGBAR__FORCEINLINE std::pair<std::array<const types::Char*, 3>, std::pair<types::Size, types::Size>>
           split_by( types::Size width ) const noexcept
         {
           if ( bytes_.empty() )

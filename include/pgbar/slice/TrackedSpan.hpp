@@ -102,14 +102,14 @@ namespace pgbar {
         }
         PGBAR__CXX20_CNSTXPR ~iterator() = default;
 
-        PGBAR__INLINE_FN PGBAR__CXX14_CNSTXPR iterator& operator++() &
+        PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR iterator& operator++() &
         {
           PGBAR__TRUST( itr_bar_ != nullptr );
           ++itr_;
           itr_bar_->tick();
           return *this;
         }
-        PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX14_CNSTXPR iterator operator++( int ) &
+        PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR iterator operator++( int ) &
         {
           PGBAR__TRUST( itr_bar_ != nullptr );
           auto before = *this;
@@ -117,43 +117,43 @@ namespace pgbar {
           return before;
         }
 
-        PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX14_CNSTXPR reference operator*() const { return *itr_; }
-        PGBAR__INLINE_FN PGBAR__CXX17_CNSTXPR pointer operator->() const { return itr_; }
-        PGBAR__NODISCARD PGBAR__INLINE_FN constexpr bool operator==( const Iter& lhs ) const
+        PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR reference operator*() const { return *itr_; }
+        PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR pointer operator->() const { return itr_; }
+        PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr bool operator==( const Iter& lhs ) const
         {
           return itr_ == lhs;
         }
-        PGBAR__NODISCARD PGBAR__INLINE_FN constexpr bool operator!=( const Iter& lhs ) const
+        PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr bool operator!=( const Iter& lhs ) const
         {
           return itr_ != lhs;
         }
-        PGBAR__NODISCARD friend PGBAR__INLINE_FN constexpr bool operator==( const iterator& a,
-                                                                            const iterator& b )
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator==( const iterator& a,
+                                                                              const iterator& b )
         {
           return a.itr_ == b.itr_;
         }
-        PGBAR__NODISCARD friend PGBAR__INLINE_FN constexpr bool operator!=( const iterator& a,
-                                                                            const iterator& b )
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator!=( const iterator& a,
+                                                                              const iterator& b )
         {
           return !( a == b );
         }
 
 #if PGBAR__CXX17
-        PGBAR__NODISCARD PGBAR__INLINE_FN constexpr bool operator==( const sentinel& b ) const
+        PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr bool operator==( const sentinel& b ) const
         {
           return itr_ == b.end_;
         }
-        PGBAR__NODISCARD PGBAR__INLINE_FN constexpr bool operator!=( const sentinel& b ) const
+        PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr bool operator!=( const sentinel& b ) const
         {
           return !( *this == b );
         }
-        PGBAR__NODISCARD friend PGBAR__INLINE_FN constexpr bool operator==( const sentinel& a,
-                                                                            const iterator& b )
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator==( const sentinel& a,
+                                                                              const iterator& b )
         {
           return b == a;
         }
-        PGBAR__NODISCARD friend PGBAR__INLINE_FN constexpr bool operator!=( const sentinel& a,
-                                                                            const iterator& b )
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator!=( const sentinel& a,
+                                                                              const iterator& b )
         {
           return !( b == a );
         }
@@ -185,16 +185,16 @@ namespace pgbar {
       PGBAR__CXX20_CNSTXPR ~TrackedSpan() = default;
 
       // This function will CHANGE the state of the pgbar object it holds.
-      PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX17_CNSTXPR iterator begin() &
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR iterator begin() &
       {
         itr_bar_->config().tasks( itr_range_.size() );
         return { itr_range_.begin(), *itr_bar_ };
       }
-      PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX17_CNSTXPR sentinel end() const
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR sentinel end() const
       {
         return { itr_range_.end() };
       }
-      PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX17_CNSTXPR bool empty() const noexcept
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR bool empty() const noexcept
       {
         return itr_bar_ == nullptr;
       }

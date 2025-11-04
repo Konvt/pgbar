@@ -284,7 +284,7 @@ namespace pgbar {
           }
         }
 
-        PGBAR__NODISCARD PGBAR__INLINE_FN types::Size online_count() const noexcept
+        PGBAR__NODISCARD PGBAR__FORCEINLINE types::Size online_count() const noexcept
         {
           concurrent::SharedLock<concurrent::SharedMutex> lock { res_mtx_ };
           return items_.size();

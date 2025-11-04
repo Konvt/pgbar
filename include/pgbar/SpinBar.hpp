@@ -13,8 +13,8 @@ namespace pgbar {
       template<typename Base, typename Derived>
       class SpinIndic : public Base {
       protected:
-        PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR io::Stringbuf& build_spin( io::Stringbuf& buffer,
-                                                                         types::Size num_frame_cnt ) const
+        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR io::Stringbuf& build_spin( io::Stringbuf& buffer,
+                                                                           types::Size num_frame_cnt ) const
         {
           if ( this->lead_.empty() )
             return buffer;
@@ -67,7 +67,7 @@ namespace pgbar {
       }
 
     protected:
-      PGBAR__NODISCARD PGBAR__INLINE_FN _details::types::Size fixed_render_size() const noexcept
+      PGBAR__NODISCARD PGBAR__FORCEINLINE _details::types::Size fixed_render_size() const noexcept
       {
         return this->common_render_size()
              + ( this->visual_masks_[_details::utils::as_val( Base::Mask::Ani )] ? this->fixed_len_frames()

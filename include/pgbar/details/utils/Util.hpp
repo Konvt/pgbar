@@ -21,7 +21,7 @@ namespace pgbar {
                typename = typename std::enable_if<traits::AllOf<
                  traits::BoolConstant<( I < std::tuple_size<typename std::decay<Tuple>::type>::value )>,
                  std::is_default_constructible<T>>::value>::type>
-      PGBAR__INLINE_FN constexpr auto pick_or( Tuple&& tup ) noexcept
+      PGBAR__FORCEINLINE constexpr auto pick_or( Tuple&& tup ) noexcept
         -> decltype( std::get<I>( std::forward<Tuple>( tup ) ) )
       {
         static_assert( std::is_convertible<typename std::tuple_element<I, Tuple>::type, T>::value,
@@ -29,7 +29,7 @@ namespace pgbar {
         return std::get<I>( std::forward<Tuple>( tup ) );
       }
       template<types::Size I, typename T, typename Tuple>
-      PGBAR__INLINE_FN constexpr auto pick_or( Tuple&& )
+      PGBAR__FORCEINLINE constexpr auto pick_or( Tuple&& )
         noexcept( std::is_nothrow_default_constructible<T>::value ) -> typename std::enable_if<
           traits::AllOf<
             traits::BoolConstant<( I >= std::tuple_size<typename std::decay<Tuple>::type>::value )>,
@@ -40,7 +40,7 @@ namespace pgbar {
       }
 
       template<typename Numeric>
-      PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX14_CNSTXPR
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR
         typename std::enable_if<std::is_unsigned<Numeric>::value, types::Size>::type
         count_digits( Numeric val ) noexcept
       {
@@ -50,7 +50,7 @@ namespace pgbar {
         return digits;
       }
       template<typename Numeric>
-      PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX14_CNSTXPR
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR
         typename std::enable_if<std::is_signed<Numeric>::value, types::Size>::type
         count_digits( Numeric val ) noexcept
       {
@@ -59,7 +59,7 @@ namespace pgbar {
 
       // Format an integer number.
       template<typename Integer>
-      PGBAR__NODISCARD PGBAR__INLINE_FN
+      PGBAR__NODISCARD PGBAR__FORCEINLINE
         typename std::enable_if<std::is_integral<Integer>::value, types::String>::type
         format( Integer val ) noexcept( noexcept( std::to_string( val ) ) )
       {
@@ -77,7 +77,7 @@ namespace pgbar {
 
       // Format a finite floating point number.
       template<typename Floating>
-      PGBAR__NODISCARD PGBAR__INLINE_FN
+      PGBAR__NODISCARD PGBAR__FORCEINLINE
         typename std::enable_if<std::is_floating_point<Floating>::value, types::String>::type
         format( Floating val, int precision ) noexcept( false )
       {
@@ -138,9 +138,9 @@ namespace pgbar {
       enum class TxtLayout { Left, Right, Center }; // text layout
       // Format the `str`.
       template<TxtLayout Style>
-      PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR types::String format( types::Size width,
-                                                                                   types::Size len_str,
-                                                                                   types::ROStr str )
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR types::String format( types::Size width,
+                                                                                     types::Size len_str,
+                                                                                     types::ROStr str )
         noexcept( false )
       {
         if ( width == 0 )
@@ -163,8 +163,8 @@ namespace pgbar {
         }
       }
       template<TxtLayout Style>
-      PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR types::String format( types::Size width,
-                                                                                   types::ROStr __str )
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR types::String format( types::Size width,
+                                                                                     types::ROStr __str )
         noexcept( false )
       {
         return format<Style>( width, __str.size(), __str );

@@ -57,7 +57,10 @@ namespace pgbar {
           cache_.store( value, std::memory_order_release );
           return value;
         }
-        PGBAR__INLINE_FN bool connected() const noexcept { return cache_.load( std::memory_order_acquire ); }
+        PGBAR__FORCEINLINE bool connected() const noexcept
+        {
+          return cache_.load( std::memory_order_acquire );
+        }
 
         /**
          * Enable virtual terminal processing on the specified output channel (Windows only).

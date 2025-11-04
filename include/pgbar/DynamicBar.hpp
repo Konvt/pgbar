@@ -12,7 +12,7 @@ namespace pgbar {
     std::shared_ptr<Context> core_;
     mutable _details::concurrent::SharedMutex mtx_;
 
-    PGBAR__INLINE_FN void setup_if_null() &
+    PGBAR__FORCEINLINE void setup_if_null() &
     {
       if ( core_ == nullptr )
         PGBAR__UNLIKELY
@@ -44,28 +44,28 @@ namespace pgbar {
     }
     ~DynamicBar() = default;
 
-    PGBAR__NODISCARD PGBAR__INLINE_FN bool active() const noexcept
+    PGBAR__NODISCARD PGBAR__FORCEINLINE bool active() const noexcept
     {
       _details::concurrent::SharedLock<_details::concurrent::SharedMutex> lock { mtx_ };
       return core_ != nullptr && core_->online_count() != 0;
     }
-    PGBAR__NODISCARD PGBAR__INLINE_FN _details::types::Size size() const noexcept
+    PGBAR__NODISCARD PGBAR__FORCEINLINE _details::types::Size size() const noexcept
     {
       _details::concurrent::SharedLock<_details::concurrent::SharedMutex> lock { mtx_ };
       return core_ != nullptr ? core_.use_count() - 1 : 0;
     }
-    PGBAR__NODISCARD PGBAR__INLINE_FN _details::types::Size active_count() const noexcept
+    PGBAR__NODISCARD PGBAR__FORCEINLINE _details::types::Size active_count() const noexcept
     {
       _details::concurrent::SharedLock<_details::concurrent::SharedMutex> lock { mtx_ };
       return core_ != nullptr ? core_->online_count() : 0;
     }
-    PGBAR__INLINE_FN void reset()
+    PGBAR__FORCEINLINE void reset()
     {
       std::lock_guard<_details::concurrent::SharedMutex> lock { mtx_ };
       if ( core_ != nullptr )
         core_->shut();
     }
-    PGBAR__INLINE_FN void abort() noexcept
+    PGBAR__FORCEINLINE void abort() noexcept
     {
       std::lock_guard<_details::concurrent::SharedMutex> lock { mtx_ };
       if ( core_ != nullptr )
@@ -173,11 +173,11 @@ namespace pgbar {
 #if PGBAR__CXX20
     requires( _details::traits::is_config<Config>::value
               && ( _details::traits::is_config<Configs>::value && ... ) )
-  PGBAR__NODISCARD PGBAR__INLINE_FN
+  PGBAR__NODISCARD PGBAR__FORCEINLINE
     std::tuple<std::unique_ptr<_details::prefabs::BasicBar<Config, O, M, A>>,
                std::unique_ptr<_details::prefabs::BasicBar<Configs, O, M, A>>...>
 #else
-  PGBAR__NODISCARD PGBAR__INLINE_FN typename std::enable_if<
+  PGBAR__NODISCARD PGBAR__FORCEINLINE typename std::enable_if<
     _details::traits::AllOf<_details::traits::is_config<Config>,
                             _details::traits::is_config<Configs>...>::value,
     std::tuple<std::unique_ptr<_details::prefabs::BasicBar<Config, O, M, A>>,
@@ -198,11 +198,11 @@ namespace pgbar {
 #if PGBAR__CXX20
     requires( _details::traits::is_config<std::decay_t<Config>>::value
               && ( _details::traits::is_config<std::decay_t<Configs>>::value && ... ) )
-  PGBAR__NODISCARD PGBAR__INLINE_FN
+  PGBAR__NODISCARD PGBAR__FORCEINLINE
     std::tuple<std::unique_ptr<_details::prefabs::BasicBar<std::decay_t<Config>, Outlet, Mode, Area>>,
                std::unique_ptr<_details::prefabs::BasicBar<std::decay_t<Configs>, Outlet, Mode, Area>>...>
 #else
-  PGBAR__NODISCARD PGBAR__INLINE_FN typename std::enable_if<
+  PGBAR__NODISCARD PGBAR__FORCEINLINE typename std::enable_if<
     _details::traits::AllOf<_details::traits::is_config<typename std::decay<Config>::type>,
                             _details::traits::is_config<typename std::decay<Configs>::type>...>::value,
     std::tuple<
@@ -224,9 +224,10 @@ namespace pgbar {
   template<typename Config, Channel O, Policy M, Region A>
 #if PGBAR__CXX20
     requires _details::traits::is_config<Config>::value
-  PGBAR__NODISCARD PGBAR__INLINE_FN std::vector<std::unique_ptr<_details::prefabs::BasicBar<Config, O, M, A>>>
+  PGBAR__NODISCARD PGBAR__FORCEINLINE
+    std::vector<std::unique_ptr<_details::prefabs::BasicBar<Config, O, M, A>>>
 #else
-  PGBAR__NODISCARD PGBAR__INLINE_FN
+  PGBAR__NODISCARD PGBAR__FORCEINLINE
     typename std::enable_if<_details::traits::is_config<Config>::value,
                             std::vector<std::unique_ptr<_details::prefabs::BasicBar<Config, O, M, A>>>>::type
 #endif
@@ -252,10 +253,10 @@ namespace pgbar {
            typename Config>
 #if PGBAR__CXX20
     requires _details::traits::is_config<std::decay_t<Config>>::value
-  PGBAR__NODISCARD PGBAR__INLINE_FN
+  PGBAR__NODISCARD PGBAR__FORCEINLINE
     std::vector<std::unique_ptr<_details::prefabs::BasicBar<std::decay_t<Config>, Outlet, Mode, Area>>>
 #else
-  PGBAR__NODISCARD PGBAR__INLINE_FN typename std::enable_if<
+  PGBAR__NODISCARD PGBAR__FORCEINLINE typename std::enable_if<
     _details::traits::is_config<typename std::decay<Config>::type>::value,
     std::vector<std::unique_ptr<
       _details::prefabs::BasicBar<typename std::decay<Config>::type, Outlet, Mode, Area>>>>::type
@@ -286,9 +287,9 @@ namespace pgbar {
               && ( ( ( std::is_same_v<std::remove_cv_t<Bar>, std::remove_cv_t<Objs>> && ... )
                      && !( std::is_lvalue_reference_v<Objs> || ... ) )
                    || ( std::is_same<typename Bar::Config, std::decay_t<Objs>>::value && ... ) ) )
-  PGBAR__NODISCARD PGBAR__INLINE_FN std::vector<std::unique_ptr<Bar>>
+  PGBAR__NODISCARD PGBAR__FORCEINLINE std::vector<std::unique_ptr<Bar>>
 #else
-  PGBAR__NODISCARD PGBAR__INLINE_FN typename std::enable_if<
+  PGBAR__NODISCARD PGBAR__FORCEINLINE typename std::enable_if<
     _details::traits::AllOf<
       _details::traits::is_bar<Bar>,
       _details::traits::AnyOf<
@@ -330,10 +331,10 @@ namespace pgbar {
 #if PGBAR__CXX20
     requires( _details::traits::is_config<Config>::value
               && ( std::is_same_v<std::remove_cv_t<Config>, std::decay_t<Configs>> && ... ) )
-  PGBAR__NODISCARD PGBAR__INLINE_FN
+  PGBAR__NODISCARD PGBAR__FORCEINLINE
     std::vector<std::unique_ptr<_details::prefabs::BasicBar<Config, Outlet, Mode, Area>>>
 #else
-  PGBAR__NODISCARD PGBAR__INLINE_FN typename std::enable_if<
+  PGBAR__NODISCARD PGBAR__FORCEINLINE typename std::enable_if<
     _details::traits::AllOf<
       _details::traits::is_config<Config>,
       std::is_same<typename std::remove_cv<Config>::type, typename std::decay<Configs>::type>...>::value,
@@ -370,10 +371,10 @@ namespace pgbar {
 #if PGBAR__CXX20
     requires( _details::traits::is_config<Config>::value
               && ( std::is_same_v<Config, std::decay_t<Configs>> && ... ) )
-  PGBAR__NODISCARD PGBAR__INLINE_FN
+  PGBAR__NODISCARD PGBAR__FORCEINLINE
     std::vector<std::unique_ptr<_details::prefabs::BasicBar<Config, Outlet, Mode, Area>>>
 #else
-  PGBAR__NODISCARD PGBAR__INLINE_FN typename std::enable_if<
+  PGBAR__NODISCARD PGBAR__FORCEINLINE typename std::enable_if<
     _details::traits::AllOf<_details::traits::is_config<Config>,
                             std::is_same<Config, typename std::decay<Configs>::type>...>::value,
     std::vector<std::unique_ptr<_details::prefabs::BasicBar<Config, Outlet, Mode, Area>>>>::type

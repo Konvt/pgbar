@@ -58,7 +58,7 @@ namespace pgbar {
         }
 
       public:
-        PGBAR__NODISCARD static PGBAR__INLINE_FN PGBAR__CNSTEVAL std::array<CodeChart, 47>
+        PGBAR__NODISCARD static PGBAR__FORCEINLINE PGBAR__CNSTEVAL std::array<CodeChart, 47>
           code_charts() noexcept
         {
           // See the Unicode CodeCharts documentation for complete code points.
@@ -175,47 +175,51 @@ namespace pgbar {
         PGBAR__CXX20_CNSTXPR explicit operator types::String&&() && noexcept { return std::move( bytes_ ); }
         PGBAR__CXX20_CNSTXPR operator types::ROStr() const noexcept { return str(); }
 
-        PGBAR__NODISCARD friend PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR types::String operator+( Self&& a,
-                                                                                               const Self& b )
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR types::String operator+(
+          Self&& a,
+          const Self& b )
         {
           return std::move( a.bytes_ ) + b.bytes_;
         }
-        PGBAR__NODISCARD friend PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR types::String operator+( const Self& a,
-                                                                                               const Self& b )
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR types::String operator+(
+          const Self& a,
+          const Self& b )
         {
           return a.bytes_ + b.bytes_;
         }
-        PGBAR__NODISCARD friend PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR types::String operator+(
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR types::String operator+(
           types::String&& a,
           const Self& b )
         {
           return std::move( a ) + b.bytes_;
         }
         template<types::Size N>
-        PGBAR__NODISCARD friend PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR types::String operator+(
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR types::String operator+(
           const char ( &a )[N],
           const Self& b )
         {
           return a + b.bytes_;
         }
-        PGBAR__NODISCARD friend PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR types::String operator+( const char* a,
-                                                                                               const Self& b )
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR types::String operator+(
+          const char* a,
+          const Self& b )
         {
           return a + b.bytes_;
         }
-        PGBAR__NODISCARD friend PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR types::String operator+( types::ROStr a,
-                                                                                               const Self& b )
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR types::String operator+(
+          types::ROStr a,
+          const Self& b )
         {
           return types::String( a ) + b;
         }
-        PGBAR__NODISCARD friend PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR types::String operator+(
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR types::String operator+(
           Self&& a,
           types::ROStr b )
         {
           a.bytes_.append( b );
           return std::move( a.bytes_ );
         }
-        PGBAR__NODISCARD friend PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR types::String operator+(
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR types::String operator+(
           const Self& a,
           types::ROStr b )
         {
@@ -242,21 +246,22 @@ namespace pgbar {
           return ret;
         }
 
-        PGBAR__NODISCARD friend PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR types::String operator+( types::LitU8 a,
-                                                                                               const Self& b )
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR types::String operator+(
+          types::LitU8 a,
+          const Self& b )
         {
           types::String tmp;
           tmp.reserve( a.size() );
           std::copy( a.cbegin(), a.cend(), std::back_inserter( tmp ) );
           return std::move( tmp ) + b.bytes_;
         }
-        PGBAR__NODISCARD friend PGBAR__INLINE_FN types::String operator+( Self&& a, types::LitU8 b )
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE types::String operator+( Self&& a, types::LitU8 b )
         {
           a.bytes_.reserve( a.bytes_.size() + b.size() );
           std::copy( b.cbegin(), b.cend(), std::back_inserter( a.bytes_ ) );
           return std::move( a.bytes_ );
         }
-        PGBAR__NODISCARD friend PGBAR__INLINE_FN types::String operator+( const Self& a, types::LitU8 b )
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE types::String operator+( const Self& a, types::LitU8 b )
         {
           auto tmp = a.bytes_;
           tmp.reserve( a.bytes_.size() + b.size() );

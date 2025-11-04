@@ -171,12 +171,12 @@ namespace pgbar {
         void throw_if() noexcept( false ) { box_.rethrow(); }
         PGBAR__NODISCARD bool aborted() const noexcept { return !box_.empty(); }
 
-        PGBAR__NODISCARD PGBAR__INLINE_FN bool empty() const noexcept
+        PGBAR__NODISCARD PGBAR__FORCEINLINE bool empty() const noexcept
         {
           std::lock_guard<concurrent::SharedMutex> lock { res_mtx_ };
           return task_ == nullptr;
         }
-        PGBAR__NODISCARD PGBAR__INLINE_FN bool online() const noexcept
+        PGBAR__NODISCARD PGBAR__FORCEINLINE bool online() const noexcept
         {
           return state_.load( std::memory_order_acquire ) == State::Active;
         }

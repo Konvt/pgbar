@@ -293,7 +293,7 @@ namespace pgbar {
           return *this;
         }
 
-        PGBAR__INLINE_FN R operator()( Args... args )
+        PGBAR__FORCEINLINE R operator()( Args... args )
         {
           PGBAR__TRUST( this->vtable_ != nullptr );
           return ( *this->vtable_->invoke )( this->callee_, std::forward<Args>( args )... );

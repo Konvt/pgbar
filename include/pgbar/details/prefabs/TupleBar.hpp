@@ -36,7 +36,7 @@ namespace pgbar {
         std::bitset<sizeof...( Configs )> active_mask_;
 
         template<types::Size Pos>
-        PGBAR__INLINE_FN PGBAR__CXX14_CNSTXPR typename std::enable_if<( Pos >= sizeof...( Configs ) )>::type
+        PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR typename std::enable_if<( Pos >= sizeof...( Configs ) )>::type
           do_render() &
         {}
         template<types::Size Pos = 0>
@@ -227,11 +227,11 @@ namespace pgbar {
           PGBAR__ASSERT( alive_cnt_ == 0 );
           PGBAR__ASSERT( online() == false );
         }
-        PGBAR__NODISCARD PGBAR__INLINE_FN bool online() const noexcept
+        PGBAR__NODISCARD PGBAR__FORCEINLINE bool online() const noexcept
         {
           return state_.load( std::memory_order_acquire ) != State::Stop;
         }
-        PGBAR__NODISCARD PGBAR__INLINE_FN types::Size online_count() const noexcept
+        PGBAR__NODISCARD PGBAR__FORCEINLINE types::Size online_count() const noexcept
         {
           concurrent::SharedLock<concurrent::SharedMutex> lock { res_mtx_ };
           return active_mask_.count();
@@ -249,17 +249,17 @@ namespace pgbar {
         }
 
         template<types::Size Pos>
-        PGBAR__INLINE_FN ElementAt_t<Pos>& at() & noexcept
+        PGBAR__FORCEINLINE ElementAt_t<Pos>& at() & noexcept
         {
           return static_cast<ElementAt_t<Pos>&>( *this );
         }
         template<types::Size Pos>
-        PGBAR__INLINE_FN const ElementAt_t<Pos>& at() const& noexcept
+        PGBAR__FORCEINLINE const ElementAt_t<Pos>& at() const& noexcept
         {
           return static_cast<const ElementAt_t<Pos>&>( *this );
         }
         template<types::Size Pos>
-        PGBAR__INLINE_FN ElementAt_t<Pos>& at() && noexcept
+        PGBAR__FORCEINLINE ElementAt_t<Pos>& at() && noexcept
         {
           return std::move( at<Pos>() );
         }

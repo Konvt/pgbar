@@ -117,15 +117,15 @@
 #if defined( __GNUC__ ) || defined( __clang__ )
 // pgbar does not detect the differences in compiler versions
 // which released before the publication of the C++11 standard.
-# define PGBAR__INLINE_FN __attribute__( ( always_inline ) ) inline
-# define PGBAR__NOINLINE  __attribute__( ( noinline ) )
+# define PGBAR__FORCEINLINE __attribute__( ( always_inline ) ) inline
+# define PGBAR__NOINLINE    __attribute__( ( noinline ) )
 #elif defined( _MSC_VER )
 // For msvc, it is a proprietary compiler implementation,
 // and I believe it supports this builtin.
-# define PGBAR__INLINE_FN __forceinline
-# define PGBAR__NOINLINE  __declspec( noinline )
+# define PGBAR__FORCEINLINE __forceinline
+# define PGBAR__NOINLINE    __declspec( noinline )
 #else
-# define PGBAR__INLINE_FN inline
+# define PGBAR__FORCEINLINE inline
 # define PGBAR__NOINLINE
 #endif
 
@@ -138,8 +138,8 @@
 #ifdef PGBAR_DEBUG
 # include <cassert>
 # define PGBAR__ASSERT( expr ) assert( expr )
-# undef PGBAR__INLINE_FN
-# define PGBAR__INLINE_FN
+# undef PGBAR__FORCEINLINE
+# define PGBAR__FORCEINLINE
 #else
 # define PGBAR__ASSERT( _ ) ( (void)0 )
 #endif
