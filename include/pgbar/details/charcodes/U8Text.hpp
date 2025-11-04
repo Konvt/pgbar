@@ -1,7 +1,8 @@
 #ifndef PGBAR__U8TEXT
 #define PGBAR__U8TEXT
 
-#include "U8Raw.hpp"
+#include "EncodedView.hpp"
+#include "Font.hpp"
 #include <numeric>
 #include <vector>
 
@@ -13,31 +14,14 @@ namespace pgbar {
         using Self = U8Text;
 
       protected:
-        std::vector<Glyph> chars_;
+        std::vector<Font> chars_;
 
       public:
-        struct TextView {
-          const types::Char *head_, *tail_;
-          types::Size width_;
-
-          constexpr TextView() noexcept : head_ { nullptr }, tail_ { nullptr }, width_ { 0 } {}
-          constexpr TextView( const types::Char* head, const types::Char* tail, types::Size width ) noexcept
-            : head_ { head }, tail_ { tail }, width_ { width }
-          {}
-
-          TextView( std::nullptr_t, std::nullptr_t, types::Size )     = delete;
-          TextView( const types::Char*, std::nullptr_t, types::Size ) = delete;
-          TextView( std::nullptr_t, const types::Char*, types::Size ) = delete;
-
-          PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr bool empty() const noexcept { return head_ == tail_; }
-          constexpr explicit operator bool() const noexcept { return !empty(); }
-        };
-
-        PGBAR__NODISCARD static PGBAR__CXX20_CNSTXPR std::vector<Glyph> parse_glyph(
+        PGBAR__NODISCARD static PGBAR__CXX20_CNSTXPR std::vector<Font> parse_glyph(
           const types::Char* raw_u8_str,
           types::Size str_length )
         {
-          std::vector<Glyph> characters;
+          std::vector<Font> characters;
           for ( types::Size i = 0; i < str_length; ) {
             const auto startpoint = raw_u8_str + i;
             PGBAR__TRUST( startpoint >= raw_u8_str );
@@ -55,7 +39,7 @@ namespace pgbar {
           width_ = std::accumulate( chars_.cbegin(),
                                     chars_.cend(),
                                     types::Size {},
-                                    []( types::Size acc, const Glyph& ch ) noexcept {
+                                    []( types::Size acc, const Font& ch ) noexcept {
                                       return acc + static_cast<types::Size>( ch.width_ );
                                     } );
           bytes_ = std::move( u8_bytes );
@@ -74,7 +58,7 @@ namespace pgbar {
           width_ = std::accumulate( chars_.cbegin(),
                                     chars_.cend(),
                                     types::Size {},
-                                    []( types::Size acc, const Glyph& ch ) noexcept {
+                                    []( types::Size acc, const Font& ch ) noexcept {
                                       return acc + static_cast<types::Size>( ch.width_ );
                                     } );
           bytes_.swap( new_bytes );
@@ -87,7 +71,7 @@ namespace pgbar {
           width_ = std::accumulate( chars_.cbegin(),
                                     chars_.cend(),
                                     types::Size {},
-                                    []( types::Size acc, const Glyph& ch ) noexcept {
+                                    []( types::Size acc, const Font& ch ) noexcept {
                                       return acc + static_cast<types::Size>( ch.width_ );
                                     } );
           bytes_.swap( u8_bytes );
@@ -112,15 +96,14 @@ namespace pgbar {
          * @param width The given width.
          * @return The split result and the width of each part.
          */
-        PGBAR__NODISCARD PGBAR__FORCEINLINE std::pair<TextView, TextView> split_by(
+        PGBAR__NODISCARD PGBAR__FORCEINLINE std::pair<EncodedView, EncodedView> split_by(
           types::Size width ) const noexcept
         {
           if ( bytes_.empty() )
             PGBAR__UNLIKELY return {};
 
           // split_pos is the starting point of the right part
-          types::Size split_pos  = 0;
-          types::Size left_width = 0;
+          types::Size split_pos = 0, left_width = 0;
           while ( split_pos < chars_.size() && left_width + chars_[split_pos].width_ <= width )
             left_width += chars_[split_pos++].width_;
 
@@ -148,7 +131,7 @@ namespace pgbar {
           width_ = std::accumulate( chars_.cbegin(),
                                     chars_.cend(),
                                     types::Size {},
-                                    []( types::Size acc, const Glyph& ch ) noexcept {
+                                    []( types::Size acc, const Font& ch ) noexcept {
                                       return acc + static_cast<types::Size>( ch.width_ );
                                     } );
           bytes_ = std::move( new_bytes );

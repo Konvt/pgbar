@@ -55,7 +55,7 @@ namespace pgbar {
                 const auto _division  = current_lead.split_by( len_vacancy );
                 const auto &left_part = _division.first, &right_part = _division.second;
 #endif
-                const auto len_left_fill = virtual_point - right_part.width_;
+                const auto len_left_fill = virtual_point - right_part.width();
 
                 this->try_reset( buffer );
                 this->try_dye( buffer, this->lead_col_ ).append( right_part );
@@ -67,7 +67,7 @@ namespace pgbar {
                 this->try_reset( buffer );
                 this->try_dye( buffer, this->lead_col_ )
                   .append( left_part )
-                  .append( ' ', len_vacancy - left_part.width_ );
+                  .append( ' ', len_vacancy - left_part.width() );
               }
             } else
               buffer.append( ' ', this->bar_width_ );

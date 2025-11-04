@@ -9,15 +9,12 @@ namespace pgbar {
       // Represents a displayable character cell on the rendered surface.
       // `offset_` is the byte position of this character in the original encoded buffer,
       // not its visual index on screen.
-      struct Glyph {
-        // At present, the width of each utf character will not exceed 3.
-        using RenderWidth = std::uint8_t;
-
+      struct Font {
         // The starting offset (in byte) and the rendered width (in character) of the encoded character.
         types::Size offset_;
-        RenderWidth width_;
+        types::GlyphWidth width_;
 
-        constexpr Glyph( types::Size offset, RenderWidth width ) noexcept
+        constexpr Font( types::Size offset, types::GlyphWidth width ) noexcept
           : offset_ { offset }, width_ { width }
         {}
       };

@@ -1,7 +1,7 @@
 #ifndef PGBAR__CODECHART
 #define PGBAR__CODECHART
 
-#include "Glyph.hpp"
+#include "../types/Types.hpp"
 
 namespace pgbar {
   namespace _details {
@@ -9,12 +9,12 @@ namespace pgbar {
       // A type of wrapper that stores the mapping between Unicode code chart and character width.
       class CodeChart final {
         types::UCodePoint start_, end_;
-        Glyph::RenderWidth width_;
+        types::GlyphWidth width_;
 
       public:
         constexpr CodeChart( types::UCodePoint start,
                              types::UCodePoint end,
-                             Glyph::RenderWidth width ) noexcept
+                             types::GlyphWidth width ) noexcept
           : start_ { start }, end_ { end }, width_ { width }
         {        // This is an internal component, so we assume the arguments are always valid.
 #if PGBAR__CXX14 // C++11 requires the constexpr ctor should have an empty function body.
@@ -31,7 +31,7 @@ namespace pgbar {
           return start_ <= codepoint && codepoint <= end_;
         }
         // Return the character width of this Unicode code chart.
-        PGBAR__NODISCARD constexpr Glyph::RenderWidth width() const noexcept { return width_; }
+        PGBAR__NODISCARD constexpr types::GlyphWidth width() const noexcept { return width_; }
         // Return the size of this range of Unicode code chart.
         PGBAR__NODISCARD constexpr types::UCodePoint size() const noexcept { return end_ - start_ + 1; }
         // Return the start Unicode code point of this code chart.

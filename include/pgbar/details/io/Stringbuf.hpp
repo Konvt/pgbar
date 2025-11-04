@@ -1,7 +1,7 @@
 #ifndef PGBAR__STRINGBUF
 #define PGBAR__STRINGBUF
 
-#include "../charcodes/U8Text.hpp"
+#include "../charcodes/EncodedView.hpp"
 #include "../traits/Backport.hpp"
 #include <vector>
 
@@ -74,12 +74,12 @@ namespace pgbar {
             buffer_.insert( buffer_.end(), head, tail );
           return *this;
         }
-        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR Self& append( const charcodes::U8Text::TextView& info,
+        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR Self& append( const charcodes::EncodedView& info,
                                                               types::Size num = 1 ) &
         {
           if ( info ) {
             while ( num-- )
-              return append( info.head_, info.tail_ );
+              return append( info.begin(), info.end() );
           }
           return *this;
         }
@@ -89,7 +89,7 @@ namespace pgbar {
           traits::AnyOf<std::is_same<typename std::decay<T>::type, types::Char>,
                         std::is_same<typename std::decay<T>::type, types::String>,
                         std::is_same<typename std::decay<T>::type, charcodes::U8Raw>,
-                        std::is_same<typename std::decay<T>::type, charcodes::U8Text::TextView>>::value,
+                        std::is_same<typename std::decay<T>::type, charcodes::EncodedView>>::value,
           Self&>::type
           operator<<( Self& stream, T&& info )
         {
