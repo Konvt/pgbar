@@ -14,82 +14,107 @@ namespace pgbar {
       class U8Raw {
         using Self = U8Raw;
 
+        PGBAR__NODISCARD static PGBAR__FORCEINLINE constexpr typename std::make_unsigned<types::Char>::type
+          canonical_char( types::Char raw_char ) noexcept
+        {
+          return static_cast<typename std::make_unsigned<types::Char>::type>( raw_char );
+        }
+        PGBAR__NODISCARD static PGBAR__FORCEINLINE constexpr types::UCodePoint as_codepoint(
+          types::Char raw_char ) noexcept
+        {
+          return static_cast<types::UCodePoint>( canonical_char( raw_char ) );
+        }
+
       protected:
         types::Size width_;
         types::String bytes_;
 
         /// @return The utf codepoint and the number of byte of the utf-8 character.
-        static PGBAR__CXX20_CNSTXPR std::pair<types::UCodePoint, types::Size> next_char(
+        static PGBAR__CXX20_CNSTXPR std::pair<types::UCodePoint, types::Size> next_codepoint(
           const types::Char* raw_u8_str,
-          types::Size length )
+          types::Size str_length )
         {
           // After RFC 3629, the maximum length of each standard UTF-8 character is 4 bytes.
-          const auto first_byte = static_cast<types::UCodePoint>( static_cast<std::uint8_t>( *raw_u8_str ) );
-          auto validator        = [raw_u8_str, length]( types::Size expected_len ) {
-            if ( expected_len > length )
-              PGBAR__UNLIKELY throw exception::InvalidArgument( "pgbar: incomplete UTF-8 string" );
-
+          const auto first_byte = as_codepoint( *raw_u8_str );
+          auto validator        = [=]( types::Size expected_len ) -> types::UCodePoint {
+            if ( expected_len > str_length )
+              PGBAR__UNLIKELY throw exception::InvalidArgument( "pgbar: incomplete UTF-8 sequence" );
             for ( types::Size i = 1; i < expected_len; ++i ) {
-              if ( ( raw_u8_str[i] & 0xC0 ) != 0x80 )
-                PGBAR__UNLIKELY throw exception::InvalidArgument( "pgbar: broken UTF-8 character" );
+              if ( ( canonical_char( raw_u8_str[i] ) & 0xC0 ) != 0x80 )
+                PGBAR__UNLIKELY throw exception::InvalidArgument( "pgbar: invalid UTF-8 continuation byte" );
             }
-            return expected_len;
+
+            types::UCodePoint ret, overlong;
+            switch ( expected_len ) {
+            case 2:
+              ret      = ( ( first_byte & 0x1F ) << 6 ) | ( as_codepoint( raw_u8_str[1] ) & 0x3F );
+              overlong = 0x80;
+              break;
+            case 3:
+              ret = ( ( first_byte & 0xF ) << 12 ) | ( ( as_codepoint( raw_u8_str[1] ) & 0x3F ) << 6 )
+                  | ( as_codepoint( raw_u8_str[2] ) & 0x3F );
+              overlong = 0x800;
+              break;
+            case 4:
+              ret = ( ( first_byte & 0x7 ) << 18 ) | ( ( as_codepoint( raw_u8_str[1] ) & 0x3F ) << 12 )
+                  | ( ( as_codepoint( raw_u8_str[2] ) & 0x3F ) << 6 )
+                  | ( as_codepoint( raw_u8_str[3] ) & 0x3F );
+              overlong = 0x10000;
+              break;
+            default: PGBAR__UNREACHABLE;
+            }
+            if ( ret < overlong )
+              PGBAR__UNLIKELY throw exception::InvalidArgument( "pgbar: overlong UTF-8 sequence" );
+            return ret;
           };
 
           if ( ( first_byte & 0x80 ) == 0 )
-            return std::make_pair( first_byte, 1 );
+            return { first_byte, 1 };
           else if ( ( ( first_byte & 0xE0 ) == 0xC0 ) )
-            return std::make_pair( ( ( first_byte & 0x1F ) << 6 )
-                                     | ( static_cast<types::UCodePoint>( raw_u8_str[1] ) & 0x3F ),
-                                   validator( 2 ) );
-          else if ( ( first_byte & 0xF0 ) == 0xE0 )
-            return std::make_pair( ( ( first_byte & 0xF ) << 12 )
-                                     | ( ( static_cast<types::UCodePoint>( raw_u8_str[1] ) & 0x3F ) << 6 )
-                                     | ( static_cast<types::UCodePoint>( raw_u8_str[2] ) & 0x3F ),
-                                   validator( 3 ) );
-          else if ( ( first_byte & 0xF8 ) == 0xF0 )
-            return std::make_pair( ( ( first_byte & 0x7 ) << 18 )
-                                     | ( ( static_cast<types::UCodePoint>( raw_u8_str[1] ) & 0x3F ) << 12 )
-                                     | ( ( static_cast<types::UCodePoint>( raw_u8_str[2] ) & 0x3F ) << 6 )
-                                     | ( static_cast<types::UCodePoint>( raw_u8_str[3] ) & 0x3F ),
-                                   validator( 4 ) );
-          else
-            PGBAR__UNLIKELY throw exception::InvalidArgument( "pgbar: not a standard UTF-8 string" );
+            return { validator( 2 ), 2 };
+          else if ( ( first_byte & 0xF0 ) == 0xE0 ) {
+            const auto codepoint = validator( 3 );
+            if ( codepoint >= 0xD800 && codepoint <= 0xDFFF )
+              PGBAR__UNLIKELY throw exception::InvalidArgument( "pgbar: UTF-8 surrogate code point" );
+            return { codepoint, 3 };
+          } else if ( ( first_byte & 0xF8 ) == 0xF0 ) {
+            const auto codepoint = validator( 4 );
+            if ( codepoint > 0x10FFFF )
+              PGBAR__UNLIKELY throw exception::InvalidArgument( "pgbar: UTF-8 code point out of range" );
+            return { codepoint, 4 };
+          } else
+            PGBAR__UNLIKELY throw exception::InvalidArgument( "pgbar: illegal UTF-8 leading byte" );
         }
 
       public:
-        PGBAR__NODISCARD static PGBAR__FORCEINLINE PGBAR__CNSTEVAL std::array<CodeChart, 47>
-          code_charts() noexcept
-        {
-          // See the Unicode CodeCharts documentation for complete code points.
-          // Also can see the `if-else` version in misc/UTF-8-test.cpp
-          return {
-            { { 0x0, 0x19, 0 },        { 0x20, 0x7E, 1 },        { 0x7F, 0xA0, 0 },
-             { 0xA1, 0xAC, 1 },       { 0xAD, 0xAD, 0 },        { 0xAE, 0x2FF, 1 },
-             { 0x300, 0x36F, 0 },     { 0x370, 0x1FFF, 1 },     { 0x2000, 0x200F, 0 },
-             { 0x2010, 0x2010, 1 },   { 0x2011, 0x2011, 0 },    { 0x2012, 0x2027, 1 },
-             { 0x2028, 0x202F, 0 },   { 0x2030, 0x205E, 1 },    { 0x205F, 0x206F, 0 },
-             { 0x2070, 0x2E7F, 1 },   { 0x2E80, 0xA4CF, 2 },    { 0xA4D0, 0xA95F, 1 },
-             { 0xA960, 0xA97F, 2 },   { 0xA980, 0xABFF, 1 },    { 0xAC00, 0xD7FF, 2 },
-             { 0xE000, 0xF8FF, 2 },   { 0xF900, 0xFAFF, 2 },    { 0xFB00, 0xFDCF, 1 },
-             { 0xFDD0, 0xFDEF, 0 },   { 0xFDF0, 0xFDFF, 1 },    { 0xFE00, 0xFE0F, 0 },
-             { 0xFE10, 0xFE1F, 2 },   { 0xFE20, 0xFE2F, 0 },    { 0xFE30, 0xFE6F, 2 },
-             { 0xFE70, 0xFEFE, 1 },   { 0xFEFF, 0xFEFF, 0 },    { 0xFF00, 0xFF60, 2 },
-             { 0xFF61, 0xFFDF, 1 },   { 0xFFE0, 0xFFE6, 2 },    { 0xFFE7, 0xFFEF, 1 },
-             { 0xFFF0, 0xFFFF, 1 },   { 0x10000, 0x1F8FF, 2 },  { 0x1F900, 0x1FBFF, 3 },
-             { 0x1FF80, 0x1FFFF, 0 }, { 0x20000, 0x3FFFD, 2 },  { 0x3FFFE, 0x3FFFF, 0 },
-             { 0xE0000, 0xE007F, 0 }, { 0xE0100, 0xE01EF, 0 },  { 0xEFF80, 0xEFFFF, 0 },
-             { 0xFFF80, 0xFFFFF, 2 }, { 0x10FF80, 0x10FFFF, 2 } }
-          };
-        }
-        PGBAR__NODISCARD static PGBAR__CXX20_CNSTXPR CodeChart::RenderWidth char_width(
+        // See the Unicode CodeCharts documentation for complete code points.
+        // Also can see the `if-else` version in misc/UTF-8-test.cpp
+        static constexpr const std::array<CodeChart, 47> code_charts = {
+          { { 0x0, 0x19, 0 },        { 0x20, 0x7E, 1 },        { 0x7F, 0xA0, 0 },
+           { 0xA1, 0xAC, 1 },       { 0xAD, 0xAD, 0 },        { 0xAE, 0x2FF, 1 },
+           { 0x300, 0x36F, 0 },     { 0x370, 0x1FFF, 1 },     { 0x2000, 0x200F, 0 },
+           { 0x2010, 0x2010, 1 },   { 0x2011, 0x2011, 0 },    { 0x2012, 0x2027, 1 },
+           { 0x2028, 0x202F, 0 },   { 0x2030, 0x205E, 1 },    { 0x205F, 0x206F, 0 },
+           { 0x2070, 0x2E7F, 1 },   { 0x2E80, 0xA4CF, 2 },    { 0xA4D0, 0xA95F, 1 },
+           { 0xA960, 0xA97F, 2 },   { 0xA980, 0xABFF, 1 },    { 0xAC00, 0xD7FF, 2 },
+           { 0xE000, 0xF8FF, 2 },   { 0xF900, 0xFAFF, 2 },    { 0xFB00, 0xFDCF, 1 },
+           { 0xFDD0, 0xFDEF, 0 },   { 0xFDF0, 0xFDFF, 1 },    { 0xFE00, 0xFE0F, 0 },
+           { 0xFE10, 0xFE1F, 2 },   { 0xFE20, 0xFE2F, 0 },    { 0xFE30, 0xFE6F, 2 },
+           { 0xFE70, 0xFEFE, 1 },   { 0xFEFF, 0xFEFF, 0 },    { 0xFF00, 0xFF60, 2 },
+           { 0xFF61, 0xFFDF, 1 },   { 0xFFE0, 0xFFE6, 2 },    { 0xFFE7, 0xFFEF, 1 },
+           { 0xFFF0, 0xFFFF, 1 },   { 0x10000, 0x1F8FF, 2 },  { 0x1F900, 0x1FBFF, 3 },
+           { 0x1FF80, 0x1FFFF, 0 }, { 0x20000, 0x3FFFD, 2 },  { 0x3FFFE, 0x3FFFF, 0 },
+           { 0xE0000, 0xE007F, 0 }, { 0xE0100, 0xE01EF, 0 },  { 0xEFF80, 0xEFFFF, 0 },
+           { 0xFFF80, 0xFFFFF, 2 }, { 0x10FF80, 0x10FFFF, 2 } }
+        };
+
+        PGBAR__NODISCARD static PGBAR__CXX20_CNSTXPR Glyph::RenderWidth glyph_width(
           types::UCodePoint codepoint ) noexcept
         {
-          constexpr const auto charts = code_charts();
-          PGBAR__ASSERT( std::is_sorted( charts.cbegin(), charts.cend() ) );
+          PGBAR__ASSERT( std::is_sorted( code_charts.cbegin(), code_charts.cend() ) );
           // Compare with the `if-else` version, here we can search for code points with O(logn).
-          const auto itr = std::lower_bound( charts.cbegin(), charts.cend(), codepoint );
-          if ( itr != charts.cend() && itr->contains( codepoint ) )
+          const auto itr = std::lower_bound( code_charts.cbegin(), code_charts.cend(), codepoint );
+          if ( itr != code_charts.cend() && itr->contains( codepoint ) )
             return itr->width();
 
           return 1; // Default fallback
@@ -101,15 +126,15 @@ namespace pgbar {
          *
          * @return Returns the render width of the given string.
          */
-        PGBAR__NODISCARD static PGBAR__CXX20_CNSTXPR types::Size render_width( types::ROStr u8_str )
+        PGBAR__NODISCARD static PGBAR__CXX20_CNSTXPR types::Size text_width( types::ROStr u8_str )
         {
           types::Size width     = 0;
           const auto raw_u8_str = u8_str.data();
           for ( types::Size i = 0; i < u8_str.size(); ) {
             const auto startpoint = raw_u8_str + i;
             PGBAR__TRUST( startpoint >= raw_u8_str );
-            auto parsed = next_char( startpoint, std::distance( startpoint, u8_str.data() + u8_str.size() ) );
-            width += static_cast<types::Size>( char_width( parsed.first ) );
+            auto parsed = next_codepoint( startpoint, u8_str.size() - i );
+            width += static_cast<types::Size>( glyph_width( parsed.first ) );
             i += parsed.second;
           }
           return width;
@@ -120,7 +145,7 @@ namespace pgbar {
         {}
         PGBAR__CXX20_CNSTXPR explicit U8Raw( types::String u8_bytes ) : U8Raw()
         {
-          width_ = render_width( u8_bytes );
+          width_ = text_width( u8_bytes );
           bytes_ = std::move( u8_bytes );
         }
         PGBAR__CXX20_CNSTXPR U8Raw( const Self& )             = default;
@@ -131,7 +156,7 @@ namespace pgbar {
 
         PGBAR__CXX20_CNSTXPR Self& operator=( types::ROStr u8_bytes ) &
         {
-          const auto new_width = render_width( u8_bytes );
+          const auto new_width = text_width( u8_bytes );
           auto new_bytes       = types::String( u8_bytes );
           bytes_.swap( new_bytes );
           width_ = new_width;
@@ -139,7 +164,7 @@ namespace pgbar {
         }
         PGBAR__CXX20_CNSTXPR Self& operator=( types::String u8_bytes ) &
         {
-          width_ = render_width( u8_bytes );
+          width_ = text_width( u8_bytes );
           bytes_.swap( u8_bytes );
           return *this;
         }
@@ -234,7 +259,7 @@ namespace pgbar {
         {
           auto new_bytes = types::String( u8_sv.size(), '\0' );
           std::copy( u8_sv.cbegin(), u8_sv.cend(), new_bytes.begin() );
-          width_ = render_width( new_bytes );
+          width_ = text_width( new_bytes );
           bytes_ = std::move( new_bytes );
         }
 
