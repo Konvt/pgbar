@@ -7,7 +7,7 @@
 #include <tuple>
 #if PGBAR__CXX17
 # include <charconv>
-#else
+#elif defined( PGBAR_DEBUG )
 # include <limits>
 #endif
 
@@ -77,8 +77,7 @@ namespace pgbar {
 
       // Format a finite floating point number.
       template<typename Floating>
-      PGBAR__NODISCARD PGBAR__FORCEINLINE
-        typename std::enable_if<std::is_floating_point<Floating>::value, types::String>::type
+      PGBAR__NODISCARD typename std::enable_if<std::is_floating_point<Floating>::value, types::String>::type
         format( Floating val, int precision ) noexcept( false )
       {
         /* Unlike the integer version,
@@ -115,16 +114,17 @@ namespace pgbar {
         formatted.resize( result.ptr - formatted.data() );
 # endif
 #else
-        const auto scale           = std::pow( 10, precision );
-        const auto abs_rounded_val = std::round( std::abs( val ) * scale ) / scale;
-        PGBAR__ASSERT( abs_rounded_val <= ( std::numeric_limits<std::uint64_t>::max )() );
-        const auto integer = static_cast<std::uint64_t>( abs_rounded_val );
-        const auto fraction =
-          static_cast<std::uint64_t>( std::round( ( abs_rounded_val - integer ) * scale ) );
-        const auto sign = std::signbit( val );
+        const auto scale = static_cast<std::uint64_t>( std::pow( 10, precision ) );
+        PGBAR__ASSERT( scale <= ( std::numeric_limits<std::uint64_t>::max )() );
+        const auto scaled = static_cast<std::uint64_t>( std::round( scale * std::abs( val ) ) );
+        PGBAR__ASSERT( scaled <= ( std::numeric_limits<std::uint64_t>::max )() );
+        const auto integer  = scaled / scale;
+        const auto fraction = scaled % scale;
+        const auto sign     = std::signbit( val );
 
         auto formatted = types::String( sign, '-' );
-        formatted.append( format( integer ) ).reserve( count_digits( integer ) + sign );
+        formatted.reserve( count_digits( integer ) + sign + precision );
+        formatted.append( format( integer ) );
         if ( precision > 0 ) {
           formatted.push_back( '.' );
           const auto fract_digits = count_digits( fraction );
@@ -137,38 +137,42 @@ namespace pgbar {
 
       enum class TxtLayout { Left, Right, Center }; // text layout
       // Format the `str`.
-      template<TxtLayout Style>
-      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR types::String format( types::Size width,
-                                                                                     types::Size len_str,
-                                                                                     types::ROStr str )
-        noexcept( false )
+      template<TxtLayout Style, typename Str>
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR auto format( types::Size width, Str&& str )
+        noexcept( false ) ->
+        typename std::enable_if<std::is_same<typename std::decay<Str>::type, types::String>::value,
+                                types::String>::type
       {
         if ( width == 0 )
           PGBAR__UNLIKELY return {};
-        if ( len_str >= width )
-          return types::String( str );
-        if PGBAR__CXX17_CNSTXPR ( Style == TxtLayout::Right ) {
-          auto tmp = types::String( width - len_str, ' ' );
-          tmp.append( str );
-          return tmp;
-        } else if PGBAR__CXX17_CNSTXPR ( Style == TxtLayout::Left ) {
-          auto tmp = types::String( str );
-          tmp.append( width - len_str, ' ' );
-          return tmp;
+        if ( str.size() >= width )
+          return str;
+        if PGBAR__CXX17_CNSTXPR ( Style == TxtLayout::Right )
+          return types::String( width - str.size(), ' ' ) + std::forward<Str>( str );
+        else if PGBAR__CXX17_CNSTXPR ( Style == TxtLayout::Left ) {
+#if PGBAR__CXX17
+          if PGBAR__CXX17_CNSTXPR ( std::is_rvalue_reference_v<Str&&> && !std::is_const_v<Str> ) {
+            str.append( width - str.size(), ' ' );
+            return str;
+          } else
+#endif
+            return std::forward<Str>( str ) + types::String( width - str.size(), ' ' );
         } else {
-          width -= len_str;
+          width -= str.size();
           const types::Size l_blank = width / 2;
-          return std::move( types::String( l_blank, ' ' ).append( str ) )
+          return types::String( l_blank, ' ' ) + std::forward<Str>( str )
                + types::String( width - l_blank, ' ' );
         }
       }
+#if PGBAR__CXX17
       template<TxtLayout Style>
       PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR types::String format( types::Size width,
-                                                                                     types::ROStr __str )
+                                                                                     types::ROStr str )
         noexcept( false )
       {
-        return format<Style>( width, __str.size(), __str );
+        return format<Style>( width, types::String( str ) );
       }
+#endif
     } // namespace utils
   } // namespace _details
 } // namespace pgbar

@@ -745,7 +745,7 @@ namespace pgbar {
 
           auto orig = utils::format( num_percent * 100.0, 2 );
           orig.push_back( '%' );
-          return buffer << utils::format<utils::TxtLayout::Right>( fixed_len_percent(), orig );
+          return buffer << utils::format<utils::TxtLayout::Right>( fixed_len_percent(), std::move( orig ) );
         }
 
         PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr types::Size fixed_len_percent() const noexcept
@@ -823,7 +823,7 @@ namespace pgbar {
               orig = utils::format( remains, 2 ) + ' ' + units_[3];
           }
 
-          return buffer << utils::format<utils::TxtLayout::Right>( fixed_len_speed(), orig );
+          return buffer << utils::format<utils::TxtLayout::Right>( fixed_len_speed(), std::move( orig ) );
         }
 
         PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr types::Size fixed_len_speed() const noexcept

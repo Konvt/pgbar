@@ -67,7 +67,7 @@ namespace pgbar {
           return instance;
         }
 
-        static void writeout( SinkBuffer bytes )
+        PGBAR__FORCEINLINE static void writeout( SinkBuffer bytes )
         {
 #if PGBAR__WIN
           types::Size total_written = 0;
@@ -145,7 +145,7 @@ namespace pgbar {
         }
 #endif
 
-        PGBAR__FORCEINLINE Self& flush() &
+        Self& flush() &
         {
           if ( this->buffer_.empty() )
             return *this;

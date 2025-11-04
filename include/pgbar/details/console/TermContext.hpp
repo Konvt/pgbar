@@ -57,7 +57,7 @@ namespace pgbar {
           cache_.store( value, std::memory_order_release );
           return value;
         }
-        PGBAR__FORCEINLINE bool connected() const noexcept
+        PGBAR__NODISCARD PGBAR__FORCEINLINE bool connected() const noexcept
         {
           return cache_.load( std::memory_order_acquire );
         }
@@ -90,14 +90,14 @@ namespace pgbar {
           if ( !detect() )
             return 0;
 #if PGBAR__WIN
-          HANDLE hConsole;
+          HANDLE h_con;
           if PGBAR__CXX17_CNSTXPR ( Outlet == Channel::Stdout )
-            hConsole = GetStdHandle( STD_OUTPUT_HANDLE );
+            h_con = GetStdHandle( STD_OUTPUT_HANDLE );
           else
-            hConsole = GetStdHandle( STD_ERROR_HANDLE );
-          if ( hConsole != INVALID_HANDLE_VALUE ) {
+            h_con = GetStdHandle( STD_ERROR_HANDLE );
+          if ( h_con != INVALID_HANDLE_VALUE ) {
             CONSOLE_SCREEN_BUFFER_INFO csbi;
-            if ( GetConsoleScreenBufferInfo( hConsole, &csbi ) )
+            if ( GetConsoleScreenBufferInfo( h_con, &csbi ) )
               return csbi.srWindow.Right - csbi.srWindow.Left + 1;
           }
 #elif PGBAR__UNIX
