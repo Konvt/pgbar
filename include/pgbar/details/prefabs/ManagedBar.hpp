@@ -19,8 +19,8 @@ namespace pgbar {
 
         Context context_;
 
-        PGBAR__INLINE_FN void do_halt( bool forced ) noexcept final { context_->pop( this, forced ); }
-        PGBAR__INLINE_FN void do_boot() & final { context_->append( this ); }
+        PGBAR__FORCEINLINE void do_halt( bool forced ) noexcept final { context_->pop( this, forced ); }
+        PGBAR__FORCEINLINE void do_boot() & final { context_->append( this ); }
 
       public:
         ManagedBar( Context context, C&& config ) noexcept

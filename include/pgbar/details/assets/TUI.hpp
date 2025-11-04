@@ -33,11 +33,11 @@ namespace pgbar {
 
       template<typename Derived>
       class CoreConfig {
-#define PGBAR__UNPAKING( OptionName, MemberName )                                                 \
-  friend PGBAR__INLINE_FN PGBAR__CXX14_CNSTXPR void unpacker( CoreConfig& cfg,                    \
-                                                              option::OptionName&& val ) noexcept \
-  {                                                                                               \
-    cfg.fonts_[utils::as_val( Mask::OptionName )] = val.value();                                  \
+#define PGBAR__UNPAKING( OptionName, MemberName )                                                   \
+  friend PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR void unpacker( CoreConfig& cfg,                    \
+                                                                option::OptionName&& val ) noexcept \
+  {                                                                                                 \
+    cfg.fonts_[utils::as_val( Mask::OptionName )] = val.value();                                    \
   }
         PGBAR__UNPAKING( Colored, colored_ )
         PGBAR__UNPAKING( Bolded, bolded_ )
@@ -48,7 +48,7 @@ namespace pgbar {
         enum class Mask : std::uint8_t { Colored = 0, Bolded };
         std::bitset<2> fonts_;
 
-        PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR io::Stringbuf& try_dye(
+        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR io::Stringbuf& try_dye(
           io::Stringbuf& buffer,
           const console::escodes::RGBColor& rgb ) const
         {
@@ -56,7 +56,7 @@ namespace pgbar {
             buffer << rgb;
           return buffer;
         }
-        PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR io::Stringbuf& try_style(
+        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR io::Stringbuf& try_style(
           io::Stringbuf& buffer,
           const console::escodes::RGBColor& rgb ) const
         {
@@ -65,7 +65,7 @@ namespace pgbar {
             buffer << console::escodes::fontbold;
           return buffer;
         }
-        PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR io::Stringbuf& try_reset( io::Stringbuf& buffer ) const
+        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR io::Stringbuf& try_reset( io::Stringbuf& buffer ) const
         {
           if ( fonts_.any() )
             buffer << console::escodes::fontreset;
@@ -115,8 +115,8 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class Countable : public Base {
-        friend PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR void unpacker( Countable& cfg,
-                                                                    option::Tasks&& val ) noexcept
+        friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR void unpacker( Countable& cfg,
+                                                                      option::Tasks&& val ) noexcept
         {
           cfg.task_range_ = slice::NumericSpan<std::uint64_t>( val.value() );
         }
@@ -151,8 +151,8 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class Reversible : public Base {
-        friend PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR void unpacker( Reversible& cfg,
-                                                                    option::Reversed&& val ) noexcept
+        friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR void unpacker( Reversible& cfg,
+                                                                      option::Reversed&& val ) noexcept
         {
           cfg.reversed_ = val.value();
         }
@@ -186,11 +186,12 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class Frames : public Base {
-        friend PGBAR__INLINE_FN void unpacker( Frames& cfg, option::LeadColor&& val ) noexcept
+        friend PGBAR__FORCEINLINE void unpacker( Frames& cfg, option::LeadColor&& val ) noexcept
         {
           cfg.lead_col_ = val.value();
         }
-        friend PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR void unpacker( Frames& cfg, option::Lead&& val ) noexcept
+        friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR void unpacker( Frames& cfg,
+                                                                      option::Lead&& val ) noexcept
         {
           if ( std::all_of( val.value().cbegin(),
                             val.value().cend(),
@@ -214,7 +215,7 @@ namespace pgbar {
         console::escodes::RGBColor lead_col_;
         types::Size len_longest_lead_;
 
-        PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR types::Size fixed_len_frames() const noexcept
+        PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR types::Size fixed_len_frames() const noexcept
         {
           return len_longest_lead_;
         }
@@ -268,10 +269,10 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class Filler : public Base {
-#define PGBAR__UNPAKING( OptionName, MemberName, Constexpr )                                        \
-  friend PGBAR__INLINE_FN Constexpr void unpacker( Filler& cfg, option::OptionName&& val ) noexcept \
-  {                                                                                                 \
-    cfg.MemberName = std::move( val.value() );                                                      \
+#define PGBAR__UNPAKING( OptionName, MemberName, Constexpr )                                          \
+  friend PGBAR__FORCEINLINE Constexpr void unpacker( Filler& cfg, option::OptionName&& val ) noexcept \
+  {                                                                                                   \
+    cfg.MemberName = std::move( val.value() );                                                        \
   }
         PGBAR__UNPAKING( Filler, filler_, PGBAR__CXX20_CNSTXPR )
         PGBAR__UNPAKING( FillerColor, filler_col_, )
@@ -324,10 +325,10 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class Remains : public Base {
-#define PGBAR__UNPAKING( OptionName, MemberName, Constexpr )                                         \
-  friend PGBAR__INLINE_FN Constexpr void unpacker( Remains& cfg, option::OptionName&& val ) noexcept \
-  {                                                                                                  \
-    cfg.MemberName = std::move( val.value() );                                                       \
+#define PGBAR__UNPAKING( OptionName, MemberName, Constexpr )                                           \
+  friend PGBAR__FORCEINLINE Constexpr void unpacker( Remains& cfg, option::OptionName&& val ) noexcept \
+  {                                                                                                    \
+    cfg.MemberName = std::move( val.value() );                                                         \
   }
         PGBAR__UNPAKING( Remains, remains_, PGBAR__CXX20_CNSTXPR )
         PGBAR__UNPAKING( RemainsColor, remains_col_, )
@@ -381,8 +382,8 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class BasicAnimation : public Base {
-        friend PGBAR__INLINE_FN PGBAR__CXX14_CNSTXPR void unpacker( BasicAnimation& cfg,
-                                                                    option::Shift&& val ) noexcept
+        friend PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR void unpacker( BasicAnimation& cfg,
+                                                                      option::Shift&& val ) noexcept
         {
           cfg.shift_factor_ = val.value() < 0 ? ( 1.0 / ( -val.value() ) ) : val.value();
         }
@@ -419,10 +420,11 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class BasicIndicator : public Base {
-#define PGBAR__UNPAKING( OptionName, MemberName, Constexpr )                                                \
-  friend PGBAR__INLINE_FN Constexpr void unpacker( BasicIndicator& cfg, option::OptionName&& val ) noexcept \
-  {                                                                                                         \
-    cfg.MemberName = std::move( val.value() );                                                              \
+#define PGBAR__UNPAKING( OptionName, MemberName, Constexpr )                             \
+  friend PGBAR__FORCEINLINE Constexpr void unpacker( BasicIndicator& cfg,                \
+                                                     option::OptionName&& val ) noexcept \
+  {                                                                                      \
+    cfg.MemberName = std::move( val.value() );                                           \
   }
         PGBAR__UNPAKING( Starting, starting_, PGBAR__CXX20_CNSTXPR )
         PGBAR__UNPAKING( Ending, ending_, PGBAR__CXX20_CNSTXPR )
@@ -436,7 +438,7 @@ namespace pgbar {
         charcodes::U8Raw starting_, ending_;
         console::escodes::RGBColor start_col_, end_col_;
 
-        PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR types::Size fixed_len_bar() const noexcept
+        PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR types::Size fixed_len_bar() const noexcept
         {
           return starting_.width() + ending_.width();
         }
@@ -504,10 +506,10 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class Prefix : public Base {
-#define PGBAR__UNPAKING( OptionName, MemberName, Constexpr )                                        \
-  friend PGBAR__INLINE_FN Constexpr void unpacker( Prefix& cfg, option::OptionName&& val ) noexcept \
-  {                                                                                                 \
-    cfg.MemberName = std::move( val.value() );                                                      \
+#define PGBAR__UNPAKING( OptionName, MemberName, Constexpr )                                          \
+  friend PGBAR__FORCEINLINE Constexpr void unpacker( Prefix& cfg, option::OptionName&& val ) noexcept \
+  {                                                                                                   \
+    cfg.MemberName = std::move( val.value() );                                                        \
   }
         PGBAR__UNPAKING( Prefix, prefix_, PGBAR__CXX20_CNSTXPR )
         PGBAR__UNPAKING( PrefixColor, prfx_col_, )
@@ -517,7 +519,7 @@ namespace pgbar {
         charcodes::U8Raw prefix_;
         console::escodes::RGBColor prfx_col_;
 
-        PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR io::Stringbuf& build_prefix( io::Stringbuf& buffer ) const
+        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR io::Stringbuf& build_prefix( io::Stringbuf& buffer ) const
         {
           if ( prefix_.empty() )
             return buffer;
@@ -525,7 +527,7 @@ namespace pgbar {
           return this->try_style( buffer, prfx_col_ ) << prefix_ << ' ';
         }
 
-        PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR types::Size fixed_len_prefix() const noexcept
+        PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR types::Size fixed_len_prefix() const noexcept
         {
           return prefix_.width() + !prefix_.empty();
         }
@@ -570,10 +572,10 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class Postfix : public Base {
-#define PGBAR__UNPAKING( OptionName, MemberName, Constexpr )                                         \
-  friend PGBAR__INLINE_FN Constexpr void unpacker( Postfix& cfg, option::OptionName&& val ) noexcept \
-  {                                                                                                  \
-    cfg.MemberName = std::move( val.value() );                                                       \
+#define PGBAR__UNPAKING( OptionName, MemberName, Constexpr )                                           \
+  friend PGBAR__FORCEINLINE Constexpr void unpacker( Postfix& cfg, option::OptionName&& val ) noexcept \
+  {                                                                                                    \
+    cfg.MemberName = std::move( val.value() );                                                         \
   }
         PGBAR__UNPAKING( Postfix, postfix_, PGBAR__CXX20_CNSTXPR )
         PGBAR__UNPAKING( PostfixColor, pstfx_col_, )
@@ -583,7 +585,7 @@ namespace pgbar {
         charcodes::U8Raw postfix_;
         console::escodes::RGBColor pstfx_col_;
 
-        PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR io::Stringbuf& build_postfix( io::Stringbuf& buffer ) const
+        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR io::Stringbuf& build_postfix( io::Stringbuf& buffer ) const
         {
           if ( postfix_.empty() )
             return buffer;
@@ -591,7 +593,8 @@ namespace pgbar {
           return this->try_style( buffer, pstfx_col_ ) << ' ' << postfix_;
         }
 
-        PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR types::Size fixed_len_postfix() const noexcept
+        PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR types::Size fixed_len_postfix()
+          const noexcept
         {
           return postfix_.width() + !postfix_.empty();
         }
@@ -641,10 +644,10 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class Segment : public Base {
-#define PGBAR__UNPAKING( OptionName, MemberName, Operation, Constexpr )                              \
-  friend PGBAR__INLINE_FN Constexpr void unpacker( Segment& cfg, option::OptionName&& val ) noexcept \
-  {                                                                                                  \
-    cfg.MemberName = Operation( val.value() );                                                       \
+#define PGBAR__UNPAKING( OptionName, MemberName, Operation, Constexpr )                                \
+  friend PGBAR__FORCEINLINE Constexpr void unpacker( Segment& cfg, option::OptionName&& val ) noexcept \
+  {                                                                                                    \
+    cfg.MemberName = Operation( val.value() );                                                         \
   }
         PGBAR__UNPAKING( InfoColor, info_col_, std::move, )
         PGBAR__UNPAKING( Divider, divider_, std::move, PGBAR__CXX20_CNSTXPR )
@@ -657,7 +660,7 @@ namespace pgbar {
         charcodes::U8Raw l_border_, r_border_;
         console::escodes::RGBColor info_col_;
 
-        PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR types::Size fixed_len_segment(
+        PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR types::Size fixed_len_segment(
           types::Size num_column ) const noexcept
         {
           switch ( num_column ) {
@@ -731,7 +734,8 @@ namespace pgbar {
 #define PGBAR__DEFAULT_PERCENT u8" --.--%"
 
       protected:
-        PGBAR__INLINE_FN io::Stringbuf& build_percent( io::Stringbuf& buffer, types::Float num_percent ) const
+        PGBAR__FORCEINLINE io::Stringbuf& build_percent( io::Stringbuf& buffer,
+                                                         types::Float num_percent ) const
         {
           PGBAR__TRUST( num_percent >= 0.0 );
           PGBAR__TRUST( num_percent <= 1.0 );
@@ -744,7 +748,7 @@ namespace pgbar {
           return buffer << utils::format<utils::TxtLayout::Right>( fixed_len_percent(), orig );
         }
 
-        PGBAR__NODISCARD PGBAR__INLINE_FN constexpr types::Size fixed_len_percent() const noexcept
+        PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr types::Size fixed_len_percent() const noexcept
         {
           return sizeof( PGBAR__DEFAULT_PERCENT ) - 1;
         }
@@ -756,8 +760,8 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class SpeedMeter : public Base {
-        friend PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR void unpacker( SpeedMeter& cfg,
-                                                                    option::SpeedUnit&& val ) noexcept
+        friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR void unpacker( SpeedMeter& cfg,
+                                                                      option::SpeedUnit&& val ) noexcept
         {
           cfg.units_            = std::move( val.value() );
           cfg.nth_longest_unit_ = static_cast<std::uint8_t>( std::distance(
@@ -768,8 +772,8 @@ namespace pgbar {
                                 return a.width() < b.width();
                               } ) ) );
         }
-        friend PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR void unpacker( SpeedMeter& cfg,
-                                                                    option::Magnitude&& val ) noexcept
+        friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR void unpacker( SpeedMeter& cfg,
+                                                                      option::Magnitude&& val ) noexcept
         {
           cfg.magnitude_ = val.value();
         }
@@ -822,7 +826,7 @@ namespace pgbar {
           return buffer << utils::format<utils::TxtLayout::Right>( fixed_len_speed(), orig );
         }
 
-        PGBAR__NODISCARD PGBAR__INLINE_FN constexpr types::Size fixed_len_speed() const noexcept
+        PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr types::Size fixed_len_speed() const noexcept
         {
           return _fixed_width + units_[nth_longest_unit_].width();
         }
@@ -878,9 +882,9 @@ namespace pgbar {
       template<typename Base, typename Derived>
       class CounterMeter : public Base {
       protected:
-        PGBAR__INLINE_FN io::Stringbuf& build_counter( io::Stringbuf& buffer,
-                                                       std::uint64_t num_task_done,
-                                                       std::uint64_t num_all_tasks ) const
+        PGBAR__FORCEINLINE io::Stringbuf& build_counter( io::Stringbuf& buffer,
+                                                         std::uint64_t num_task_done,
+                                                         std::uint64_t num_all_tasks ) const
         {
           PGBAR__TRUST( num_task_done <= num_all_tasks );
           if ( num_all_tasks == 0 )
@@ -891,7 +895,8 @@ namespace pgbar {
                         << '/' << utils::format( num_all_tasks );
         }
 
-        PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX14_CNSTXPR types::Size fixed_len_counter() const noexcept
+        PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR types::Size fixed_len_counter()
+          const noexcept
         {
           return utils::count_digits( this->task_range_.back() ) * 2 + 1;
         }
@@ -902,8 +907,8 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class Timer : public Base {
-        PGBAR__NODISCARD PGBAR__INLINE_FN io::Stringbuf& to_hms( io::Stringbuf& buffer,
-                                                                 types::TimeUnit duration ) const
+        PGBAR__NODISCARD PGBAR__FORCEINLINE io::Stringbuf& to_hms( io::Stringbuf& buffer,
+                                                                   types::TimeUnit duration ) const
         {
           auto zfill2 = [&]( std::int64_t num_time ) -> io::Stringbuf& {
             PGBAR__TRUST( num_time >= 0 );
@@ -927,12 +932,12 @@ namespace pgbar {
 
       protected:
 #define PGBAR__ELASPED u8"--:--:--"
-        PGBAR__INLINE_FN io::Stringbuf& build_elapsed( io::Stringbuf& buffer,
-                                                       types::TimeUnit time_passed ) const
+        PGBAR__FORCEINLINE io::Stringbuf& build_elapsed( io::Stringbuf& buffer,
+                                                         types::TimeUnit time_passed ) const
         {
           return to_hms( buffer, time_passed );
         }
-        PGBAR__NODISCARD PGBAR__INLINE_FN constexpr types::Size fixed_len_elapsed() const noexcept
+        PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr types::Size fixed_len_elapsed() const noexcept
         {
           return sizeof( PGBAR__ELASPED ) - 1;
         }
@@ -958,7 +963,7 @@ namespace pgbar {
           buffer << '~';
           return to_hms( buffer, time_per_task * remaining_tasks );
         }
-        PGBAR__NODISCARD PGBAR__INLINE_FN constexpr types::Size fixed_len_countdown() const noexcept
+        PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr types::Size fixed_len_countdown() const noexcept
         {
           return sizeof( PGBAR__COUNTDOWN ) - 1;
         }

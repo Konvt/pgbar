@@ -51,125 +51,125 @@ namespace pgbar {
         PGBAR__CXX14_CNSTXPR iterator& operator=( const iterator& ) & = default;
         PGBAR__CXX20_CNSTXPR ~iterator()                              = default;
 
-        PGBAR__INLINE_FN PGBAR__CXX14_CNSTXPR iterator& operator++() & noexcept
+        PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR iterator& operator++() & noexcept
         {
           ++itr_cnt_;
           return *this;
         }
-        PGBAR__INLINE_FN PGBAR__CXX14_CNSTXPR iterator operator++( int ) & noexcept
+        PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR iterator operator++( int ) & noexcept
         {
           auto before = *this;
           operator++();
           return before;
         }
-        PGBAR__INLINE_FN PGBAR__CXX14_CNSTXPR iterator& operator--() & noexcept
+        PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR iterator& operator--() & noexcept
         {
           --itr_cnt_;
           return *this;
         }
-        PGBAR__INLINE_FN PGBAR__CXX14_CNSTXPR iterator operator--( int ) & noexcept
+        PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR iterator operator--( int ) & noexcept
         {
           auto before = *this;
           operator--();
           return before;
         }
-        PGBAR__NODISCARD PGBAR__INLINE_FN constexpr reference operator*() const noexcept
+        PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr reference operator*() const noexcept
         {
           return static_cast<reference>( itr_start_
                                          + itr_cnt_ * static_cast<_details::types::Size>( itr_step_ ) );
         }
-        PGBAR__NODISCARD PGBAR__INLINE_FN constexpr reference operator[](
+        PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr reference operator[](
           _details::types::Size inc ) const noexcept
         {
           return *( *this + inc );
         }
 
-        friend PGBAR__INLINE_FN PGBAR__CXX14_CNSTXPR iterator operator+( const iterator& itr,
-                                                                         value_type increment ) noexcept
+        friend PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR iterator operator+( const iterator& itr,
+                                                                           value_type increment ) noexcept
         {
           return { itr.itr_start_,
                    itr.itr_step_,
                    itr.itr_cnt_ + static_cast<_details::types::Size>( increment / itr.itr_step_ ) };
         }
-        friend PGBAR__INLINE_FN PGBAR__CXX14_CNSTXPR iterator operator+( value_type increment,
-                                                                         const iterator& itr ) noexcept
+        friend PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR iterator operator+( value_type increment,
+                                                                           const iterator& itr ) noexcept
         {
           return itr + increment;
         }
-        friend PGBAR__INLINE_FN PGBAR__CXX14_CNSTXPR iterator operator-( const iterator& itr,
-                                                                         value_type increment ) noexcept
+        friend PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR iterator operator-( const iterator& itr,
+                                                                           value_type increment ) noexcept
         {
           return { itr.itr_start_,
                    itr.itr_step_,
                    itr.itr_cnt_ - static_cast<_details::types::Size>( increment / itr.itr_step_ ) };
         }
-        friend PGBAR__INLINE_FN PGBAR__CXX14_CNSTXPR iterator operator-( value_type increment,
-                                                                         const iterator& itr ) noexcept
+        friend PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR iterator operator-( value_type increment,
+                                                                           const iterator& itr ) noexcept
         {
           return itr - increment;
         }
-        PGBAR__NODISCARD friend PGBAR__INLINE_FN constexpr difference_type operator-(
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr difference_type operator-(
           const iterator& a,
           const iterator& b ) noexcept
         {
           return static_cast<difference_type>( *a - *b );
         }
-        friend PGBAR__INLINE_FN PGBAR__CXX14_CNSTXPR iterator& operator+=( iterator& itr,
-                                                                           value_type increment ) noexcept
+        friend PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR iterator& operator+=( iterator& itr,
+                                                                             value_type increment ) noexcept
         {
           itr.itr_cnt_ += static_cast<_details::types::Size>( increment / itr.itr_step_ );
           return itr;
         }
-        friend PGBAR__INLINE_FN PGBAR__CXX14_CNSTXPR iterator& operator-=( iterator& itr,
-                                                                           value_type increment ) noexcept
+        friend PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR iterator& operator-=( iterator& itr,
+                                                                             value_type increment ) noexcept
         {
           itr.itr_cnt_ -= static_cast<_details::types::Size>( increment / itr.itr_step_ );
           return itr;
         }
-        PGBAR__NODISCARD friend PGBAR__INLINE_FN constexpr bool operator==( const iterator& itr,
-                                                                            value_type num ) noexcept
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator==( const iterator& itr,
+                                                                              value_type num ) noexcept
         {
           return *itr == num;
         }
-        PGBAR__NODISCARD friend PGBAR__INLINE_FN constexpr bool operator!=( const iterator& itr,
-                                                                            value_type num ) noexcept
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator!=( const iterator& itr,
+                                                                              value_type num ) noexcept
         {
           return !( itr == num );
         }
-        PGBAR__NODISCARD friend PGBAR__INLINE_FN constexpr bool operator==( const iterator& a,
-                                                                            const iterator& b ) noexcept
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator==( const iterator& a,
+                                                                              const iterator& b ) noexcept
         {
           return a.itr_start_ == b.itr_start_ && a.itr_step_ == b.itr_step_ && a.itr_cnt_ == b.itr_cnt_;
         }
 #if PGBAR__CXX20
-        PGBAR__NODISCARD friend PGBAR__INLINE_FN constexpr auto operator<=>( const iterator& a,
-                                                                             const iterator& b ) noexcept
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr auto operator<=>( const iterator& a,
+                                                                               const iterator& b ) noexcept
         {
           return a.itr_start_ == b.itr_start_ && a.itr_step_ == b.itr_step_ && a.itr_cnt_ <=> b.itr_cnt_;
         }
 #else
-        PGBAR__NODISCARD friend PGBAR__INLINE_FN constexpr bool operator!=( const iterator& a,
-                                                                            const iterator& b ) noexcept
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator!=( const iterator& a,
+                                                                              const iterator& b ) noexcept
         {
           return !( a == b );
         }
-        PGBAR__NODISCARD friend PGBAR__INLINE_FN constexpr bool operator<( const iterator& a,
-                                                                           const iterator& b ) noexcept
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator<( const iterator& a,
+                                                                             const iterator& b ) noexcept
         {
           return a.itr_start_ == b.itr_start_ && a.itr_step_ == b.itr_step_ && a.itr_cnt_ < b.itr_cnt_;
         }
-        PGBAR__NODISCARD friend PGBAR__INLINE_FN constexpr bool operator>( const iterator& a,
-                                                                           const iterator& b ) noexcept
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator>( const iterator& a,
+                                                                             const iterator& b ) noexcept
         {
           return b < a;
         }
-        PGBAR__NODISCARD friend PGBAR__INLINE_FN constexpr bool operator<=( const iterator& a,
-                                                                            const iterator& b ) noexcept
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator<=( const iterator& a,
+                                                                              const iterator& b ) noexcept
         {
           return !( b < a );
         }
-        PGBAR__NODISCARD friend PGBAR__INLINE_FN constexpr bool operator>=( const iterator& a,
-                                                                            const iterator& b ) noexcept
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator>=( const iterator& a,
+                                                                              const iterator& b ) noexcept
         {
           return !( a < b );
         }
@@ -214,19 +214,19 @@ namespace pgbar {
       PGBAR__CXX14_CNSTXPR NumericSpan& operator=( const NumericSpan& ) & = default;
       PGBAR__CXX20_CNSTXPR ~NumericSpan()                                 = default;
 
-      PGBAR__NODISCARD PGBAR__INLINE_FN constexpr iterator begin() const noexcept
+      PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr iterator begin() const noexcept
       {
         return iterator( start_, step_ );
       }
-      PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX23_CNSTXPR iterator end() const noexcept
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX23_CNSTXPR iterator end() const noexcept
       {
         return iterator( start_, step_, size() );
       }
 
-      PGBAR__NODISCARD PGBAR__INLINE_FN constexpr N front() const noexcept { return start_; }
-      PGBAR__NODISCARD PGBAR__INLINE_FN constexpr N back() const noexcept { return end_; }
-      PGBAR__NODISCARD PGBAR__INLINE_FN constexpr N step() const noexcept { return step_; }
-      PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX23_CNSTXPR _details::types::Size size() const noexcept
+      PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr N front() const noexcept { return start_; }
+      PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr N back() const noexcept { return end_; }
+      PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr N step() const noexcept { return step_; }
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX23_CNSTXPR _details::types::Size size() const noexcept
       {
         PGBAR__TRUST( step_ != 0 );
         if PGBAR__CXX17_CNSTXPR ( std::is_unsigned<N>::value )
@@ -240,8 +240,8 @@ namespace pgbar {
           return static_cast<_details::types::Size>( std::ceil( ( end_ - start_ ) / step_ ) );
       }
 
-      PGBAR__NODISCARD PGBAR__INLINE_FN constexpr bool empty() const noexcept { return size() == 0; }
-      PGBAR__NODISCARD PGBAR__INLINE_FN constexpr typename iterator::reference operator[](
+      PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr bool empty() const noexcept { return size() == 0; }
+      PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr typename iterator::reference operator[](
         _details::types::Size inc ) const noexcept
       {
         return *( begin() + inc );

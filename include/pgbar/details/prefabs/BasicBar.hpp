@@ -80,9 +80,9 @@ namespace pgbar {
 #if PGBAR__CXX20
     requires( std::is_arithmetic_v<N> && _details::traits::is_iterable_bar<Bar>::value
               && std::is_constructible_v<Bar, Options...> )
-  PGBAR__INLINE_FN void
+  PGBAR__FORCEINLINE void
 #else
-  PGBAR__INLINE_FN
+  PGBAR__FORCEINLINE
     typename std::enable_if<_details::traits::AllOf<std::is_arithmetic<N>,
                                                     _details::traits::is_iterable_bar<Bar>,
                                                     std::is_constructible<Bar, Options...>>::value>::type
@@ -99,9 +99,9 @@ namespace pgbar {
       && _details::traits::is_reactive_bar<Bar>::value
       && std::is_same_v<std::remove_reference_t<decltype( std::declval<Bar>() | std::declval<Act>() )>, Bar>
       && std::is_constructible_v<Bar, Options...> )
-  PGBAR__INLINE_FN void
+  PGBAR__FORCEINLINE void
 #else
-  PGBAR__INLINE_FN typename std::enable_if<_details::traits::AllOf<
+  PGBAR__FORCEINLINE typename std::enable_if<_details::traits::AllOf<
     std::is_arithmetic<N>,
     _details::traits::is_iterable_bar<Bar>,
     _details::traits::is_reactive_bar<Bar>,
@@ -126,9 +126,9 @@ namespace pgbar {
       std::is_arithmetic_v<N> && _details::traits::is_config<Config>::value
       && _details::traits::is_iterable_bar<_details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
       && std::is_constructible_v<Config, Options...> )
-  PGBAR__INLINE_FN void
+  PGBAR__FORCEINLINE void
 #else
-  PGBAR__INLINE_FN typename std::enable_if<_details::traits::AllOf<
+  PGBAR__FORCEINLINE typename std::enable_if<_details::traits::AllOf<
     std::is_arithmetic<N>,
     _details::traits::is_config<Config>,
     _details::traits::is_iterable_bar<_details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
@@ -160,9 +160,9 @@ namespace pgbar {
                                     | std::declval<Act>() )>,
                         _details::prefabs::BasicBar<Config, Outlet, Mode, Area>>
       && std::is_constructible_v<Config, Options...> )
-  PGBAR__INLINE_FN void
+  PGBAR__FORCEINLINE void
 #else
-  PGBAR__INLINE_FN typename std::enable_if<_details::traits::AllOf<
+  PGBAR__FORCEINLINE typename std::enable_if<_details::traits::AllOf<
     std::is_arithmetic<N>,
     _details::traits::is_config<Config>,
     _details::traits::is_iterable_bar<_details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
@@ -187,9 +187,9 @@ namespace pgbar {
 #if PGBAR__CXX20
     requires( std::is_floating_point_v<N> && _details::traits::is_iterable_bar<Bar>::value
               && std::is_constructible_v<Bar, Options...> )
-  PGBAR__INLINE_FN void
+  PGBAR__FORCEINLINE void
 #else
-  PGBAR__INLINE_FN
+  PGBAR__FORCEINLINE
     typename std::enable_if<_details::traits::AllOf<std::is_floating_point<N>,
                                                     _details::traits::is_iterable_bar<Bar>,
                                                     std::is_constructible<Bar, Options...>>::value>::type
@@ -206,9 +206,9 @@ namespace pgbar {
       && _details::traits::is_reactive_bar<Bar>::value
       && std::is_same_v<std::remove_reference_t<decltype( std::declval<Bar>() | std::declval<Act>() )>, Bar>
       && std::is_constructible_v<Bar, Options...> )
-  PGBAR__INLINE_FN void
+  PGBAR__FORCEINLINE void
 #else
-  PGBAR__INLINE_FN typename std::enable_if<_details::traits::AllOf<
+  PGBAR__FORCEINLINE typename std::enable_if<_details::traits::AllOf<
     std::is_floating_point<N>,
     _details::traits::is_iterable_bar<Bar>,
     _details::traits::is_reactive_bar<Bar>,
@@ -233,9 +233,9 @@ namespace pgbar {
       std::is_floating_point_v<N> && _details::traits::is_config<Config>::value
       && _details::traits::is_iterable_bar<_details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
       && std::is_constructible_v<Config, Options...> )
-  PGBAR__INLINE_FN void
+  PGBAR__FORCEINLINE void
 #else
-  PGBAR__INLINE_FN typename std::enable_if<_details::traits::AllOf<
+  PGBAR__FORCEINLINE typename std::enable_if<_details::traits::AllOf<
     std::is_floating_point<N>,
     _details::traits::is_config<Config>,
     _details::traits::is_iterable_bar<_details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
@@ -266,9 +266,9 @@ namespace pgbar {
                                     | std::declval<Act>() )>,
                         _details::prefabs::BasicBar<Config, Outlet, Mode, Area>>
       && std::is_constructible_v<Config, Options...> )
-  PGBAR__INLINE_FN void
+  PGBAR__FORCEINLINE void
 #else
-  PGBAR__INLINE_FN typename std::enable_if<_details::traits::AllOf<
+  PGBAR__FORCEINLINE typename std::enable_if<_details::traits::AllOf<
     std::is_floating_point<N>,
     _details::traits::is_config<Config>,
     _details::traits::is_iterable_bar<_details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
@@ -292,9 +292,9 @@ namespace pgbar {
 #if PGBAR__CXX20
     requires( std::is_integral_v<N> && _details::traits::is_iterable_bar<Bar>::value
               && std::is_constructible_v<Bar, Options...> )
-  PGBAR__INLINE_FN void
+  PGBAR__FORCEINLINE void
 #else
-  PGBAR__INLINE_FN
+  PGBAR__FORCEINLINE
     typename std::enable_if<_details::traits::AllOf<std::is_integral<N>,
                                                     _details::traits::is_iterable_bar<Bar>,
                                                     std::is_constructible<Bar, Options...>>::value>::type
@@ -310,9 +310,9 @@ namespace pgbar {
       && _details::traits::is_reactive_bar<Bar>::value
       && std::is_same_v<std::remove_reference_t<decltype( std::declval<Bar>() | std::declval<Act>() )>, Bar>
       && std::is_constructible_v<Bar, Options...> )
-  PGBAR__INLINE_FN void
+  PGBAR__FORCEINLINE void
 #else
-  PGBAR__INLINE_FN typename std::enable_if<_details::traits::AllOf<
+  PGBAR__FORCEINLINE typename std::enable_if<_details::traits::AllOf<
     std::is_integral<N>,
     _details::traits::is_iterable_bar<Bar>,
     std::is_same<typename std::remove_reference<decltype( std::declval<Bar>() | std::declval<Act>() )>::type,
@@ -336,9 +336,9 @@ namespace pgbar {
       std::is_integral_v<N> && _details::traits::is_config<Config>::value
       && _details::traits::is_iterable_bar<_details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
       && std::is_constructible_v<Config, Options...> )
-  PGBAR__INLINE_FN void
+  PGBAR__FORCEINLINE void
 #else
-  PGBAR__INLINE_FN typename std::enable_if<_details::traits::AllOf<
+  PGBAR__FORCEINLINE typename std::enable_if<_details::traits::AllOf<
     std::is_integral<N>,
     _details::traits::is_config<Config>,
     _details::traits::is_iterable_bar<_details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
@@ -369,9 +369,9 @@ namespace pgbar {
                                     | std::declval<Act>() )>,
                         _details::prefabs::BasicBar<Config, Outlet, Mode, Area>>
       && std::is_constructible_v<Config, Options...> )
-  PGBAR__INLINE_FN void
+  PGBAR__FORCEINLINE void
 #else
-  PGBAR__INLINE_FN typename std::enable_if<_details::traits::AllOf<
+  PGBAR__FORCEINLINE typename std::enable_if<_details::traits::AllOf<
     std::is_integral<N>,
     _details::traits::is_config<Config>,
     _details::traits::is_iterable_bar<_details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
@@ -395,9 +395,9 @@ namespace pgbar {
 #if PGBAR__CXX20
     requires( std::is_integral_v<N> && _details::traits::is_iterable_bar<Bar>::value
               && std::is_constructible_v<Bar, Options...> )
-  PGBAR__INLINE_FN void
+  PGBAR__FORCEINLINE void
 #else
-  PGBAR__INLINE_FN
+  PGBAR__FORCEINLINE
     typename std::enable_if<_details::traits::AllOf<std::is_integral<N>,
                                                     _details::traits::is_iterable_bar<Bar>,
                                                     std::is_constructible<Bar, Options...>>::value>::type
@@ -413,9 +413,9 @@ namespace pgbar {
       && _details::traits::is_reactive_bar<Bar>::value
       && std::is_same_v<std::remove_reference_t<decltype( std::declval<Bar>() | std::declval<Act>() )>, Bar>
       && std::is_constructible_v<Bar, Options...> )
-  PGBAR__INLINE_FN void
+  PGBAR__FORCEINLINE void
 #else
-  PGBAR__INLINE_FN typename std::enable_if<_details::traits::AllOf<
+  PGBAR__FORCEINLINE typename std::enable_if<_details::traits::AllOf<
     std::is_integral<N>,
     _details::traits::is_iterable_bar<Bar>,
     _details::traits::is_reactive_bar<Bar>,
@@ -440,9 +440,9 @@ namespace pgbar {
       std::is_integral_v<N> && _details::traits::is_config<Config>::value
       && _details::traits::is_iterable_bar<_details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
       && std::is_constructible_v<Config, Options...> )
-  PGBAR__INLINE_FN void
+  PGBAR__FORCEINLINE void
 #else
-  PGBAR__INLINE_FN typename std::enable_if<_details::traits::AllOf<
+  PGBAR__FORCEINLINE typename std::enable_if<_details::traits::AllOf<
     std::is_integral<N>,
     _details::traits::is_config<Config>,
     _details::traits::is_iterable_bar<_details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
@@ -472,9 +472,9 @@ namespace pgbar {
                                     | std::declval<Act>() )>,
                         _details::prefabs::BasicBar<Config, Outlet, Mode, Area>>
       && std::is_constructible_v<Config, Options...> )
-  PGBAR__INLINE_FN void
+  PGBAR__FORCEINLINE void
 #else
-  PGBAR__INLINE_FN typename std::enable_if<_details::traits::AllOf<
+  PGBAR__FORCEINLINE typename std::enable_if<_details::traits::AllOf<
     std::is_integral<N>,
     _details::traits::is_config<Config>,
     _details::traits::is_iterable_bar<_details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
@@ -497,9 +497,9 @@ namespace pgbar {
 #if PGBAR__CXX20
     requires( _details::traits::is_sized_iterator<I>::value && _details::traits::is_iterable_bar<Bar>::value
               && std::is_constructible_v<Bar, Options...> )
-  PGBAR__INLINE_FN void
+  PGBAR__FORCEINLINE void
 #else
-  PGBAR__INLINE_FN
+  PGBAR__FORCEINLINE
     typename std::enable_if<_details::traits::AllOf<_details::traits::is_sized_iterator<I>,
                                                     _details::traits::is_iterable_bar<Bar>,
                                                     std::is_constructible<Bar, Options...>>::value>::type
@@ -516,9 +516,9 @@ namespace pgbar {
       && _details::traits::is_reactive_bar<Bar>::value
       && std::is_same_v<std::remove_reference_t<decltype( std::declval<Bar>() | std::declval<Act>() )>, Bar>
       && std::is_constructible_v<Bar, Options...> )
-  PGBAR__INLINE_FN void
+  PGBAR__FORCEINLINE void
 #else
-  PGBAR__INLINE_FN typename std::enable_if<_details::traits::AllOf<
+  PGBAR__FORCEINLINE typename std::enable_if<_details::traits::AllOf<
     _details::traits::is_sized_iterator<I>,
     _details::traits::is_iterable_bar<Bar>,
     _details::traits::is_reactive_bar<Bar>,
@@ -543,9 +543,9 @@ namespace pgbar {
       _details::traits::is_sized_iterator<I>::value && _details::traits::is_config<Config>::value
       && _details::traits::is_iterable_bar<_details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
       && std::is_constructible_v<Config, Options...> )
-  PGBAR__INLINE_FN void
+  PGBAR__FORCEINLINE void
 #else
-  PGBAR__INLINE_FN typename std::enable_if<_details::traits::AllOf<
+  PGBAR__FORCEINLINE typename std::enable_if<_details::traits::AllOf<
     _details::traits::is_sized_iterator<I>,
     _details::traits::is_config<Config>,
     _details::traits::is_iterable_bar<_details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
@@ -576,9 +576,9 @@ namespace pgbar {
                                     | std::declval<Act>() )>,
                         _details::prefabs::BasicBar<Config, Outlet, Mode, Area>>
       && std::is_constructible_v<Config, Options...> )
-  PGBAR__INLINE_FN void
+  PGBAR__FORCEINLINE void
 #else
-  PGBAR__INLINE_FN typename std::enable_if<_details::traits::AllOf<
+  PGBAR__FORCEINLINE typename std::enable_if<_details::traits::AllOf<
     _details::traits::is_sized_iterator<I>,
     _details::traits::is_config<Config>,
     _details::traits::is_iterable_bar<_details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
@@ -602,9 +602,9 @@ namespace pgbar {
 #if PGBAR__CXX20
     requires( _details::traits::is_bounded_range<R>::value && _details::traits::is_iterable_bar<Bar>::value
               && std::is_constructible_v<Bar, Options...> )
-  PGBAR__INLINE_FN void
+  PGBAR__FORCEINLINE void
 #else
-  PGBAR__INLINE_FN
+  PGBAR__FORCEINLINE
     typename std::enable_if<_details::traits::AllOf<_details::traits::is_bounded_range<R>,
                                                     _details::traits::is_iterable_bar<Bar>,
                                                     std::is_constructible<Bar, Options...>>::value>::type
@@ -620,9 +620,9 @@ namespace pgbar {
       && _details::traits::is_reactive_bar<Bar>::value
       && std::is_same_v<std::remove_reference_t<decltype( std::declval<Bar>() | std::declval<Act>() )>, Bar>
       && std::is_constructible_v<Bar, Options...> )
-  PGBAR__INLINE_FN void
+  PGBAR__FORCEINLINE void
 #else
-  PGBAR__INLINE_FN typename std::enable_if<_details::traits::AllOf<
+  PGBAR__FORCEINLINE typename std::enable_if<_details::traits::AllOf<
     _details::traits::is_bounded_range<R>,
     _details::traits::is_iterable_bar<Bar>,
     _details::traits::is_reactive_bar<Bar>,
@@ -647,9 +647,9 @@ namespace pgbar {
       _details::traits::is_bounded_range<R>::value && _details::traits::is_config<Config>::value
       && _details::traits::is_iterable_bar<_details::prefabs::BasicBar<Config, Outlet, Mode, Area>>::value
       && std::is_constructible_v<Config, Options...> )
-  PGBAR__INLINE_FN void
+  PGBAR__FORCEINLINE void
 #else
-  PGBAR__INLINE_FN typename std::enable_if<_details::traits::AllOf<
+  PGBAR__FORCEINLINE typename std::enable_if<_details::traits::AllOf<
     _details::traits::is_bounded_range<R>,
     _details::traits::is_config<Config>,
     _details::traits::is_iterable_bar<_details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,
@@ -679,9 +679,9 @@ namespace pgbar {
                                     | std::declval<Act>() )>,
                         _details::prefabs::BasicBar<Config, Outlet, Mode, Area>>
       && std::is_constructible_v<Config, Options...> )
-  PGBAR__INLINE_FN void
+  PGBAR__FORCEINLINE void
 #else
-  PGBAR__INLINE_FN typename std::enable_if<_details::traits::AllOf<
+  PGBAR__FORCEINLINE typename std::enable_if<_details::traits::AllOf<
     _details::traits::is_bounded_range<R>,
     _details::traits::is_config<Config>,
     _details::traits::is_iterable_bar<_details::prefabs::BasicBar<Config, Outlet, Mode, Area>>,

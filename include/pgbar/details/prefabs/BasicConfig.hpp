@@ -48,8 +48,8 @@ namespace pgbar {
                                              traits::OptionFor_t<assets::Postfix>,
                                              traits::OptionFor_t<assets::Segment>>;
 
-        friend PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR void unpacker( BasicConfig& cfg,
-                                                                    option::Style&& val ) noexcept
+        friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR void unpacker( BasicConfig& cfg,
+                                                                      option::Style&& val ) noexcept
         {
           cfg.visual_masks_ = val.value();
         }
@@ -115,7 +115,7 @@ namespace pgbar {
         enum class Mask : std::uint8_t { Per = 0, Ani, Cnt, Sped, Elpsd, Cntdwn };
         std::bitset<6> visual_masks_;
 
-        PGBAR__NODISCARD PGBAR__INLINE_FN types::Size common_render_size() const noexcept
+        PGBAR__NODISCARD PGBAR__FORCEINLINE types::Size common_render_size() const noexcept
         {
           return this->fixed_len_prefix() + this->fixed_len_postfix()
                + ( visual_masks_[utils::as_val( Mask::Per )] ? this->fixed_len_percent() : 0 )

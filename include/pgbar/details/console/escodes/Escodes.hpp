@@ -152,7 +152,7 @@ namespace pgbar {
             return *this;
           }
 
-          PGBAR__INLINE_FN PGBAR__CXX23_CNSTXPR void clear() noexcept
+          PGBAR__FORCEINLINE PGBAR__CXX23_CNSTXPR void clear() noexcept
           {
             std::fill( sgr_.begin(), sgr_.end(), '\0' );
             length_ = 0;
@@ -165,7 +165,7 @@ namespace pgbar {
           }
           PGBAR__CXX23_CNSTXPR friend void swap( RGBColor& a, RGBColor& b ) noexcept { a.swap( b ); }
 
-          PGBAR__INLINE_FN friend io::Stringbuf& operator<<( io::Stringbuf& buf, const Self& col )
+          PGBAR__FORCEINLINE friend io::Stringbuf& operator<<( io::Stringbuf& buf, const Self& col )
           {
 #ifndef PGBAR_NOCOLOR
             buf.append( '\x1B' )

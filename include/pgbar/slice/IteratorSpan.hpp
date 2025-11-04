@@ -66,55 +66,59 @@ namespace pgbar {
         PGBAR__CXX14_CNSTXPR iterator& operator=( iterator&& ) &      = default;
         PGBAR__CXX20_CNSTXPR ~iterator()                              = default;
 
-        PGBAR__INLINE_FN PGBAR__CXX14_CNSTXPR iterator& operator++() &
+        PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR iterator& operator++() &
         {
           ++current_;
           return *this;
         }
-        PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX14_CNSTXPR iterator operator++( int ) &
+        PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR iterator operator++( int ) &
         {
           auto before = *this;
           operator++();
           return before;
         }
 
-        PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX14_CNSTXPR reference operator*() const
+        PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR reference operator*() const
         {
           return *current_;
         }
-        PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX17_CNSTXPR pointer operator->() const noexcept
+        PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR pointer operator->() const noexcept
         {
           return current_;
         }
 
-        PGBAR__NODISCARD friend PGBAR__INLINE_FN constexpr bool operator==( const iterator& itr, const I& ir )
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator==( const iterator& itr,
+                                                                              const I& ir )
         {
           return itr.current_ == ir;
         }
-        PGBAR__NODISCARD friend PGBAR__INLINE_FN constexpr bool operator==( const I& ir, const iterator& itr )
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator==( const I& ir,
+                                                                              const iterator& itr )
         {
           return itr == ir;
         }
-        PGBAR__NODISCARD friend PGBAR__INLINE_FN constexpr bool operator!=( const iterator& itr, const I& ir )
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator!=( const iterator& itr,
+                                                                              const I& ir )
         {
           return !( itr == ir );
         }
-        PGBAR__NODISCARD friend PGBAR__INLINE_FN constexpr bool operator!=( const I& ir, const iterator& itr )
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator!=( const I& ir,
+                                                                              const iterator& itr )
         {
           return !( itr == ir );
         }
-        PGBAR__NODISCARD friend PGBAR__INLINE_FN constexpr bool operator==( const iterator& a,
-                                                                            const iterator& b )
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator==( const iterator& a,
+                                                                              const iterator& b )
         {
           return a.current_ == b.current_;
         }
-        PGBAR__NODISCARD friend PGBAR__INLINE_FN constexpr bool operator!=( const iterator& a,
-                                                                            const iterator& b )
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator!=( const iterator& a,
+                                                                              const iterator& b )
         {
           return !( a == b );
         }
-        PGBAR__NODISCARD friend PGBAR__INLINE_FN constexpr difference_type operator-( const iterator& a,
-                                                                                      const iterator& b )
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr difference_type operator-( const iterator& a,
+                                                                                        const iterator& b )
         {
           return std::distance( a.current_, b.current_ );
         }
@@ -141,33 +145,30 @@ namespace pgbar {
       // Intentional non-virtual destructors.
       PGBAR__CXX20_CNSTXPR ~IteratorSpan()                                  = default;
 
-      PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX14_CNSTXPR Reference_t front() const noexcept
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR Reference_t front() const noexcept
       {
         return *start_;
       }
-      PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX14_CNSTXPR Reference_t back() const noexcept
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR Reference_t back() const noexcept
       {
         return *std::next( start_, size_ - 1 );
       }
 
-      PGBAR__NODISCARD PGBAR__INLINE_FN constexpr _details::types::Size step() const noexcept
-      {
-        return 1;
-      }
-      PGBAR__NODISCARD PGBAR__INLINE_FN constexpr _details::types::Size size() const noexcept
+      PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr _details::types::Size step() const noexcept { return 1; }
+      PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr _details::types::Size size() const noexcept
       {
         return size_;
       }
 
-      PGBAR__NODISCARD PGBAR__INLINE_FN constexpr bool empty() const noexcept { return size_ == 0; }
+      PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr bool empty() const noexcept { return size_ == 0; }
 
-      PGBAR__NODISCARD PGBAR__INLINE_FN constexpr iterator begin() const
+      PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr iterator begin() const
         noexcept( _details::traits::AllOf<std::is_nothrow_move_constructible<I>,
                                           std::is_nothrow_copy_constructible<I>>::value )
       {
         return { this->start_ };
       }
-      PGBAR__NODISCARD PGBAR__INLINE_FN constexpr iterator end() const
+      PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr iterator end() const
         noexcept( _details::traits::AllOf<std::is_nothrow_move_constructible<I>,
                                           std::is_nothrow_copy_constructible<I>>::value )
       {

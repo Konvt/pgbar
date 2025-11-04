@@ -128,7 +128,7 @@ namespace pgbar {
         PGBAR__CXX20_CNSTXPR ~OStream()                       = default;
 
 #if PGBAR__WIN && !defined( PGBAR_UTF8 )
-        PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR void release() noexcept
+        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR void release() noexcept
         {
           Stringbuf::release();
           wb_buffer_.clear();
@@ -137,7 +137,7 @@ namespace pgbar {
           localized_.shrink_to_fit();
         }
 
-        PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR void clear() & noexcept
+        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR void clear() & noexcept
         {
           Stringbuf::clear();
           wb_buffer_.clear();
@@ -145,7 +145,7 @@ namespace pgbar {
         }
 #endif
 
-        PGBAR__INLINE_FN Self& flush() &
+        PGBAR__FORCEINLINE Self& flush() &
         {
           if ( this->buffer_.empty() )
             return *this;
@@ -194,8 +194,8 @@ namespace pgbar {
           return *this;
         }
 
-        friend PGBAR__INLINE_FN PGBAR__CXX20_CNSTXPR Self& operator<<( OStream& stream,
-                                                                       OStream& ( *fnptr )(OStream&))
+        friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR Self& operator<<( OStream& stream,
+                                                                         OStream& ( *fnptr )(OStream&))
         {
           PGBAR__TRUST( fnptr != nullptr );
           return fnptr( stream );

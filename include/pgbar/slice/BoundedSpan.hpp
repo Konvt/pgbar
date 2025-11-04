@@ -29,7 +29,7 @@ namespace pgbar {
       using Reference_t = std::iter_reference_t<iterator>;
 
       template<typename Rn>
-      static PGBAR__INLINE_FN PGBAR__CXX17_CNSTXPR _details::types::Size size( Rn& rn )
+      static PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR _details::types::Size size( Rn& rn )
       {
         return std::ranges::size( rn );
       }
@@ -38,18 +38,18 @@ namespace pgbar {
 
 # if PGBAR__CXX17
       template<typename Rn>
-      static PGBAR__INLINE_FN PGBAR__CXX17_CNSTXPR _details::types::Size size( Rn& rn )
+      static PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR _details::types::Size size( Rn& rn )
       {
         return std::size( rn );
       }
 # else
       template<typename Rn>
-      static PGBAR__INLINE_FN PGBAR__CXX17_CNSTXPR _details::types::Size size( Rn& rn )
+      static PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR _details::types::Size size( Rn& rn )
       {
         return rn.size();
       }
       template<typename Rn, _details::types::Size N>
-      static PGBAR__INLINE_FN constexpr _details::types::Size size( Rn ( & )[N] ) noexcept
+      static PGBAR__FORCEINLINE constexpr _details::types::Size size( Rn ( & )[N] ) noexcept
       {
         return N;
       }
@@ -62,7 +62,7 @@ namespace pgbar {
       PGBAR__CXX17_CNSTXPR BoundedSpan& operator=( const BoundedSpan& ) & = default;
       PGBAR__CXX20_CNSTXPR ~BoundedSpan()                                 = default;
 
-      PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX17_CNSTXPR iterator begin() const
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR iterator begin() const
       {
 #if PGBAR__CXX20
         return std::ranges::begin( *rnge_ );
@@ -71,9 +71,9 @@ namespace pgbar {
 #endif
       }
 #if PGBAR__CXX17
-      PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX17_CNSTXPR auto end() const
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR auto end() const
 #else
-      PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX17_CNSTXPR iterator end() const
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR iterator end() const
 #endif
       {
 #if PGBAR__CXX20
@@ -83,21 +83,18 @@ namespace pgbar {
 #endif
       }
 
-      PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX17_CNSTXPR Reference_t front() const { return *begin(); }
-      PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX17_CNSTXPR Reference_t back() const
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR Reference_t front() const { return *begin(); }
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR Reference_t back() const
       {
         return *std::next( begin(), size() - 1 );
       }
-      PGBAR__NODISCARD PGBAR__INLINE_FN constexpr _details::types::Size step() const noexcept
-      {
-        return 1;
-      }
-      PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX17_CNSTXPR _details::types::Size size() const
+      PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr _details::types::Size step() const noexcept { return 1; }
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR _details::types::Size size() const
       {
         return size( *rnge_ );
       }
 
-      PGBAR__NODISCARD PGBAR__INLINE_FN PGBAR__CXX17_CNSTXPR bool empty() const noexcept
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR bool empty() const noexcept
       {
         return rnge_ == nullptr;
       }

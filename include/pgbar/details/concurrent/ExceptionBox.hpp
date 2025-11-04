@@ -33,14 +33,14 @@ namespace pgbar {
           return *this;
         }
 
-        PGBAR__NODISCARD PGBAR__INLINE_FN bool empty() const noexcept
+        PGBAR__NODISCARD PGBAR__FORCEINLINE bool empty() const noexcept
         {
           SharedLock<SharedMutex> lock { rw_mtx_ };
           return !static_cast<bool>( exception_ );
         }
 
         // Store the exception if it is empty and return true, otherwise return false.
-        PGBAR__NODISCARD PGBAR__INLINE_FN bool try_store( std::exception_ptr e ) & noexcept
+        PGBAR__NODISCARD PGBAR__FORCEINLINE bool try_store( std::exception_ptr e ) & noexcept
         {
           std::lock_guard<SharedMutex> lock { rw_mtx_ };
           if ( exception_ )
@@ -48,12 +48,12 @@ namespace pgbar {
           exception_ = std::move( e );
           return true;
         }
-        PGBAR__INLINE_FN std::exception_ptr load() const noexcept
+        PGBAR__FORCEINLINE std::exception_ptr load() const noexcept
         {
           SharedLock<SharedMutex> lock { rw_mtx_ };
           return exception_;
         }
-        PGBAR__INLINE_FN Self& clear() noexcept
+        PGBAR__FORCEINLINE Self& clear() noexcept
         {
           std::lock_guard<SharedMutex> lock { rw_mtx_ };
           exception_ = std::exception_ptr();

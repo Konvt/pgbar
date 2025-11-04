@@ -146,7 +146,7 @@ namespace pgbar {
       }
 
     protected:
-      PGBAR__NODISCARD PGBAR__INLINE_FN _details::types::Size fixed_render_size() const noexcept
+      PGBAR__NODISCARD PGBAR__FORCEINLINE _details::types::Size fixed_render_size() const noexcept
       {
         return this->common_render_size()
              + ( this->visual_masks_[_details::utils::as_val( Base::Mask::Ani )] ? this->fixed_len_bar()
@@ -176,9 +176,9 @@ namespace pgbar {
         friend Base;
 
       protected:
-        PGBAR__INLINE_FN io::Stringbuf& build_animation( io::Stringbuf& buffer,
-                                                         types::Float num_percent,
-                                                         types::Size num_frame_cnt ) const
+        PGBAR__FORCEINLINE io::Stringbuf& build_animation( io::Stringbuf& buffer,
+                                                           types::Float num_percent,
+                                                           types::Size num_frame_cnt ) const
         {
           return this->build_char( buffer, num_percent, num_frame_cnt );
         }
@@ -186,11 +186,12 @@ namespace pgbar {
       public:
         using Base::Base;
 
-        PGBAR__INLINE_FN io::Stringbuf& build( io::Stringbuf& buffer,
-                                               types::Size num_frame_cnt,
-                                               std::uint64_t num_task_done,
-                                               std::uint64_t num_all_tasks,
-                                               const std::chrono::steady_clock::time_point& zero_point ) const
+        PGBAR__FORCEINLINE io::Stringbuf& build(
+          io::Stringbuf& buffer,
+          types::Size num_frame_cnt,
+          std::uint64_t num_task_done,
+          std::uint64_t num_all_tasks,
+          const std::chrono::steady_clock::time_point& zero_point ) const
         {
           PGBAR__TRUST( num_task_done <= num_all_tasks );
           const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;
