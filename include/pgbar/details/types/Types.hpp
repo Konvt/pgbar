@@ -33,6 +33,7 @@ namespace pgbar {
       using Float      = double;
       using TimeUnit   = std::chrono::nanoseconds;
       using Byte       = std::uint8_t;
+      using GlyphWidth = std::uint8_t; // value is between [0, 3]
     } // namespace types
   } // namespace _details
 } // namespace pgbar

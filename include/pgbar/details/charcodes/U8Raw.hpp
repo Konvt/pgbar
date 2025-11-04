@@ -112,7 +112,7 @@ namespace pgbar {
           };
         }
 
-        PGBAR__NODISCARD static PGBAR__CXX20_CNSTXPR Glyph::RenderWidth glyph_width(
+        PGBAR__NODISCARD static PGBAR__CXX20_CNSTXPR types::GlyphWidth glyph_width(
           types::UCodePoint codepoint ) noexcept
         {
           constexpr auto chart = code_chart();
@@ -174,9 +174,11 @@ namespace pgbar {
           return *this;
         }
 
-        PGBAR__CXX20_CNSTXPR bool empty() const noexcept { return bytes_.empty(); }
-        PGBAR__CXX20_CNSTXPR types::Size size() const noexcept { return bytes_.size(); }
-        PGBAR__CXX20_CNSTXPR types::Size width() const noexcept { return width_; }
+        PGBAR__NODISCARD PGBAR__CXX20_CNSTXPR bool empty() const noexcept { return bytes_.empty(); }
+        PGBAR__NODISCARD PGBAR__CXX20_CNSTXPR types::Size size() const noexcept { return bytes_.size(); }
+        PGBAR__NODISCARD PGBAR__CXX20_CNSTXPR types::Size width() const noexcept { return width_; }
+
+        PGBAR__CXX20_CNSTXPR const types::Char* data() const noexcept { return bytes_.data(); }
         PGBAR__CXX20_CNSTXPR types::ROStr str() & noexcept { return bytes_; }
         PGBAR__CXX20_CNSTXPR types::ROStr str() const& noexcept { return bytes_; }
         PGBAR__CXX20_CNSTXPR types::String&& str() && noexcept { return std::move( bytes_ ); }
@@ -258,7 +260,7 @@ namespace pgbar {
 
 #if PGBAR__CXX20
         static_assert( sizeof( char8_t ) == sizeof( char ),
-                       "pgbar::_details::chaset::U8Raw: Unexpected type size mismatch" );
+                       "pgbar::_details::charcodes::U8Raw: Unexpected type size mismatch" );
 
         PGBAR__CXX20_CNSTXPR explicit U8Raw( types::LitU8 u8_sv ) : U8Raw()
         {
