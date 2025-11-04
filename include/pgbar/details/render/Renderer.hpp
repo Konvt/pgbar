@@ -128,7 +128,7 @@ namespace pgbar {
         }
 
         PGBAR__FORCEINLINE void execute() & noexcept { /* Empty implementation */ }
-        PGBAR__FORCEINLINE void attempt() & noexcept
+        void attempt() & noexcept
         {
           // Each call should not be discarded.
           std::lock_guard<concurrent::SharedMutex> lock { mtx_ };
@@ -285,7 +285,7 @@ namespace pgbar {
            */
         }
         // When the task is not empty, execute at least one task.
-        PGBAR__FORCEINLINE void attempt() & noexcept
+        void attempt() & noexcept
         {
           // The lock here is to ensure that only one thread executes the task_ at any given time.
           // And synchronization semantics require that no call request be dropped.

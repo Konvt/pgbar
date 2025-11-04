@@ -300,9 +300,9 @@ namespace pgbar {
     MultiBar<_details::prefabs::BasicBar<typename std::decay<Config>::type, Outlet, Mode, Area>,
              _details::prefabs::BasicBar<typename std::decay<Configs>::type, Outlet, Mode, Area>...>>::type
 #endif
-    make_multi( Config&& cfg, Configs&&... cfgs )
-      noexcept( _details::traits::Not<_details::traits::AnyOf<std::is_lvalue_reference<Config>,
-                                                              std::is_lvalue_reference<Configs>...>>::value )
+    make_multi( Config&& cfg, Configs&&... cfgs ) noexcept(
+      _details::traits::Not<_details::traits::AnyOf<std::is_lvalue_reference<Config&&>,
+                                                    std::is_lvalue_reference<Configs&&>...>>::value )
   {
     return { std::forward<Config>( cfg ), std::forward<Configs>( cfgs )... };
   }
@@ -324,8 +324,9 @@ namespace pgbar {
       PGBAR__NODISCARD PGBAR__FORCEINLINE typename std::enable_if<
         traits::is_config<typename std::decay<C>::type>::value,
         MakeMulti_t<prefabs::BasicBar<typename std::decay<C>::type, O, M, A>, Cnt>>::type
-        make_multi_helper( C&& cfg, const traits::IndexSeq<Is...>& ) noexcept(
-          traits::AllOf<traits::BoolConstant<( Cnt == 1 )>, traits::Not<std::is_lvalue_reference<C>>>::value )
+        make_multi_helper( C&& cfg, const traits::IndexSeq<Is...>& )
+          noexcept( traits::AllOf<traits::BoolConstant<( Cnt == 1 )>,
+                                  traits::Not<std::is_lvalue_reference<C&&>>>::value )
       {
         std::array<C, Cnt - 1> cfgs { { ( (void)( Is ), cfg )... } };
         return { std::forward<C>( cfg ), std::move( cfgs[Is] )... };
@@ -374,7 +375,7 @@ namespace pgbar {
 #endif
     make_multi( Config&& cfg )
       noexcept( _details::traits::AllOf<_details::traits::BoolConstant<( Cnt == 1 )>,
-                                        _details::traits::Not<std::is_lvalue_reference<Config>>>::value )
+                                        _details::traits::Not<std::is_lvalue_reference<Config&&>>>::value )
   {
     return _details::assets::make_multi_helper<Cnt, Outlet, Mode, Area>(
       std::forward<Config>( cfg ),
@@ -390,7 +391,7 @@ namespace pgbar {
 #if PGBAR__CXX20
     requires( Cnt > 0 && sizeof...( Objs ) <= Cnt && _details::traits::is_bar<Bar>::value
               && ( ( ( std::is_same_v<std::remove_cv_t<Bar>, std::decay_t<Objs>> && ... )
-                     && !( std::is_lvalue_reference_v<Objs> || ... ) )
+                     && !( std::is_lvalue_reference_v<Objs &&> || ... ) )
                    || ( std::is_same_v<typename Bar::Config, std::decay_t<Objs>> && ... ) ) )
   PGBAR__NODISCARD PGBAR__FORCEINLINE MakeMulti_t<Bar, Cnt>
 #else
@@ -402,7 +403,7 @@ namespace pgbar {
       _details::traits::AnyOf<
         _details::traits::AllOf<
           std::is_same<typename std::remove_cv<Bar>::type, typename std::decay<Objs>::type>...,
-          _details::traits::Not<_details::traits::AnyOf<std::is_lvalue_reference<Objs>...>>>,
+          _details::traits::Not<_details::traits::AnyOf<std::is_lvalue_reference<Objs&&>...>>>,
         _details::traits::AllOf<std::is_same<typename Bar::Config, typename std::decay<Objs>::type>...>>>::
       value,
     MakeMulti_t<Bar, Cnt>>::type

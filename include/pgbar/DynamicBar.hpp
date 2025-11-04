@@ -285,7 +285,7 @@ namespace pgbar {
 #if PGBAR__CXX20
     requires( _details::traits::is_bar<Bar>::value
               && ( ( ( std::is_same_v<std::remove_cv_t<Bar>, std::remove_cv_t<Objs>> && ... )
-                     && !( std::is_lvalue_reference_v<Objs> || ... ) )
+                     && !( std::is_lvalue_reference_v<Objs &&> || ... ) )
                    || ( std::is_same<typename Bar::Config, std::decay_t<Objs>>::value && ... ) ) )
   PGBAR__NODISCARD PGBAR__FORCEINLINE std::vector<std::unique_ptr<Bar>>
 #else
@@ -295,7 +295,7 @@ namespace pgbar {
       _details::traits::AnyOf<
         _details::traits::AllOf<
           std::is_same<typename std::remove_cv<Bar>::type, typename std::remove_cv<Objs>::type>...,
-          _details::traits::Not<_details::traits::AnyOf<std::is_lvalue_reference<Objs>...>>>,
+          _details::traits::Not<_details::traits::AnyOf<std::is_lvalue_reference<Objs&&>...>>>,
         _details::traits::AllOf<std::is_same<typename Bar::Config, typename std::decay<Objs>::type>...>>>::
       value,
     std::vector<std::unique_ptr<Bar>>>::type

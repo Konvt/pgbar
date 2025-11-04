@@ -34,7 +34,8 @@ namespace pgbar {
 
       // Available only for objects that constructed by placement new.
       template<typename T>
-      PGBAR__CXX20_CNSTXPR void destruct_at( T& object ) noexcept( std::is_nothrow_destructible<T>::value )
+      PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR void destruct_at( T& object )
+        noexcept( std::is_nothrow_destructible<T>::value )
       {
 #if PGBAR__CXX17
         std::destroy_at( std::addressof( object ) );
@@ -85,7 +86,7 @@ namespace pgbar {
       To* launder_as( R ( * )( Args...... ) noexcept ) = delete;
 
       template<typename T>
-      constexpr decltype( auto ) as_const( T&& param ) noexcept
+      PGBAR__FORCEINLINE constexpr decltype( auto ) as_const( T&& param ) noexcept
       {
         return std::as_const( std::forward<T>( param ) );
       }
@@ -98,7 +99,7 @@ namespace pgbar {
       }
 #else
       template<typename T>
-      constexpr typename std::add_const<T>::type& as_const( T& param ) noexcept
+      PGBAR__FORCEINLINE constexpr typename std::add_const<T>::type& as_const( T& param ) noexcept
       {
         return param;
       }
@@ -192,7 +193,7 @@ namespace pgbar {
       }
 
       template<typename As, typename T>
-      constexpr decltype( auto ) forward_as( T&& param ) noexcept
+      PGBAR__FORCEINLINE constexpr decltype( auto ) forward_as( T&& param ) noexcept
       {
         return std::forward_like<As>( std::forward<T>( param ) );
       }
@@ -205,7 +206,7 @@ namespace pgbar {
       }
 
       template<typename As, typename T>
-      constexpr auto forward_as( T&& param ) noexcept ->
+      PGBAR__FORCEINLINE constexpr auto forward_as( T&& param ) noexcept ->
         typename std::enable_if<std::is_lvalue_reference<As&&>::value
                                   && std::is_const<typename std::remove_reference<As>::type>::value,
                                 decltype( as_const( param ) )>::type
@@ -213,7 +214,7 @@ namespace pgbar {
         return as_const( param );
       }
       template<typename As, typename T>
-      constexpr auto forward_as( T&& param ) noexcept ->
+      PGBAR__FORCEINLINE constexpr auto forward_as( T&& param ) noexcept ->
         typename std::enable_if<std::is_lvalue_reference<As&&>::value
                                   && !std::is_const<typename std::remove_reference<As>::type>::value,
                                 T&>::type
@@ -221,7 +222,7 @@ namespace pgbar {
         return static_cast<T&>( param );
       }
       template<typename As, typename T>
-      constexpr auto forward_as( T&& param ) noexcept ->
+      PGBAR__FORCEINLINE constexpr auto forward_as( T&& param ) noexcept ->
         typename std::enable_if<!std::is_lvalue_reference<As&&>::value
                                   && std::is_const<typename std::remove_reference<As>::type>::value,
                                 decltype( std::move( as_const( param ) ) )>::type
@@ -229,7 +230,7 @@ namespace pgbar {
         return std::move( as_const( param ) );
       }
       template<typename As, typename T>
-      constexpr auto forward_as( T&& param ) noexcept ->
+      PGBAR__FORCEINLINE constexpr auto forward_as( T&& param ) noexcept ->
         typename std::enable_if<!std::is_lvalue_reference<As&&>::value
                                   && !std::is_const<typename std::remove_reference<As>::type>::value,
                                 decltype( std::move( param ) )>::type

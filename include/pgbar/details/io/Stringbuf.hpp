@@ -25,7 +25,10 @@ namespace pgbar {
         // Intentional non-virtual destructors.
         PGBAR__CXX20_CNSTXPR ~Stringbuf()                         = default;
 
-        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR bool empty() const noexcept { return buffer_.empty(); }
+        PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR bool empty() const noexcept
+        {
+          return buffer_.empty();
+        }
         PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR void clear() & noexcept { buffer_.clear(); }
 
         // Releases the buffer space completely

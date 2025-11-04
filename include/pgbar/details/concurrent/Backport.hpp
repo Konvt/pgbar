@@ -40,7 +40,7 @@ namespace pgbar {
         SharedMutex() noexcept : num_readers_ { 0 } {}
         ~SharedMutex() = default;
 
-        PGBAR__FORCEINLINE void lock() & noexcept
+        void lock() & noexcept
         {
           while ( true ) {
             while ( num_readers_.load( std::memory_order_acquire ) != 0 )
@@ -53,7 +53,7 @@ namespace pgbar {
               writer_mtx_.unlock();
           }
         }
-        PGBAR__FORCEINLINE bool try_lock() & noexcept
+        bool try_lock() & noexcept
         {
           if ( num_readers_.load( std::memory_order_acquire ) == 0 && writer_mtx_.try_lock() ) {
             if ( num_readers_.load( std::memory_order_acquire ) == 0 )
@@ -63,7 +63,7 @@ namespace pgbar {
           }
           return false;
         }
-        PGBAR__FORCEINLINE void unlock() & noexcept { writer_mtx_.unlock(); }
+        void unlock() & noexcept { writer_mtx_.unlock(); }
 
         void lock_shared() & noexcept
         {
@@ -74,7 +74,7 @@ namespace pgbar {
 
           writer_mtx_.unlock();
         }
-        PGBAR__FORCEINLINE bool try_lock_shared() & noexcept
+        bool try_lock_shared() & noexcept
         {
           if ( writer_mtx_.try_lock() ) {
             num_readers_.fetch_add( 1, std::memory_order_release );
@@ -84,7 +84,7 @@ namespace pgbar {
           }
           return false;
         }
-        PGBAR__FORCEINLINE void unlock_shared() & noexcept
+        void unlock_shared() & noexcept
         {
           PGBAR__ASSERT( num_readers_ > 0 ); // underflow checking
           num_readers_.fetch_sub( 1, std::memory_order_release );
