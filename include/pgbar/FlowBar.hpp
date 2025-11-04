@@ -49,11 +49,16 @@ namespace pgbar {
                   .append( ' ', len_right_fill % this->filler_.width() )
                   .append( this->filler_, len_right_fill / this->filler_.width() );
               } else {
-                const auto division      = current_lead.split_by( len_vacancy );
-                const auto len_left_fill = virtual_point - division.second.second;
+#if PGBAR__CXX17
+                const auto& [left_part, right_part] = current_lead.split_by( len_vacancy );
+#else
+                const auto _division  = current_lead.split_by( len_vacancy );
+                const auto &left_part = _division.first, &right_part = _division.second;
+#endif
+                const auto len_left_fill = virtual_point - right_part.width_;
 
                 this->try_reset( buffer );
-                this->try_dye( buffer, this->lead_col_ ).append( division.first[1], division.first[2] );
+                this->try_dye( buffer, this->lead_col_ ).append( right_part );
                 this->try_reset( buffer );
                 this->try_dye( buffer, this->filler_col_ )
                   .append( ' ', len_left_fill % this->filler_.width() )
@@ -61,8 +66,8 @@ namespace pgbar {
 
                 this->try_reset( buffer );
                 this->try_dye( buffer, this->lead_col_ )
-                  .append( division.first[0], division.first[1] )
-                  .append( ' ', len_vacancy - division.second.first );
+                  .append( left_part )
+                  .append( ' ', len_vacancy - left_part.width_ );
               }
             } else
               buffer.append( ' ', this->bar_width_ );

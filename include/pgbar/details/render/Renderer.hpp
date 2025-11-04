@@ -95,32 +95,30 @@ namespace pgbar {
         {
           std::lock_guard<concurrent::SharedMutex> lock { mtx_ };
           if ( task_ != nullptr || !AsyncSlot<Tag>::itself().try_appoint( [this]() {
-                 try {
-                   while ( state_.load( std::memory_order_acquire ) != State::Quit ) {
-                     switch ( state_.load( std::memory_order_acquire ) ) {
-                     case State::Awake: {
-                       task_();
-                       auto expected = State::Awake;
-                       state_.compare_exchange_strong( expected, State::Active, std::memory_order_release );
-                     }
-                       PGBAR__FALLTHROUGH;
-                     case State::Active: {
-                       task_();
-                       std::this_thread::sleep_for( working_interval() );
-                     } break;
-
-                     case State::Attempt: {
-                       task_();
-                       auto expected = State::Attempt;
-                       state_.compare_exchange_strong( expected, State::Active, std::memory_order_release );
-                     } break;
-
-                     default: return;
-                     }
+                 // We do not catch any exceptions here because,
+                 // for the moment, it is acceptable for the state machine to be in any state.
+                 for ( auto status = state_.load( std::memory_order_acquire ); status != State::Quit;
+                       status      = state_.load( std::memory_order_acquire ) ) {
+                   switch ( status ) {
+                   case State::Awake: {
+                     task_();
+                     auto expected = State::Awake;
+                     state_.compare_exchange_strong( expected, State::Active, std::memory_order_release );
                    }
-                 } catch ( ... ) {
-                   state_.store( State::Quit, std::memory_order_release );
-                   throw;
+                     PGBAR__FALLTHROUGH;
+                   case State::Active: {
+                     task_();
+                     std::this_thread::sleep_for( working_interval() );
+                   } break;
+
+                   case State::Attempt: {
+                     task_();
+                     auto expected = State::Attempt;
+                     state_.compare_exchange_strong( expected, State::Active, std::memory_order_release );
+                   } break;
+
+                   default: return;
+                   }
                  }
                } ) )
             return false;
@@ -228,34 +226,30 @@ namespace pgbar {
         {
           std::lock_guard<concurrent::SharedMutex> lock { res_mtx_ };
           if ( task_ != nullptr || !AsyncSlot<Tag>::itself().try_appoint( [this]() {
-                 while ( state_.load( std::memory_order_acquire ) != State::Quit )
-                   try {
-                     switch ( state_.load( std::memory_order_acquire ) ) {
-                     case State::Finish: {
-                       auto expected = State::Finish;
-                       state_.compare_exchange_strong( expected, State::Dormant, std::memory_order_release );
+                 for ( auto status = state_.load( std::memory_order_acquire ); status != State::Quit;
+                       status      = state_.load( std::memory_order_acquire ) )
+                   switch ( status ) {
+                   case State::Finish: {
+                     auto expected = State::Finish;
+                     state_.compare_exchange_strong( expected, State::Dormant, std::memory_order_release );
+                   }
+                     PGBAR__FALLTHROUGH;
+                   case State::Dormant: {
+                     std::unique_lock<std::mutex> lock { sched_mtx_ };
+                     cond_var_.wait( lock, [this]() noexcept {
+                       return state_.load( std::memory_order_acquire ) != State::Dormant;
+                     } );
+                   } break;
+                   case State::Active: {
+                     {
+                       concurrent::SharedLock<concurrent::SharedMutex> lock1 { res_mtx_ };
+                       std::lock_guard<std::mutex> lock2 { sched_mtx_ };
+                       task_();
                      }
-                       PGBAR__FALLTHROUGH;
-                     case State::Dormant: {
-                       std::unique_lock<std::mutex> lock { sched_mtx_ };
-                       cond_var_.wait( lock, [this]() noexcept {
-                         return state_.load( std::memory_order_acquire ) != State::Dormant;
-                       } );
-                     } break;
-                     case State::Active: {
-                       {
-                         concurrent::SharedLock<concurrent::SharedMutex> lock1 { res_mtx_ };
-                         std::lock_guard<std::mutex> lock2 { sched_mtx_ };
-                         task_();
-                       }
-                       auto expected = State::Active;
-                       state_.compare_exchange_strong( expected, State::Finish, std::memory_order_release );
-                     } break;
-                     default: return;
-                     }
-                   } catch ( ... ) {
-                     state_.store( State::Quit, std::memory_order_relaxed );
-                     throw;
+                     auto expected = State::Active;
+                     state_.compare_exchange_strong( expected, State::Finish, std::memory_order_release );
+                   } break;
+                   default: return;
                    }
                } ) )
             return false;

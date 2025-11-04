@@ -1,7 +1,7 @@
 #ifndef PGBAR__STRINGBUF
 #define PGBAR__STRINGBUF
 
-#include "../charcodes/U8Raw.hpp"
+#include "../charcodes/U8Text.hpp"
 #include "../traits/Backport.hpp"
 #include <vector>
 
@@ -41,29 +41,28 @@ namespace pgbar {
           return *this;
         }
 
-        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR Self& append( types::Char info, types::Size __num = 1 ) &
+        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR Self& append( types::Char info, types::Size num = 1 ) &
         {
-          buffer_.insert( buffer_.end(), __num, info );
+          buffer_.insert( buffer_.end(), num, info );
           return *this;
         }
         template<types::Size N>
-        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR Self& append( const char ( &info )[N],
-                                                              types::Size __num = 1 ) &
+        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR Self& append( const char ( &info )[N], types::Size num = 1 ) &
         {
-          while ( __num-- )
+          while ( num-- )
             buffer_.insert( buffer_.end(), info, info + N );
           return *this;
         }
-        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR Self& append( types::ROStr info, types::Size __num = 1 ) &
+        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR Self& append( types::ROStr info, types::Size num = 1 ) &
         {
-          while ( __num-- )
+          while ( num-- )
             buffer_.insert( buffer_.end(), info.cbegin(), info.cend() );
           return *this;
         }
         PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR Self& append( const charcodes::U8Raw& info,
-                                                              types::Size __num = 1 ) &
+                                                              types::Size num = 1 ) &
         {
-          return append( info.str(), __num );
+          return append( info.str(), num );
         }
         PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR Self& append( const types::Char* head,
                                                               const types::Char* tail ) &
@@ -72,12 +71,22 @@ namespace pgbar {
             buffer_.insert( buffer_.end(), head, tail );
           return *this;
         }
+        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR Self& append( const charcodes::U8Text::TextView& info,
+                                                              types::Size num = 1 ) &
+        {
+          if ( info ) {
+            while ( num-- )
+              return append( info.head_, info.tail_ );
+          }
+          return *this;
+        }
 
         template<typename T>
         friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR typename std::enable_if<
           traits::AnyOf<std::is_same<typename std::decay<T>::type, types::Char>,
                         std::is_same<typename std::decay<T>::type, types::String>,
-                        std::is_same<typename std::decay<T>::type, charcodes::U8Raw>>::value,
+                        std::is_same<typename std::decay<T>::type, charcodes::U8Raw>,
+                        std::is_same<typename std::decay<T>::type, charcodes::U8Text::TextView>>::value,
           Self&>::type
           operator<<( Self& stream, T&& info )
         {
@@ -102,9 +111,9 @@ namespace pgbar {
         friend PGBAR__CXX20_CNSTXPR void swap( Stringbuf& a, Stringbuf& b ) noexcept { a.swap( b ); }
 
 #if PGBAR__CXX20
-        PGBAR__FORCEINLINE Self& append( types::LitU8 info, types::Size __num = 1 ) &
+        PGBAR__FORCEINLINE Self& append( types::LitU8 info, types::Size num = 1 ) &
         {
-          while ( __num-- )
+          while ( num-- )
             buffer_.insert( buffer_.end(), info.data(), info.data() + info.size() );
           return *this;
         }
