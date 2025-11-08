@@ -185,7 +185,7 @@ namespace pgbar {
       }
 #endif
 
-#if PGBAR__CXX23
+#if PGBAR__CXX23 && !defined( NO_FORWARD_LIKE )
       template<typename E>
       PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CNSTEVAL auto as_val( E enum_val ) noexcept
       {
@@ -199,8 +199,8 @@ namespace pgbar {
       }
 #else
       template<typename E>
-      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CNSTEVAL typename std::underlying_type<E>::type as_val(
-        E enum_val ) noexcept
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CNSTEVAL
+        typename std::underlying_type<E>::type as_val( E enum_val ) noexcept
       {
         return static_cast<typename std::underlying_type<E>::type>( enum_val );
       }

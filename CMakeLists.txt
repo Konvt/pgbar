@@ -20,6 +20,7 @@ endif()
 option(PGBAR_INSTALL "Enable install target" ${PGBAR_IN_TOP_LEVEL})
 option(PGBAR_PACKAGE "Enable packaging support" ${PGBAR_IN_TOP_LEVEL})
 option(PGBAR_BUILD_DEMO "Build demo programs from demo/ directory using Makefile" OFF)
+option(PGBAR_USE_INTERNAL_FORWARD_LIKE "Use internal implementation of std::forward_like (for clang with libstdc++)" OFF)
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
@@ -32,6 +33,10 @@ set_target_properties(pgbar PROPERTIES CXX_EXTENSIONS OFF)
 target_include_directories(pgbar INTERFACE
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+
+if(PGBAR_USE_INTERNAL_FORWARD_LIKE)
+  target_compile_definitions(pgbar INTERFACE "NO_FORWARD_LIKE")
+endif()
 
 if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.14")
   set_property(TARGET pgbar PROPERTY LICENSE "MIT")
