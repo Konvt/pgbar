@@ -15,6 +15,41 @@
 # define PGBAR__UNKNOWN 1
 #endif
 
+// Check whether the compiler and the standard library come from the same vendor,
+// which is very useful when handling the backport of some std entities.
+#ifndef PGBAR__CONSISTENT_VENDOR
+// Allow to be forcibly injected from the outside with a value of 1.
+# if !( defined( __INTEL_COMPILER ) || defined( __NVCOMPILER ) || defined( __PGIC__ ) ) \
+   && ( ( defined( __GLIBCXX__ ) && defined( __GNUC__ ) && !defined( __clang__ ) )      \
+        || ( defined( _LIBCPP_VERSION ) && defined( __clang__ ) )                       \
+        || ( defined( _MSVC_STL_VERSION ) && defined( _MSC_VER ) ) )
+#  define PGBAR__CONSISTENT_VENDOR 1
+# else
+#  define PGBAR__CONSISTENT_VENDOR 0
+# endif
+#endif
+
+#if defined( __GNUC__ ) || defined( __clang__ )
+// pgbar does not detect the differences in compiler versions
+// which released before the publication of the C++11 standard.
+# define PGBAR__FORCEINLINE __attribute__( ( always_inline ) ) inline
+# define PGBAR__NOINLINE    __attribute__( ( noinline ) )
+#elif defined( _MSC_VER )
+// For msvc, it is a proprietary compiler implementation,
+// and I believe it supports this builtin.
+# define PGBAR__FORCEINLINE __forceinline
+# define PGBAR__NOINLINE    __declspec( noinline )
+#else
+# define PGBAR__FORCEINLINE inline
+# define PGBAR__NOINLINE
+#endif
+
+#ifdef __has_builtin
+# define PGBAR__BUILTIN( builtin ) __has_builtin( builtin )
+#else
+# define PGBAR__BUILTIN( _ ) 0
+#endif
+
 #if defined( _MSC_VER ) && defined( _MSVC_LANG ) // for msvc
 # define PGBAR__CC_STD _MSVC_LANG
 #else
@@ -112,27 +147,6 @@
 # define PGBAR__CXX11 1
 #else
 # error "The library 'pgbar' requires C++11"
-#endif
-
-#if defined( __GNUC__ ) || defined( __clang__ )
-// pgbar does not detect the differences in compiler versions
-// which released before the publication of the C++11 standard.
-# define PGBAR__FORCEINLINE __attribute__( ( always_inline ) ) inline
-# define PGBAR__NOINLINE    __attribute__( ( noinline ) )
-#elif defined( _MSC_VER )
-// For msvc, it is a proprietary compiler implementation,
-// and I believe it supports this builtin.
-# define PGBAR__FORCEINLINE __forceinline
-# define PGBAR__NOINLINE    __declspec( noinline )
-#else
-# define PGBAR__FORCEINLINE inline
-# define PGBAR__NOINLINE
-#endif
-
-#ifdef __has_builtin
-# define PGBAR__BUILTIN( builtin ) __has_builtin( builtin )
-#else
-# define PGBAR__BUILTIN( _ ) 0
 #endif
 
 #ifdef PGBAR_DEBUG

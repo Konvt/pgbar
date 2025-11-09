@@ -10,7 +10,6 @@
 #else
 # include "../traits/Backport.hpp"
 # include "../traits/Util.hpp"
-# include "../utils/Backport.hpp"
 #endif
 
 namespace pgbar {
@@ -191,12 +190,6 @@ namespace pgbar {
       {
         return std::to_underlying( enum_val );
       }
-
-      template<typename As, typename T>
-      PGBAR__FORCEINLINE constexpr decltype( auto ) forward_as( T&& param ) noexcept
-      {
-        return std::forward_like<As>( std::forward<T>( param ) );
-      }
 #else
       template<typename E>
       PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CNSTEVAL typename std::underlying_type<E>::type as_val(
@@ -205,6 +198,16 @@ namespace pgbar {
         return static_cast<typename std::underlying_type<E>::type>( enum_val );
       }
 
+#endif
+
+      // see https://github.com/llvm/llvm-project/issues/101614
+#if PGBAR__CXX23 && PGBAR__CONSISTENT_VENDOR
+      template<typename As, typename T>
+      PGBAR__FORCEINLINE constexpr decltype( auto ) forward_as( T&& param ) noexcept
+      {
+        return std::forward_like<As>( std::forward<T>( param ) );
+      }
+#else
       template<typename As, typename T>
       PGBAR__FORCEINLINE constexpr auto forward_as( T&& param ) noexcept ->
         typename std::enable_if<std::is_lvalue_reference<As&&>::value
