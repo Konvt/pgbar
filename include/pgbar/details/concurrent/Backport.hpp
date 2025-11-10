@@ -13,7 +13,7 @@
 namespace pgbar {
   namespace _details {
     namespace concurrent {
-#if PGBAR__CXX17
+#if defined( __cpp_lib_shared_mutex )
       using SharedMutex = std::shared_mutex;
 #else
       // A simple `Shared Mutex` implementation for any C++ version.

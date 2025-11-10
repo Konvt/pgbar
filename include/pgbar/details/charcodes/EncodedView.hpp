@@ -46,7 +46,7 @@ namespace pgbar {
 #if PGBAR__CXX17
         PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr types::ROStr as_string_view() const noexcept
         {
-          return { head_, tail_ };
+          return { head_, size() };
         }
         constexpr operator types::ROStr() const noexcept { return as_string_view(); }
 #endif
