@@ -116,7 +116,7 @@ namespace pgbar {
        */
       template<typename T>
       struct IteratorOf {
-#if defined( __cpp_concepts )
+#if defined( __cpp_concepts ) && PGBAR__CXX20
       private:
         // Provide a default fallback to avoid the problem of the type not existing
         // in the immediate context derivation.
@@ -179,7 +179,7 @@ namespace pgbar {
       template<typename T>
       using IteratorOf_t = typename IteratorOf<T>::type;
 
-#if defined( __cpp_concepts )
+#if defined( __cpp_concepts ) && PGBAR__CXX20
       template<typename T>
       struct is_sized_iterator
         : BoolConstant<std::movable<T> && std::weakly_incrementable<T> && std::indirectly_readable<T>
@@ -209,7 +209,7 @@ namespace pgbar {
       struct is_sized_iterator<P*> : std::true_type {};
 #endif
 
-#if defined( __cpp_concepts )
+#if defined( __cpp_concepts ) && PGBAR__CXX20
       template<typename T>
       struct is_bounded_range : BoolConstant<std::ranges::sized_range<T>> {};
 #else
