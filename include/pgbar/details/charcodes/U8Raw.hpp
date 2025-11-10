@@ -2,6 +2,7 @@
 #define PGBAR__U8RAW
 
 #include "../../exception/Error.hpp"
+#include "../utils/Backport.hpp"
 #include "../utils/Util.hpp"
 #include "CodeChart.hpp"
 #include <algorithm>
@@ -62,7 +63,7 @@ namespace pgbar {
                   | ( as_codepoint( raw_u8_str[3] ) & 0x3F );
               overlong = 0x10000;
               break;
-            default: PGBAR__UNREACHABLE;
+            default: utils::unreachable();
             }
             if ( ret < overlong )
               PGBAR__UNLIKELY throw exception::InvalidArgument( "pgbar: overlong UTF-8 sequence" );

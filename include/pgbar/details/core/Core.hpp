@@ -59,24 +59,20 @@
 #if PGBAR__CC_STD >= 202302L
 # define PGBAR__CXX23          1
 # define PGBAR__CXX23_CNSTXPR  constexpr
-# define PGBAR__UNREACHABLE    std::unreachable()
 # define PGBAR__ASSUME( expr ) [[assume( expr )]]
-# include <utility> // for std::unreachable
 #else
 # define PGBAR__CXX23 0
 # define PGBAR__CXX23_CNSTXPR
 
-# if defined( __GNUC__ )
-#  define PGBAR__UNREACHABLE __builtin_unreachable()
-#  define PGBAR__ASSUME( expr ) \
-    do {                        \
-      if ( expr ) {             \
-      } else {                  \
-        PGBAR__UNREACHABLE;     \
-      }                         \
+# ifdef __GNUC__
+#  define PGBAR__ASSUME( expr )  \
+    do {                         \
+      if ( expr ) {              \
+      } else {                   \
+        __builtin_unreachable(); \
+      }                          \
     } while ( false )
 # elif defined( __clang__ )
-#  define PGBAR__UNREACHABLE __builtin_unreachable()
 #  if __clang_major__ > 3 || ( __clang_major__ == 3 && __clang_minor__ >= 6 )
 #   define PGBAR__ASSUME( expr ) __builtin_assume( expr )
 #  endif
@@ -84,9 +80,6 @@
 #  define PGBAR__ASSUME( expr ) __assume( expr )
 # endif
 
-# ifndef PGBAR__UNREACHABLE
-#  define PGBAR__UNREACHABLE PGBAR__TRUST( 0 )
-# endif
 # ifndef PGBAR__ASSUME
 #  define PGBAR__ASSUME( _ ) PGBAR__ASSERT( 0 )
 # endif
@@ -113,7 +106,7 @@
 # define PGBAR__CXX17_CNSTXPR
 # define PGBAR__CXX17_INLINE
 
-# if defined( __GNUC__ )
+# ifdef __GNUC__
 #  define PGBAR__NODISCARD __attribute__( ( warn_unused_result ) )
 #  if __GNUC__ >= 7
 #   define PGBAR__FALLTHROUGH __attribute__( ( fallthrough ) )

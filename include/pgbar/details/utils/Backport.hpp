@@ -47,7 +47,7 @@ namespace pgbar {
       template<typename To, typename From>
       PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR To* launder_as( From* src ) noexcept
       {
-#if defined( __cpp_lib_launder )
+#ifdef __cpp_lib_launder
         return std::launder( reinterpret_cast<To*>( src ) );
 #elif defined( __GNUC__ )
 # if __GNUC__ >= 7
@@ -83,7 +83,7 @@ namespace pgbar {
       To* launder_as( R ( * )( Args...... ) noexcept ) = delete;
 #endif
 
-#if defined( __cpp_lib_as_const )
+#ifdef __cpp_lib_as_const
       template<typename T>
       PGBAR__FORCEINLINE constexpr decltype( auto ) as_const( T&& param ) noexcept
       {
@@ -99,7 +99,7 @@ namespace pgbar {
       void as_const( const T&& ) = delete;
 #endif
 
-#if defined( __cpp_lib_invoke )
+#ifdef __cpp_lib_invoke
       template<typename Fn, typename... Args>
       PGBAR__FORCEINLINE constexpr decltype( auto ) invoke( Fn&& fn, Args&&... args )
         noexcept( std::is_nothrow_invocable_v<Fn, Args...> )
@@ -186,7 +186,7 @@ namespace pgbar {
       }
 #endif
 
-#if defined( __cpp_lib_to_underlying )
+#ifdef __cpp_lib_to_underlying
       template<typename E>
       PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CNSTEVAL auto as_val( E enum_val ) noexcept
       {
@@ -243,6 +243,17 @@ namespace pgbar {
         return std::move( param );
       }
 #endif
+
+      [[noreturn]] PGBAR__FORCEINLINE void unreachable()
+      {
+#ifdef __cpp_lib_unreachable
+        std::unreachable();
+#elif defined( __GNUC__ ) || defined( __clang__ )
+        __builtin_unreachable();
+#else
+        PGBAR__TRUST( 0 );
+#endif
+      }
     } // namespace utils
 
     namespace traits {
