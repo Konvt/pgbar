@@ -102,7 +102,9 @@ namespace pgbar {
 #ifdef __cpp_lib_invoke
       template<typename Fn, typename... Args>
       PGBAR__FORCEINLINE constexpr decltype( auto ) invoke( Fn&& fn, Args&&... args )
-        noexcept( std::is_nothrow_invocable_v<Fn, Args...> )
+        noexcept( noexcept( std::invoke( std::forward<Fn>( fn ), std::forward<Args>( args )... ) ) )
+      // some compilers have provided std::invoke in C++14 but without the std::is_nothrow_invocable,
+      // it's strange (e.g. MSVC STL).
       {
         return std::invoke( std::forward<Fn>( fn ), std::forward<Args>( args )... );
       }

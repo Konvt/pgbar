@@ -16,51 +16,39 @@ namespace pgbar {
       class U8Raw {
         using Self = U8Raw;
 
-        PGBAR__NODISCARD static PGBAR__FORCEINLINE constexpr typename std::make_unsigned<types::Char>::type
-          canonical_char( types::Char raw_char ) noexcept
-        {
-          return static_cast<typename std::make_unsigned<types::Char>::type>( raw_char );
-        }
-        PGBAR__NODISCARD static PGBAR__FORCEINLINE constexpr types::UCodePoint as_codepoint(
-          types::Char raw_char ) noexcept
-        {
-          return static_cast<types::UCodePoint>( canonical_char( raw_char ) );
-        }
-
       protected:
         types::Size width_;
         types::String bytes_;
 
         /// @return The utf codepoint and the number of byte of the utf-8 character.
-        static PGBAR__CXX20_CNSTXPR std::pair<types::UCodePoint, types::Size> next_codepoint(
-          const types::Char* raw_u8_str,
-          types::Size str_length )
+        static std::pair<types::CodePoint, types::Size> next_codepoint( const types::Char* raw_u8_str,
+                                                                        types::Size str_length )
         {
           // After RFC 3629, the maximum length of each standard UTF-8 character is 4 bytes.
-          const auto first_byte = as_codepoint( *raw_u8_str );
-          auto validator        = [=]( types::Size expected_len ) -> types::UCodePoint {
+          auto utf_bytes        = reinterpret_cast<const types::Bit8*>( raw_u8_str );
+          const auto first_byte = *utf_bytes;
+          auto validator        = [=]( types::Size expected_len ) -> types::CodePoint {
             if ( expected_len > str_length )
               PGBAR__UNLIKELY throw exception::InvalidArgument( "pgbar: incomplete UTF-8 sequence" );
             for ( types::Size i = 1; i < expected_len; ++i ) {
-              if ( ( canonical_char( raw_u8_str[i] ) & 0xC0 ) != 0x80 )
+              if ( ( utf_bytes[i] & 0xC0 ) != 0x80 )
                 PGBAR__UNLIKELY throw exception::InvalidArgument( "pgbar: invalid UTF-8 continuation byte" );
             }
 
-            types::UCodePoint ret, overlong;
+            types::CodePoint ret, overlong;
             switch ( expected_len ) {
             case 2:
-              ret      = ( ( first_byte & 0x1F ) << 6 ) | ( as_codepoint( raw_u8_str[1] ) & 0x3F );
+              ret      = ( ( first_byte & 0x1F ) << 6 ) | ( utf_bytes[1] & 0x3F );
               overlong = 0x80;
               break;
             case 3:
-              ret = ( ( first_byte & 0xF ) << 12 ) | ( ( as_codepoint( raw_u8_str[1] ) & 0x3F ) << 6 )
-                  | ( as_codepoint( raw_u8_str[2] ) & 0x3F );
+              ret =
+                ( ( first_byte & 0xF ) << 12 ) | ( ( utf_bytes[1] & 0x3F ) << 6 ) | ( utf_bytes[2] & 0x3F );
               overlong = 0x800;
               break;
             case 4:
-              ret = ( ( first_byte & 0x7 ) << 18 ) | ( ( as_codepoint( raw_u8_str[1] ) & 0x3F ) << 12 )
-                  | ( ( as_codepoint( raw_u8_str[2] ) & 0x3F ) << 6 )
-                  | ( as_codepoint( raw_u8_str[3] ) & 0x3F );
+              ret = ( ( first_byte & 0x7 ) << 18 ) | ( ( utf_bytes[1] & 0x3F ) << 12 )
+                  | ( ( utf_bytes[2] & 0x3F ) << 6 ) | ( utf_bytes[3] & 0x3F );
               overlong = 0x10000;
               break;
             default: utils::unreachable();
@@ -114,7 +102,7 @@ namespace pgbar {
         }
 
         PGBAR__NODISCARD static PGBAR__CXX20_CNSTXPR types::GlyphWidth glyph_width(
-          types::UCodePoint codepoint ) noexcept
+          types::CodePoint codepoint ) noexcept
         {
           constexpr auto chart = code_chart();
           PGBAR__ASSERT( std::is_sorted( chart.cbegin(), chart.cend() ) );
@@ -132,7 +120,7 @@ namespace pgbar {
          *
          * @return Returns the render width of the given string.
          */
-        PGBAR__NODISCARD static PGBAR__CXX20_CNSTXPR types::Size text_width( types::ROStr u8_str )
+        PGBAR__NODISCARD static types::Size text_width( types::ROStr u8_str )
         {
           types::Size width     = 0;
           const auto raw_u8_str = u8_str.data();
@@ -149,7 +137,7 @@ namespace pgbar {
         PGBAR__CXX20_CNSTXPR U8Raw() noexcept( std::is_nothrow_default_constructible<types::String>::value )
           : width_ { 0 }
         {}
-        PGBAR__CXX20_CNSTXPR explicit U8Raw( types::String u8_bytes ) : U8Raw()
+        explicit U8Raw( types::String u8_bytes ) : U8Raw()
         {
           width_ = text_width( u8_bytes );
           bytes_ = std::move( u8_bytes );
@@ -160,7 +148,7 @@ namespace pgbar {
         PGBAR__CXX20_CNSTXPR Self& operator=( Self&& ) &      = default;
         PGBAR__CXX20_CNSTXPR ~U8Raw()                         = default;
 
-        PGBAR__CXX20_CNSTXPR Self& operator=( types::ROStr u8_bytes ) &
+        Self& operator=( types::ROStr u8_bytes ) &
         {
           const auto new_width = text_width( u8_bytes );
           auto new_bytes       = types::String( u8_bytes );
@@ -168,7 +156,7 @@ namespace pgbar {
           width_ = new_width;
           return *this;
         }
-        PGBAR__CXX20_CNSTXPR Self& operator=( types::String u8_bytes ) &
+        Self& operator=( types::String u8_bytes ) &
         {
           width_ = text_width( u8_bytes );
           bytes_.swap( u8_bytes );
@@ -263,7 +251,7 @@ namespace pgbar {
         static_assert( sizeof( char8_t ) == sizeof( char ),
                        "pgbar::_details::charcodes::U8Raw: Unexpected type size mismatch" );
 
-        PGBAR__CXX20_CNSTXPR explicit U8Raw( types::LitU8 u8_sv ) : U8Raw()
+        explicit U8Raw( types::LitU8 u8_sv ) : U8Raw()
         {
           auto new_bytes = types::String( u8_sv.size(), '\0' );
           std::copy( u8_sv.cbegin(), u8_sv.cend(), new_bytes.begin() );

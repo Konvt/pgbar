@@ -128,19 +128,19 @@ namespace pgbar {
 
       public:
         // Percent Meter
-        static constexpr types::Byte Per    = 1 << 0;
+        static constexpr types::Bit8 Per    = 1 << 0;
         // Animation
-        static constexpr types::Byte Ani    = 1 << 1;
+        static constexpr types::Bit8 Ani    = 1 << 1;
         // Task Progress Counter
-        static constexpr types::Byte Cnt    = 1 << 2;
+        static constexpr types::Bit8 Cnt    = 1 << 2;
         // Speed Meter
-        static constexpr types::Byte Sped   = 1 << 3;
+        static constexpr types::Bit8 Sped   = 1 << 3;
         // Elapsed Timer
-        static constexpr types::Byte Elpsd  = 1 << 4;
+        static constexpr types::Bit8 Elpsd  = 1 << 4;
         // Countdown Timer
-        static constexpr types::Byte Cntdwn = 1 << 5;
+        static constexpr types::Bit8 Cntdwn = 1 << 5;
         // Enable all components
-        static constexpr types::Byte Entire = ~0;
+        static constexpr types::Bit8 Entire = ~0;
 
 #if PGBAR__CXX20
         template<typename... Args>
@@ -206,7 +206,7 @@ namespace pgbar {
          */
         ~BasicConfig() = default;
 
-        Derived& style( types::Byte val ) & noexcept
+        Derived& style( types::Bit8 val ) & noexcept
         {
           std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };
           unpacker( *this, option::Style( val ) );

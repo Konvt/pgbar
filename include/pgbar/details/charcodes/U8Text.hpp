@@ -17,9 +17,8 @@ namespace pgbar {
         std::vector<Font> chars_;
 
       public:
-        PGBAR__NODISCARD static PGBAR__CXX20_CNSTXPR std::vector<Font> parse_glyph(
-          const types::Char* raw_u8_str,
-          types::Size str_length )
+        PGBAR__NODISCARD static std::vector<Font> parse_glyph( const types::Char* raw_u8_str,
+                                                               types::Size str_length )
         {
           std::vector<Font> characters;
           for ( types::Size i = 0; i < str_length; ) {
@@ -33,7 +32,7 @@ namespace pgbar {
         }
 
         PGBAR__CXX20_CNSTXPR U8Text() = default;
-        PGBAR__CXX20_CNSTXPR explicit U8Text( types::String u8_bytes )
+        explicit U8Text( types::String u8_bytes )
         {
           chars_ = parse_glyph( u8_bytes.data(), u8_bytes.size() );
           width_ = std::accumulate( chars_.cbegin(),
@@ -50,7 +49,7 @@ namespace pgbar {
         PGBAR__CXX20_CNSTXPR Self& operator=( Self&& ) &      = default;
         PGBAR__CXX20_CNSTXPR ~U8Text()                        = default;
 
-        PGBAR__CXX20_CNSTXPR Self& operator=( types::ROStr u8_bytes ) &
+        Self& operator=( types::ROStr u8_bytes ) &
         {
           auto new_chars = parse_glyph( u8_bytes.data(), u8_bytes.size() );
           auto new_bytes = types::String( u8_bytes );
@@ -64,7 +63,7 @@ namespace pgbar {
           bytes_.swap( new_bytes );
           return *this;
         }
-        PGBAR__CXX20_CNSTXPR Self& operator=( types::String u8_bytes ) &
+        Self& operator=( types::String u8_bytes ) &
         {
           auto new_chars = parse_glyph( u8_bytes.data(), u8_bytes.size() );
           chars_.swap( new_chars );
@@ -123,7 +122,7 @@ namespace pgbar {
         PGBAR__CXX20_CNSTXPR friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
 
 #if PGBAR__CXX20
-        PGBAR__CXX20_CNSTXPR explicit U8Text( types::LitU8 u8_sv ) : U8Text()
+        explicit U8Text( types::LitU8 u8_sv ) : U8Text()
         {
           auto new_bytes = types::String( u8_sv.size(), '\0' );
           std::copy( u8_sv.cbegin(), u8_sv.cend(), new_bytes.begin() );

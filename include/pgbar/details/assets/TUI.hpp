@@ -73,7 +73,7 @@ namespace pgbar {
         }
 
       public:
-        CoreConfig() noexcept : fonts_ { static_cast<types::Byte>( ~0 ) } {}
+        CoreConfig() noexcept : fonts_ { static_cast<types::Bit8>( ~0 ) } {}
         constexpr CoreConfig( const CoreConfig& lhs ) : fonts_ { lhs.fonts_ } {}
         constexpr CoreConfig( CoreConfig&& rhs ) noexcept : fonts_ { rhs.fonts_ } {}
         PGBAR__CXX14_CNSTXPR CoreConfig& operator=( const CoreConfig& lhs ) &
