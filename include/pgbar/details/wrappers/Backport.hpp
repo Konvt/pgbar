@@ -2,18 +2,15 @@
 #define PGBAR__WRAPPERS_BACKPORT
 
 #include "../traits/Backport.hpp"
-#if PGBAR__CXX23
-# include <functional>
-#else
-# include "../utils/Backport.hpp"
-# include <cstddef>
-# include <new>
-#endif
+#include "../utils/Backport.hpp"
+#include <cstddef>
+#include <functional>
+#include <new>
 
 namespace pgbar {
   namespace _details {
     namespace wrappers {
-#if PGBAR__CXX23
+#if defined( __cpp_lib_move_only_function )
       template<typename... Signature>
       using UniqueFunction = std::move_only_function<Signature...>;
 #else

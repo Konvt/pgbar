@@ -2,19 +2,17 @@
 #define PGBAR__UTILS_BACKPORT
 
 #include "../core/Core.hpp"
+#include "../traits/Backport.hpp"
+#include "../traits/Util.hpp"
+#include <functional>
 #include <memory>
+#include <new>
 #include <utility>
-#if PGBAR__CXX17
-# include <functional>
-# include <new>
-#else
-# include "../traits/Backport.hpp"
-# include "../traits/Util.hpp"
-#endif
 
 namespace pgbar {
   namespace _details {
     namespace utils {
+      // Before C++17, not all std entities had feature macros.
 #if PGBAR__CXX14
       template<typename T, typename... Args>
       PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX23_CNSTXPR auto make_unique( Args&&... args )
@@ -49,7 +47,7 @@ namespace pgbar {
       template<typename To, typename From>
       PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR To* launder_as( From* src ) noexcept
       {
-#if PGBAR__CXX17
+#if defined( __cpp_lib_launder )
         return std::launder( reinterpret_cast<To*>( src ) );
 #elif defined( __GNUC__ )
 # if __GNUC__ >= 7
@@ -83,18 +81,13 @@ namespace pgbar {
       To* launder_as( R ( * )( Args... ) noexcept ) = delete;
       template<typename To, typename R, typename... Args>
       To* launder_as( R ( * )( Args...... ) noexcept ) = delete;
+#endif
 
+#if defined( __cpp_lib_as_const )
       template<typename T>
       PGBAR__FORCEINLINE constexpr decltype( auto ) as_const( T&& param ) noexcept
       {
         return std::as_const( std::forward<T>( param ) );
-      }
-
-      template<typename Fn, typename... Args>
-      PGBAR__FORCEINLINE constexpr decltype( auto ) invoke( Fn&& fn, Args&&... args )
-        noexcept( std::is_nothrow_invocable_v<Fn, Args...> )
-      {
-        return std::invoke( std::forward<Fn>( fn ), std::forward<Args>( args )... );
       }
 #else
       template<typename T>
@@ -104,7 +97,16 @@ namespace pgbar {
       }
       template<typename T>
       void as_const( const T&& ) = delete;
+#endif
 
+#if defined( __cpp_lib_invoke )
+      template<typename Fn, typename... Args>
+      PGBAR__FORCEINLINE constexpr decltype( auto ) invoke( Fn&& fn, Args&&... args )
+        noexcept( std::is_nothrow_invocable_v<Fn, Args...> )
+      {
+        return std::invoke( std::forward<Fn>( fn ), std::forward<Args>( args )... );
+      }
+#else
       template<typename C, typename MemFn, typename Object, typename... Args>
       PGBAR__FORCEINLINE constexpr auto invoke( MemFn C::* method, Object&& object, Args&&... args )
         noexcept( noexcept( ( std::forward<Object>( object ).*method )( std::forward<Args>( args )... ) ) ) ->
@@ -184,7 +186,7 @@ namespace pgbar {
       }
 #endif
 
-#if PGBAR__CXX23
+#if defined( __cpp_lib_to_underlying )
       template<typename E>
       PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CNSTEVAL auto as_val( E enum_val ) noexcept
       {
@@ -201,7 +203,7 @@ namespace pgbar {
 #endif
 
       // see https://github.com/llvm/llvm-project/issues/101614
-#if PGBAR__CXX23 && PGBAR__CONSISTENT_VENDOR
+#if defined( __cpp_lib_forward_like ) && PGBAR__CONSISTENT_VENDOR
       template<typename As, typename T>
       PGBAR__FORCEINLINE constexpr decltype( auto ) forward_as( T&& param ) noexcept
       {

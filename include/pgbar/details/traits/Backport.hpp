@@ -11,6 +11,7 @@
 namespace pgbar {
   namespace _details {
     namespace traits {
+      // Before C++17, not all std entities had feature macros.
 #if PGBAR__CXX14
       template<types::Size... Ns>
       using IndexSeq = std::integer_sequence<types::Size, Ns...>;
@@ -51,10 +52,15 @@ namespace pgbar {
       using MakeIndexSeq = typename _MakeIndexSeqHelper<N>::type;
 #endif
 
-#if PGBAR__CXX17
+#if defined( __cpp_lib_bool_constant )
       template<bool B>
       using BoolConstant = std::bool_constant<B>;
+#else
+      template<bool B>
+      using BoolConstant = std::integral_constant<bool, B>;
+#endif
 
+#if PGBAR__CXX17
       template<typename... Preds>
       using AllOf = std::conjunction<Preds...>;
 
@@ -64,9 +70,6 @@ namespace pgbar {
       template<typename Pred>
       using Not = std::negation<Pred>;
 #else
-      template<bool B>
-      using BoolConstant = std::integral_constant<bool, B>;
-
       template<typename... Preds>
       struct AllOf : std::true_type {};
       template<typename Pred>
@@ -113,7 +116,7 @@ namespace pgbar {
        */
       template<typename T>
       struct IteratorOf {
-#if PGBAR__CXX20
+#if defined( __cpp_concepts )
       private:
         // Provide a default fallback to avoid the problem of the type not existing
         // in the immediate context derivation.
@@ -176,7 +179,7 @@ namespace pgbar {
       template<typename T>
       using IteratorOf_t = typename IteratorOf<T>::type;
 
-#if PGBAR__CXX20
+#if defined( __cpp_concepts )
       template<typename T>
       struct is_sized_iterator
         : BoolConstant<std::movable<T> && std::weakly_incrementable<T> && std::indirectly_readable<T>
@@ -206,7 +209,7 @@ namespace pgbar {
       struct is_sized_iterator<P*> : std::true_type {};
 #endif
 
-#if PGBAR__CXX20
+#if defined( __cpp_concepts )
       template<typename T>
       struct is_bounded_range : BoolConstant<std::ranges::sized_range<T>> {};
 #else
