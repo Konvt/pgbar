@@ -221,7 +221,7 @@ namespace pgbar {
         static PGBAR__NOINLINE PGBAR__CXX14_CNSTXPR R invoke_null( const AnyFn&, Param_t<Args>... )
           noexcept( Noexcept )
         {
-          PGBAR__UNREACHABLE;
+          utils::unreachable();
           // The standard says this should trigger an undefined behavior.
         }
         template<typename T>

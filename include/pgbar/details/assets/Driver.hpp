@@ -852,7 +852,7 @@ namespace pgbar {
               render::Renderer<Outlet, Mode>::itself().execute();
           } break;
 
-          default: PGBAR__UNREACHABLE;
+          default: utils::unreachable();
           }
         }
 
@@ -1003,7 +1003,7 @@ namespace pgbar {
               render::Renderer<Outlet, Mode>::itself().execute();
           } break;
 
-          default: PGBAR__UNREACHABLE;
+          default: utils::unreachable();
           }
         }
 
