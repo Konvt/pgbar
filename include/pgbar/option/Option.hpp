@@ -22,8 +22,8 @@ public                           \
   PGBAR__DEFAULT_OPTION( StructName, ValueType, ParamName )
 
     // A wrapper that stores the value of the bit option setting.
-    struct Style : PGBAR__BASE( _details::types::Byte ) {
-      PGBAR__NULLABLE_OPTION( Style, _details::types::Byte, _settings )
+    struct Style : PGBAR__BASE( _details::types::Bit8 ) {
+      PGBAR__NULLABLE_OPTION( Style, _details::types::Bit8, _settings )
     };
 
     // A wrapper that stores the value of the color effect setting.
@@ -87,28 +87,26 @@ public                           \
 #undef PGBAR__NULLABLE_OPTION
 #undef PGBAR__DEFAULT_OPTION
 #if PGBAR__CXX20
-# define PGBAR__DEFAULT_OPTION( StructName, ParamName )                 \
- private:                                                               \
-   using Data = _details::charcodes::U8Raw;                             \
-   using Base = _details::wrappers::OptionWrapper<Data>;                \
-                                                                        \
- public:                                                                \
-   PGBAR__CXX20_CNSTXPR StructName() = default;                         \
-   /**                                                                  \
-    * @throw exception::InvalidArgument                                 \
-    *                                                                   \
-    * If the passed parameter is not coding in UTF-8.                   \
-    */                                                                  \
-   PGBAR__CXX20_CNSTXPR StructName( _details::types::String ParamName ) \
-     : Base( Data( std::move( ParamName ) ) )                           \
-   {}                                                                   \
+# define PGBAR__DEFAULT_OPTION( StructName, ParamName )                                        \
+ private:                                                                                      \
+   using Data = _details::charcodes::U8Raw;                                                    \
+   using Base = _details::wrappers::OptionWrapper<Data>;                                       \
+                                                                                               \
+ public:                                                                                       \
+   PGBAR__CXX20_CNSTXPR StructName() = default;                                                \
+   /**                                                                                         \
+    * @throw exception::InvalidArgument                                                        \
+    *                                                                                          \
+    * If the passed parameter is not coding in UTF-8.                                          \
+    */                                                                                         \
+   StructName( _details::types::String ParamName ) : Base( Data( std::move( ParamName ) ) ) {} \
    StructName( _details::types::LitU8 ParamName ) : Base( Data( std::move( ParamName ) ) ) {}
 #else
-# define PGBAR__DEFAULT_OPTION( StructName, ParamName )                 \
-   PGBAR__CXX20_CNSTXPR StructName() = default;                         \
-   PGBAR__CXX20_CNSTXPR StructName( _details::types::String ParamName ) \
-     : _details::wrappers::OptionWrapper<_details::charcodes::U8Raw>(   \
-         _details::charcodes::U8Raw( std::move( ParamName ) ) )         \
+# define PGBAR__DEFAULT_OPTION( StructName, ParamName )               \
+   PGBAR__CXX20_CNSTXPR StructName() = default;                       \
+   StructName( _details::types::String ParamName )                    \
+     : _details::wrappers::OptionWrapper<_details::charcodes::U8Raw>( \
+         _details::charcodes::U8Raw( std::move( ParamName ) ) )       \
    {}
 #endif
 
@@ -276,7 +274,7 @@ public:                                                                         
        *
        * If the passed parameters are not coding in UTF-8.
        */
-      PGBAR__CXX20_CNSTXPR Lead( std::vector<_details::types::String> _leads )
+      Lead( std::vector<_details::types::String> _leads )
       {
         std::transform(
           std::make_move_iterator( _leads.begin() ),
@@ -289,11 +287,9 @@ public:                                                                         
        *
        * If the passed parameters are not coding in UTF-8.
        */
-      PGBAR__CXX20_CNSTXPR Lead( _details::types::String _lead )
-        : Base( { _details::charcodes::U8Text( std::move( _lead ) ) } )
-      {}
+      Lead( _details::types::String _lead ) : Base( { _details::charcodes::U8Text( std::move( _lead ) ) } ) {}
 #if PGBAR__CXX20
-      PGBAR__CXX20_CNSTXPR Lead( const std::vector<_details::types::LitU8>& _leads )
+      Lead( const std::vector<_details::types::LitU8>& _leads )
       {
         std::transform(
           _leads.cbegin(),
