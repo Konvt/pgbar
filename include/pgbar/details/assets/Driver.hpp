@@ -824,7 +824,7 @@ namespace pgbar {
               if ( this->task_end_ == 0 )
                 PGBAR__UNLIKELY throw exception::InvalidState( "pgbar: the number of tasks is zero" );
 
-              if ( config::disable_styling() && !config::intty( Outlet ) )
+              if ( config::auto_style_off() && !config::intty( Outlet ) )
                 this->config_.colored( false ).bolded( false );
               this->task_cnt_.store( 0, std::memory_order_release );
               this->zero_point_ = std::chrono::steady_clock::now();
@@ -968,7 +968,7 @@ namespace pgbar {
               this->task_end_ = this->config_.tasks();
               static_cast<Subcls*>( this )->warmup();
 
-              if ( config::disable_styling() && !config::intty( Outlet ) )
+              if ( config::auto_style_off() && !config::intty( Outlet ) )
                 this->config_.colored( false ).bolded( false );
               this->task_cnt_.store( 0, std::memory_order_release );
               this->zero_point_ = std::chrono::steady_clock::now();

@@ -9,18 +9,18 @@ namespace pgbar {
   namespace config {
     void hide_completed( bool flag ) noexcept;
     PGBAR__NODISCARD bool hide_completed() noexcept;
-    void disable_styling( bool flag ) noexcept;
-    PGBAR__NODISCARD bool disable_styling() noexcept;
+    void auto_style_off( bool flag ) noexcept;
+    PGBAR__NODISCARD bool auto_style_off() noexcept;
   }
 
   class Indicator {
     static std::atomic<bool> _hide_completed;
-    static std::atomic<bool> _disable_styling;
+    static std::atomic<bool> _auto_style_off;
 
     friend void config::hide_completed( bool ) noexcept;
     friend bool config::hide_completed() noexcept;
-    friend void config::disable_styling( bool ) noexcept;
-    friend bool config::disable_styling() noexcept;
+    friend void config::auto_style_off( bool ) noexcept;
+    friend bool config::auto_style_off() noexcept;
 
   public:
     Indicator()                                = default;
@@ -47,7 +47,7 @@ namespace pgbar {
     }
   };
   PGBAR__CXX17_INLINE std::atomic<bool> Indicator::_hide_completed { false };
-  PGBAR__CXX17_INLINE std::atomic<bool> Indicator::_disable_styling { true };
+  PGBAR__CXX17_INLINE std::atomic<bool> Indicator::_auto_style_off { true };
 
   namespace config {
     inline void hide_completed( bool flag ) noexcept
@@ -62,13 +62,13 @@ namespace pgbar {
      * Whether to automatically disable the style effect of the configuration object
      * when the output stream is not directed to a terminal.
      */
-    inline void disable_styling( bool flag ) noexcept
+    inline void auto_style_off( bool flag ) noexcept
     {
-      Indicator::_disable_styling.store( flag, std::memory_order_relaxed );
+      Indicator::_auto_style_off.store( flag, std::memory_order_relaxed );
     }
-    PGBAR__NODISCARD inline bool disable_styling() noexcept
+    PGBAR__NODISCARD inline bool auto_style_off() noexcept
     {
-      return Indicator::_disable_styling.load( std::memory_order_relaxed );
+      return Indicator::_auto_style_off.load( std::memory_order_relaxed );
     }
 
     /**
