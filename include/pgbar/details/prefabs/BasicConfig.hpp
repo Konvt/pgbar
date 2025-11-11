@@ -142,7 +142,7 @@ namespace pgbar {
         // Enable all components
         static constexpr types::Bit8 Entire = ~0;
 
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
         template<typename... Args>
           requires( traits::Distinct<traits::TypeList<std::decay_t<Args>...>>::value
                     && ( traits::TpContain<PermittedSet, std::decay_t<Args>>::value && ... ) )
@@ -214,7 +214,7 @@ namespace pgbar {
         }
 
         template<typename Arg, typename... Args>
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
           requires( traits::Distinct<traits::TypeList<Arg, Args...>>::value
                     && traits::TpContain<PermittedSet, Arg>::value
                     && ( traits::TpContain<PermittedSet, Args>::value && ... ) )

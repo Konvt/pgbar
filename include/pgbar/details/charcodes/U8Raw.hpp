@@ -247,7 +247,7 @@ namespace pgbar {
           return a.bytes_ + types::String( b );
         }
 
-#if PGBAR__CXX20
+#ifdef __cpp_char8_t
         static_assert( sizeof( char8_t ) == sizeof( char ),
                        "pgbar::_details::charcodes::U8Raw: Unexpected type size mismatch" );
 

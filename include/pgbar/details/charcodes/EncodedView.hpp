@@ -43,7 +43,7 @@ namespace pgbar {
         PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr iterator begin() const noexcept { return head_; }
         PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr iterator end() const noexcept { return tail_; }
 
-#if PGBAR__CXX17
+#ifdef __cpp_lib_string_view
         PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr types::ROStr as_string_view() const noexcept
         {
           return { head_, size() };

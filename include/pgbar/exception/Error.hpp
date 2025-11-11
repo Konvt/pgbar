@@ -3,7 +3,7 @@
 
 #include "../details/core/Core.hpp"
 #include <exception>
-#if PGBAR__CXX17
+#ifdef __cpp_lib_string_view
 # include <string_view>
 #endif
 
@@ -16,7 +16,7 @@ namespace pgbar {
      */
     class Error : public std::exception {
     protected:
-#if PGBAR__CXX17
+#if __cpp_lib_string_view
       std::string_view message_;
 #else
       const char* message_;
@@ -29,7 +29,7 @@ namespace pgbar {
       ~Error() override = default;
       PGBAR__NODISCARD const char* what() const noexcept override
       {
-#if PGBAR__CXX17
+#if __cpp_lib_string_view
         return message_.data();
 #else
         return message_;

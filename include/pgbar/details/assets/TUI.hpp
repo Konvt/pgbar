@@ -241,7 +241,7 @@ namespace pgbar {
          * If the passed parameters are not coding in UTF-8.
          */
         Derived& lead( types::String _lead ) & { PGBAR__METHOD( Lead, _lead, std::move ); }
-#if PGBAR__CXX20
+#ifdef __cpp_char8_t
         Derived& lead( const std::vector<types::LitU8>& _leads ) & { PGBAR__METHOD( Lead, _leads, ); }
         Derived& lead( types::LitU8 _lead ) & { PGBAR__METHOD( Lead, _lead, ); }
 #endif
@@ -297,7 +297,7 @@ namespace pgbar {
          * If the passed parameters are not coding in UTF-8.
          */
         Derived& filler( types::String _filler ) & { PGBAR__METHOD( Filler, _filler, std::move ); }
-#if PGBAR__CXX20
+#ifdef __cpp_char8_t
         Derived& filler( types::LitU8 _filler ) & { PGBAR__METHOD( Filler, _filler, ); }
 #endif
         Derived& filler_color( types::HexRGB _filler_color ) &
@@ -367,7 +367,7 @@ namespace pgbar {
          * If the passed parameters are not coding in UTF-8.
          */
         Derived& remains( types::String _remains ) & { PGBAR__METHOD( Remains, _remains, std::move ); }
-#if PGBAR__CXX20
+#ifdef __cpp_char8_t
         Derived& remains( types::LitU8 _remains ) & { PGBAR__METHOD( Remains, _remains, ); }
 #endif
 #undef PGBAR__METHOD
@@ -464,7 +464,7 @@ namespace pgbar {
          * If the passed parameters are not coding in UTF-8.
          */
         Derived& ending( types::String _ending ) & { PGBAR__METHOD( Ending, _ending, std::move ); }
-#if PGBAR__CXX20
+#ifdef __cpp_char8_t
         Derived& starting( types::LitU8 _starting ) & { PGBAR__METHOD( Starting, _starting, ); }
         Derived& ending( types::LitU8 _ending ) & { PGBAR__METHOD( Ending, _ending, ); }
 #endif
@@ -548,7 +548,7 @@ namespace pgbar {
          */
         Derived& prefix( types::String _prefix ) & { PGBAR__METHOD( Prefix, _prefix, std::move ); }
 
-#if PGBAR__CXX20
+#ifdef __cpp_char8_t
         Derived& prefix( types::LitU8 _prefix ) & { PGBAR__METHOD( Prefix, _prefix, ); }
 #endif
 
@@ -614,7 +614,7 @@ namespace pgbar {
          * If the passed parameters are not coding in UTF-8.
          */
         Derived& postfix( types::String _postfix ) & { PGBAR__METHOD( Postfix, _postfix, std::move ); }
-#if PGBAR__CXX20
+#ifdef __cpp_char8_t
         Derived& postfix( types::LitU8 _postfix ) & { PGBAR__METHOD( Postfix, _postfix, ); }
 #endif
 
@@ -703,7 +703,7 @@ namespace pgbar {
         {
           PGBAR__METHOD( RightBorder, _r_border, std::move );
         }
-#if PGBAR__CXX20
+#ifdef __cpp_char8_t
         Derived& divider( types::LitU8 _divider ) & { PGBAR__METHOD( Divider, _divider, ); }
         Derived& left_border( types::LitU8 _l_border ) & { PGBAR__METHOD( LeftBorder, _l_border, ); }
         Derived& right_border( types::LitU8 _r_border ) & { PGBAR__METHOD( RightBorder, _r_border, ); }
@@ -850,7 +850,7 @@ namespace pgbar {
          * (from left to right).
          */
         Derived& speed_unit( std::array<types::String, 4> _units ) & { PGBAR__METHOD( SpeedUnit, _units ); }
-#if PGBAR__CXX20
+#ifdef __cpp_char8_t
         /**
          * @param _units
          * The given each unit will be treated as 1,000 times greater than the previous one

@@ -1,6 +1,7 @@
 #ifndef PGBAR__TUPLESLOT
 #define PGBAR__TUPLESLOT
 
+#include "../core/Core.hpp"
 #include "../types/Types.hpp"
 
 namespace pgbar {

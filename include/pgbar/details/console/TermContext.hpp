@@ -1,6 +1,7 @@
 #ifndef PGBAR__TERMCONTEXT
 #define PGBAR__TERMCONTEXT
 
+#include "../core/Core.hpp"
 #include "../types/Types.hpp"
 #include <atomic>
 #if PGBAR__WIN

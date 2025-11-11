@@ -26,7 +26,7 @@ namespace pgbar {
       // Check whether the type Instance is an instantiated version of Tmp or whether it inherits from Tmp
       // itself.
       template<typename Instance, template<typename...> class Tmp>
-      struct InstanceOf {
+      struct is_instance_of {
       private:
         template<typename... Args>
         static constexpr std::true_type check( const Tmp<Args...>& );

@@ -3,7 +3,7 @@
 
 #include "../../../color/Color.hpp"
 #include "../../io/Stringbuf.hpp"
-#if PGBAR__CXX17
+#ifdef __cpp_lib_to_chars
 # include <charconv>
 #endif
 
@@ -35,7 +35,7 @@ namespace pgbar {
                                                             types::Char* last,
                                                             std::uint8_t value ) noexcept
           {
-#if PGBAR__CXX17
+#ifdef __cpp_lib_to_chars
             auto result = std::to_chars( first, last, value );
             PGBAR__TRUST( result.ec == std::errc() );
             return result.ptr;

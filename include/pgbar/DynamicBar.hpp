@@ -85,7 +85,7 @@ namespace pgbar {
     }
 
     template<typename Config>
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
       requires _details::traits::is_config<Config>::value
     PGBAR__NODISCARD std::unique_ptr<_details::prefabs::BasicBar<Config, Outlet, Mode, Area>>
 #else
@@ -101,7 +101,7 @@ namespace pgbar {
         std::move( bar ) );
     }
     template<typename Config>
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
       requires _details::traits::is_config<Config>::value
     PGBAR__NODISCARD std::unique_ptr<_details::prefabs::BasicBar<Config, Outlet, Mode, Area>>
 #else
@@ -118,7 +118,7 @@ namespace pgbar {
     }
 
     template<typename Bar, typename... Options>
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
       requires( _details::traits::is_bar<Bar>::value && Bar::Sink == Outlet && Bar::Strategy == Mode
                 && Bar::Layout == Area && std::is_constructible_v<Bar, Options...> )
     PGBAR__NODISCARD std::unique_ptr<Bar>
@@ -140,7 +140,7 @@ namespace pgbar {
         std::forward<Options>( options )... );
     }
     template<typename Config, typename... Options>
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
       requires( _details::traits::is_config<Config>::value && std::is_constructible_v<Config, Options...> )
     PGBAR__NODISCARD std::unique_ptr<_details::prefabs::BasicBar<Config, Outlet, Mode, Area>>
 #else
@@ -170,7 +170,7 @@ namespace pgbar {
 
   // Creates a tuple of unique_ptr pointing to bars using existing bar instances.
   template<typename Config, typename... Configs, Channel O, Policy M, Region A>
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
     requires( _details::traits::is_config<Config>::value
               && ( _details::traits::is_config<Configs>::value && ... ) )
   PGBAR__NODISCARD PGBAR__FORCEINLINE
@@ -195,7 +195,7 @@ namespace pgbar {
            Region Area    = Region::Fixed,
            typename Config,
            typename... Configs>
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
     requires( _details::traits::is_config<std::decay_t<Config>>::value
               && ( _details::traits::is_config<std::decay_t<Configs>>::value && ... ) )
   PGBAR__NODISCARD PGBAR__FORCEINLINE
@@ -222,7 +222,7 @@ namespace pgbar {
    * **All BasicBar instances are initialized using the same configuration.**
    */
   template<typename Config, Channel O, Policy M, Region A>
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
     requires _details::traits::is_config<Config>::value
   PGBAR__NODISCARD PGBAR__FORCEINLINE
     std::vector<std::unique_ptr<_details::prefabs::BasicBar<Config, O, M, A>>>
@@ -251,7 +251,7 @@ namespace pgbar {
            Policy Mode    = Policy::Async,
            Region Area    = Region::Fixed,
            typename Config>
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
     requires _details::traits::is_config<std::decay_t<Config>>::value
   PGBAR__NODISCARD PGBAR__FORCEINLINE
     std::vector<std::unique_ptr<_details::prefabs::BasicBar<std::decay_t<Config>, Outlet, Mode, Area>>>
@@ -282,7 +282,7 @@ namespace pgbar {
    * **An unmatched count and Bars number will cause an exception `pgbar::exception::InvalidArgument`.**
    */
   template<typename Bar, typename... Objs>
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
     requires( _details::traits::is_bar<Bar>::value
               && ( ( ( std::is_same_v<std::remove_cv_t<Bar>, std::remove_cv_t<Objs>> && ... )
                      && !( std::is_lvalue_reference_v<Objs &&> || ... ) )
@@ -328,7 +328,7 @@ namespace pgbar {
            Policy Mode    = Policy::Async,
            Region Area    = Region::Fixed,
            typename... Configs>
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
     requires( _details::traits::is_config<Config>::value
               && ( std::is_same_v<std::remove_cv_t<Config>, std::decay_t<Configs>> && ... ) )
   PGBAR__NODISCARD PGBAR__FORCEINLINE
@@ -368,7 +368,7 @@ namespace pgbar {
            Policy Mode    = Policy::Async,
            Region Area    = Region::Fixed,
            typename... Configs>
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
     requires( _details::traits::is_config<Config>::value
               && ( std::is_same_v<Config, std::decay_t<Configs>> && ... ) )
   PGBAR__NODISCARD PGBAR__FORCEINLINE

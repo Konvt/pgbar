@@ -29,7 +29,7 @@ namespace pgbar {
   public:
     MultiBar() = default;
 
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
     template<typename Cfg, typename... Cfgs>
       requires( sizeof...( Cfgs ) <= sizeof...( Configs )
                 && _details::traits::TpStartsWith<
@@ -51,7 +51,7 @@ namespace pgbar {
     {}
 
     template<typename Cfg, typename... Cfgs
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
              >
       requires( sizeof...( Cfgs ) <= sizeof...( Configs ) && _details::traits::is_config<Cfg>::value
                 && _details::traits::
@@ -180,7 +180,7 @@ namespace pgbar {
     }
 
     template<_details::types::Size Pos, typename... Args
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
              >
       requires _details::traits::is_iterable_bar<BarAt_t<Pos>>::value
 #else
@@ -195,7 +195,7 @@ namespace pgbar {
     }
 
     template<_details::types::Size Pos, typename F
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
              >
       requires _details::traits::is_reactive_bar<BarAt_t<Pos>>::value
 #else
@@ -208,7 +208,7 @@ namespace pgbar {
       return at<Pos>().action( std::forward<F>( fn ) );
     }
     template<_details::types::Size Pos
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
              >
       requires _details::traits::is_reactive_bar<BarAt_t<Pos>>::value
 
@@ -265,7 +265,7 @@ namespace pgbar {
 
   // Creates a MultiBar using existing bar instances.
   template<typename Config, typename... Configs, Channel O, Policy M, Region A>
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
     requires( _details::traits::is_config<Config>::value
               && ( _details::traits::is_config<Configs>::value && ... ) )
   PGBAR__NODISCARD PGBAR__FORCEINLINE
@@ -288,7 +288,7 @@ namespace pgbar {
            Region Area    = Region::Fixed,
            typename Config,
            typename... Configs>
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
     requires( _details::traits::is_config<std::decay_t<Config>>::value
               && ( _details::traits::is_config<std::decay_t<Configs>>::value && ... ) )
   MultiBar<_details::prefabs::BasicBar<std::decay_t<Config>, Outlet, Mode, Area>,
@@ -339,7 +339,7 @@ namespace pgbar {
    * **All BasicBar instances are initialized using the same configuration.**
    */
   template<_details::types::Size Cnt, typename Config, Channel O, Policy M, Region A>
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
     requires( Cnt > 0 && _details::traits::is_config<Config>::value )
   PGBAR__NODISCARD PGBAR__FORCEINLINE MakeMulti_t<_details::prefabs::BasicBar<Config, O, M, A>, Cnt>
 #else
@@ -362,7 +362,7 @@ namespace pgbar {
            Policy Mode    = Policy::Async,
            Region Area    = Region::Fixed,
            typename Config>
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
     requires( Cnt > 0 && _details::traits::is_config<std::decay_t<Config>>::value )
   PGBAR__NODISCARD PGBAR__FORCEINLINE
     MakeMulti_t<_details::prefabs::BasicBar<std::decay_t<Config>, Outlet, Mode, Area>, Cnt>
@@ -388,7 +388,7 @@ namespace pgbar {
    * **any remaining instances with no corresponding arguments will be default-initialized.**
    */
   template<typename Bar, _details::types::Size Cnt, typename... Objs>
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
     requires( Cnt > 0 && sizeof...( Objs ) <= Cnt && _details::traits::is_bar<Bar>::value
               && ( ( ( std::is_same_v<std::remove_cv_t<Bar>, std::decay_t<Objs>> && ... )
                      && !( std::is_lvalue_reference_v<Objs &&> || ... ) )
@@ -423,7 +423,7 @@ namespace pgbar {
            Policy Mode    = Policy::Async,
            Region Area    = Region::Fixed,
            typename... Configs>
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
     requires( Cnt > 0 && sizeof...( Configs ) <= Cnt && _details::traits::is_config<Config>::value
               && ( std::is_same_v<Config, std::decay_t<Configs>> && ... ) )
   PGBAR__NODISCARD PGBAR__FORCEINLINE
@@ -451,7 +451,7 @@ namespace pgbar {
            Policy Mode    = Policy::Async,
            Region Area    = Region::Fixed,
            typename... Configs>
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
     requires( Cnt > 0 && sizeof...( Configs ) <= Cnt && _details::traits::is_config<Config>::value
               && ( std::is_same_v<Config, std::decay_t<Configs>> && ... ) )
   PGBAR__NODISCARD PGBAR__FORCEINLINE

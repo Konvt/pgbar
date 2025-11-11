@@ -175,6 +175,7 @@ namespace pgbar {
         }
 #endif
       };
+      using sentinel = iterator;
 
       constexpr NumericSpan() noexcept : start_ {}, end_ {}, step_ { 1 } {}
       /**
@@ -218,9 +219,9 @@ namespace pgbar {
       {
         return iterator( start_, step_ );
       }
-      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX23_CNSTXPR iterator end() const noexcept
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX23_CNSTXPR sentinel end() const noexcept
       {
-        return iterator( start_, step_, size() );
+        return sentinel( start_, step_, size() );
       }
 
       PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr N front() const noexcept { return start_; }
@@ -239,13 +240,8 @@ namespace pgbar {
         } else
           return static_cast<_details::types::Size>( std::ceil( ( end_ - start_ ) / step_ ) );
       }
-
       PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr bool empty() const noexcept { return size() == 0; }
-      PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr typename iterator::reference operator[](
-        _details::types::Size inc ) const noexcept
-      {
-        return *( begin() + inc );
-      }
+
       PGBAR__CXX14_CNSTXPR void swap( NumericSpan<N>& lhs ) noexcept
       {
         PGBAR__TRUST( this != &lhs );
@@ -256,6 +252,11 @@ namespace pgbar {
       }
       friend PGBAR__CXX14_CNSTXPR void swap( NumericSpan<N>& a, NumericSpan<N>& b ) noexcept { a.swap( b ); }
 
+      PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr typename iterator::reference operator[](
+        _details::types::Size inc ) const noexcept
+      {
+        return *( begin() + inc );
+      }
       constexpr explicit operator bool() const noexcept { return !empty(); }
     };
   } // namespace slice

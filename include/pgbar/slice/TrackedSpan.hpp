@@ -2,7 +2,7 @@
 #define PGBAR_TRACKEDSPAN
 
 #include "../details/prefabs/BasicBar.hpp"
-#include "../details/traits/Backport.hpp"
+#include "../details/traits/ConceptTraits.hpp"
 #if PGBAR__CXX20
 # include <ranges>
 #endif
@@ -28,22 +28,17 @@ namespace pgbar {
       B* itr_bar_;
       R itr_range_;
 
-#if PGBAR__CXX20
-      using Sntnl = std::ranges::sentinel_t<R>;
-#elif PGBAR__CXX17
-      using Sntnl = _details::traits::IteratorOf_t<R>;
-#endif
-
     public:
       class iterator;
 #if PGBAR__CXX17
       class sentinel {
-        Sntnl end_;
+        using Snt = _details::traits::SentinelOf_t<R>;
+        Snt end_;
         friend class iterator;
 
       public:
         constexpr sentinel() = default;
-        constexpr sentinel( Sntnl&& end ) noexcept( std::is_nothrow_move_constructible<Sntnl>::value )
+        constexpr sentinel( Snt&& end ) noexcept( std::is_nothrow_move_constructible<Snt>::value )
           : end_ { std::move( end ) }
         {}
       };
@@ -52,47 +47,40 @@ namespace pgbar {
 #endif
 
       class iterator {
-        using Iter = _details::traits::IteratorOf_t<R>;
-        Iter itr_;
+        using Itr = _details::traits::IteratorOf_t<R>;
+        Itr itr_;
         B* itr_bar_;
 
       public:
         using iterator_category = typename std::conditional<
           _details::traits::AnyOf<
-            std::is_same<typename std::iterator_traits<Iter>::iterator_category, std::input_iterator_tag>,
-            std::is_same<typename std::iterator_traits<Iter>::iterator_category,
-                         std::output_iterator_tag>>::value,
-          typename std::iterator_traits<Iter>::iterator_category,
+            std::is_same<_details::traits::IterCategory_t<Itr>, std::input_iterator_tag>,
+            std::is_same<_details::traits::IterCategory_t<Itr>, std::output_iterator_tag>>::value,
+          _details::traits::IterCategory_t<Itr>,
           std::forward_iterator_tag>::type;
-#if PGBAR__CXX20
-        using value_type      = std::iter_value_t<Iter>;
-        using difference_type = std::iter_difference_t<Iter>;
-        using reference       = std::iter_reference_t<Iter>;
-#else
-        using value_type      = typename std::iterator_traits<Iter>::value_type;
-        using difference_type = typename std::iterator_traits<Iter>::difference_type;
-        using reference       = typename std::iterator_traits<Iter>::reference;
-#endif
-        using pointer = Iter;
+        using value_type      = _details::traits::IterValue_t<Itr>;
+        using difference_type = _details::traits::IterDifference_t<Itr>;
+        using reference       = _details::traits::IterReference_t<Itr>;
+        using pointer         = Itr;
 
-        constexpr iterator() noexcept( std::is_nothrow_default_constructible<Iter>::value )
+        constexpr iterator() noexcept( std::is_nothrow_default_constructible<Itr>::value )
           : itr_ {}, itr_bar_ { nullptr }
         {}
-        PGBAR__CXX17_CNSTXPR iterator( Iter itr ) noexcept( std::is_nothrow_move_constructible<Iter>::value )
+        PGBAR__CXX17_CNSTXPR iterator( Itr itr ) noexcept( std::is_nothrow_move_constructible<Itr>::value )
           : itr_ { std::move( itr ) }, itr_bar_ { nullptr }
         {}
-        PGBAR__CXX17_CNSTXPR iterator( Iter itr, B& itr_bar )
-          noexcept( std::is_nothrow_move_constructible<Iter>::value )
+        PGBAR__CXX17_CNSTXPR iterator( Itr itr, B& itr_bar )
+          noexcept( std::is_nothrow_move_constructible<Itr>::value )
           : itr_ { std::move( itr ) }, itr_bar_ { std::addressof( itr_bar ) }
         {}
         PGBAR__CXX17_CNSTXPR iterator( iterator&& rhs )
-          noexcept( std::is_nothrow_move_constructible<Iter>::value )
+          noexcept( std::is_nothrow_move_constructible<Itr>::value )
           : itr_ { std::move( rhs.itr_ ) }, itr_bar_ { rhs.itr_bar_ }
         {
           rhs.itr_bar_ = nullptr;
         }
         PGBAR__CXX17_CNSTXPR iterator& operator=( iterator&& rhs ) & noexcept(
-          std::is_nothrow_move_assignable<Iter>::value )
+          std::is_nothrow_move_assignable<Itr>::value )
         {
           PGBAR__TRUST( this != &rhs );
           itr_         = std::move( rhs.itr_ );
@@ -119,11 +107,11 @@ namespace pgbar {
 
         PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR reference operator*() const { return *itr_; }
         PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR pointer operator->() const { return itr_; }
-        PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr bool operator==( const Iter& lhs ) const
+        PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr bool operator==( const Itr& lhs ) const
         {
           return itr_ == lhs;
         }
-        PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr bool operator!=( const Iter& lhs ) const
+        PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr bool operator!=( const Itr& lhs ) const
         {
           return itr_ != lhs;
         }
@@ -187,13 +175,14 @@ namespace pgbar {
       // This function will CHANGE the state of the pgbar object it holds.
       PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR iterator begin() &
       {
-        itr_bar_->config().tasks( itr_range_.size() );
-        return { itr_range_.begin(), *itr_bar_ };
+        itr_bar_->config().tasks( _details::utils::size( itr_range_ ) );
+        return { _details::utils::begin( itr_range_ ), *itr_bar_ };
       }
       PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR sentinel end() const
       {
-        return { itr_range_.end() };
+        return { _details::utils::end( itr_range_ ) };
       }
+
       PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR bool empty() const noexcept
       {
         return itr_bar_ == nullptr;
@@ -202,13 +191,15 @@ namespace pgbar {
       PGBAR__CXX14_CNSTXPR void swap( TrackedSpan<R, B>& lhs ) noexcept
       {
         PGBAR__TRUST( this != &lhs );
+        using std::swap;
         std::swap( itr_bar_, lhs.itr_bar_ );
-        itr_range_.swap( lhs.itr_range_ );
+        swap( itr_range_, lhs.itr_range_ );
       }
       friend PGBAR__CXX14_CNSTXPR void swap( TrackedSpan<R, B>& a, TrackedSpan<R, B>& b ) noexcept
       {
         a.swap( b );
       }
+
       constexpr explicit operator bool() const noexcept { return !empty(); }
     };
   } // namespace slice

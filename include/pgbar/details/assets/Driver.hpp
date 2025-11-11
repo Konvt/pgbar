@@ -66,7 +66,7 @@ namespace pgbar {
          * @return Return a range `[startpoint, endpoint)` that moves unidirectionally.
          */
         template<typename N>
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
           requires std::is_arithmetic_v<N>
         PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR slice::TrackedSpan<slice::NumericSpan<N>, Derived>
 #else
@@ -84,7 +84,7 @@ namespace pgbar {
           };
         }
         template<typename N, typename Proc>
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
           requires std::is_arithmetic_v<N>
         PGBAR__CXX14_CNSTXPR void
 #else
@@ -97,7 +97,7 @@ namespace pgbar {
         }
 
         template<typename N>
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
           requires std::is_floating_point_v<N>
         PGBAR__NODISCARD slice::TrackedSpan<slice::NumericSpan<N>, Derived>
 #else
@@ -113,7 +113,7 @@ namespace pgbar {
           };
         }
         template<typename N, typename Proc>
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
           requires std::is_floating_point_v<N>
         void
 #else
@@ -127,7 +127,7 @@ namespace pgbar {
 
         // Only available for integer types.
         template<typename N>
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
           requires std::is_integral_v<N>
         PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR slice::TrackedSpan<slice::NumericSpan<N>, Derived>
 #else
@@ -144,7 +144,7 @@ namespace pgbar {
           };
         }
         template<typename N, typename Proc>
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
           requires std::is_integral_v<N>
         PGBAR__CXX14_CNSTXPR void
 #else
@@ -157,7 +157,7 @@ namespace pgbar {
         }
 
         template<typename N>
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
           requires std::is_integral_v<N>
         PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR slice::TrackedSpan<slice::NumericSpan<N>, Derived>
 #else
@@ -174,7 +174,7 @@ namespace pgbar {
           };
         }
         template<typename N, typename Proc>
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
           requires std::is_integral_v<N>
         PGBAR__CXX14_CNSTXPR void
 #else
@@ -187,17 +187,18 @@ namespace pgbar {
         }
 
         // Visualize unidirectional traversal of a iterator interval defined by parameters.
-        template<typename I>
-#if PGBAR__CXX20
-          requires traits::is_sized_iterator<I>::value
-        PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR slice::TrackedSpan<slice::IteratorSpan<I>, Derived>
+        template<typename Itr, typename Snt>
+#ifdef __cpp_concepts
+          requires traits::is_sized_cursor<Itr, Snt>::value
+        PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR slice::TrackedSpan<slice::IteratorSpan<Itr, Snt>, Derived>
 #else
         PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR
-          typename std::enable_if<traits::is_sized_iterator<I>::value,
-                                  slice::TrackedSpan<slice::IteratorSpan<I>, Derived>>::type
+          typename std::enable_if<traits::is_sized_cursor<Itr, Snt>::value,
+                                  slice::TrackedSpan<slice::IteratorSpan<Itr, Snt>, Derived>>::type
 #endif
-          iterate( I startpoint, I endpoint ) & noexcept(
-            traits::AnyOf<std::is_pointer<I>, std::is_nothrow_move_constructible<I>>::value )
+          iterate( Itr startpoint,
+                   Snt endpoint ) & noexcept( traits::AllOf<std::is_nothrow_move_constructible<Itr>,
+                                                            std::is_nothrow_move_constructible<Snt>>::value )
         {
           throw_if_active();
           return {
@@ -205,14 +206,14 @@ namespace pgbar {
             static_cast<Derived&>( *this )
           };
         }
-        template<typename I, typename Proc>
-#if PGBAR__CXX20
-          requires traits::is_sized_iterator<I>::value
+        template<typename Itr, typename Snt, typename Proc>
+#ifdef __cpp_concepts
+          requires traits::is_sized_cursor<Itr, Snt>::value
         PGBAR__CXX14_CNSTXPR void
 #else
-        PGBAR__CXX14_CNSTXPR typename std::enable_if<traits::is_sized_iterator<I>::value>::type
+        PGBAR__CXX14_CNSTXPR typename std::enable_if<traits::is_sized_cursor<Itr, Snt>::value>::type
 #endif
-          iterate( I startpoint, I endpoint, Proc&& op )
+          iterate( Itr startpoint, Snt endpoint, Proc&& op )
         {
           for ( auto&& e : iterate( std::move( startpoint ), std::move( endpoint ) ) )
             utils::invoke( std::forward<Proc>( op ), std::forward<decltype( e )>( e ) );
@@ -221,7 +222,7 @@ namespace pgbar {
         // Visualize unidirectional traversal of a abstract range interval defined by `container`'s
         // slice.
         template<class R>
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
           requires( traits::is_bounded_range<std::remove_reference_t<R>>::value
                     && !std::ranges::view<std::remove_reference_t<R>> )
         PGBAR__NODISCARD PGBAR__CXX17_CNSTXPR
@@ -236,7 +237,7 @@ namespace pgbar {
           throw_if_active();
           return { { container }, static_cast<Derived&>( *this ) };
         }
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
         template<class R>
           requires( traits::is_bounded_range<R>::value && std::ranges::view<R> )
         PGBAR__NODISCARD PGBAR__CXX17_CNSTXPR slice::TrackedSpan<R, Derived> iterate( R view ) &
@@ -246,7 +247,7 @@ namespace pgbar {
         }
 #endif
         template<class R, typename Proc>
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
           requires traits::is_bounded_range<std::remove_reference_t<R>>::value
         PGBAR__CXX17_CNSTXPR void
 #else
@@ -508,7 +509,7 @@ namespace pgbar {
         PGBAR__CXX23_CNSTXPR ~ReactiveBar() noexcept { destroy(); }
 
         template<typename F>
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
           requires( !std::is_null_pointer_v<std::decay_t<F>>
                     && std::is_constructible_v<wrappers::UniqueFunction<void()>, F> )
         Derived&
@@ -527,7 +528,7 @@ namespace pgbar {
           return static_cast<Derived&>( *this );
         }
         template<typename F>
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
           requires( !std::is_null_pointer_v<std::decay_t<F>>
                     && std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F> )
         Derived&
@@ -554,7 +555,7 @@ namespace pgbar {
         }
 
         template<typename F>
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
           requires( !std::is_null_pointer_v<std::decay_t<F>>
                     && (std::is_constructible_v<wrappers::UniqueFunction<void()>, F>
                         || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F>))
@@ -572,7 +573,7 @@ namespace pgbar {
           return bar.action( std::forward<F>( fn ) );
         }
         template<typename F>
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
           requires( !std::is_null_pointer_v<std::decay_t<F>>
                     && (std::is_constructible_v<wrappers::UniqueFunction<void()>, F>
                         || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F>))
@@ -590,7 +591,7 @@ namespace pgbar {
           return bar.action( std::forward<F>( fn ) );
         }
         template<typename F>
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
           requires( !std::is_null_pointer_v<std::decay_t<F>>
                     && (std::is_constructible_v<wrappers::UniqueFunction<void()>, F>
                         || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F>))
@@ -608,7 +609,7 @@ namespace pgbar {
           return bar.action( std::forward<F>( fn ) );
         }
         template<typename F>
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
           requires( !std::is_null_pointer_v<std::decay_t<F>>
                     && (std::is_constructible_v<wrappers::UniqueFunction<void()>, F>
                         || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F>))
@@ -626,7 +627,7 @@ namespace pgbar {
           return std::move( bar.action( std::forward<F>( fn ) ) );
         }
         template<typename F>
-#if PGBAR__CXX20
+#ifdef __cpp_concepts
           requires( !std::is_null_pointer_v<std::decay_t<F>>
                     && (std::is_constructible_v<wrappers::UniqueFunction<void()>, F>
                         || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F>))
