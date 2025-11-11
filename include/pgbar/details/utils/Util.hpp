@@ -1,11 +1,11 @@
 #ifndef PGBAR__UTILS_UTIL
 #define PGBAR__UTILS_UTIL
 
+#include "../core/Core.hpp"
 #include "../traits/Backport.hpp"
-#include "../types/Types.hpp"
 #include <cmath>
 #include <tuple>
-#if PGBAR__CXX17
+#ifdef __cpp_lib_to_chars
 # include <charconv>
 #elif defined( PGBAR_DEBUG )
 # include <limits>
@@ -87,12 +87,12 @@ namespace pgbar {
          * So the implementation here is provided manually. */
         PGBAR__ASSERT( std::isfinite( val ) );
         PGBAR__TRUST( precision >= 0 );
-#if PGBAR__CXX17
+#ifdef __cpp_lib_to_chars
         const auto abs_rounded_val = std::round( std::abs( val ) );
         const auto int_digits      = count_digits( abs_rounded_val );
 
         types::String formatted;
-# if PGBAR__CXX23
+# ifdef __cpp_lib_string_resize_and_overwrite
         formatted.resize_and_overwrite(
           int_digits + precision + 2,
           [val, precision]( types::Char* buf, types::Size n ) noexcept {
@@ -164,7 +164,7 @@ namespace pgbar {
                + types::String( width - l_blank, ' ' );
         }
       }
-#if PGBAR__CXX17
+#ifdef __cpp_lib_string_view
       template<TxtLayout Style>
       PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR types::String format( types::Size width,
                                                                                      types::ROStr str )

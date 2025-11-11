@@ -86,7 +86,7 @@ public                           \
 
 #undef PGBAR__NULLABLE_OPTION
 #undef PGBAR__DEFAULT_OPTION
-#if PGBAR__CXX20
+#ifdef __cpp_char8_t
 # define PGBAR__DEFAULT_OPTION( StructName, ParamName )                                        \
  private:                                                                                      \
    using Data = _details::charcodes::U8Raw;                                                    \
@@ -245,7 +245,7 @@ public:                                                                         
           data_.begin(),
           []( _details::types::String&& ele ) { return _details::charcodes::U8Raw( std::move( ele ) ); } );
       }
-#if PGBAR__CXX20
+#ifdef __cpp_char8_t
       /**
        * @param _units
        * The given each unit will be treated as 1,000 times greater than the previous one
@@ -288,7 +288,7 @@ public:                                                                         
        * If the passed parameters are not coding in UTF-8.
        */
       Lead( _details::types::String _lead ) : Base( { _details::charcodes::U8Text( std::move( _lead ) ) } ) {}
-#if PGBAR__CXX20
+#ifdef __cpp_char8_t
       Lead( const std::vector<_details::types::LitU8>& _leads )
       {
         std::transform(

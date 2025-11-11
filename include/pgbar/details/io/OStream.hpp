@@ -2,7 +2,7 @@
 #define PGBAR__OSTREAM
 
 #include "Stringbuf.hpp"
-#if PGBAR__CXX20
+#ifdef __cpp_lib_span
 # include <span>
 #endif
 #if PGBAR__WIN
@@ -55,7 +55,7 @@ namespace pgbar {
         PGBAR__CXX20_CNSTXPR OStream() = default;
 
       public:
-#if PGBAR__CXX20
+#ifdef __cpp_lib_span
         using SinkBuffer = std::span<const types::Char>;
 #else
         using SinkBuffer = const std::vector<types::Char>&;

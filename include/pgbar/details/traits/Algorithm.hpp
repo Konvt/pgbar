@@ -1,6 +1,7 @@
 #ifndef PGBAR__ALGORITHM
 #define PGBAR__ALGORITHM
 
+#include "../core/Core.hpp"
 #include "../types/Types.hpp"
 #include "Backport.hpp"
 #if !PGBAR__BUILTIN( __type_pack_element )

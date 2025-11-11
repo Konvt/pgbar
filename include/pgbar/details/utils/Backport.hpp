@@ -2,12 +2,18 @@
 #define PGBAR__UTILS_BACKPORT
 
 #include "../core/Core.hpp"
-#include "../traits/Backport.hpp"
-#include "../traits/Util.hpp"
+#include "../types/Types.hpp"
 #include <functional>
 #include <memory>
 #include <new>
 #include <utility>
+#ifndef __cpp_lib_invoke
+# include "../traits/Backport.hpp"
+# include "../traits/Util.hpp"
+#endif
+#ifdef __cpp_lib_ranges
+# include <ranges>
+#endif
 
 namespace pgbar {
   namespace _details {
@@ -123,10 +129,10 @@ namespace pgbar {
       template<typename C, typename MemFn, typename Object, typename... Args>
       PGBAR__FORCEINLINE constexpr auto invoke( MemFn C::* method, Object&& object, Args&&... args )
         noexcept( noexcept( ( object.get().*method )( std::forward<Args>( args )... ) ) ) ->
-        typename std::enable_if<
-          traits::AllOf<std::is_member_function_pointer<MemFn C::*>,
-                        traits::InstanceOf<typename std::decay<Object>::type, std::reference_wrapper>>::value,
-          decltype( ( object.get().*method )( std::forward<Args>( args )... ) )>::type
+        typename std::enable_if<traits::AllOf<std::is_member_function_pointer<MemFn C::*>,
+                                              traits::is_instance_of<typename std::decay<Object>::type,
+                                                                     std::reference_wrapper>>::value,
+                                decltype( ( object.get().*method )( std::forward<Args>( args )... ) )>::type
       {
         return ( object.get().*method )( std::forward<Args>( args )... );
       }
@@ -138,8 +144,8 @@ namespace pgbar {
           traits::AllOf<std::is_member_function_pointer<MemFn C::*>,
                         traits::Not<traits::AnyOf<std::is_base_of<C, typename std::decay<Object>::type>,
                                                   std::is_same<C, typename std::decay<Object>::type>,
-                                                  traits::InstanceOf<typename std::decay<Object>::type,
-                                                                     std::reference_wrapper>>>>::value,
+                                                  traits::is_instance_of<typename std::decay<Object>::type,
+                                                                         std::reference_wrapper>>>>::value,
           decltype( ( ( *std::forward<Object>( object ) ).*method )( std::forward<Args>( args )... ) )>::type
       {
         return ( ( *std::forward<Object>( object ) ).*method )( std::forward<Args>( args )... );
@@ -156,10 +162,10 @@ namespace pgbar {
       }
       template<typename C, typename MemObj, typename Object>
       PGBAR__FORCEINLINE constexpr auto invoke( MemObj C::* member, Object&& object ) noexcept ->
-        typename std::enable_if<
-          traits::AllOf<std::is_member_object_pointer<MemObj C::*>,
-                        traits::InstanceOf<typename std::decay<Object>::type, std::reference_wrapper>>::value,
-          decltype( object.get().*member )>::type
+        typename std::enable_if<traits::AllOf<std::is_member_object_pointer<MemObj C::*>,
+                                              traits::is_instance_of<typename std::decay<Object>::type,
+                                                                     std::reference_wrapper>>::value,
+                                decltype( object.get().*member )>::type
       {
         return object.get().*member;
       }
@@ -169,8 +175,8 @@ namespace pgbar {
           traits::AllOf<std::is_member_object_pointer<MemObj C::*>,
                         traits::Not<traits::AnyOf<std::is_base_of<C, typename std::decay<Object>::type>,
                                                   std::is_same<C, typename std::decay<Object>::type>,
-                                                  traits::InstanceOf<typename std::decay<Object>::type,
-                                                                     std::reference_wrapper>>>>::value,
+                                                  traits::is_instance_of<typename std::decay<Object>::type,
+                                                                         std::reference_wrapper>>>>::value,
           decltype( ( *std::forward<Object>( object ) ).*member )>::type
       {
         return ( *std::forward<Object>( object ) ).*member;
@@ -185,6 +191,78 @@ namespace pgbar {
           decltype( std::forward<Fn>( fn )( std::forward<Args>( args )... ) )>::type
       {
         return std::forward<Fn>( fn )( std::forward<Args>( args )... );
+      }
+#endif
+
+#ifdef __cpp_lib_ranges
+      template<typename Itr, typename Snt>
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR auto distance( Itr&& first, Snt&& second )
+        noexcept( noexcept( std::ranges::distance( std::forward<Itr>( first ),
+                                                   std::forward<Snt>( second ) ) ) )
+      {
+        return std::ranges::distance( std::forward<Itr>( first ), std::forward<Snt>( second ) );
+      }
+      template<typename R>
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR auto begin( R&& r )
+        noexcept( noexcept( std::ranges::begin( std::forward<R>( r ) ) ) )
+      {
+        return std::ranges::begin( std::forward<R>( r ) );
+      }
+      template<typename R>
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR auto end( R&& r )
+        noexcept( noexcept( std::ranges::end( std::forward<R>( r ) ) ) )
+      {
+        return std::ranges::end( std::forward<R>( r ) );
+      }
+#else
+      template<typename Itr>
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR auto distance( Itr first, Itr second )
+        noexcept( noexcept( std::distance( std::move( first ), std::move( second ) ) ) )
+          -> decltype( std::distance( std::move( first ), std::move( second ) ) )
+      {
+        return std::distance( std::move( first ), std::move( second ) );
+      }
+      template<typename R>
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR auto begin( R&& r )
+        noexcept( noexcept( std::begin( std::forward<R>( r ) ) ) )
+          -> decltype( std::begin( std::forward<R>( r ) ) )
+      {
+        return std::begin( std::forward<R>( r ) );
+      }
+      template<typename R>
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR auto end( R&& r )
+        noexcept( noexcept( std::end( std::forward<R>( r ) ) ) )
+          -> decltype( std::end( std::forward<R>( r ) ) )
+      {
+        return std::end( std::forward<R>( r ) );
+      }
+#endif
+
+#ifdef __cpp_lib_ranges
+      template<typename Range>
+      PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr types::Size size( Range&& rn )
+        noexcept( noexcept( std::ranges::size( std::forward<Range>( rn ) ) ) )
+      {
+        return std::ranges::size( std::forward<Range>( rn ) );
+      }
+#elif PGBAR__CXX17
+      template<typename Range>
+      PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr types::Size size( Range&& rn )
+        noexcept( noexcept( std::size( std::forward<Range>( rn ) ) ) )
+      {
+        return std::size( std::forward<Range>( rn ) );
+      }
+#else
+      template<typename Range>
+      PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr types::Size size( Range&& rn )
+        noexcept( noexcept( std::forward<Range>( rn ).size() ) )
+      {
+        return std::forward<Range>( rn ).size();
+      }
+      template<typename Range, types::Size N>
+      PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr types::Size size( const Range ( & )[N] ) noexcept
+      {
+        return N;
       }
 #endif
 

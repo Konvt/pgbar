@@ -1,6 +1,7 @@
 #ifndef PGBAR__CODECHART
 #define PGBAR__CODECHART
 
+#include "../core/Core.hpp"
 #include "../types/Types.hpp"
 
 namespace pgbar {

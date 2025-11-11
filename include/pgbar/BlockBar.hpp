@@ -107,7 +107,7 @@ namespace pgbar {
       template<typename ArgSet>
       static void inject( Base& self )
       {
-        static_assert( _details::traits::InstanceOf<ArgSet, _details::traits::TypeSet>::value,
+        static_assert( _details::traits::is_instance_of<ArgSet, _details::traits::TypeSet>::value,
                        "pgbar::config::Block::initialize: Invalid template type" );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Reversed>::value )
           unpacker( self, option::Reversed( false ) );

@@ -2,7 +2,7 @@
 #define PGBAR__CONCURRENT_BACKPORT
 
 #include "../core/Core.hpp"
-#if !PGBAR__CXX17
+#if !defined( __cpp_lib_shared_mutex )
 # include <atomic>
 # include <mutex>
 #endif

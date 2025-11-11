@@ -1,6 +1,7 @@
 #ifndef PGBAR_COLOR
 #define PGBAR_COLOR
 
+#include "../details/core/Core.hpp"
 #include "../details/types/Types.hpp"
 
 #define PGBAR__DEFAULT 0xC105EA11 // C1O5E -> ClOSE, A11 -> All

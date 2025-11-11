@@ -1,6 +1,7 @@
 #ifndef PGBAR__CONCURRENT_UTIL
 #define PGBAR__CONCURRENT_UTIL
 
+#include "../core/Core.hpp"
 #include "../types/Types.hpp"
 #include <chrono>
 #include <thread>
