@@ -2758,7 +2758,7 @@ Given that `stdout` and `stderr` are redirected to other files, `pgbar` also che
 
 When `pgbar` detects that an output stream is not directed to a terminal, the coloring effect of all progress bars pointing to that output stream will be automatically disabled, and no additional virtual terminal sequence strings for manipulating the terminal cursor will be inserted.
 
-Whether the coloring effect is automatically turned off or not can be enabled or disabled by the `pgbar::config::disable_styling()` function.
+Whether the coloring effect is automatically turned off or not can be enabled or disabled by the `pgbar::config::auto_style_off()` function.
 
 When it is enabled (that is, by default), if the progress bar detects that the output stream it is in does not point to a terminal device, it will call the `colored()` and `bolded()` methods of the configuration object to turn off color and font effects.
 

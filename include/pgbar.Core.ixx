@@ -51,7 +51,7 @@ export namespace pgbar {
   } // namespace option
 
   namespace config {
-    using pgbar::config::disable_styling;
+    using pgbar::config::auto_style_off;
     using pgbar::config::hide_completed;
     using pgbar::config::intty;
     using pgbar::config::refresh_interval;
