@@ -28,26 +28,28 @@ namespace pgbar {
       B* itr_bar_;
       R itr_range_;
 
+      using Itr = _details::traits::IteratorOf_t<R>;
+      using Snt = _details::traits::SentinelOf_t<R>;
+      class Sentry {
+        friend class iterator;
+
+        Snt snt_;
+
+      public:
+        constexpr Sentry() = default;
+        constexpr Sentry( Snt&& endpoint ) noexcept( std::is_nothrow_move_constructible<Snt>::value )
+          : snt_ { std::move( endpoint ) }
+        {}
+      };
+
     public:
       class iterator;
 #if PGBAR__CXX17
-      class sentinel {
-        using Snt = _details::traits::SentinelOf_t<R>;
-        Snt end_;
-        friend class iterator;
-
-      public:
-        constexpr sentinel() = default;
-        constexpr sentinel( Snt&& end ) noexcept( std::is_nothrow_move_constructible<Snt>::value )
-          : end_ { std::move( end ) }
-        {}
-      };
+      using sentinel = std::conditional_t<std::is_same_v<Itr, Snt>, iterator, Sentry>;
 #else
       using sentinel = iterator;
 #endif
-
       class iterator {
-        using Itr = _details::traits::IteratorOf_t<R>;
         Itr itr_;
         B* itr_bar_;
 
@@ -93,7 +95,7 @@ namespace pgbar {
         PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR iterator& operator++() &
         {
           PGBAR__TRUST( itr_bar_ != nullptr );
-          ++itr_;
+          itr_ = std::next( itr_, 1 );
           itr_bar_->tick();
           return *this;
         }
@@ -107,13 +109,58 @@ namespace pgbar {
 
         PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR reference operator*() const { return *itr_; }
         PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR pointer operator->() const { return itr_; }
-        PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr bool operator==( const Itr& lhs ) const
+
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator==( const iterator& a,
+                                                                              const Itr& b )
         {
-          return itr_ == lhs;
+          return a.itr_ == b;
         }
-        PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr bool operator!=( const Itr& lhs ) const
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator==( const Itr& a,
+                                                                              const iterator& b )
         {
-          return itr_ != lhs;
+          return b == a;
+        }
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator!=( const iterator& a,
+                                                                              const Itr& b )
+        {
+          return a.itr_ != b;
+        }
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator!=( const Itr& a,
+                                                                              const iterator& b )
+        {
+          return b != a;
+        }
+        template<typename S>
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr typename std::enable_if<
+          _details::traits::AllOf<std::is_same<S, Snt>, _details::traits::Not<std::is_same<Itr, Snt>>>::value,
+          bool>::type
+          operator==( const iterator& a, const S& b )
+        {
+          return a.itr_ == b;
+        }
+        template<typename S>
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr typename std::enable_if<
+          _details::traits::AllOf<std::is_same<S, Snt>, _details::traits::Not<std::is_same<Itr, Snt>>>::value,
+          bool>::type
+          operator==( const S& ir, const iterator& itr )
+        {
+          return itr == ir;
+        }
+        template<typename S>
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr typename std::enable_if<
+          _details::traits::AllOf<std::is_same<S, Snt>, _details::traits::Not<std::is_same<Itr, Snt>>>::value,
+          bool>::type
+          operator!=( const iterator& itr, const S& ir )
+        {
+          return !( itr == ir );
+        }
+        template<typename S>
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr typename std::enable_if<
+          _details::traits::AllOf<std::is_same<S, Snt>, _details::traits::Not<std::is_same<Itr, Snt>>>::value,
+          bool>::type
+          operator!=( const S& snt, const iterator& itr )
+        {
+          return !( itr == snt );
         }
         PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator==( const iterator& a,
                                                                               const iterator& b )
@@ -125,27 +172,26 @@ namespace pgbar {
         {
           return !( a == b );
         }
-
-#if PGBAR__CXX17
-        PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr bool operator==( const sentinel& b ) const
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator==( const iterator& a,
+                                                                              const Sentry& b )
         {
-          return itr_ == b.end_;
+          return a.itr_ == b.snt_;
         }
-        PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr bool operator!=( const sentinel& b ) const
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator!=( const iterator& a,
+                                                                              const Sentry& b )
         {
-          return !( *this == b );
+          return !( a == b );
         }
-        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator==( const sentinel& a,
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator==( const Sentry& a,
                                                                               const iterator& b )
         {
           return b == a;
         }
-        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator!=( const sentinel& a,
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator!=( const Sentry& a,
                                                                               const iterator& b )
         {
           return !( b == a );
         }
-#endif
 
         constexpr explicit operator bool() const noexcept { return itr_bar_ != nullptr; }
       };

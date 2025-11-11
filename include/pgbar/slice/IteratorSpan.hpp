@@ -28,19 +28,23 @@ namespace pgbar {
       Itr start_;
       Snt end_;
 
-    public:
-#if PGBAR__CXX17
-      class sentinel {
-        Snt ending_;
+      class Sentry {
+        friend class iterator;
+
+        Snt endpoint_;
 
       public:
-        constexpr sentinel() = default;
-        constexpr sentinel( Snt&& endpoint ) noexcept( std::is_nothrow_move_constructible<Snt>::value )
-          : ending_ { std::move( endpoint ) }
+        constexpr Sentry() = default;
+        constexpr Sentry( Snt&& endpoint ) noexcept( std::is_nothrow_move_constructible<Snt>::value )
+          : endpoint_ { std::move( endpoint ) }
         {}
       };
-#else
+
+    public:
       class iterator;
+#if PGBAR__CXX17
+      using sentinel = std::conditional_t<std::is_same_v<Itr, Snt>, iterator, Sentry>;
+#else
       using sentinel = iterator;
 #endif
       class iterator {
@@ -70,7 +74,7 @@ namespace pgbar {
 
         PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR iterator& operator++() &
         {
-          ++current_;
+          current_ = std::next( current_, 1 );
           return *this;
         }
         PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR iterator operator++( int ) &
@@ -89,7 +93,7 @@ namespace pgbar {
           return current_;
         }
         PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR reference
-          operator[]( _details::types::Size inc ) const noexcept( noexcept( *std::next( current_, inc ) ) )
+          operator[]( _details::types::Size inc ) const
         {
           return *std::next( current_, inc );
         }
@@ -114,41 +118,37 @@ namespace pgbar {
         {
           return !( itr == ir );
         }
-        template<typename Sentinel>
+        template<typename S>
         PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr typename std::enable_if<
-          _details::traits::AllOf<std::is_same<Sentinel, Snt>,
-                                  _details::traits::Not<std::is_same<Itr, Snt>>>::value,
+          _details::traits::AllOf<std::is_same<S, Snt>, _details::traits::Not<std::is_same<Itr, Snt>>>::value,
           bool>::type
-          operator==( const iterator& itr, const Sentinel& ir )
+          operator==( const iterator& a, const S& b )
         {
-          return itr.current_ == ir;
+          return a.current_ == b;
         }
-        template<typename Sentinel>
+        template<typename S>
         PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr typename std::enable_if<
-          _details::traits::AllOf<std::is_same<Sentinel, Snt>,
-                                  _details::traits::Not<std::is_same<Itr, Snt>>>::value,
+          _details::traits::AllOf<std::is_same<S, Snt>, _details::traits::Not<std::is_same<Itr, Snt>>>::value,
           bool>::type
-          operator==( const Snt& ir, const iterator& itr )
+          operator==( const Snt& a, const iterator& b )
         {
-          return itr == ir;
+          return b == a;
         }
-        template<typename Sentinel>
+        template<typename S>
         PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr typename std::enable_if<
-          _details::traits::AllOf<std::is_same<Sentinel, Snt>,
-                                  _details::traits::Not<std::is_same<Itr, Snt>>>::value,
+          _details::traits::AllOf<std::is_same<S, Snt>, _details::traits::Not<std::is_same<Itr, Snt>>>::value,
           bool>::type
-          operator!=( const iterator& itr, const Snt& ir )
+          operator!=( const iterator& a, const Snt& b )
         {
-          return !( itr == ir );
+          return !( a == b );
         }
-        template<typename Sentinel>
+        template<typename S>
         PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr typename std::enable_if<
-          _details::traits::AllOf<std::is_same<Sentinel, Snt>,
-                                  _details::traits::Not<std::is_same<Itr, Snt>>>::value,
+          _details::traits::AllOf<std::is_same<S, Snt>, _details::traits::Not<std::is_same<Itr, Snt>>>::value,
           bool>::type
-          operator!=( const Snt& ir, const iterator& itr )
+          operator!=( const Snt& a, const iterator& b )
         {
-          return !( itr == ir );
+          return !( b == a );
         }
         PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator==( const iterator& a,
                                                                               const iterator& b )
@@ -165,36 +165,36 @@ namespace pgbar {
         {
           return _details::utils::distance( a.current_, b.current_ );
         }
-#if PGBAR__CXX17
         PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator==( const iterator& a,
-                                                                              const sentinel& b )
+                                                                              const Sentry& b )
         {
-          return a.current_ == b.ending_;
+          return a.current_ == b.endpoint_;
         }
         PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator!=( const iterator& a,
-                                                                              const sentinel& b )
+                                                                              const Sentry& b )
         {
           return !( a == b );
         }
-        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator==( const sentinel& a,
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator==( const Sentry& a,
                                                                               const iterator& b )
         {
           return b == a;
         }
-        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator!=( const sentinel& a,
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator!=( const Sentry& a,
                                                                               const iterator& b )
         {
           return !( b == a );
         }
-        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr difference_type operator-( const sentinel& a,
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr difference_type operator-( const Sentry& a,
                                                                                         const iterator& b )
         {
           return b - a;
         }
-#endif
+
+        constexpr explicit operator bool() const { return current_ != Itr(); }
       };
 
-      PGBAR__CXX17_CNSTXPR IteratorSpan( Itr startpoint, Itr endpoint )
+      PGBAR__CXX17_CNSTXPR IteratorSpan( Itr startpoint, Snt endpoint )
         : start_ { std::move( startpoint ) }, end_ { std::move( endpoint ) }
       {
         const auto length = _details::utils::distance( start_, end_ );
@@ -216,8 +216,8 @@ namespace pgbar {
         return { this->start_ };
       }
       PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr sentinel end() const
-        noexcept( _details::traits::AllOf<std::is_nothrow_move_constructible<Snt>,
-                                          std::is_nothrow_copy_constructible<Snt>>::value )
+        noexcept( _details::traits::AllOf<std::is_nothrow_move_constructible<sentinel>,
+                                          std::is_nothrow_copy_constructible<sentinel>>::value )
       {
         return { this->end_ };
       }
@@ -253,7 +253,7 @@ namespace pgbar {
       }
 
       PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR typename iterator::reference operator[](
-        _details::types::Size inc ) const noexcept( noexcept( *std::next( start_, inc ) ) )
+        _details::types::Size inc ) const
       {
         return *std::next( start_, inc );
       }
