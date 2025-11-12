@@ -1,11 +1,12 @@
 #ifndef PGBAR__WRAPPERS_BACKPORT
 #define PGBAR__WRAPPERS_BACKPORT
 
-#include "../traits/Backport.hpp"
-#include <functional>
-#ifndef __cpp_lib_move_only_function
+#include "../types/Types.hpp"
+#ifdef __cpp_lib_move_only_function
+# include <functional>
+#else
+# include "../traits/Backport.hpp"
 # include "../utils/Backport.hpp"
-# include <cstddef>
 # include <new>
 #endif
 
@@ -17,16 +18,11 @@ namespace pgbar {
       using UniqueFunction = std::move_only_function<Signature...>;
 #else
       template<typename Derived>
-      class FnStorageBlock {
+      class FnStorage {
       protected:
-# if PGBAR__CXX17
-        using Data = std::byte;
-# else
-        using Data = unsigned char;
-# endif
         union alignas( std::max_align_t ) AnyFn {
-          Data buf_[sizeof( void* ) * 2];
-          Data* dptr_;
+          types::Byte buf_[sizeof( void* ) * 2];
+          types::Byte* dptr_;
 
           constexpr AnyFn() noexcept : dptr_ { nullptr } {}
         };
@@ -108,7 +104,7 @@ namespace pgbar {
           PGBAR__ASSERT( static_cast<void*>( location ) == dptr.get() );
           (void)location;
 
-          any.dptr_ = static_cast<Data*>( dptr.release() );
+          any.dptr_ = static_cast<types::Byte*>( dptr.release() );
           vtable    = &table_dynamic<T>();
         }
 
@@ -132,7 +128,7 @@ namespace pgbar {
           return tbl;
         }
 
-        PGBAR__CXX23_CNSTXPR FnStorageBlock() noexcept : vtable_ { &table_null() } {}
+        PGBAR__CXX23_CNSTXPR FnStorage() noexcept : vtable_ { &table_null() } {}
 
         PGBAR__CXX23_CNSTXPR void reset() noexcept
         {
@@ -154,13 +150,13 @@ namespace pgbar {
         }
 
       public:
-        PGBAR__CXX23_CNSTXPR FnStorageBlock( FnStorageBlock&& rhs ) noexcept : vtable_ { rhs.vtable_ }
+        PGBAR__CXX23_CNSTXPR FnStorage( FnStorage&& rhs ) noexcept : vtable_ { rhs.vtable_ }
         {
           PGBAR__TRUST( rhs.vtable_ != nullptr );
           vtable_->move( callee_, rhs.callee_ );
           rhs.vtable_ = &table_null();
         }
-        PGBAR__CXX23_CNSTXPR FnStorageBlock& operator=( FnStorageBlock&& rhs ) & noexcept
+        PGBAR__CXX23_CNSTXPR FnStorage& operator=( FnStorage&& rhs ) & noexcept
         {
           PGBAR__TRUST( this != &rhs );
           PGBAR__TRUST( vtable_ != nullptr );
@@ -172,9 +168,9 @@ namespace pgbar {
           vtable_->move( callee_, rhs.callee_ );
           return *this;
         }
-        PGBAR__CXX23_CNSTXPR ~FnStorageBlock() noexcept { reset(); }
+        PGBAR__CXX23_CNSTXPR ~FnStorage() noexcept { reset(); }
 
-        PGBAR__CXX23_CNSTXPR void swap( FnStorageBlock& lhs ) noexcept
+        PGBAR__CXX23_CNSTXPR void swap( FnStorage& lhs ) noexcept
         {
           PGBAR__TRUST( vtable_ != nullptr );
           PGBAR__TRUST( lhs.vtable_ != nullptr );
@@ -186,27 +182,24 @@ namespace pgbar {
           PGBAR__TRUST( this->vtable_ != nullptr );
           PGBAR__TRUST( lhs.vtable_ != nullptr );
         }
-        PGBAR__CXX23_CNSTXPR friend void swap( FnStorageBlock& a, FnStorageBlock& b ) noexcept
-        {
-          return a.swap( b );
-        }
-        friend constexpr bool operator==( const FnStorageBlock& a, std::nullptr_t ) noexcept
+        PGBAR__CXX23_CNSTXPR friend void swap( FnStorage& a, FnStorage& b ) noexcept { return a.swap( b ); }
+        friend constexpr bool operator==( const FnStorage& a, std::nullptr_t ) noexcept
         {
           return !static_cast<bool>( a );
         }
-        friend constexpr bool operator!=( const FnStorageBlock& a, std::nullptr_t ) noexcept
+        friend constexpr bool operator!=( const FnStorage& a, std::nullptr_t ) noexcept
         {
           return static_cast<bool>( a );
         }
-        constexpr explicit operator bool() const noexcept { return vtable_ != &table_null(); }
+        explicit constexpr operator bool() const noexcept { return vtable_ != &table_null(); }
       };
       // `CrefInfo` can be any types that contains the `cref` info of the functor.
       // e.g. For the function type `void () const&`, the `CrefInfo` can be: `const int&`.
       template<typename Derived, typename CrefInfo, typename R, bool Noexcept, typename... Args>
-      class FnInvokeBlock : public FnStorageBlock<Derived> {
-        friend class FnStorageBlock<Derived>;
+      class FnInvoker : public FnStorage<Derived> {
+        friend class FnStorage<Derived>;
 
-        using typename FnStorageBlock<Derived>::AnyFn;
+        using typename FnStorage<Derived>::AnyFn;
         template<typename T>
         using Param_t = typename std::conditional<std::is_scalar<T>::value, T, T&&>::type;
         template<typename T>
@@ -241,10 +234,10 @@ namespace pgbar {
           return utils::invoke( utils::forward_as<CrefInfo>( *dptr ), std::forward<Args>( args )... );
         }
 
-        constexpr FnInvokeBlock()                                          = default;
-        constexpr FnInvokeBlock( FnInvokeBlock&& )                         = default;
-        PGBAR__CXX14_CNSTXPR FnInvokeBlock& operator=( FnInvokeBlock&& ) & = default;
-        PGBAR__CXX23_CNSTXPR ~FnInvokeBlock()                              = default;
+        constexpr FnInvoker()                                      = default;
+        constexpr FnInvoker( FnInvoker&& )                         = default;
+        PGBAR__CXX14_CNSTXPR FnInvoker& operator=( FnInvoker&& ) & = default;
+        PGBAR__CXX23_CNSTXPR ~FnInvoker()                          = default;
       };
 
       // A simplified implementation of std::move_only_function
@@ -252,9 +245,9 @@ namespace pgbar {
       class UniqueFunction;
       template<typename R, typename... Args>
       class UniqueFunction<R( Args... )>
-        : public FnInvokeBlock<UniqueFunction<R( Args... )>, int&, R, false, Args...> {
+        : public FnInvoker<UniqueFunction<R( Args... )>, int&, R, false, Args...> {
         // Function types without ref qualifier will be treated as non-const lvalue reference types.
-        using Base = FnStorageBlock<UniqueFunction>;
+        using Base = FnStorage<UniqueFunction>;
 
       public:
         UniqueFunction( const UniqueFunction& )              = delete;

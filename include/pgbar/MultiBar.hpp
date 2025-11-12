@@ -188,8 +188,8 @@ namespace pgbar {
       typename = typename std::enable_if<_details::traits::is_iterable_bar<BarAt_t<Pos>>::value>::type>
 #endif
     PGBAR__FORCEINLINE auto iterate( Args&&... args ) & noexcept(
-      noexcept( std::declval<Self&>().template at<Pos>().iterate( std::forward<Args>( args )... ) ) )
-      -> decltype( std::declval<Self&>().template at<Pos>().iterate( std::forward<Args>( args )... ) )
+      noexcept( this->template at<Pos>().iterate( std::forward<Args>( args )... ) ) )
+      -> decltype( this->template at<Pos>().iterate( std::forward<Args>( args )... ) )
     {
       return at<Pos>().iterate( std::forward<Args>( args )... );
     }
@@ -203,7 +203,7 @@ namespace pgbar {
       typename = typename std::enable_if<_details::traits::is_reactive_bar<BarAt_t<Pos>>::value>::type>
 #endif
     PGBAR__FORCEINLINE BarAt_t<Pos>& action( F&& fn ) & noexcept(
-      noexcept( std::declval<Self&>().template at<Pos>().action( std::forward<F>( fn ) ) ) )
+      noexcept( this->template at<Pos>().action( std::forward<F>( fn ) ) ) )
     {
       return at<Pos>().action( std::forward<F>( fn ) );
     }

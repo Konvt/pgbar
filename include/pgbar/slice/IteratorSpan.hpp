@@ -191,7 +191,7 @@ namespace pgbar {
           return b - a;
         }
 
-        constexpr explicit operator bool() const { return current_ != Itr(); }
+        explicit constexpr operator bool() const { return current_ != Itr(); }
       };
 
       PGBAR__CXX17_CNSTXPR IteratorSpan( Itr startpoint, Snt endpoint )
@@ -257,7 +257,7 @@ namespace pgbar {
       {
         return *std::next( start_, inc );
       }
-      PGBAR__CXX17_CNSTXPR explicit operator bool() const noexcept { return !empty(); }
+      explicit PGBAR__CXX17_CNSTXPR operator bool() const noexcept { return !empty(); }
     };
   } // namespace slice
 } // namespace pgbar

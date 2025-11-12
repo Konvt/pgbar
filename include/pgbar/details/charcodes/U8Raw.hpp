@@ -191,9 +191,9 @@ namespace pgbar {
         }
         PGBAR__CXX20_CNSTXPR friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
 
-        PGBAR__CXX20_CNSTXPR explicit operator types::String() & { return bytes_; }
-        PGBAR__CXX20_CNSTXPR explicit operator types::String() const& { return bytes_; }
-        PGBAR__CXX20_CNSTXPR explicit operator types::String&&() && noexcept { return std::move( bytes_ ); }
+        explicit PGBAR__CXX20_CNSTXPR operator types::String() & { return bytes_; }
+        explicit PGBAR__CXX20_CNSTXPR operator types::String() const& { return bytes_; }
+        explicit PGBAR__CXX20_CNSTXPR operator types::String&&() && noexcept { return std::move( bytes_ ); }
         PGBAR__CXX20_CNSTXPR operator types::ROStr() const noexcept { return str(); }
 
         PGBAR__NODISCARD friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR types::String operator+(
@@ -259,7 +259,7 @@ namespace pgbar {
           bytes_ = std::move( new_bytes );
         }
 
-        PGBAR__CXX20_CNSTXPR explicit operator std::u8string() const
+        explicit PGBAR__CXX20_CNSTXPR operator std::u8string() const
         {
           std::u8string ret;
           ret.resize( bytes_.size() );

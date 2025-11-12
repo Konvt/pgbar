@@ -120,12 +120,12 @@ namespace pgbar {
     template<typename Bar, typename... Options>
 #ifdef __cpp_concepts
       requires( _details::traits::is_bar<Bar>::value && Bar::Sink == Outlet && Bar::Strategy == Mode
-                && Bar::Layout == Area && std::is_constructible_v<Bar, Options...> )
+                && Bar::Layout == Area && std::is_constructible_v<Bar, Options && ...> )
     PGBAR__NODISCARD std::unique_ptr<Bar>
 #else
     PGBAR__NODISCARD typename std::enable_if<
       _details::traits::AllOf<_details::traits::is_bar<Bar>,
-                              std::is_constructible<Bar, Options...>,
+                              std::is_constructible<Bar, Options&&...>,
                               _details::traits::BoolConstant<( Bar::Sink == Outlet )>,
                               _details::traits::BoolConstant<( Bar::Strategy == Mode )>,
                               _details::traits::BoolConstant<( Bar::Layout == Area )>>::value,
@@ -141,12 +141,13 @@ namespace pgbar {
     }
     template<typename Config, typename... Options>
 #ifdef __cpp_concepts
-      requires( _details::traits::is_config<Config>::value && std::is_constructible_v<Config, Options...> )
+      requires( _details::traits::is_config<Config>::value
+                && std::is_constructible_v<Config, Options && ...> )
     PGBAR__NODISCARD std::unique_ptr<_details::prefabs::BasicBar<Config, Outlet, Mode, Area>>
 #else
     PGBAR__NODISCARD
       typename std::enable_if<_details::traits::AllOf<_details::traits::is_config<Config>,
-                                                      std::is_constructible<Config, Options...>>::value,
+                                                      std::is_constructible<Config, Options&&...>>::value,
                               std::unique_ptr<_details::prefabs::BasicBar<Config, Outlet, Mode, Area>>>::type
 #endif
       insert( Options&&... options )

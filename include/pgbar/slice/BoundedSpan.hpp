@@ -70,7 +70,7 @@ namespace pgbar {
       }
       friend PGBAR__CXX17_CNSTXPR void swap( BoundedSpan<R>& a, BoundedSpan<R>& b ) noexcept { a.swap( b ); }
 
-      PGBAR__CXX17_CNSTXPR explicit operator bool() const noexcept { return !empty(); }
+      explicit PGBAR__CXX17_CNSTXPR operator bool() const noexcept { return !empty(); }
     };
   } // namespace slice
 } // namespace pgbar

@@ -50,7 +50,7 @@ namespace pgbar {
         }
         constexpr operator types::ROStr() const noexcept { return as_string_view(); }
 #endif
-        constexpr explicit operator bool() const noexcept { return !empty(); }
+        explicit constexpr operator bool() const noexcept { return !empty(); }
 
         PGBAR__CXX20_CNSTXPR void swap( Self& lhs ) noexcept
         {
