@@ -114,10 +114,10 @@ namespace pgbar {
           };
         }
 
-        PGBAR__CXX20_CNSTXPR void swap( Self& lhs ) noexcept
+        PGBAR__CXX20_CNSTXPR void swap( Self& other ) noexcept
         {
-          U8Raw::swap( lhs );
-          chars_.swap( lhs.chars_ );
+          U8Raw::swap( other );
+          chars_.swap( other.chars_ );
         }
         PGBAR__CXX20_CNSTXPR friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
 

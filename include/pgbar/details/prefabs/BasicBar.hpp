@@ -45,12 +45,12 @@ namespace pgbar {
         BasicBar& operator=( BasicBar&& rhs ) & noexcept = default;
         PGBAR__CXX20_CNSTXPR virtual ~BasicBar()         = default;
 
-        void swap( BasicBar& lhs ) noexcept
+        void swap( BasicBar& other ) noexcept
         {
-          PGBAR__TRUST( this != &lhs );
+          PGBAR__TRUST( this != &other );
           PGBAR__ASSERT( this->active() == false );
           PGBAR__ASSERT( this->active() == false );
-          Base::swap( lhs );
+          Base::swap( other );
         }
         friend void swap( BasicBar& a, BasicBar& b ) noexcept { a.swap( b ); }
       };

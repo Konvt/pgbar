@@ -74,11 +74,11 @@ namespace pgbar {
 
       public:
         CoreConfig() noexcept : fonts_ { static_cast<types::Bit8>( ~0 ) } {}
-        constexpr CoreConfig( const CoreConfig& lhs ) : fonts_ { lhs.fonts_ } {}
+        constexpr CoreConfig( const CoreConfig& other ) : fonts_ { other.fonts_ } {}
         constexpr CoreConfig( CoreConfig&& rhs ) noexcept : fonts_ { rhs.fonts_ } {}
-        PGBAR__CXX14_CNSTXPR CoreConfig& operator=( const CoreConfig& lhs ) &
+        PGBAR__CXX14_CNSTXPR CoreConfig& operator=( const CoreConfig& other ) &
         {
-          fonts_ = lhs.fonts_;
+          fonts_ = other.fonts_;
           return *this;
         }
         PGBAR__CXX14_CNSTXPR CoreConfig& operator=( CoreConfig&& rhs ) & noexcept
@@ -110,7 +110,7 @@ namespace pgbar {
 
 #undef PGBAR__METHOD
 
-        PGBAR__CXX14_CNSTXPR void swap( CoreConfig& lhs ) noexcept { std::swap( fonts_, lhs.fonts_ ); }
+        PGBAR__CXX14_CNSTXPR void swap( CoreConfig& other ) noexcept { std::swap( fonts_, other.fonts_ ); }
       };
 
       template<typename Base, typename Derived>
@@ -142,10 +142,10 @@ namespace pgbar {
           return task_range_.back();
         }
 
-        PGBAR__CXX14_CNSTXPR void swap( Countable& lhs ) noexcept
+        PGBAR__CXX14_CNSTXPR void swap( Countable& other ) noexcept
         {
-          task_range_.swap( lhs.task_range_ );
-          Base::swap( lhs );
+          task_range_.swap( other.task_range_ );
+          Base::swap( other );
         }
       };
 
@@ -177,10 +177,10 @@ namespace pgbar {
           return reversed_;
         }
 
-        PGBAR__CXX20_CNSTXPR void swap( Reversible& lhs ) noexcept
+        PGBAR__CXX20_CNSTXPR void swap( Reversible& other ) noexcept
         {
-          std::swap( reversed_, lhs.reversed_ );
-          Base::swap( lhs );
+          std::swap( reversed_, other.reversed_ );
+          Base::swap( other );
         }
       };
 
@@ -257,13 +257,13 @@ namespace pgbar {
 
 #undef PGBAR__METHOD
 
-        PGBAR__CXX20_CNSTXPR void swap( Frames& lhs ) noexcept
+        PGBAR__CXX20_CNSTXPR void swap( Frames& other ) noexcept
         {
           using std::swap;
-          lead_col_.swap( lhs.lead_col_ );
-          lead_.swap( lhs.lead_ );
-          swap( len_longest_lead_, lhs.len_longest_lead_ );
-          Base::swap( lhs );
+          lead_col_.swap( other.lead_col_ );
+          lead_.swap( other.lead_ );
+          swap( len_longest_lead_, other.len_longest_lead_ );
+          Base::swap( other );
         }
       };
 
@@ -315,11 +315,11 @@ namespace pgbar {
         }
 
 #undef PGBAR__METHOD
-        PGBAR__CXX20_CNSTXPR void swap( Filler& lhs ) noexcept
+        PGBAR__CXX20_CNSTXPR void swap( Filler& other ) noexcept
         {
-          filler_.swap( lhs.filler_ );
-          filler_col_.swap( lhs.filler_col_ );
-          Base::swap( lhs );
+          filler_.swap( other.filler_ );
+          filler_col_.swap( other.filler_col_ );
+          Base::swap( other );
         }
       };
 
@@ -372,11 +372,11 @@ namespace pgbar {
 #endif
 #undef PGBAR__METHOD
 
-        PGBAR__CXX20_CNSTXPR void swap( Remains& lhs ) noexcept
+        PGBAR__CXX20_CNSTXPR void swap( Remains& other ) noexcept
         {
-          remains_col_.swap( lhs.remains_col_ );
-          remains_.swap( lhs.remains_ );
-          Base::swap( lhs );
+          remains_col_.swap( other.remains_col_ );
+          remains_.swap( other.remains_ );
+          Base::swap( other );
         }
       };
 
@@ -410,11 +410,11 @@ namespace pgbar {
           return static_cast<Derived&>( *this );
         }
 
-        PGBAR__CXX20_CNSTXPR void swap( BasicAnimation& lhs ) noexcept
+        PGBAR__CXX20_CNSTXPR void swap( BasicAnimation& other ) noexcept
         {
           using std::swap;
-          swap( shift_factor_, lhs.shift_factor_ );
-          Base::swap( lhs );
+          swap( shift_factor_, other.shift_factor_ );
+          Base::swap( other );
         }
       };
 
@@ -493,14 +493,14 @@ namespace pgbar {
         }
 
 #undef PGBAR__METHOD
-        PGBAR__CXX20_CNSTXPR void swap( BasicIndicator& lhs ) noexcept
+        PGBAR__CXX20_CNSTXPR void swap( BasicIndicator& other ) noexcept
         {
-          std::swap( bar_width_, lhs.bar_width_ );
-          starting_.swap( lhs.starting_ );
-          ending_.swap( lhs.ending_ );
-          start_col_.swap( lhs.start_col_ );
-          end_col_.swap( lhs.end_col_ );
-          Base::swap( lhs );
+          std::swap( bar_width_, other.bar_width_ );
+          starting_.swap( other.starting_ );
+          ending_.swap( other.ending_ );
+          start_col_.swap( other.start_col_ );
+          end_col_.swap( other.end_col_ );
+          Base::swap( other );
         }
       };
 
@@ -562,11 +562,11 @@ namespace pgbar {
 
 #undef PGBAR__METHOD
 
-        PGBAR__CXX20_CNSTXPR void swap( Prefix& lhs ) noexcept
+        PGBAR__CXX20_CNSTXPR void swap( Prefix& other ) noexcept
         {
-          prfx_col_.swap( lhs.prfx_col_ );
-          prefix_.swap( lhs.prefix_ );
-          Base::swap( lhs );
+          prfx_col_.swap( other.prfx_col_ );
+          prefix_.swap( other.prefix_ );
+          Base::swap( other );
         }
       };
 
@@ -634,11 +634,11 @@ namespace pgbar {
 
 #undef PGBAR__METHOD
 
-        PGBAR__CXX20_CNSTXPR void swap( Postfix& lhs ) noexcept
+        PGBAR__CXX20_CNSTXPR void swap( Postfix& other ) noexcept
         {
-          pstfx_col_.swap( lhs.pstfx_col_ );
-          postfix_.swap( lhs.postfix_ );
-          Base::swap( lhs );
+          pstfx_col_.swap( other.pstfx_col_ );
+          postfix_.swap( other.postfix_ );
+          Base::swap( other );
         }
       };
 
@@ -719,13 +719,13 @@ namespace pgbar {
 
 #undef PGBAR__METHOD
 
-        PGBAR__CXX20_CNSTXPR void swap( Segment& lhs ) & noexcept
+        PGBAR__CXX20_CNSTXPR void swap( Segment& other ) & noexcept
         {
-          info_col_.swap( lhs.info_col_ );
-          divider_.swap( lhs.divider_ );
-          l_border_.swap( lhs.l_border_ );
-          r_border_.swap( lhs.r_border_ );
-          Base::swap( lhs );
+          info_col_.swap( other.info_col_ );
+          divider_.swap( other.divider_ );
+          l_border_.swap( other.l_border_ );
+          r_border_.swap( other.r_border_ );
+          Base::swap( other );
         }
       };
 
@@ -870,11 +870,11 @@ namespace pgbar {
 
 #undef PGBAR__METHOD
 
-        PGBAR__CXX20_CNSTXPR void swap( SpeedMeter& lhs ) & noexcept
+        PGBAR__CXX20_CNSTXPR void swap( SpeedMeter& other ) & noexcept
         {
-          units_.swap( lhs.units_ );
-          std::swap( nth_longest_unit_, lhs.nth_longest_unit_ );
-          Base::swap( lhs );
+          units_.swap( other.units_ );
+          std::swap( nth_longest_unit_, other.nth_longest_unit_ );
+          Base::swap( other );
         }
       };
 #undef PGBAR__DEFAULT_SPEED

@@ -221,7 +221,7 @@ namespace pgbar {
       return at<Pos>().action();
     }
 
-    void swap( Self& lhs ) noexcept { package_.swap( lhs.package_ ); }
+    void swap( Self& other ) noexcept { package_.swap( other.package_ ); }
     friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
 
     template<_details::types::Size Pos>

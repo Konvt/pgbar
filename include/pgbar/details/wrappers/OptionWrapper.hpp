@@ -30,11 +30,11 @@ namespace pgbar {
         PGBAR__CXX14_CNSTXPR const T& value() const& noexcept { return data_; }
         PGBAR__CXX14_CNSTXPR T&& value() && noexcept { return std::move( data_ ); }
 
-        PGBAR__CXX20_CNSTXPR void swap( T& lhs ) noexcept
+        PGBAR__CXX20_CNSTXPR void swap( T& other ) noexcept
         {
-          PGBAR__TRUST( this != &lhs );
+          PGBAR__TRUST( this != &other );
           using std::swap;
-          swap( data_, lhs.data_ );
+          swap( data_, other.data_ );
         }
         friend PGBAR__CXX20_CNSTXPR void swap( T& a, T& b ) noexcept { a.swap( b ); }
       };

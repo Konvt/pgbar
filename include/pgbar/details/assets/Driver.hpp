@@ -422,10 +422,10 @@ namespace pgbar {
         PGBAR__FORCEINLINE const Soul& config() const& noexcept { return config_; }
         PGBAR__FORCEINLINE Soul&& config() && noexcept { return std::move( config_ ); }
 
-        PGBAR__CXX20_CNSTXPR void swap( CoreBar& lhs ) noexcept
+        PGBAR__CXX20_CNSTXPR void swap( CoreBar& other ) noexcept
         {
-          Base::swap( lhs );
-          config_.swap( lhs.config_ );
+          Base::swap( other );
+          config_.swap( other.config_ );
         }
       };
 
@@ -666,37 +666,37 @@ namespace pgbar {
           return std::move( bar.action() );
         }
 
-        void swap( Self& lhs ) noexcept
+        void swap( Self& other ) noexcept
         {
-          Base::swap( lhs );
+          Base::swap( other );
           switch ( tag_ ) {
           case Tag::Nullary:
-            if ( lhs.tag_ == Tag::Nullary )
-              hook_.on_.swap( lhs.hook_.on_ );
+            if ( other.tag_ == Tag::Nullary )
+              hook_.on_.swap( other.hook_.on_ );
             else {
               wrappers::UniqueFunction<void()> tmp { std::move( hook_.on_ ) };
-              lhs.move_to( *this );
-              new ( std::addressof( lhs.hook_.on_ ) ) wrappers::UniqueFunction<void()>( std::move( tmp ) );
-              lhs.tag_ = Tag::Nullary;
+              other.move_to( *this );
+              new ( std::addressof( other.hook_.on_ ) ) wrappers::UniqueFunction<void()>( std::move( tmp ) );
+              other.tag_ = Tag::Nullary;
             }
             break;
 
           case Tag::Unary:
-            if ( lhs.tag_ == Tag::Unary )
-              hook_.on_self_.swap( lhs.hook_.on_self_ );
+            if ( other.tag_ == Tag::Unary )
+              hook_.on_self_.swap( other.hook_.on_self_ );
             else {
               wrappers::UniqueFunction<void( Derived& )> tmp { std::move( hook_.on_self_ ) };
-              lhs.move_to( *this );
-              new ( std::addressof( lhs.hook_.on_self_ ) )
+              other.move_to( *this );
+              new ( std::addressof( other.hook_.on_self_ ) )
                 wrappers::UniqueFunction<void( Derived& )>( std::move( tmp ) );
-              lhs.tag_ = Tag::Unary;
+              other.tag_ = Tag::Unary;
             }
             break;
 
           case Tag::Nil: PGBAR__FALLTHROUGH;
           default:
-            if ( lhs.tag_ != Tag::Nil )
-              lhs.move_to( *this );
+            if ( other.tag_ != Tag::Nil )
+              other.move_to( *this );
             break;
           }
         }

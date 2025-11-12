@@ -158,13 +158,13 @@ namespace pgbar {
         std::forward<Options>( options )... );
     }
 
-    void swap( Self& lhs ) noexcept
+    void swap( Self& other ) noexcept
     { // The thread insecurity here is deliberately designed.
       // The reason can be found in the move assignment.
-      PGBAR__TRUST( this != &lhs );
+      PGBAR__TRUST( this != &other );
       PGBAR__ASSERT( active() == false );
       PGBAR__ASSERT( lhs.active() == false );
-      core_.swap( lhs.core_ );
+      core_.swap( other.core_ );
     }
     friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
   };
