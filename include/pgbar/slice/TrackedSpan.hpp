@@ -193,7 +193,7 @@ namespace pgbar {
           return !( b == a );
         }
 
-        constexpr explicit operator bool() const noexcept { return itr_bar_ != nullptr; }
+        explicit constexpr operator bool() const noexcept { return itr_bar_ != nullptr; }
       };
 
       PGBAR__CXX17_CNSTXPR TrackedSpan( R itr_range, B& itr_bar )
@@ -246,7 +246,7 @@ namespace pgbar {
         a.swap( b );
       }
 
-      constexpr explicit operator bool() const noexcept { return !empty(); }
+      explicit constexpr operator bool() const noexcept { return !empty(); }
     };
   } // namespace slice
 } // namespace pgbar

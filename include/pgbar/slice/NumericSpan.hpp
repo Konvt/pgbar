@@ -210,7 +210,7 @@ namespace pgbar {
        *
        * If the `endpoint` is less than zero.
        */
-      PGBAR__CXX20_CNSTXPR explicit NumericSpan( N endpoint ) : NumericSpan( {}, endpoint, 1 ) {}
+      explicit PGBAR__CXX20_CNSTXPR NumericSpan( N endpoint ) : NumericSpan( {}, endpoint, 1 ) {}
       constexpr NumericSpan( const NumericSpan& )                         = default;
       PGBAR__CXX14_CNSTXPR NumericSpan& operator=( const NumericSpan& ) & = default;
       PGBAR__CXX20_CNSTXPR ~NumericSpan()                                 = default;
@@ -257,7 +257,7 @@ namespace pgbar {
       {
         return *( begin() + inc );
       }
-      constexpr explicit operator bool() const noexcept { return !empty(); }
+      explicit constexpr operator bool() const noexcept { return !empty(); }
     };
   } // namespace slice
 } // namespace pgbar

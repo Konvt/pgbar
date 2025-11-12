@@ -40,7 +40,7 @@ namespace pgbar {
           typename = typename std::enable_if<traits::Not<traits::AnyOf<
             std::is_base_of<TaskCounter<Base, Derived>, typename std::decay<Args>::type>...>>::value>::type>
         constexpr TaskCounter( Args&&... args )
-          noexcept( std::is_nothrow_constructible<Base, Args...>::value )
+          noexcept( std::is_nothrow_constructible<Base, Args&&...>::value )
           : Base( std::forward<Args>( args )... ), task_cnt_ { 0 }
         {}
         PGBAR__CXX14_CNSTXPR TaskCounter( TaskCounter&& rhs ) noexcept : Base( std::move( rhs ) )
@@ -511,12 +511,12 @@ namespace pgbar {
         template<typename F>
 #ifdef __cpp_concepts
           requires( !std::is_null_pointer_v<std::decay_t<F>>
-                    && std::is_constructible_v<wrappers::UniqueFunction<void()>, F> )
+                    && std::is_constructible_v<wrappers::UniqueFunction<void()>, F &&> )
         Derived&
 #else
         typename std::enable_if<
           traits::AllOf<traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
-                        std::is_constructible<wrappers::UniqueFunction<void()>, F>>::value,
+                        std::is_constructible<wrappers::UniqueFunction<void()>, F&&>>::value,
           Derived&>::type
 #endif
           action( F&& fn ) & noexcept(
@@ -530,12 +530,12 @@ namespace pgbar {
         template<typename F>
 #ifdef __cpp_concepts
           requires( !std::is_null_pointer_v<std::decay_t<F>>
-                    && std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F> )
+                    && std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F &&> )
         Derived&
 #else
         typename std::enable_if<
           traits::AllOf<traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
-                        std::is_constructible<wrappers::UniqueFunction<void( Derived& )>, F>>::value,
+                        std::is_constructible<wrappers::UniqueFunction<void( Derived& )>, F&&>>::value,
           Derived&>::type
 #endif
           action( F&& fn ) & noexcept(
@@ -557,15 +557,15 @@ namespace pgbar {
         template<typename F>
 #ifdef __cpp_concepts
           requires( !std::is_null_pointer_v<std::decay_t<F>>
-                    && (std::is_constructible_v<wrappers::UniqueFunction<void()>, F>
-                        || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F>))
+                    && (std::is_constructible_v<wrappers::UniqueFunction<void()>, F &&>
+                        || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F &&>))
         PGBAR__FORCEINLINE friend Derived&
 #else
         PGBAR__FORCEINLINE friend typename std::enable_if<
           traits::AllOf<
             traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
-            traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F>,
-                          std::is_constructible<wrappers::UniqueFunction<void( Derived& )>, F>>>::value,
+            traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F&&>,
+                          std::is_constructible<wrappers::UniqueFunction<void( Derived& )>, F&&>>>::value,
           Derived&>::type
 #endif
           operator|=( Self& bar, F&& fn ) noexcept( noexcept( bar.action( std::forward<F>( fn ) ) ) )
@@ -575,15 +575,15 @@ namespace pgbar {
         template<typename F>
 #ifdef __cpp_concepts
           requires( !std::is_null_pointer_v<std::decay_t<F>>
-                    && (std::is_constructible_v<wrappers::UniqueFunction<void()>, F>
-                        || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F>))
+                    && (std::is_constructible_v<wrappers::UniqueFunction<void()>, F &&>
+                        || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F &&>))
         PGBAR__FORCEINLINE friend Derived&
 #else
         PGBAR__FORCEINLINE friend typename std::enable_if<
           traits::AllOf<
             traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
-            traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F>,
-                          std::is_constructible<wrappers::UniqueFunction<void( Derived& )>, F>>>::value,
+            traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F&&>,
+                          std::is_constructible<wrappers::UniqueFunction<void( Derived& )>, F&&>>>::value,
           Derived&>::type
 #endif
           operator|( Self& bar, F&& fn ) noexcept( noexcept( bar.action( std::forward<F>( fn ) ) ) )
@@ -593,15 +593,15 @@ namespace pgbar {
         template<typename F>
 #ifdef __cpp_concepts
           requires( !std::is_null_pointer_v<std::decay_t<F>>
-                    && (std::is_constructible_v<wrappers::UniqueFunction<void()>, F>
-                        || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F>))
+                    && (std::is_constructible_v<wrappers::UniqueFunction<void()>, F &&>
+                        || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F &&>))
         PGBAR__FORCEINLINE friend Derived&
 #else
         PGBAR__FORCEINLINE friend typename std::enable_if<
           traits::AllOf<
             traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
-            traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F>,
-                          std::is_constructible<wrappers::UniqueFunction<void( Derived& )>, F>>>::value,
+            traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F&&>,
+                          std::is_constructible<wrappers::UniqueFunction<void( Derived& )>, F&&>>>::value,
           Derived&>::type
 #endif
           operator|( F&& fn, Self& bar ) noexcept( noexcept( bar.action( std::forward<F>( fn ) ) ) )
@@ -611,15 +611,15 @@ namespace pgbar {
         template<typename F>
 #ifdef __cpp_concepts
           requires( !std::is_null_pointer_v<std::decay_t<F>>
-                    && (std::is_constructible_v<wrappers::UniqueFunction<void()>, F>
-                        || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F>))
+                    && (std::is_constructible_v<wrappers::UniqueFunction<void()>, F &&>
+                        || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F &&>))
         PGBAR__FORCEINLINE friend Derived&&
 #else
         PGBAR__FORCEINLINE friend typename std::enable_if<
           traits::AllOf<
             traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
-            traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F>,
-                          std::is_constructible<wrappers::UniqueFunction<void( Derived& )>, F>>>::value,
+            traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F&&>,
+                          std::is_constructible<wrappers::UniqueFunction<void( Derived& )>, F&&>>>::value,
           Derived&&>::type
 #endif
           operator|( Self&& bar, F&& fn ) noexcept( noexcept( bar.action( std::forward<F>( fn ) ) ) )
@@ -629,15 +629,15 @@ namespace pgbar {
         template<typename F>
 #ifdef __cpp_concepts
           requires( !std::is_null_pointer_v<std::decay_t<F>>
-                    && (std::is_constructible_v<wrappers::UniqueFunction<void()>, F>
-                        || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F>))
+                    && (std::is_constructible_v<wrappers::UniqueFunction<void()>, F &&>
+                        || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F &&>))
         PGBAR__FORCEINLINE friend Derived&&
 #else
         PGBAR__FORCEINLINE friend typename std::enable_if<
           traits::AllOf<
             traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
-            traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F>,
-                          std::is_constructible<wrappers::UniqueFunction<void( Derived& )>, F>>>::value,
+            traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F&&>,
+                          std::is_constructible<wrappers::UniqueFunction<void( Derived& )>, F&&>>>::value,
           Derived&&>::type
 #endif
           operator|( F&& fn, Self&& bar ) noexcept( noexcept( bar.action( std::forward<F>( fn ) ) ) )

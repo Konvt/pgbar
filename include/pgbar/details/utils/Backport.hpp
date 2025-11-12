@@ -35,6 +35,14 @@ namespace pgbar {
       }
 #endif
 
+#if PGBAR__CXX17
+      using InPlace_t = std::in_place_t;
+#else
+      struct InPlace_t {
+        explicit constexpr InPlace_t() = default;
+      };
+#endif
+
       // Available only for objects that constructed by placement new.
       template<typename T>
       PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR void destruct_at( T& object )

@@ -2,6 +2,7 @@
 #define PGBAR__TYPES
 
 #include <chrono>
+#include <cstddef>
 #include <string>
 #ifdef __cpp_lib_string_view
 # include <string_view>
@@ -26,6 +27,11 @@ namespace pgbar {
       using LitU8 = std::u8string_view;
 #else
       using LitU8 = LitStr;
+#endif
+#ifdef __cpp_lib_byte
+      using Byte = std::byte; // addressable Byte type
+#else
+      using Byte = unsigned char;
 #endif
       using HexRGB     = std::uint32_t;
       using CodePoint  = char32_t; // Unicode code point
