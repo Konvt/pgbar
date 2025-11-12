@@ -184,10 +184,10 @@ namespace pgbar {
           bytes_.shrink_to_fit();
         }
 
-        PGBAR__CXX20_CNSTXPR void swap( Self& lhs ) noexcept
+        PGBAR__CXX20_CNSTXPR void swap( Self& other ) noexcept
         {
-          std::swap( width_, lhs.width_ );
-          bytes_.swap( lhs.bytes_ );
+          std::swap( width_, other.width_ );
+          bytes_.swap( other.bytes_ );
         }
         PGBAR__CXX20_CNSTXPR friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
 

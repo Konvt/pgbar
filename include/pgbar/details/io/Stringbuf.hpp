@@ -18,12 +18,12 @@ namespace pgbar {
       public:
         PGBAR__CXX20_CNSTXPR Stringbuf() = default;
 
-        PGBAR__CXX20_CNSTXPR Stringbuf( const Self& lhs )         = default;
-        PGBAR__CXX20_CNSTXPR Stringbuf( Self&& rhs ) noexcept     = default;
-        PGBAR__CXX20_CNSTXPR Self& operator=( const Self& lhs ) & = default;
-        PGBAR__CXX20_CNSTXPR Self& operator=( Self&& rhs ) &      = default;
+        PGBAR__CXX20_CNSTXPR Stringbuf( const Self& )         = default;
+        PGBAR__CXX20_CNSTXPR Stringbuf( Self&& ) noexcept     = default;
+        PGBAR__CXX20_CNSTXPR Self& operator=( const Self& ) & = default;
+        PGBAR__CXX20_CNSTXPR Self& operator=( Self&& ) &      = default;
         // Intentional non-virtual destructors.
-        PGBAR__CXX20_CNSTXPR ~Stringbuf()                         = default;
+        PGBAR__CXX20_CNSTXPR ~Stringbuf()                     = default;
 
         PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR bool empty() const noexcept
         {

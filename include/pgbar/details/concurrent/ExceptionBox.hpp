@@ -72,11 +72,11 @@ namespace pgbar {
           }
         }
 
-        void swap( ExceptionBox& lhs ) noexcept
+        void swap( ExceptionBox& other ) noexcept
         {
-          PGBAR__TRUST( this != &lhs );
+          PGBAR__TRUST( this != &other );
           using std::swap; // ADL custom point
-          swap( exception_, lhs.exception_ );
+          swap( exception_, other.exception_ );
         }
         friend void swap( ExceptionBox& a, ExceptionBox& b ) noexcept { a.swap( b ); }
       };

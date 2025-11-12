@@ -138,8 +138,8 @@ namespace pgbar {
           }
           PGBAR__CXX23_CNSTXPR RGBColor( types::ROStr hex_str ) : RGBColor() { from_str( hex_str ); }
 
-          PGBAR__CXX23_CNSTXPR RGBColor( const Self& lhs ) noexcept = default;
-          PGBAR__CXX23_CNSTXPR Self& operator=( const Self& lhs ) & = default;
+          PGBAR__CXX23_CNSTXPR RGBColor( const Self& other ) noexcept = default;
+          PGBAR__CXX23_CNSTXPR Self& operator=( const Self& other ) & = default;
 
           PGBAR__CXX23_CNSTXPR Self& operator=( types::HexRGB hex_val ) & noexcept
           {
@@ -158,10 +158,10 @@ namespace pgbar {
             length_ = 0;
           }
 
-          PGBAR__CXX23_CNSTXPR void swap( RGBColor& lhs ) noexcept
+          PGBAR__CXX23_CNSTXPR void swap( RGBColor& other ) noexcept
           {
-            std::swap( sgr_, lhs.sgr_ );
-            std::swap( length_, lhs.length_ );
+            std::swap( sgr_, other.sgr_ );
+            std::swap( length_, other.length_ );
           }
           PGBAR__CXX23_CNSTXPR friend void swap( RGBColor& a, RGBColor& b ) noexcept { a.swap( b ); }
 

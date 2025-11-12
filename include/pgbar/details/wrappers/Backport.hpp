@@ -170,17 +170,17 @@ namespace pgbar {
         }
         PGBAR__CXX23_CNSTXPR ~FnStorage() noexcept { reset(); }
 
-        PGBAR__CXX23_CNSTXPR void swap( FnStorage& lhs ) noexcept
+        PGBAR__CXX23_CNSTXPR void swap( FnStorage& other ) noexcept
         {
           PGBAR__TRUST( vtable_ != nullptr );
-          PGBAR__TRUST( lhs.vtable_ != nullptr );
+          PGBAR__TRUST( other.vtable_ != nullptr );
           AnyFn tmp;
           vtable_->move( tmp, callee_ );
-          lhs.vtable_->move( callee_, lhs.callee_ );
-          vtable_->move( lhs.callee_, tmp );
-          std::swap( vtable_, lhs.vtable_ );
+          other.vtable_->move( callee_, other.callee_ );
+          vtable_->move( other.callee_, tmp );
+          std::swap( vtable_, other.vtable_ );
           PGBAR__TRUST( this->vtable_ != nullptr );
-          PGBAR__TRUST( lhs.vtable_ != nullptr );
+          PGBAR__TRUST( other.vtable_ != nullptr );
         }
         PGBAR__CXX23_CNSTXPR friend void swap( FnStorage& a, FnStorage& b ) noexcept { return a.swap( b ); }
         friend constexpr bool operator==( const FnStorage& a, std::nullptr_t ) noexcept

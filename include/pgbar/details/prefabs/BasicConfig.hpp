@@ -158,12 +158,13 @@ namespace pgbar {
           (void)std::initializer_list<bool> { ( unpacker( *this, std::forward<Args>( args ) ), false )... };
         }
 
-        BasicConfig( const Self& lhs ) noexcept( traits::AllOf<std::is_nothrow_default_constructible<Base>,
-                                                               std::is_nothrow_copy_assignable<Base>>::value )
+        BasicConfig( const Self& other )
+          noexcept( traits::AllOf<std::is_nothrow_default_constructible<Base>,
+                                  std::is_nothrow_copy_assignable<Base>>::value )
         {
-          std::lock_guard<concurrent::SharedMutex> lock { lhs.rw_mtx_ };
-          Base::operator=( lhs );
-          visual_masks_ = lhs.visual_masks_;
+          std::lock_guard<concurrent::SharedMutex> lock { other.rw_mtx_ };
+          Base::operator=( other );
+          visual_masks_ = other.visual_masks_;
         }
         BasicConfig( Self&& rhs ) noexcept
         {
@@ -176,15 +177,15 @@ namespace pgbar {
           using std::swap;
           swap( visual_masks_, rhs.visual_masks_ );
         }
-        Self& operator=( const Self& lhs ) & noexcept( std::is_nothrow_copy_assignable<Base>::value )
+        Self& operator=( const Self& other ) & noexcept( std::is_nothrow_copy_assignable<Base>::value )
         {
-          PGBAR__TRUST( this != &lhs );
-          concurrent::SharedLock<concurrent::SharedMutex> lock1 { lhs.rw_mtx_, std::defer_lock };
+          PGBAR__TRUST( this != &other );
+          concurrent::SharedLock<concurrent::SharedMutex> lock1 { other.rw_mtx_, std::defer_lock };
           std::lock( this->rw_mtx_, lock1 );
           std::lock_guard<concurrent::SharedMutex> lock2 { this->rw_mtx_, std::adopt_lock };
 
-          visual_masks_ = lhs.visual_masks_;
-          Base::operator=( lhs );
+          visual_masks_ = other.visual_masks_;
+          Base::operator=( other );
           return *this;
         }
         Self& operator=( Self&& rhs ) & noexcept
@@ -246,14 +247,14 @@ namespace pgbar {
         PGBAR__NODISCARD Modifier<true> enable() & noexcept { return Modifier<true>( *this ); }
         PGBAR__NODISCARD Modifier<false> disable() & noexcept { return Modifier<false>( *this ); }
 
-        PGBAR__CXX23_CNSTXPR void swap( BasicConfig& lhs ) noexcept
+        PGBAR__CXX23_CNSTXPR void swap( BasicConfig& other ) noexcept
         {
-          std::lock( this->rw_mtx_, lhs.rw_mtx_ );
+          std::lock( this->rw_mtx_, other.rw_mtx_ );
           std::lock_guard<concurrent::SharedMutex> lock1 { this->rw_mtx_, std::adopt_lock };
-          std::lock_guard<concurrent::SharedMutex> lock2 { lhs.rw_mtx_, std::adopt_lock };
+          std::lock_guard<concurrent::SharedMutex> lock2 { other.rw_mtx_, std::adopt_lock };
           using std::swap;
-          swap( visual_masks_, lhs.visual_masks_ );
-          Base::swap( lhs );
+          swap( visual_masks_, other.visual_masks_ );
+          Base::swap( other );
         }
         friend PGBAR__CXX23_CNSTXPR void swap( BasicConfig& a, BasicConfig& b ) noexcept { a.swap( b ); }
       };

@@ -52,11 +52,11 @@ namespace pgbar {
 #endif
         explicit constexpr operator bool() const noexcept { return !empty(); }
 
-        PGBAR__CXX20_CNSTXPR void swap( Self& lhs ) noexcept
+        PGBAR__CXX20_CNSTXPR void swap( Self& other ) noexcept
         {
-          std::swap( head_, lhs.head_ );
-          std::swap( tail_, lhs.tail_ );
-          std::swap( width_, lhs.width_ );
+          std::swap( head_, other.head_ );
+          std::swap( tail_, other.tail_ );
+          std::swap( width_, other.width_ );
         }
         PGBAR__CXX20_CNSTXPR friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
       };

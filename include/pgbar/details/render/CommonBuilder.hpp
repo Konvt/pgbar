@@ -11,10 +11,10 @@ namespace pgbar {
       template<typename Config>
       struct CommonBuilder : public Config {
         using Config::Config;
-        PGBAR__CXX23_CNSTXPR CommonBuilder( const CommonBuilder& lhs )              = default;
-        PGBAR__CXX23_CNSTXPR CommonBuilder( CommonBuilder&& rhs )                   = default;
-        PGBAR__CXX23_CNSTXPR CommonBuilder& operator=( const CommonBuilder& lhs ) & = default;
-        PGBAR__CXX23_CNSTXPR CommonBuilder& operator=( CommonBuilder&& rhs ) &      = default;
+        PGBAR__CXX23_CNSTXPR CommonBuilder( const CommonBuilder& )              = default;
+        PGBAR__CXX23_CNSTXPR CommonBuilder( CommonBuilder&& )                   = default;
+        PGBAR__CXX23_CNSTXPR CommonBuilder& operator=( const CommonBuilder& ) & = default;
+        PGBAR__CXX23_CNSTXPR CommonBuilder& operator=( CommonBuilder&& ) &      = default;
         constexpr CommonBuilder( const Config& config )
           noexcept( std::is_nothrow_copy_constructible<Config>::value )
           : Config( config )

@@ -237,14 +237,14 @@ namespace pgbar {
           return active_mask_.count();
         }
 
-        void swap( TupleBar& lhs ) noexcept
+        void swap( TupleBar& other ) noexcept
         { // The thread insecurity here is deliberately designed.
           // The reason can be found in the move assignment.
-          PGBAR__TRUST( this != &lhs );
+          PGBAR__TRUST( this != &other );
           PGBAR__ASSERT( online() == false );
           PGBAR__ASSERT( lhs.online() == false );
           (void)std::initializer_list<bool> {
-            ( this->ElementAt_t<Tags>::swap( static_cast<ElementAt_t<Tags>&>( lhs ) ), false )...
+            ( this->ElementAt_t<Tags>::swap( static_cast<ElementAt_t<Tags>&>( other ) ), false )...
           };
         }
 
