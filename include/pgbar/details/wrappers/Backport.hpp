@@ -1,7 +1,7 @@
 #ifndef PGBAR__WRAPPERS_BACKPORT
 #define PGBAR__WRAPPERS_BACKPORT
 
-#include "../types/Types.hpp"
+#include <type_traits>
 #ifdef __cpp_lib_move_only_function
 # include <functional>
 #else
@@ -182,7 +182,7 @@ namespace pgbar {
           PGBAR__TRUST( this->vtable_ != nullptr );
           PGBAR__TRUST( other.vtable_ != nullptr );
         }
-        PGBAR__CXX23_CNSTXPR friend void swap( FnStorage& a, FnStorage& b ) noexcept { return a.swap( b ); }
+        friend PGBAR__CXX23_CNSTXPR void swap( FnStorage& a, FnStorage& b ) noexcept { return a.swap( b ); }
         friend constexpr bool operator==( const FnStorage& a, std::nullptr_t ) noexcept
         {
           return !static_cast<bool>( a );
@@ -238,6 +238,9 @@ namespace pgbar {
         constexpr FnInvoker( FnInvoker&& )                         = default;
         PGBAR__CXX14_CNSTXPR FnInvoker& operator=( FnInvoker&& ) & = default;
         PGBAR__CXX23_CNSTXPR ~FnInvoker()                          = default;
+
+      public:
+        using result_type = R;
       };
 
       // A simplified implementation of std::move_only_function

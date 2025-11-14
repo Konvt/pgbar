@@ -4,6 +4,9 @@
 #include "../details/traits/ConceptTraits.hpp"
 #include "../details/utils/Backport.hpp"
 #include "../exception/Error.hpp"
+#ifdef __cpp_lib_ranges
+# include <ranges>
+#endif
 
 namespace pgbar {
   namespace slice {
@@ -14,7 +17,7 @@ namespace pgbar {
      */
     template<typename Itr, typename Snt = Itr>
     class IteratorSpan
-#ifdef __cpp_concepts
+#ifdef __cpp_lib_ranges
       : public std::ranges::view_interface<IteratorSpan<Itr, Snt>>
 #endif
     {
@@ -194,6 +197,7 @@ namespace pgbar {
         explicit constexpr operator bool() const { return current_ != Itr(); }
       };
 
+      constexpr IteratorSpan() = default;
       PGBAR__CXX17_CNSTXPR IteratorSpan( Itr startpoint, Snt endpoint )
         : start_ { std::move( startpoint ) }, end_ { std::move( endpoint ) }
       {

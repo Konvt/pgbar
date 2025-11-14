@@ -11,11 +11,12 @@
 #include "../render/Renderer.hpp"
 #include "../traits/Backport.hpp"
 #include "../utils/Backport.hpp"
+#include "../wrappers/MovableRef.hpp"
 #include <atomic>
 
 namespace pgbar {
   namespace slice {
-    template<typename R, typename B>
+    template<typename, typename>
     class TrackedSpan;
   }
 
@@ -68,11 +69,12 @@ namespace pgbar {
         template<typename N>
 #ifdef __cpp_concepts
           requires std::is_arithmetic_v<N>
-        PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR slice::TrackedSpan<slice::NumericSpan<N>, Derived>
-#else
         PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR
-          typename std::enable_if<std::is_arithmetic<N>::value,
-                                  slice::TrackedSpan<slice::NumericSpan<N>, Derived>>::type
+          slice::TrackedSpan<slice::NumericSpan<N>, wrappers::MovableRef<Derived>>
+#else
+        PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR typename std::enable_if<
+          std::is_arithmetic<N>::value,
+          slice::TrackedSpan<slice::NumericSpan<N>, wrappers::MovableRef<Derived>>>::type
 #endif
           iterate( N startpoint, N endpoint, N step ) &
         { // default parameter will cause ambiguous overloads
@@ -80,7 +82,7 @@ namespace pgbar {
           throw_if_active();
           return {
             { startpoint, endpoint, step },
-            static_cast<Derived&>( *this )
+            wrappers::mref( static_cast<Derived&>( *this ) )
           };
         }
         template<typename N, typename Proc>
@@ -93,23 +95,24 @@ namespace pgbar {
           iterate( N startpoint, N endpoint, N step, Proc&& op )
         {
           for ( N e : iterate( startpoint, endpoint, step ) )
-            utils::invoke( std::forward<Proc>( op ), e );
+            (void)op( e );
         }
 
         template<typename N>
 #ifdef __cpp_concepts
           requires std::is_floating_point_v<N>
-        PGBAR__NODISCARD slice::TrackedSpan<slice::NumericSpan<N>, Derived>
+        PGBAR__NODISCARD slice::TrackedSpan<slice::NumericSpan<N>, wrappers::MovableRef<Derived>>
 #else
-        PGBAR__NODISCARD typename std::enable_if<std::is_floating_point<N>::value,
-                                                 slice::TrackedSpan<slice::NumericSpan<N>, Derived>>::type
+        PGBAR__NODISCARD typename std::enable_if<
+          std::is_floating_point<N>::value,
+          slice::TrackedSpan<slice::NumericSpan<N>, wrappers::MovableRef<Derived>>>::type
 #endif
           iterate( N endpoint, N step ) &
         {
           throw_if_active();
           return {
             { {}, endpoint, step },
-            static_cast<Derived&>( *this )
+            wrappers::mref( static_cast<Derived&>( *this ) )
           };
         }
         template<typename N, typename Proc>
@@ -122,25 +125,26 @@ namespace pgbar {
           iterate( N endpoint, N step, Proc&& op )
         {
           for ( N e : iterate( endpoint, step ) )
-            utils::invoke( std::forward<Proc>( op ), e );
+            (void)op( e );
         }
 
         // Only available for integer types.
         template<typename N>
 #ifdef __cpp_concepts
           requires std::is_integral_v<N>
-        PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR slice::TrackedSpan<slice::NumericSpan<N>, Derived>
-#else
         PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR
-          typename std::enable_if<std::is_integral<N>::value,
-                                  slice::TrackedSpan<slice::NumericSpan<N>, Derived>>::type
+          slice::TrackedSpan<slice::NumericSpan<N>, wrappers::MovableRef<Derived>>
+#else
+        PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR typename std::enable_if<
+          std::is_integral<N>::value,
+          slice::TrackedSpan<slice::NumericSpan<N>, wrappers::MovableRef<Derived>>>::type
 #endif
           iterate( N startpoint, N endpoint ) &
         {
           throw_if_active();
           return {
-            { startpoint, endpoint, 1 },
-            static_cast<Derived&>( *this )
+            { startpoint, endpoint },
+            wrappers::mref( static_cast<Derived&>( *this ) )
           };
         }
         template<typename N, typename Proc>
@@ -153,25 +157,23 @@ namespace pgbar {
           iterate( N startpoint, N endpoint, Proc&& op )
         {
           for ( N e : iterate( startpoint, endpoint ) )
-            utils::invoke( std::forward<Proc>( op ), e );
+            (void)op( e );
         }
 
         template<typename N>
 #ifdef __cpp_concepts
           requires std::is_integral_v<N>
-        PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR slice::TrackedSpan<slice::NumericSpan<N>, Derived>
-#else
         PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR
-          typename std::enable_if<std::is_integral<N>::value,
-                                  slice::TrackedSpan<slice::NumericSpan<N>, Derived>>::type
+          slice::TrackedSpan<slice::NumericSpan<N>, wrappers::MovableRef<Derived>>
+#else
+        PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR typename std::enable_if<
+          std::is_integral<N>::value,
+          slice::TrackedSpan<slice::NumericSpan<N>, wrappers::MovableRef<Derived>>>::type
 #endif
           iterate( N endpoint ) &
         {
           throw_if_active();
-          return {
-            { {}, endpoint, 1 },
-            static_cast<Derived&>( *this )
-          };
+          return { { endpoint }, wrappers::mref( static_cast<Derived&>( *this ) ) };
         }
         template<typename N, typename Proc>
 #ifdef __cpp_concepts
@@ -183,18 +185,19 @@ namespace pgbar {
           iterate( N endpoint, Proc&& op )
         {
           for ( N e : iterate( endpoint ) )
-            utils::invoke( std::forward<Proc>( op ), e );
+            (void)op( e );
         }
 
         // Visualize unidirectional traversal of a iterator interval defined by parameters.
         template<typename Itr, typename Snt>
 #ifdef __cpp_concepts
           requires traits::is_sized_cursor<Itr, Snt>::value
-        PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR slice::TrackedSpan<slice::IteratorSpan<Itr, Snt>, Derived>
-#else
         PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR
-          typename std::enable_if<traits::is_sized_cursor<Itr, Snt>::value,
-                                  slice::TrackedSpan<slice::IteratorSpan<Itr, Snt>, Derived>>::type
+          slice::TrackedSpan<slice::IteratorSpan<Itr, Snt>, wrappers::MovableRef<Derived>>
+#else
+        PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR typename std::enable_if<
+          traits::is_sized_cursor<Itr, Snt>::value,
+          slice::TrackedSpan<slice::IteratorSpan<Itr, Snt>, wrappers::MovableRef<Derived>>>::type
 #endif
           iterate( Itr startpoint,
                    Snt endpoint ) & noexcept( traits::AllOf<std::is_nothrow_move_constructible<Itr>,
@@ -203,7 +206,7 @@ namespace pgbar {
           throw_if_active();
           return {
             { std::move( startpoint ), std::move( endpoint ) },
-            static_cast<Derived&>( *this )
+            wrappers::mref( static_cast<Derived&>( *this ) )
           };
         }
         template<typename Itr, typename Snt, typename Proc>
@@ -216,7 +219,7 @@ namespace pgbar {
           iterate( Itr startpoint, Snt endpoint, Proc&& op )
         {
           for ( auto&& e : iterate( std::move( startpoint ), std::move( endpoint ) ) )
-            utils::invoke( std::forward<Proc>( op ), std::forward<decltype( e )>( e ) );
+            (void)op( std::forward<decltype( e )>( e ) );
         }
 
         // Visualize unidirectional traversal of a abstract range interval defined by `container`'s
@@ -226,24 +229,26 @@ namespace pgbar {
           requires( traits::is_bounded_range<std::remove_reference_t<R>>::value
                     && !std::ranges::view<std::remove_reference_t<R>> )
         PGBAR__NODISCARD PGBAR__CXX17_CNSTXPR
-          slice::TrackedSpan<slice::BoundedSpan<std::remove_reference_t<R>>, Derived>
+          slice::TrackedSpan<slice::BoundedSpan<std::remove_reference_t<R>>, wrappers::MovableRef<Derived>>
 #else
         PGBAR__NODISCARD PGBAR__CXX17_CNSTXPR typename std::enable_if<
           traits::is_bounded_range<typename std::remove_reference<R>::type>::value,
-          slice::TrackedSpan<slice::BoundedSpan<typename std::remove_reference<R>::type>, Derived>>::type
+          slice::TrackedSpan<slice::BoundedSpan<typename std::remove_reference<R>::type>,
+                             wrappers::MovableRef<Derived>>>::type
 #endif
           iterate( R& container ) &
         {
           throw_if_active();
-          return { { container }, static_cast<Derived&>( *this ) };
+          return { { container }, wrappers::mref( static_cast<Derived&>( *this ) ) };
         }
 #ifdef __cpp_concepts
         template<class R>
           requires( traits::is_bounded_range<R>::value && std::ranges::view<R> )
-        PGBAR__NODISCARD PGBAR__CXX17_CNSTXPR slice::TrackedSpan<R, Derived> iterate( R view ) &
+        PGBAR__NODISCARD PGBAR__CXX17_CNSTXPR slice::TrackedSpan<R, wrappers::MovableRef<Derived>> iterate(
+          R view ) &
         {
           throw_if_active();
-          return { std::move( view ), static_cast<Derived&>( *this ) };
+          return { std::move( view ), wrappers::mref( static_cast<Derived&>( *this ) ) };
         }
 #endif
         template<class R, typename Proc>
@@ -257,7 +262,7 @@ namespace pgbar {
           iterate( R&& range, Proc&& op )
         {
           for ( auto&& e : iterate( std::forward<R>( range ) ) )
-            utils::invoke( std::forward<Proc>( op ), std::forward<decltype( e )>( e ) );
+            (void)op( std::forward<decltype( e )>( e ) );
         }
       };
 
@@ -307,7 +312,7 @@ namespace pgbar {
           default: return;
           }
         }
-        PGBAR__FORCEINLINE friend void make_frame( Self& self ) { self.make_frame(); }
+        friend PGBAR__FORCEINLINE void make_frame( Self& self ) { self.make_frame(); }
 
       protected:
         enum class StateCategory : std::uint8_t { Stop, Awake, Refresh, Finish };
@@ -559,9 +564,9 @@ namespace pgbar {
           requires( !std::is_null_pointer_v<std::decay_t<F>>
                     && (std::is_constructible_v<wrappers::UniqueFunction<void()>, F &&>
                         || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F &&>))
-        PGBAR__FORCEINLINE friend Derived&
+        friend PGBAR__FORCEINLINE Derived&
 #else
-        PGBAR__FORCEINLINE friend typename std::enable_if<
+        friend PGBAR__FORCEINLINE typename std::enable_if<
           traits::AllOf<
             traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
             traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F&&>,
@@ -577,9 +582,9 @@ namespace pgbar {
           requires( !std::is_null_pointer_v<std::decay_t<F>>
                     && (std::is_constructible_v<wrappers::UniqueFunction<void()>, F &&>
                         || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F &&>))
-        PGBAR__FORCEINLINE friend Derived&
+        friend PGBAR__FORCEINLINE Derived&
 #else
-        PGBAR__FORCEINLINE friend typename std::enable_if<
+        friend PGBAR__FORCEINLINE typename std::enable_if<
           traits::AllOf<
             traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
             traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F&&>,
@@ -595,9 +600,9 @@ namespace pgbar {
           requires( !std::is_null_pointer_v<std::decay_t<F>>
                     && (std::is_constructible_v<wrappers::UniqueFunction<void()>, F &&>
                         || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F &&>))
-        PGBAR__FORCEINLINE friend Derived&
+        friend PGBAR__FORCEINLINE Derived&
 #else
-        PGBAR__FORCEINLINE friend typename std::enable_if<
+        friend PGBAR__FORCEINLINE typename std::enable_if<
           traits::AllOf<
             traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
             traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F&&>,
@@ -613,9 +618,9 @@ namespace pgbar {
           requires( !std::is_null_pointer_v<std::decay_t<F>>
                     && (std::is_constructible_v<wrappers::UniqueFunction<void()>, F &&>
                         || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F &&>))
-        PGBAR__FORCEINLINE friend Derived&&
+        friend PGBAR__FORCEINLINE Derived&&
 #else
-        PGBAR__FORCEINLINE friend typename std::enable_if<
+        friend PGBAR__FORCEINLINE typename std::enable_if<
           traits::AllOf<
             traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
             traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F&&>,
@@ -631,9 +636,9 @@ namespace pgbar {
           requires( !std::is_null_pointer_v<std::decay_t<F>>
                     && (std::is_constructible_v<wrappers::UniqueFunction<void()>, F &&>
                         || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F &&>))
-        PGBAR__FORCEINLINE friend Derived&&
+        friend PGBAR__FORCEINLINE Derived&&
 #else
-        PGBAR__FORCEINLINE friend typename std::enable_if<
+        friend PGBAR__FORCEINLINE typename std::enable_if<
           traits::AllOf<
             traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
             traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F&&>,
@@ -645,23 +650,23 @@ namespace pgbar {
           return std::move( bar.action( std::forward<F>( fn ) ) );
         }
 
-        PGBAR__FORCEINLINE friend Derived& operator|=( Self& bar, std::nullptr_t ) noexcept
+        friend PGBAR__FORCEINLINE Derived& operator|=( Self& bar, std::nullptr_t ) noexcept
         {
           return bar.action();
         }
-        PGBAR__FORCEINLINE friend Derived& operator|( Self& bar, std::nullptr_t ) noexcept
+        friend PGBAR__FORCEINLINE Derived& operator|( Self& bar, std::nullptr_t ) noexcept
         {
           return bar.action();
         }
-        PGBAR__FORCEINLINE friend Derived& operator|( std::nullptr_t, Self& bar ) noexcept
+        friend PGBAR__FORCEINLINE Derived& operator|( std::nullptr_t, Self& bar ) noexcept
         {
           return bar.action();
         }
-        PGBAR__FORCEINLINE friend Derived&& operator|( Self&& bar, std::nullptr_t ) noexcept
+        friend PGBAR__FORCEINLINE Derived&& operator|( Self&& bar, std::nullptr_t ) noexcept
         {
           return std::move( bar.action() );
         }
-        PGBAR__FORCEINLINE friend Derived&& operator|( std::nullptr_t, Self&& bar ) noexcept
+        friend PGBAR__FORCEINLINE Derived&& operator|( std::nullptr_t, Self&& bar ) noexcept
         {
           return std::move( bar.action() );
         }

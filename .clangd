@@ -11,4 +11,5 @@ Diagnostics:
       - "modernize-use-constraints"
       - "modernize-type-traits"
       - "performance-enum-size"
+      - "performance-avoid-endl"
   UnusedIncludes: Strict

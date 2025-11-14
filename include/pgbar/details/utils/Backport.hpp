@@ -35,14 +35,6 @@ namespace pgbar {
       }
 #endif
 
-#if PGBAR__CXX17
-      using InPlace_t = std::in_place_t;
-#else
-      struct InPlace_t {
-        explicit constexpr InPlace_t() = default;
-      };
-#endif
-
       // Available only for objects that constructed by placement new.
       template<typename T>
       PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR void destruct_at( T& object )
@@ -231,14 +223,14 @@ namespace pgbar {
         return std::distance( std::move( first ), std::move( second ) );
       }
       template<typename R>
-      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR auto begin( R&& r )
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR auto begin( R&& r )
         noexcept( noexcept( std::begin( std::forward<R>( r ) ) ) )
           -> decltype( std::begin( std::forward<R>( r ) ) )
       {
         return std::begin( std::forward<R>( r ) );
       }
       template<typename R>
-      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR auto end( R&& r )
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR auto end( R&& r )
         noexcept( noexcept( std::end( std::forward<R>( r ) ) ) )
           -> decltype( std::end( std::forward<R>( r ) ) )
       {

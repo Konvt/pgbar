@@ -3,12 +3,15 @@
 
 #include "../details/traits/ConceptTraits.hpp"
 #include "../details/utils/Backport.hpp"
+#ifdef __cpp_lib_ranges
+# include <ranges>
+#endif
 
 namespace pgbar {
   namespace slice {
     template<typename R>
     class BoundedSpan
-#ifdef __cpp_concepts
+#ifdef __cpp_lib_ranges
       : public std::ranges::view_interface<BoundedSpan<R>>
 #endif
     {
@@ -28,22 +31,22 @@ namespace pgbar {
 
       PGBAR__CXX17_CNSTXPR BoundedSpan( R& rnge ) noexcept : rnge_ { std::addressof( rnge ) } {}
 
-      PGBAR__CXX17_CNSTXPR BoundedSpan( const BoundedSpan& )              = default;
-      PGBAR__CXX17_CNSTXPR BoundedSpan& operator=( const BoundedSpan& ) & = default;
+      PGBAR__CXX14_CNSTXPR BoundedSpan( const BoundedSpan& )              = default;
+      PGBAR__CXX14_CNSTXPR BoundedSpan& operator=( const BoundedSpan& ) & = default;
       PGBAR__CXX20_CNSTXPR ~BoundedSpan()                                 = default;
 
-      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR iterator begin() const
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR iterator begin() const
         noexcept( noexcept( _details::utils::begin( *rnge_ ) ) )
       {
-        _details::utils::begin( *rnge_ );
+        return _details::utils::begin( *rnge_ );
       }
-      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR sentinel end() const
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR sentinel end() const
         noexcept( noexcept( _details::utils::end( *rnge_ ) ) )
       {
-        _details::utils::end( *rnge_ );
+        return _details::utils::end( *rnge_ );
       }
 
-      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR _details::traits::IterReference_t<iterator>
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR _details::traits::IterReference_t<iterator>
         front() const
       {
         return *begin();
@@ -54,23 +57,20 @@ namespace pgbar {
         return *std::next( begin(), size() - 1 );
       }
       PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr _details::types::Size step() const noexcept { return 1; }
-      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR _details::types::Size size() const
+      PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr _details::types::Size size() const
       {
         return _details::utils::size( *rnge_ );
       }
-      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR bool empty() const noexcept
-      {
-        return rnge_ == nullptr;
-      }
+      PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr bool empty() const noexcept { return rnge_ == nullptr; }
 
-      PGBAR__CXX17_CNSTXPR void swap( BoundedSpan<R>& lhs ) noexcept
+      PGBAR__CXX20_CNSTXPR void swap( BoundedSpan& lhs ) noexcept
       {
         PGBAR__TRUST( this != &lhs );
         std::swap( rnge_, lhs.rnge_ );
       }
-      friend PGBAR__CXX17_CNSTXPR void swap( BoundedSpan<R>& a, BoundedSpan<R>& b ) noexcept { a.swap( b ); }
+      friend PGBAR__CXX20_CNSTXPR void swap( BoundedSpan& a, BoundedSpan& b ) noexcept { a.swap( b ); }
 
-      explicit PGBAR__CXX17_CNSTXPR operator bool() const noexcept { return !empty(); }
+      explicit constexpr operator bool() const noexcept { return !empty(); }
     };
   } // namespace slice
 } // namespace pgbar
