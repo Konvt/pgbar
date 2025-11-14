@@ -163,9 +163,9 @@ namespace pgbar {
             std::swap( sgr_, other.sgr_ );
             std::swap( length_, other.length_ );
           }
-          PGBAR__CXX23_CNSTXPR friend void swap( RGBColor& a, RGBColor& b ) noexcept { a.swap( b ); }
+          friend PGBAR__CXX23_CNSTXPR void swap( RGBColor& a, RGBColor& b ) noexcept { a.swap( b ); }
 
-          PGBAR__FORCEINLINE friend io::Stringbuf& operator<<( io::Stringbuf& buf, const Self& col )
+          friend PGBAR__FORCEINLINE io::Stringbuf& operator<<( io::Stringbuf& buf, const Self& col )
           {
 #ifndef PGBAR_NOCOLOR
             buf.append( '\x1B' )

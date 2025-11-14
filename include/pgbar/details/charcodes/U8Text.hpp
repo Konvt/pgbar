@@ -119,7 +119,7 @@ namespace pgbar {
           U8Raw::swap( other );
           chars_.swap( other.chars_ );
         }
-        PGBAR__CXX20_CNSTXPR friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
+        friend PGBAR__CXX20_CNSTXPR void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
 
 #ifdef __cpp_char8_t
         explicit U8Text( types::LitU8 u8_sv ) : U8Text()

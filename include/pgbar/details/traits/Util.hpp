@@ -23,6 +23,36 @@ namespace pgbar {
       template<template<typename...> class Template, typename T, types::Size N>
       using FillWith_t = typename FillWith<Template, T, N>::type;
 
+      template<typename T>
+      struct is_pointer_like {
+        template<typename>
+        static constexpr std::false_type check( ... );
+        template<typename U>
+        static constexpr typename std::enable_if<
+          Not<AnyOf<std::is_void<decltype( *std::declval<U&>() )>,
+                    std::is_void<decltype( std::declval<U&>().operator->() )>,
+                    std::is_void<decltype( static_cast<bool>( std::declval<U&>() ) )>>>::value,
+          std::true_type>::type
+          check( int );
+
+      public:
+        static constexpr bool value = AllOf<Not<std::is_reference<T>>, decltype( check<T>( 0 ) )>::value;
+      };
+      template<typename P>
+      struct is_pointer_like<P*> : std::true_type {};
+
+      template<typename T>
+      struct Pointee {
+        using type = typename std::remove_reference<decltype( *std::declval<T&>() )>::type;
+      };
+      template<typename T>
+      using Pointee_t = typename Pointee<T>::type;
+
+      template<typename P>
+      struct Pointee<P*> {
+        using type = P;
+      };
+
       // Check whether the type Instance is an instantiated version of Tmp or whether it inherits from Tmp
       // itself.
       template<typename Instance, template<typename...> class Tmp>

@@ -3,42 +3,47 @@
 
 #include "../details/prefabs/BasicBar.hpp"
 #include "../details/traits/ConceptTraits.hpp"
-#if PGBAR__CXX20
+#ifdef __cpp_lib_ranges
 # include <ranges>
 #endif
 
 namespace pgbar {
   namespace slice {
     /**
-     * A range that contains a bar object and an unidirectional abstract range,
+     * A range that contains a bar object and an unidirectional abstract view of range,
      * which transforms the iterations in the abstract into a visual display of the object.
      */
-    template<typename R, typename B>
+    template<typename View, typename UIRef>
     class TrackedSpan
-#if PGBAR__CXX20
-      : public std::ranges::view_interface<TrackedSpan<R, B>>
+#ifdef __cpp_lib_ranges
+      : public std::ranges::view_interface<TrackedSpan<View, UIRef>>
 #endif
     {
-      static_assert( _details::traits::is_bounded_range<R>::value,
+      static_assert( _details::traits::is_bounded_range<View>::value,
                      "pgbar::slice::TrackedSpan: Only available for bounded ranges" );
-      static_assert( _details::traits::is_iterable_bar<B>::value,
+      static_assert( _details::traits::AllOf<std::is_copy_constructible<UIRef>,
+                                             _details::traits::is_pointer_like<UIRef>>::value,
+                     "pgbar::slice::TrackedSpan: Must be a copyable pointer-like bar reference" );
+      static_assert( _details::traits::is_iterable_bar<_details::traits::Pointee_t<UIRef>>::value,
                      "pgbar::slice::TrackedSpan: Must have a method to configure the iteration "
                      "count for the object's configuration type" );
 
-      B* itr_bar_;
-      R itr_range_;
+      UIRef ui_;
+      View view_;
 
-      using Itr = _details::traits::IteratorOf_t<R>;
-      using Snt = _details::traits::SentinelOf_t<R>;
+      using Itr = _details::traits::IteratorOf_t<View>;
+      using Snt = _details::traits::SentinelOf_t<View>;
       class Sentry {
         friend class iterator;
 
+        UIRef ui_;
         Snt snt_;
 
       public:
-        constexpr Sentry() = default;
-        constexpr Sentry( Snt&& endpoint ) noexcept( std::is_nothrow_move_constructible<Snt>::value )
-          : snt_ { std::move( endpoint ) }
+        constexpr Sentry( Snt&& endpoint, UIRef ui_ref ) noexcept(
+          _details::traits::AllOf<std::is_nothrow_move_constructible<Snt>,
+                                  std::is_nothrow_constructible<UIRef, decltype( *ui_ref )>>::value )
+          : ui_ { std::move( ui_ref ) }, snt_ { std::move( endpoint ) }
         {}
       };
 
@@ -50,8 +55,8 @@ namespace pgbar {
       using sentinel = iterator;
 #endif
       class iterator {
+        UIRef ui_;
         Itr itr_;
-        B* itr_bar_;
 
       public:
         using iterator_category = typename std::conditional<
@@ -65,43 +70,35 @@ namespace pgbar {
         using reference       = _details::traits::IterReference_t<Itr>;
         using pointer         = Itr;
 
-        constexpr iterator() noexcept( std::is_nothrow_default_constructible<Itr>::value )
-          : itr_ {}, itr_bar_ { nullptr }
-        {}
-        PGBAR__CXX17_CNSTXPR iterator( Itr itr ) noexcept( std::is_nothrow_move_constructible<Itr>::value )
-          : itr_ { std::move( itr ) }, itr_bar_ { nullptr }
-        {}
-        PGBAR__CXX17_CNSTXPR iterator( Itr itr, B& itr_bar )
-          noexcept( std::is_nothrow_move_constructible<Itr>::value )
-          : itr_ { std::move( itr ) }, itr_bar_ { std::addressof( itr_bar ) }
+        constexpr iterator() = default;
+        PGBAR__CXX17_CNSTXPR iterator( Itr itr, UIRef ui_ref ) noexcept(
+          _details::traits::AllOf<std::is_nothrow_move_constructible<Itr>,
+                                  std::is_nothrow_constructible<UIRef, decltype( *ui_ref )>>::value )
+          : ui_ { std::move( ui_ref ) }, itr_ { std::move( itr ) }
         {}
         PGBAR__CXX17_CNSTXPR iterator( iterator&& rhs )
-          noexcept( std::is_nothrow_move_constructible<Itr>::value )
-          : itr_ { std::move( rhs.itr_ ) }, itr_bar_ { rhs.itr_bar_ }
-        {
-          rhs.itr_bar_ = nullptr;
-        }
+          noexcept( _details::traits::AllOf<std::is_nothrow_move_constructible<View>,
+                                            std::is_nothrow_move_constructible<UIRef>>::value )
+          : iterator( std::move( rhs.itr_ ), std::move( rhs.ui_ ) )
+        {}
         PGBAR__CXX17_CNSTXPR iterator& operator=( iterator&& rhs ) & noexcept(
           std::is_nothrow_move_assignable<Itr>::value )
         {
           PGBAR__TRUST( this != &rhs );
-          itr_         = std::move( rhs.itr_ );
-          itr_bar_     = rhs.itr_bar_;
-          rhs.itr_bar_ = nullptr;
+          itr_ = std::move( rhs.itr_ );
+          ui_  = std::move( rhs.ui_ );
           return *this;
         }
         PGBAR__CXX20_CNSTXPR ~iterator() = default;
 
         PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR iterator& operator++() &
         {
-          PGBAR__TRUST( itr_bar_ != nullptr );
           itr_ = std::next( itr_, 1 );
-          itr_bar_->tick();
+          ui_->tick();
           return *this;
         }
         PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR iterator operator++( int ) &
         {
-          PGBAR__TRUST( itr_bar_ != nullptr );
           auto before = *this;
           operator++();
           return before;
@@ -193,58 +190,72 @@ namespace pgbar {
           return !( b == a );
         }
 
-        explicit constexpr operator bool() const noexcept { return itr_bar_ != nullptr; }
+        explicit constexpr operator bool() const noexcept { return static_cast<bool>( ui_ ); }
       };
 
-      PGBAR__CXX17_CNSTXPR TrackedSpan( R itr_range, B& itr_bar )
-        noexcept( std::is_nothrow_move_constructible<R>::value )
-        : itr_bar_ { std::addressof( itr_bar ) }, itr_range_ { std::move( itr_range ) }
+      constexpr TrackedSpan() = default;
+      PGBAR__CXX17_CNSTXPR TrackedSpan( View view, UIRef ui )
+        noexcept( _details::traits::AllOf<std::is_nothrow_move_constructible<View>,
+                                          std::is_nothrow_move_constructible<UIRef>>::value )
+        : ui_ { std::move( ui ) }, view_ { std::move( view ) }
       {}
       PGBAR__CXX17_CNSTXPR TrackedSpan( TrackedSpan&& rhs )
-        noexcept( std::is_nothrow_move_constructible<R>::value )
-        : TrackedSpan( std::move( rhs.itr_range_ ), *rhs.itr_bar_ )
-      {
-        PGBAR__ASSERT( rhs.empty() == false );
-        rhs.itr_bar_ = nullptr;
-      }
+        noexcept( _details::traits::AllOf<std::is_nothrow_move_constructible<View>,
+                                          std::is_nothrow_move_constructible<UIRef>>::value )
+        : TrackedSpan( std::move( rhs.view_ ), std::move( rhs.ui_ ) )
+      {}
       PGBAR__CXX17_CNSTXPR TrackedSpan& operator=( TrackedSpan&& rhs ) & noexcept(
-        std::is_nothrow_move_assignable<R>::value )
+        _details::traits::AllOf<std::is_nothrow_move_constructible<View>,
+                                std::is_nothrow_move_constructible<UIRef>>::value )
       {
         PGBAR__TRUST( this != &rhs );
-        swap( rhs );
-        rhs.itr_bar_ = nullptr;
+        view_ = std::move( rhs.view_ );
+        ui_   = std::move( rhs.ui_ );
         return *this;
       }
       // Intentional non-virtual destructors.
       PGBAR__CXX20_CNSTXPR ~TrackedSpan() = default;
 
-      // This function will CHANGE the state of the pgbar object it holds.
-      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR iterator begin() &
+      PGBAR__CXX14_CNSTXPR View replace( View view ) & noexcept(
+        _details::traits::AllOf<std::is_nothrow_move_constructible<View>,
+                                std::is_nothrow_move_assignable<View>>::value )
       {
-        itr_bar_->config().tasks( _details::utils::size( itr_range_ ) );
-        return { _details::utils::begin( itr_range_ ), *itr_bar_ };
+        auto tmp = std::move( view_ );
+        view_    = std::move( view );
+        return tmp;
       }
-      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR sentinel end() const
+      PGBAR__CXX14_CNSTXPR UIRef replace( UIRef ui ) & noexcept(
+        _details::traits::AllOf<std::is_nothrow_move_constructible<UIRef>,
+                                std::is_nothrow_move_assignable<UIRef>>::value )
       {
-        return { _details::utils::end( itr_range_ ) };
+        auto tmp = std::move( ui_ );
+        ui_      = std::move( ui );
+        return tmp;
       }
 
       PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR bool empty() const noexcept
       {
-        return itr_bar_ == nullptr;
+        return view_.empty() && static_cast<bool>( ui_ );
+      }
+      // This function will CHANGE the state of the pgbar object it holds.
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR iterator begin() &
+      {
+        ui_->config().tasks( _details::utils::size( view_ ) );
+        return { _details::utils::begin( view_ ), ui_ };
+      }
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR sentinel end() const
+      {
+        return { _details::utils::end( view_ ), ui_ };
       }
 
-      PGBAR__CXX14_CNSTXPR void swap( TrackedSpan<R, B>& lhs ) noexcept
+      PGBAR__CXX14_CNSTXPR void swap( TrackedSpan& lhs ) noexcept
       {
         PGBAR__TRUST( this != &lhs );
         using std::swap;
-        std::swap( itr_bar_, lhs.itr_bar_ );
-        swap( itr_range_, lhs.itr_range_ );
+        std::swap( ui_, lhs.ui_ );
+        swap( view_, lhs.view_ );
       }
-      friend PGBAR__CXX14_CNSTXPR void swap( TrackedSpan<R, B>& a, TrackedSpan<R, B>& b ) noexcept
-      {
-        a.swap( b );
-      }
+      friend PGBAR__CXX14_CNSTXPR void swap( TrackedSpan& a, TrackedSpan& b ) noexcept { a.swap( b ); }
 
       explicit constexpr operator bool() const noexcept { return !empty(); }
     };

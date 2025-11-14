@@ -189,7 +189,7 @@ namespace pgbar {
           std::swap( width_, other.width_ );
           bytes_.swap( other.bytes_ );
         }
-        PGBAR__CXX20_CNSTXPR friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
+        friend PGBAR__CXX20_CNSTXPR void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
 
         explicit PGBAR__CXX20_CNSTXPR operator types::String() & { return bytes_; }
         explicit PGBAR__CXX20_CNSTXPR operator types::String() const& { return bytes_; }

@@ -4,7 +4,7 @@
 #include "../details/types/Types.hpp"
 #include "../exception/Error.hpp"
 #include <cmath>
-#if PGBAR__CXX20
+#ifdef __cpp_lib_ranges
 # include <ranges>
 #endif
 
@@ -18,7 +18,7 @@ namespace pgbar {
      */
     template<typename N>
     class NumericSpan
-#if PGBAR__CXX20
+#ifdef __cpp_lib_ranges
       : public std::ranges::view_interface<NumericSpan<N>>
 #endif
     {
@@ -210,7 +210,7 @@ namespace pgbar {
        *
        * If the `endpoint` is less than zero.
        */
-      explicit PGBAR__CXX20_CNSTXPR NumericSpan( N endpoint ) : NumericSpan( {}, endpoint, 1 ) {}
+      PGBAR__CXX20_CNSTXPR NumericSpan( N endpoint ) : NumericSpan( {}, endpoint, 1 ) {}
       constexpr NumericSpan( const NumericSpan& )                         = default;
       PGBAR__CXX14_CNSTXPR NumericSpan& operator=( const NumericSpan& ) & = default;
       PGBAR__CXX20_CNSTXPR ~NumericSpan()                                 = default;
