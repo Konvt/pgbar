@@ -135,7 +135,7 @@ namespace pgbar {
         return MovableRef<T>( x );
       }
       template<typename T>
-      PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr MovableRef<T> mref( MovableRef<T> x ) noexcept
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR MovableRef<T> mref( MovableRef<T> x ) noexcept
       {
         if ( x )
           return MovableRef<T>( *x );
