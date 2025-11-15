@@ -7,6 +7,9 @@
 #ifdef __cpp_lib_ranges
 # include <ranges>
 #endif
+#if PGBAR__CXX20
+# include <compare>
+#endif
 
 namespace pgbar {
   namespace slice {
@@ -142,10 +145,13 @@ namespace pgbar {
           return a.itr_start_ == b.itr_start_ && a.itr_step_ == b.itr_step_ && a.itr_cnt_ == b.itr_cnt_;
         }
 #if PGBAR__CXX20
-        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr auto operator<=>( const iterator& a,
-                                                                               const iterator& b ) noexcept
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr std::partial_ordering operator<=>(
+          const iterator& a,
+          const iterator& b ) noexcept
         {
-          return a.itr_start_ == b.itr_start_ && a.itr_step_ == b.itr_step_ && a.itr_cnt_ <=> b.itr_cnt_;
+          if ( a.itr_start_ != b.itr_start_ || a.itr_step_ != b.itr_step_ )
+            return std::partial_ordering::unordered;
+          return static_cast<std::partial_ordering>( a.itr_cnt_ <=> b.itr_cnt_ );
         }
 #else
         PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator!=( const iterator& a,

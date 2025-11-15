@@ -78,6 +78,10 @@ namespace pgbar {
       To* launder_as( volatile void* src ) = delete;
       template<typename To>
       To* launder_as( const volatile void* src ) = delete;
+#ifdef __clang__
+# pragma clang diagnostic push
+# pragma clang diagnostic ignored "-Wambiguous-ellipsis"
+#endif
       template<typename To, typename R, typename... Args>
       To* launder_as( R ( * )( Args... ) ) = delete;
       template<typename To, typename R, typename... Args>
@@ -87,6 +91,9 @@ namespace pgbar {
       To* launder_as( R ( * )( Args... ) noexcept ) = delete;
       template<typename To, typename R, typename... Args>
       To* launder_as( R ( * )( Args...... ) noexcept ) = delete;
+#endif
+#ifdef __clang__
+# pragma clang diagnostic pop
 #endif
 
 #ifdef __cpp_lib_as_const
