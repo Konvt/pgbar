@@ -4,7 +4,8 @@
 #include "../concurrent/ExceptionBox.hpp"
 #include "../concurrent/Util.hpp"
 #include "../console/TermContext.hpp"
-#include "../wrappers/Backport.hpp"
+#include "../utils/ScopeGuard.hpp"
+#include "../wrappers/UniqueFunction.hpp"
 #include <condition_variable>
 #include <thread>
 
@@ -34,44 +35,41 @@ namespace pgbar {
           console::TermContext<Tag>::itself().virtual_term();
 
           PGBAR__ASSERT( runner_.get_id() == std::thread::id() );
-          try {
-            runner_ = std::thread( [this]() {
-              try {
-                while ( state_.load( std::memory_order_acquire ) != State::Dead ) {
-                  switch ( state_.load( std::memory_order_acquire ) ) {
-                  case State::Idle: {
-                    // An intermediate state,
-                    // ensure that the background thread does not access task_ again when it is suspended;
-                    // otherwise, a race condition on task_ may occur in dismiss().
-                    auto expected = State::Idle;
-                    state_.compare_exchange_strong( expected, State::Dormant, std::memory_order_release );
-                  }
-                    PGBAR__FALLTHROUGH;
-                  case State::Dormant: {
-                    std::unique_lock<std::mutex> lock { sched_mtx_ };
-                    cond_var_.wait( lock, [this]() noexcept {
-                      return state_.load( std::memory_order_acquire ) != State::Dormant;
-                    } );
-                  } break;
-                  case State::Active: {
-                    concurrent::SharedLock<concurrent::SharedMutex> lock { res_mtx_ };
-                    task_();
-                  } break;
-                  default: return;
-                  }
+          auto guard = utils::make_scope_fail(
+            [this]() noexcept { state_.store( State::Dead, std::memory_order_release ); } );
+          runner_       = std::thread( [this]() {
+            try {
+              while ( state_.load( std::memory_order_acquire ) != State::Dead ) {
+                switch ( state_.load( std::memory_order_acquire ) ) {
+                case State::Idle: {
+                  // An intermediate state,
+                  // ensure that the background thread does not access task_ again when it is suspended;
+                  // otherwise, a race condition on task_ may occur in dismiss().
+                  auto expected = State::Idle;
+                  state_.compare_exchange_strong( expected, State::Dormant, std::memory_order_release );
                 }
-              } catch ( ... ) {
-                if ( !box_.try_store( std::current_exception() ) ) {
-                  state_.store( State::Dead, std::memory_order_release );
-                  throw;
-                } else
-                  state_.store( State::Dormant, std::memory_order_release );
+                  PGBAR__FALLTHROUGH;
+                case State::Dormant: {
+                  std::unique_lock<std::mutex> lock { sched_mtx_ };
+                  cond_var_.wait( lock, [this]() noexcept {
+                    return state_.load( std::memory_order_acquire ) != State::Dormant;
+                  } );
+                } break;
+                case State::Active: {
+                  concurrent::SharedLock<concurrent::SharedMutex> lock { res_mtx_ };
+                  task_();
+                } break;
+                default: return;
+                }
               }
-            } );
-          } catch ( ... ) {
-            state_.store( State::Dead, std::memory_order_release );
-            throw;
-          }
+            } catch ( ... ) {
+              if ( !box_.try_store( std::current_exception() ) ) {
+                state_.store( State::Dead, std::memory_order_release );
+                throw;
+              } else
+                state_.store( State::Dormant, std::memory_order_release );
+            }
+          } );
           auto expected = State::Dead;
           state_.compare_exchange_strong( expected, State::Dormant, std::memory_order_release );
         }

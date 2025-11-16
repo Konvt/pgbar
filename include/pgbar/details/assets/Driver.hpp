@@ -11,6 +11,7 @@
 #include "../render/Renderer.hpp"
 #include "../traits/Backport.hpp"
 #include "../utils/Backport.hpp"
+#include "../utils/ScopeGuard.hpp"
 #include "../wrappers/MovableRef.hpp"
 #include <atomic>
 
@@ -382,12 +383,8 @@ namespace pgbar {
               "pgbar: another progress bar instance is already running" );
 
           io::OStream<Outlet>::itself() << io::release; // reset the state.
-          try {
-            executor.activate();
-          } catch ( ... ) {
-            executor.dismiss();
-            throw;
-          }
+          auto guard = utils::make_scope_fail( [&executor]() noexcept { executor.dismiss(); } );
+          executor.activate();
         }
 
       public:
@@ -834,12 +831,10 @@ namespace pgbar {
               this->task_cnt_.store( 0, std::memory_order_release );
               this->zero_point_ = std::chrono::steady_clock::now();
               state_.store( State::Awake, std::memory_order_release );
-              try {
-                this->do_boot();
-              } catch ( ... ) {
-                state_.store( State::Stop, std::memory_order_release );
-                throw;
-              }
+
+              auto guard = utils::make_scope_fail(
+                [this]() noexcept { state_.store( State::Stop, std::memory_order_release ); } );
+              this->do_boot();
             }
           }
             PGBAR__FALLTHROUGH;
@@ -978,12 +973,10 @@ namespace pgbar {
               this->task_cnt_.store( 0, std::memory_order_release );
               this->zero_point_ = std::chrono::steady_clock::now();
               this->state_.store( State::Awake, std::memory_order_release );
-              try {
-                this->do_boot();
-              } catch ( ... ) {
-                this->state_.store( State::Stop, std::memory_order_release );
-                throw;
-              }
+
+              auto guard = utils::make_scope_fail(
+                [this]() noexcept { this->state_.store( State::Stop, std::memory_order_release ); } );
+              this->do_boot();
             }
             if ( this->state_.load( std::memory_order_acquire ) == State::ActivityRefresh )
               return;

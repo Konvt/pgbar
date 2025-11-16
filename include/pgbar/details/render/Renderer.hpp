@@ -53,11 +53,10 @@ namespace pgbar {
           if ( state_.compare_exchange_strong( expected, State::Awake, std::memory_order_release ) ) {
             PGBAR__ASSERT( task_ != nullptr );
             auto& runner = AsyncSlot<Tag>::itself();
-            try {
+            {
+              auto guard = utils::make_scope_fail(
+                [this]() noexcept { state_.store( State::Quit, std::memory_order_release ); } );
               runner.activate();
-            } catch ( ... ) {
-              state_.store( State::Quit, std::memory_order_release );
-              throw;
             }
             concurrent::spin_wait( [&]() noexcept {
               return state_.load( std::memory_order_acquire ) != State::Awake || runner.aborted();

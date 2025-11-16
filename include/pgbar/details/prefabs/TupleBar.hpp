@@ -141,13 +141,12 @@ namespace pgbar {
 
             io::OStream<Outlet>::itself() << io::release;
             state_.store( State::Awake, std::memory_order_release );
-            try {
-              executor.activate();
-            } catch ( ... ) {
+
+            auto guard = utils::make_scope_fail( [&]() noexcept {
               state_.store( State::Stop, std::memory_order_release );
               executor.dismiss();
-              throw;
-            }
+            } );
+            executor.activate();
           } else
             executor.attempt();
           alive_cnt_.fetch_add( 1, std::memory_order_release );

@@ -1,5 +1,5 @@
-#ifndef PGBAR__WRAPPERS_BACKPORT
-#define PGBAR__WRAPPERS_BACKPORT
+#ifndef PGBAR__UNIQUEFUNCTION
+#define PGBAR__UNIQUEFUNCTION
 
 #include <type_traits>
 #ifdef __cpp_lib_move_only_function
@@ -265,7 +265,7 @@ namespace pgbar {
         template<typename F,
                  typename = typename std::enable_if<
                    traits::AllOf<std::is_constructible<typename std::decay<F>::type, F>,
-                                 traits::InvocableTo<R, F, Args...>>::value>::type>
+                                 traits::is_invocable_to<R, F, Args...>>::value>::type>
         UniqueFunction( F&& fn ) noexcept( Base::template Inlinable<typename std::decay<F>::type>::value )
         {
           Base::store_fn( this->vtable_, this->callee_, std::forward<F>( fn ) );
@@ -275,7 +275,7 @@ namespace pgbar {
         // Therefore, we do not provide an overloaded constructor for this type here.
         template<typename F>
         typename std::enable_if<traits::AllOf<std::is_constructible<typename std::decay<F>::type, F>,
-                                              traits::InvocableTo<R, F, Args...>>::value,
+                                              traits::is_invocable_to<R, F, Args...>>::value,
                                 UniqueFunction&>::type
           operator=( F&& fn ) & noexcept( Base::template Inlinable<typename std::decay<F>::type>::value )
         {
