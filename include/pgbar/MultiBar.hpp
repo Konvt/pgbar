@@ -54,7 +54,7 @@ namespace pgbar {
     template<typename Cfg, typename... Cfgs
 #ifdef __cpp_concepts
              >
-      requires( sizeof...( Cfgs ) <= sizeof...( Configs ) && _details::traits::is_config<Cfg>::value
+      requires( sizeof...( Cfgs ) <= sizeof...( Configs )
                 && _details::traits::
                   TpStartsWith<_details::traits::TypeList<Cfg, Cfgs...>, Config, Configs...>::value )
 #else
@@ -243,6 +243,11 @@ namespace pgbar {
   };
 
 #if PGBAR__CXX17
+  template<Channel O, Policy M, Region A, typename Cfg, typename... Cfgs>
+  MultiBar( _details::prefabs::BasicBar<Cfg, O, M, A>&& bar,
+            _details::prefabs::BasicBar<Cfgs, O, M, A>&&... bars )
+    -> MultiBar<_details::prefabs::BasicBar<Cfg, O, M, A>, _details::prefabs::BasicBar<Cfgs, O, M, A>...>;
+
   // CTAD, only generates the default version,
   // which means the the Outlet is `Channel::Stderr` and Mode is `Policy::Async`.
   template<typename Config, typename... Configs
@@ -255,9 +260,9 @@ namespace pgbar {
     typename = std::enable_if_t<_details::traits::AllOf<_details::traits::is_config<std::decay_t<Config>>,
                                                          _details::traits::is_config<std::decay_t<Configs>>...>::value>>
 # endif
-  MultiBar( Config&&, Configs&&... )
-    -> MultiBar<_details::prefabs::BasicBar<Config, Channel::Stderr, Policy::Async, Region::Fixed>,
-                _details::prefabs::BasicBar<Configs, Channel::Stderr, Policy::Async, Region::Fixed>...>;
+  MultiBar( Config, Configs... ) -> MultiBar<
+    _details::prefabs::BasicBar<std::decay_t<Config>, Channel::Stderr, Policy::Async, Region::Fixed>,
+    _details::prefabs::BasicBar<std::decay_t<Configs>, Channel::Stderr, Policy::Async, Region::Fixed>...>;
 #endif
 
   // Generates a MultiBar type containing Count instances of the given Bar type.
