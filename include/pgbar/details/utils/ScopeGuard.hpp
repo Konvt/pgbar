@@ -125,17 +125,13 @@ namespace pgbar {
       ScopeFail( F fn ) -> ScopeFail<F>;
 #endif
 
-      template<typename F>
-      using ExitFn_t = typename std::
-        conditional<std::is_rvalue_reference<F&&>::value, typename std::decay<F>::type, F>::type;
-
       // The move construction implementation can directly use `auto var = std::move( /* guard */ )`,
       // so the corresponding factory function overload is not provided.
       template<typename F>
-      PGBAR__NODISCARD ScopeFail<ExitFn_t<F>> make_scope_fail( F&& fn )
-        noexcept( std::is_nothrow_constructible<ScopeFail<ExitFn_t<F>>, F&&>::value )
+      PGBAR__NODISCARD ScopeFail<F> make_scope_fail( F&& fn )
+        noexcept( std::is_nothrow_constructible<ScopeFail<F>, F&&>::value )
       {
-        return ScopeFail<ExitFn_t<F>>( std::forward<F>( fn ) );
+        return ScopeFail<F>( std::forward<F>( fn ) );
       }
     } // namespace utils
   } // namespace _details
