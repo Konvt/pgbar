@@ -1,7 +1,6 @@
 #ifndef PGBAR__MOVABLEREF
 #define PGBAR__MOVABLEREF
 
-#include "../core/Core.hpp"
 #include "../traits/Backport.hpp"
 #include <utility>
 

@@ -3,6 +3,7 @@
 
 #include "../core/Core.hpp"
 #include "../types/Types.hpp"
+#include <exception>
 #include <functional>
 #include <memory>
 #include <new>
@@ -34,6 +35,15 @@ namespace pgbar {
         return std::unique_ptr<T>( new T( std::forward<Args>( args )... ) );
       }
 #endif
+
+      int uncaught_exceptions() noexcept
+      {
+#ifdef __cpp_lib_uncaught_exceptions
+        return std::uncaught_exceptions();
+#else
+        return static_cast<int>( std::uncaught_exception() );
+#endif
+      }
 
       // Available only for objects that constructed by placement new.
       template<typename T>
@@ -345,11 +355,29 @@ namespace pgbar {
 
     namespace traits {
 #if PGBAR__CXX17
+      template<typename Fn, typename... Args>
+      using is_invocable = std::is_invocable<Fn, Args...>;
+
       template<typename Ret, typename Fn, typename... Args>
-      using InvocableTo = std::is_invocable_r<Ret, Fn, Args...>;
+      using is_invocable_to = std::is_invocable_r<Ret, Fn, Args...>;
 #else
+      template<typename Fn, typename... Args>
+      struct is_invocable {
+      private:
+        template<typename F>
+        static constexpr auto check( int ) -> typename std::enable_if<
+          std::is_void<decltype( utils::invoke( std::declval<F>(), std::declval<Args>()... ),
+                                 void() )>::value,
+          std::true_type>::type;
+        template<typename>
+        static constexpr std::false_type check( ... );
+
+      public:
+        static constexpr bool value = decltype( check<Fn>( 0 ) )::value;
+      };
+
       template<typename Ret, typename Fn, typename... Args>
-      struct InvocableTo {
+      struct is_invocable_to {
       private:
         template<typename F>
         static constexpr auto check( int )

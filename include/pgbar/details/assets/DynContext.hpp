@@ -234,18 +234,17 @@ namespace pgbar {
             io::OStream<Outlet>::itself() << io::release;
             num_modified_lines_.store( 0, std::memory_order_relaxed );
             state_.store( State::Awake, std::memory_order_release );
-            try {
-              {
-                std::lock_guard<concurrent::SharedMutex> lock2 { res_mtx_ };
-                items_.emplace_back( item );
-              }
-              executor.activate();
-            } catch ( ... ) {
+
+            auto guard = utils::make_scope_fail( [this]() noexcept {
               std::lock_guard<concurrent::SharedMutex> lock2 { res_mtx_ };
               items_.clear();
               state_.store( State::Stop, std::memory_order_release );
-              throw;
+            } );
+            {
+              std::lock_guard<concurrent::SharedMutex> lock2 { res_mtx_ };
+              items_.emplace_back( item );
             }
+            executor.activate();
           } else {
             {
               std::lock_guard<concurrent::SharedMutex> lock2 { res_mtx_ };

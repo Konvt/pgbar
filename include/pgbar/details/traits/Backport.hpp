@@ -1,6 +1,7 @@
 #ifndef PGBAR__TRAITS_BACKPORT
 #define PGBAR__TRAITS_BACKPORT
 
+#include "../core/Core.hpp"
 #include "../types/Types.hpp"
 #include <type_traits>
 
@@ -46,6 +47,17 @@ namespace pgbar {
 
       template<types::Size N>
       using MakeIndexSeq = typename _make_index_seq_helper<N>::type;
+#endif
+
+#if PGBAR__CXX14
+      template<typename T>
+      using is_final = std::is_final<T>;
+#elif defined( __GNUC__ ) || defined( __clang__ ) || defined( _MSC_VER )
+      template<typename T>
+      using is_final = std::integral_constant<bool, __is_final( T )>;
+#else
+      template<typename T>
+      using is_final = std::integral_constant<bool, true>;
 #endif
 
 #ifdef __cpp_lib_bool_constant
