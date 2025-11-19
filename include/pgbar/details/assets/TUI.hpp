@@ -22,7 +22,7 @@ namespace pgbar {
   Constexpr ClassName( ClassName&& )                  = default; \
   Constexpr ClassName& operator=( const ClassName& )& = default; \
   Constexpr ClassName& operator=( ClassName&& )&      = default; \
-  PGBAR__CXX20_CNSTXPR ~ClassName()                   = default;
+  ~ClassName()                   = default;
 
 #define PGBAR__EMPTY_COMPONENT( ClassName )                                 \
   constexpr ClassName()                                          = default; \
@@ -30,7 +30,7 @@ namespace pgbar {
   constexpr ClassName( ClassName&& )                             = default; \
   PGBAR__CXX14_CNSTXPR ClassName& operator=( const ClassName& )& = default; \
   PGBAR__CXX14_CNSTXPR ClassName& operator=( ClassName&& )&      = default; \
-  PGBAR__CXX20_CNSTXPR ~ClassName()                              = default;
+  ~ClassName()                              = default;
 
       template<typename Derived>
       class CoreConfig {
@@ -87,7 +87,7 @@ namespace pgbar {
           fonts_ = rhs.fonts_;
           return *this;
         }
-        PGBAR__CXX20_CNSTXPR ~CoreConfig() = default;
+        ~CoreConfig() = default;
 
 #define PGBAR__METHOD( OptionName, ParamName )               \
   std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ }; \

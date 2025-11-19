@@ -156,7 +156,7 @@ namespace pgbar {
       Block( Block&& )                   = default;
       Block& operator=( const Block& ) & = default;
       Block& operator=( Block&& ) &      = default;
-      PGBAR__CXX20_CNSTXPR ~Block()      = default;
+      ~Block()      = default;
     };
   } // namespace config
 

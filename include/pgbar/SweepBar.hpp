@@ -142,7 +142,7 @@ namespace pgbar {
       Sweep( Sweep&& )                   = default;
       Sweep& operator=( const Sweep& ) & = default;
       Sweep& operator=( Sweep&& ) &      = default;
-      PGBAR__CXX20_CNSTXPR ~Sweep()      = default;
+      ~Sweep()      = default;
     };
   } // namespace config
 

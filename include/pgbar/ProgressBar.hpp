@@ -159,7 +159,7 @@ namespace pgbar {
       Line( Line&& )                   = default;
       Line& operator=( const Line& ) & = default;
       Line& operator=( Line&& ) &      = default;
-      PGBAR__CXX20_CNSTXPR ~Line()     = default;
+      ~Line()     = default;
     };
   } // namespace config
 

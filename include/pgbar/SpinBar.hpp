@@ -80,7 +80,7 @@ namespace pgbar {
       Spin( Spin&& )                   = default;
       Spin& operator=( const Spin& ) & = default;
       Spin& operator=( Spin&& ) &      = default;
-      PGBAR__CXX20_CNSTXPR ~Spin()     = default;
+      ~Spin()     = default;
     };
   } // namespace config
 
