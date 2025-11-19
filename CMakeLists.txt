@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.10)
 
-if(NOT DEFINED PROJECT_NAME)
-  set(PGBAR_IN_TOP_LEVEL ON)
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+  set(PGBAR_IS_TOP_LEVEL ON)
 else()
-  set(PGBAR_IN_TOP_LEVEL OFF)
+  set(PGBAR_IS_TOP_LEVEL OFF)
 endif()
 
 set(
@@ -15,23 +15,27 @@ set(
 if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.12")
   list(APPEND PGBAR_PROJECT HOMEPAGE_URL "https://github.com/Konvt/pgbar")
 endif()
+
 project(${PGBAR_PROJECT})
 
-option(PGBAR_INSTALL "Enable install target" ${PGBAR_IN_TOP_LEVEL})
-option(PGBAR_PACKAGE "Enable packaging support" ${PGBAR_IN_TOP_LEVEL})
+option(PGBAR_INSTALL "Enable install target" ${PGBAR_IS_TOP_LEVEL})
+option(PGBAR_PACKAGE "Enable packaging support" ${PGBAR_IS_TOP_LEVEL})
 option(PGBAR_BUILD_DEMO "Build demo programs from demo/ directory using Makefile" OFF)
 
 include(CMakePackageConfigHelpers)
-if(${PGBAR_IN_TOP_LEVEL})
+if(PGBAR_IS_TOP_LEVEL)
   include(GNUInstallDirs)
 endif()
 
 add_library(pgbar INTERFACE)
 add_library(pgbar::pgbar ALIAS pgbar)
 
-target_compile_features(pgbar INTERFACE cxx_std_11)
-set_target_properties(pgbar PROPERTIES CXX_EXTENSIONS OFF)
-target_include_directories(pgbar INTERFACE
+if(PGBAR_IS_TOP_LEVEL)
+  target_compile_features(pgbar INTERFACE cxx_std_11)
+  set_target_properties(pgbar PROPERTIES CXX_EXTENSIONS OFF)
+endif()
+target_include_directories(
+  pgbar INTERFACE
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 
@@ -40,24 +44,6 @@ if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.14")
 endif()
 
 if(PGBAR_INSTALL)
-  install(TARGETS pgbar EXPORT pgbarTargets)
-
-  install(
-    EXPORT pgbarTargets
-    FILE pgbarTargets.cmake
-    NAMESPACE pgbar::
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/pgbar)
-  install(
-    DIRECTORY include/
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-    PATTERN "Makefile" EXCLUDE)
-
-  install(
-    DIRECTORY docs/
-    DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/docs/pgbar)
-  install(FILES README.md DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/docs/pgbar)
-  install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/licenses/pgbar)
-
   configure_package_config_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/pgbarConfig.cmake.in
     ${CMAKE_CURRENT_BINARY_DIR}/pgbarConfig.cmake
@@ -66,10 +52,34 @@ if(PGBAR_INSTALL)
     ${CMAKE_CURRENT_BINARY_DIR}/pgbarConfigVersion.cmake
     VERSION ${PROJECT_VERSION}
     COMPATIBILITY AnyNewerVersion)
+
+  configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/pgbar.pc.in
+    ${CMAKE_CURRENT_BINARY_DIR}/pgbar.pc
+    @ONLY)
+
+  install(TARGETS pgbar EXPORT pgbarTargets)
+  install(
+    EXPORT pgbarTargets
+    FILE pgbarTargets.cmake
+    NAMESPACE pgbar::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/pgbar)
+  install(
+    FILES ${CMAKE_CURRENT_BINARY_DIR}/pgbar.pc
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
+  install(FILES README.md DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/docs/pgbar)
+  install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/licenses/pgbar)
   install(
     FILES ${CMAKE_CURRENT_BINARY_DIR}/pgbarConfig.cmake
       ${CMAKE_CURRENT_BINARY_DIR}/pgbarConfigVersion.cmake
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/pgbar)
+  install(
+    DIRECTORY include/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    PATTERN "Makefile" EXCLUDE)
+  install(
+    DIRECTORY docs/
+    DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/docs/pgbar)
 endif()
 
 if(PGBAR_PACKAGE)
@@ -96,6 +106,8 @@ if(PGBAR_PACKAGE)
   list(
     APPEND CPACK_IGNORE_FILES
     "(^|/)\\\\.[^/]+$"
+    "pgbar\\\\.pc"
+    "pgbar\\\\.pc\\\\.in"
     "include/Makefile"
     "misc/"
     "images/")
@@ -133,13 +145,13 @@ if(PGBAR_BUILD_DEMO)
     COMMENT "Building all demo programs")
 endif()
 
-if(NOT TARGET uninstall AND EXISTS "${CMAKE_BINARY_DIR}/install_manifest.txt")
+if(NOT TARGET uninstall)
   configure_file(
-    ${CMAKE_SOURCE_DIR}/cmake/cmake_uninstall.cmake.in
-    ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake
+    ${CMAKE_SOURCE_DIR}/cmake/uninstall.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/uninstall.cmake
     @ONLY)
 
   add_custom_target(uninstall
-    COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake
+    COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_BINARY_DIR}/uninstall.cmake
     COMMENT "Uninstalling files from install_manifest.txt")
 endif()
