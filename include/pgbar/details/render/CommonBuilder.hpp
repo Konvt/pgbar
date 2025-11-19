@@ -20,7 +20,7 @@ namespace pgbar {
           : Config( config )
         {}
         constexpr CommonBuilder( Config&& config ) noexcept : Config( std::move( config ) ) {}
-        PGBAR__CXX20_CNSTXPR ~CommonBuilder() = default;
+        ~CommonBuilder() = default;
 
 #define PGBAR__METHOD( ParamType, Operation, Noexcept )                        \
   PGBAR__CXX14_CNSTXPR CommonBuilder& operator=( ParamType config ) & Noexcept \

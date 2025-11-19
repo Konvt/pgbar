@@ -6,23 +6,25 @@ else()
   set(PGBAR_IN_TOP_LEVEL OFF)
 endif()
 
+set(
+  PGBAR_PROJECT
+  pgbar
+  VERSION 0.1.0
+  LANGUAGES CXX
+  DESCRIPTION "A lightweight progress bar for Modern C++.")
 if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.12")
-  project(pgbar VERSION 0.1.0 LANGUAGES CXX
-    HOMEPAGE_URL "https://github.com/Konvt/pgbar"
-    DESCRIPTION "A lightweight progress bar for Modern C++.")
-elseif(CMAKE_VERSION VERSION_GREATER_EQUAL "3.9")
-  project(pgbar VERSION 0.1.0 LANGUAGES CXX
-    DESCRIPTION "A lightweight progress bar for Modern C++.")
-else()
-  project(pgbar VERSION 0.1.0 LANGUAGES CXX)
+  list(APPEND PGBAR_PROJECT HOMEPAGE_URL "https://github.com/Konvt/pgbar")
 endif()
+project(${PGBAR_PROJECT})
 
 option(PGBAR_INSTALL "Enable install target" ${PGBAR_IN_TOP_LEVEL})
 option(PGBAR_PACKAGE "Enable packaging support" ${PGBAR_IN_TOP_LEVEL})
 option(PGBAR_BUILD_DEMO "Build demo programs from demo/ directory using Makefile" OFF)
 
-include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
+if(${PGBAR_IN_TOP_LEVEL})
+  include(GNUInstallDirs)
+endif()
 
 add_library(pgbar INTERFACE)
 add_library(pgbar::pgbar ALIAS pgbar)
@@ -40,59 +42,69 @@ endif()
 if(PGBAR_INSTALL)
   install(TARGETS pgbar EXPORT pgbarTargets)
 
-  install(EXPORT pgbarTargets
+  install(
+    EXPORT pgbarTargets
     FILE pgbarTargets.cmake
     NAMESPACE pgbar::
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/pgbar)
+  install(
+    DIRECTORY include/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    PATTERN "Makefile" EXCLUDE)
 
-  install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-
+  install(
+    DIRECTORY docs/
+    DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/docs/pgbar)
+  install(FILES README.md DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/docs/pgbar)
   install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/licenses/pgbar)
 
   configure_package_config_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/pgbarConfig.cmake.in
     ${CMAKE_CURRENT_BINARY_DIR}/pgbarConfig.cmake
-    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/pgbar
-  )
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/pgbar)
   write_basic_package_version_file(
     ${CMAKE_CURRENT_BINARY_DIR}/pgbarConfigVersion.cmake
-    VERSION 0.1.0
-    COMPATIBILITY AnyNewerVersion
-  )
-  install(FILES
-    ${CMAKE_CURRENT_BINARY_DIR}/pgbarConfig.cmake
-    ${CMAKE_CURRENT_BINARY_DIR}/pgbarConfigVersion.cmake
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY AnyNewerVersion)
+  install(
+    FILES ${CMAKE_CURRENT_BINARY_DIR}/pgbarConfig.cmake
+      ${CMAKE_CURRENT_BINARY_DIR}/pgbarConfigVersion.cmake
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/pgbar)
 endif()
 
 if(PGBAR_PACKAGE)
-  include(CPack)
-  set(CPACK_SOURCE_GENERATOR "TGZ;TXZ")
-  set(CPACK_GENERATOR "TGZ;TXZ")
-  set(CPACK_SOURCE_PACKAGE_FILE_NAME "pgbar-0.1.0")
-
-  if(EXISTS "${CMAKE_SOURCE_DIR}/.gitignore")
-    file(READ "${CMAKE_SOURCE_DIR}/.gitignore" GITIGNORE_CONTENT)
-    string(REPLACE "\n" ";" GITIGNORE_CONTENT "${GITIGNORE_CONTENT}")
-    foreach(line IN LISTS GITIGNORE_CONTENT)
-      if(line STREQUAL "" OR line MATCHES "^#")
+  # Only read the.gitignore in the root directory
+  if(EXISTS "${PROJECT_SOURCE_DIR}/.gitignore")
+    file(READ ".gitignore" DOT_GITIGNORE)
+    string(REPLACE ";" "RANDOMSEQUENCE" DOT_GITIGNORE "${DOT_GITIGNORE}")
+    string(REPLACE "\n" ";" DOT_GITIGNORE "${DOT_GITIGNORE}")
+    string(REPLACE "RANDOMSEQUENCE" "\\;" DOT_GITIGNORE "${DOT_GITIGNORE}")
+    foreach(IGNORE_LINE ${DOT_GITIGNORE})
+      if(NOT IGNORE_LINE OR IGNORE_LINE MATCHES "^#")
         continue()
       endif()
-      string(REPLACE "\\" "\\\\" line "${line}")
-      string(REPLACE "." "\\." line "${line}")
-      string(REPLACE "*" ".*" line "${line}")
-      string(REPLACE "+" "\\+" line "${line}")
-      list(APPEND CPACK_SOURCE_IGNORE_FILES "${line}")
+
+      string(REPLACE "\\" "\\\\" IGNORE_LINE "${IGNORE_LINE}")
+      string(REPLACE "." "\\\\." IGNORE_LINE "${IGNORE_LINE}")
+      string(REPLACE "*" ".*" IGNORE_LINE "${IGNORE_LINE}")
+      string(REPLACE "+" "\\\\+" IGNORE_LINE "${IGNORE_LINE}")
+      list(APPEND CPACK_IGNORE_FILES "${IGNORE_LINE}")
+      list(APPEND CPACK_SOURCE_IGNORE_FILES "${IGNORE_LINE}")
     endforeach()
   endif()
 
-  list(APPEND CPACK_SOURCE_IGNORE_FILES
-    .git
-    .gitignore
-    .gitattributes
-    .github
-    .travis.yml
-    .appveyor.yml)
+  list(
+    APPEND CPACK_IGNORE_FILES
+    "(^|/)\\\\.[^/]+$"
+    "include/Makefile"
+    "misc/"
+    "images/")
+  list(APPEND CPACK_SOURCE_IGNORE_FILES "misc/")
+  set(CPACK_PACKAGE_FILE_NAME "${PROJECT_NAME}-${PROJECT_VERSION}")
+  set(CPACK_SOURCE_GENERATOR "ZIP")
+  set(CPACK_GENERATOR "ZIP")
+
+  include(CPack)
 endif()
 
 if(PGBAR_BUILD_DEMO)
@@ -112,8 +124,9 @@ if(PGBAR_BUILD_DEMO)
   endforeach()
 
   # Manually inject to trigger the generation of compile commands.json.
-  add_executable(main "misc/main.cpp")
+  add_executable(main "demo/main.cpp")
   target_link_libraries(main PRIVATE pgbar)
+  set_target_properties(main PROPERTIES EXCLUDE_FROM_ALL TRUE)
 
   add_custom_target(demo
     DEPENDS ${DEMO_TARGETS}
@@ -124,8 +137,7 @@ if(NOT TARGET uninstall AND EXISTS "${CMAKE_BINARY_DIR}/install_manifest.txt")
   configure_file(
     ${CMAKE_SOURCE_DIR}/cmake/cmake_uninstall.cmake.in
     ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake
-    @ONLY
-  )
+    @ONLY)
 
   add_custom_target(uninstall
     COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake

@@ -156,7 +156,7 @@ namespace pgbar {
       Flow( Flow&& )                   = default;
       Flow& operator=( const Flow& ) & = default;
       Flow& operator=( Flow&& ) &      = default;
-      PGBAR__CXX20_CNSTXPR ~Flow()     = default;
+      ~Flow()     = default;
     };
   } // namespace config
 

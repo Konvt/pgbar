@@ -54,7 +54,7 @@ namespace pgbar {
           Base::operator=( std::move( rhs ) );
           return *this;
         }
-        PGBAR__CXX20_CNSTXPR ~TaskCounter() = default;
+        ~TaskCounter() = default;
 
         // Get the progress of the task.
         PGBAR__NODISCARD std::uint64_t progress() const noexcept
@@ -281,7 +281,7 @@ namespace pgbar {
           Base::operator=( std::move( rhs ) );
           return *this;
         }
-        PGBAR__CXX20_CNSTXPR ~FrameCounter() = default;
+        ~FrameCounter() = default;
       };
 
       template<typename Base, typename Derived>
@@ -1049,7 +1049,7 @@ namespace pgbar {
         using Base::Base;
         constexpr BoundedFrameBar( BoundedFrameBar&& )                         = default;
         PGBAR__CXX14_CNSTXPR BoundedFrameBar& operator=( BoundedFrameBar&& ) & = default;
-        PGBAR__CXX20_CNSTXPR ~BoundedFrameBar()                                = default;
+        ~BoundedFrameBar()                                = default;
       };
 
       template<typename Base, typename Derived>
@@ -1069,7 +1069,7 @@ namespace pgbar {
         using Base::Base;
         constexpr NullableFrameBar( NullableFrameBar&& )                         = default;
         PGBAR__CXX14_CNSTXPR NullableFrameBar& operator=( NullableFrameBar&& ) & = default;
-        PGBAR__CXX20_CNSTXPR ~NullableFrameBar()                                 = default;
+        ~NullableFrameBar()                                 = default;
       };
     } // namespace assets
 

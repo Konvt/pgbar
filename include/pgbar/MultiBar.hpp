@@ -226,17 +226,17 @@ namespace pgbar {
     friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
 
     template<_details::types::Size Pos>
-    PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR BarAt_t<Pos>& get( Self& self ) noexcept
+    friend PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR BarAt_t<Pos>& get( Self& self ) noexcept
     {
       return self.template at<Pos>();
     }
     template<_details::types::Size Pos>
-    PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR const BarAt_t<Pos>& get( const Self& self ) noexcept
+    friend PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR const BarAt_t<Pos>& get( const Self& self ) noexcept
     {
       return self.template at<Pos>();
     }
     template<_details::types::Size Pos>
-    PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR BarAt_t<Pos>&& get( Self&& self ) noexcept
+    friend PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR BarAt_t<Pos>&& get( Self&& self ) noexcept
     {
       return std::move( self ).template at<Pos>();
     }
