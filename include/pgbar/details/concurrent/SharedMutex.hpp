@@ -6,6 +6,8 @@
 # include <atomic>
 # include <mutex>
 # include <thread>
+#else
+# include <shared_mutex>
 #endif
 
 namespace pgbar {
