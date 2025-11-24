@@ -2,9 +2,7 @@
 #define PGBAR__ALGORITHM
 
 #include "Backport.hpp"
-#if !PGBAR__BUILTIN( __type_pack_element )
-# include <tuple>
-#endif
+#include <tuple>
 
 namespace pgbar {
   namespace _details {
@@ -26,6 +24,38 @@ namespace pgbar {
       using TypeAt_t = typename TypeAt<Nth, Ts...>::type;
       // After C++26, we can use `Ts...[Pos]`.
 
+#if PGBAR__BUILTIN( __type_pack_element ) || defined( __GLIBCXX__ )
+# define PGBAR__FAST_TYPEAT 1
+#else
+# define PGBAR__FAST_TYPEAT 0
+#endif
+
+      template<typename Collection>
+      struct Split;
+      template<typename Collection>
+      using Split_l = typename Split<Collection>::Left;
+      template<typename Collection>
+      using Split_r = typename Split<Collection>::Right;
+
+      template<template<typename...> class Collection, typename... Ts>
+      struct Split<Collection<Ts...>> {
+      private:
+        template<typename Front, typename Back>
+        struct Helper;
+        template<types::Size... L, types::Size... R>
+        struct Helper<IndexSeq<L...>, IndexSeq<R...>> {
+          using Left  = Collection<TypeAt_t<L, Ts...>...>;
+          using Right = Collection<TypeAt_t<( sizeof...( Ts ) / 2 ) + R, Ts...>...>;
+        };
+
+        using SplitRet = Helper<MakeIndexSeq<( sizeof...( Ts ) / 2 )>,
+                                MakeIndexSeq<( sizeof...( Ts ) - ( sizeof...( Ts ) / 2 ) )>>;
+
+      public:
+        using Left  = typename SplitRet::Left;
+        using Right = typename SplitRet::Right;
+      };
+
       template<typename Collection, typename Element>
       struct TpContain;
 
@@ -38,6 +68,11 @@ namespace pgbar {
       struct TpAppend;
       template<typename Collection, typename Element>
       using TpAppend_t = typename TpAppend<Collection, Element>::type;
+
+      template<typename Collection, typename Element>
+      struct TpRemove;
+      template<typename Collection, typename Element>
+      using TpRemove_t = typename TpRemove<Collection, Element>::type;
 
       // Checks if a List starts with the specified type sequence.
       template<typename List, typename... Elements>
@@ -68,19 +103,24 @@ namespace pgbar {
       template<typename FirstCollection, typename... TailCollections>
       struct Merge {
       private:
-        template<typename Front, typename Back>
+#if PGBAR__FAST_TYPEAT
+        template<typename Left, typename Right>
         struct Helper;
-        template<types::Size... L, types::Size... R>
-        struct Helper<IndexSeq<L...>, IndexSeq<R...>>
+        template<typename... Left, typename... Right>
+        struct Helper<std::tuple<Left...>, std::tuple<Right...>>
           : Combine<FirstCollection,
-                    Combine_t<typename Merge<TypeAt_t<L, TailCollections...>...>::type,
-                              typename Merge<TypeAt_t<( sizeof...( TailCollections ) / 2 ) + R,
-                                                      TailCollections...>...>::type>> {};
+                    Combine_t<typename Merge<Left...>::type, typename Merge<Right...>::type>> {};
+
+      public: // Since it is a non-evaluated context, the std::tuple here will not trigger instantiation.
+        using type = typename Helper<Split_l<std::tuple<TailCollections...>>,
+                                     Split_r<std::tuple<TailCollections...>>>::type;
+#else
+        template<typename First, typename Second, typename... Tail>
+        using Helper_t = typename Merge<Combine_t<First, Second>, Tail...>::type;
 
       public:
-        using type = typename Helper<
-          MakeIndexSeq<( sizeof...( TailCollections ) / 2 )>,
-          MakeIndexSeq<( sizeof...( TailCollections ) - ( sizeof...( TailCollections ) / 2 ) )>>::type;
+        using type = Helper_t<FirstCollection, TailCollections...>;
+#endif
       };
       template<typename FirstCollection, typename... TailCollections>
       using Merge_t = typename Merge<FirstCollection, TailCollections...>::type;

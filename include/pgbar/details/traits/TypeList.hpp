@@ -18,9 +18,34 @@ namespace pgbar {
       struct TypeList {};
 
       template<typename... Es, typename Element>
+      struct TpPrepend<TypeList<Es...>, Element> {
+        using type = TypeList<Element, Es...>;
+      };
+
+      template<typename... Es, typename Element>
       struct TpAppend<TypeList<Es...>, Element> {
         using type = TypeList<Es..., Element>;
       };
+
+      template<typename Element>
+      struct TpRemove<TypeList<>, Element> {
+        using type = TypeList<>;
+      };
+      template<typename... Tail, typename Element>
+      struct TpRemove<TypeList<Element, Tail...>, Element> {
+        using type = TpRemove_t<TypeList<Tail...>, Element>;
+      };
+#if PGBAR__FAST_TYPEAT
+      template<typename Head, typename... Tail, typename Element>
+      struct TpRemove<TypeList<Head, Tail...>, Element>
+        : Combine<TpRemove_t<Split_l<TypeList<Head, Tail...>>, Element>,
+                  TpRemove_t<Split_r<TypeList<Head, Tail...>>, Element>> {};
+#else
+      template<typename Head, typename... Tail, typename Element>
+      struct TpRemove<TypeList<Head, Tail...>, Element> {
+        using type = TpPrepend_t<TpRemove_t<TypeList<Tail...>, Element>, Head>;
+      };
+#endif
 
       template<typename... Es, template<typename...> class Collection>
       struct Combine<TypeList<Es...>, Collection<>> {

@@ -35,6 +35,40 @@ namespace pgbar {
         using type = typename _Select<TpContain<TypeSet<Es...>, T>::value, T>::type;
       };
 
+      template<typename Element>
+      struct TpRemove<TypeSet<>, Element> {
+        using type = TypeSet<>;
+      };
+      template<typename... Tail, typename Element>
+      struct TpRemove<TypeSet<Element, Tail...>, Element> {
+        using type = TypeSet<Tail...>;
+      };
+#if PGBAR__FAST_TYPEAT
+      template<typename... Es, typename Element>
+      struct TpRemove<TypeSet<Es...>, Element> {
+      private:
+        template<typename Removed, typename Another>
+        struct Helper;
+        template<typename... Head, typename... Tail>
+        struct Helper<TypeSet<Head...>, TypeSet<Tail...>> {
+          using type = TypeSet<Head..., Tail...>;
+        };
+
+        using Left  = Split_l<TypeSet<Es...>>;
+        using Right = Split_r<TypeSet<Es...>>;
+
+      public:
+        using type = typename Helper<
+          TpRemove_t<typename std::conditional<TpContain<Left, Element>::value, Left, Right>::type, Element>,
+          typename std::conditional<TpContain<Left, Element>::value, Right, Left>::type>::type;
+      };
+#else
+      template<typename Head, typename... Tail, typename Element>
+      struct TpRemove<TypeSet<Head, Tail...>, Element> {
+        using type = TpPrepend_t<TpRemove_t<TypeSet<Tail...>, Element>, Head>;
+      };
+#endif
+
       template<typename... Es, template<typename...> class Collection>
       struct Combine<TypeSet<Es...>, Collection<>> {
         using type = TypeSet<Es...>;
