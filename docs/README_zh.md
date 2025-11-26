@@ -94,6 +94,19 @@ import pgbar;             // 引入所有功能
 ```
 
 在正式使用时，请务必一并在代码文件中 `import std`，否则就目前来看会出现奇怪的编译错误。
+#### 发行包
+从 [Releases](https://github.com/Konvt/pgbar/releases) 处获取发行包（zip 文件）。
+
+解压压缩包，并在项目中 `CMakeLists.txt` 的对应位置添加以下代码：
+
+```cmake
+# 如果解压后的文件被放在 CMake 可以直接搜索到的路径中时，不需要下面这行
+list(APPEND CMAKE_PREFIX_PATH "path/to/package/pgbar/lib/cmake")
+find_package(pgbar CONFIG REQUIRED)
+# ...
+add_executable(TargetName ${SOURCES})
+target_link_libraries(TargetName PRIVATE pgbar)
+```
 #### 子模块（submodule）
 使用 `git` 将 `pgbar` 作为子模块引入你的项目目录中：
 
@@ -105,10 +118,17 @@ git submodule update --init --recursive
 并将以下代码添加到项目中 `CMakeLists.txt` 的对应位置即可。
 
 ```cmake
-add_subdirectory(${CMAKE_SOURCE_DIR}/path/to/pgbar)
+add_subdirectory(path/to/pgbar)
 # ...
 add_executable(TargetName ${SOURCES})
 target_link_libraries(TargetName PRIVATE pgbar)
+```
+
+> 注意：`pgbar` 的 `main` 分支为 stable 版本。如果需要获取最新更新，可切换为 `nightly` 分支：
+
+```bash
+cd path/to/pgbar
+git checkout nightly
 ```
 
 可以使用以下命令编译 `demo/` 下的示例文件。

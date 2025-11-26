@@ -26,6 +26,8 @@
 # undef PGBAR__BUILTIN
 # undef PGBAR__WRAP
 
+# undef PGBAR__FAST_TYPEAT
+
 # undef PGBAR__CC_STD
 # undef PGBAR__WIN
 # undef PGBAR__UNIX

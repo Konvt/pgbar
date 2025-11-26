@@ -1,6 +1,9 @@
 #ifndef PGBAR__CORE
 #define PGBAR__CORE
 
+#include "Version.hpp"
+#include <cstdint>
+
 #if defined( _WIN32 ) || defined( _WIN64 )
 # define PGBAR__WIN     1
 # define PGBAR__UNIX    0
@@ -160,8 +163,6 @@
 
 // Pack multiple macro parameters into a single one.
 #define PGBAR__WRAP( ... ) __VA_ARGS__
-
-#include <cstdint>
 
 namespace pgbar {
   // A enum that specifies the type of the output stream.

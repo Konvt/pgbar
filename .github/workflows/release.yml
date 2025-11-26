@@ -1,0 +1,70 @@
+name: Release
+
+permissions:
+  contents: write
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get tag version
+        id: version_tag
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Determine prerelease
+        id: prerelease
+        run: |
+          if [[ "${{ steps.version_tag.outputs.version }}" == *"-"* ]]; then
+            echo "prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up CMake
+        uses: jwlawson/actions-setup-cmake@v2
+
+      - name: Configure and Package
+        run: |
+          cmake --preset package
+          cmake --build build --target pack
+
+      - name: Extract release notes
+        id: changelog
+        run: |
+          python3 - <<'EOF'
+          import os
+          import re
+
+          semver = os.environ['GITHUB_REF'].replace('refs/tags/v', '')
+          with open('CHANGELOG.md', 'r', encoding='utf-8') as file:
+            match = re.search(
+              rf'## \[{semver}\] - [A-Za-z0-9]+-[A-Za-z0-9]+-[A-Za-z0-9]+\s*\n(.*?)(?:## \[.+\] - \d+-\d+-\d+|-\s*-\s*-)',
+              file.read(), re.S)
+            if match is None:
+              raise ValueError(f'match failed: expected version: "{semver}"')
+            notes = match.group(1).strip()
+
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as out:
+            out.write(f'notes<<EOF\n{notes}\nEOF\n')
+          EOF
+        env:
+          GITHUB_REF: ${{ github.ref }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ steps.version_tag.outputs.version }}
+          body: ${{ steps.changelog.outputs.notes }}
+          files: build/pgbar-${{ steps.version_tag.outputs.version }}.zip
+          prerelease: ${{ steps.prerelease.outputs.prerelease }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

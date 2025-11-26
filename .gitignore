@@ -1,4 +1,9 @@
-.*/
+.vscode/
+.vs/
+.idea/
+
+.cache/
 build/
 
+CMakeUserPresets.json
 *.exe

@@ -96,6 +96,19 @@ import pgbar;             // Import all functions at once
 ```
 
 When using it officially, be sure to `import std` in the code file at the same time; otherwise, strange compilation errors will occur as of now.
+#### Release package
+Download the release package (zip file) from [Releases](https://github.com/Konvt/pgbar/releases).
+
+Unzip the compressed package and add the following code at the corresponding position in the `CMakeLists.txt` file of the project:
+
+```cmake
+# If the decompressed files are placed in a path that CMake can directly search, the following line is not needed.
+list(APPEND CMAKE_PREFIX_PATH "path/to/package/pgbar/lib/cmake")
+find_package(pgbar CONFIG REQUIRED)
+# ...
+add_executable(TargetName ${SOURCES})
+target_link_libraries(TargetName PRIVATE pgbar)
+```
 #### Submodule
 Use `git` to introduce `pgbar` as a sub-module into your project directory:
 
@@ -107,10 +120,17 @@ git submodule update --init --recursive
 Then, add the following lines to your `CMakeLists.txt`:
 
 ```cmake
-add_subdirectory(${CMAKE_SOURCE_DIR}/path/to/pgbar)
+add_subdirectory(path/to/pgbar)
 # ...
 add_executable(TargetName ${SOURCES})
 target_link_libraries(TargetName PRIVATE pgbar)
+```
+
+> Note: The `main` branch of `pgbar` is the stable version. If you need the latest updates, you can switch to the `nightly` branch:
+
+```bash
+cd path/to/pgbar
+git checkout nightly
 ```
 
 The sample files under `demo/` can be compiled using the following commands.

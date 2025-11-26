@@ -1,18 +1,19 @@
 cmake_minimum_required(VERSION 3.10)
 
+set(PGBAR_IS_TOP_LEVEL OFF)
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   set(PGBAR_IS_TOP_LEVEL ON)
-else()
-  set(PGBAR_IS_TOP_LEVEL OFF)
 endif()
 
-set(
-  PGBAR_PROJECT
-  pgbar
-  VERSION 0.1.0
-  LANGUAGES CXX
-  DESCRIPTION "A lightweight progress bar for Modern C++.")
-if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.12")
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/parse_version.cmake)
+parse_version(PGBAR_VERSION PGBAR_STAGE)
+
+set(PGBAR_PROJECT
+    pgbar
+    VERSION ${PGBAR_VERSION}
+    LANGUAGES CXX
+    DESCRIPTION "A lightweight progress bar for Modern C++.")
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.12")
   list(APPEND PGBAR_PROJECT HOMEPAGE_URL "https://github.com/Konvt/pgbar")
 endif()
 
@@ -23,9 +24,6 @@ option(PGBAR_PACKAGE "Enable packaging support" ${PGBAR_IS_TOP_LEVEL})
 option(PGBAR_BUILD_DEMO "Build demo programs from demo/ directory using Makefile" OFF)
 
 include(CMakePackageConfigHelpers)
-if(PGBAR_IS_TOP_LEVEL)
-  include(GNUInstallDirs)
-endif()
 
 add_library(pgbar INTERFACE)
 add_library(pgbar::pgbar ALIAS pgbar)
@@ -39,15 +37,16 @@ target_include_directories(
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 
-if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.14")
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.14")
   set_property(TARGET pgbar PROPERTY LICENSE "MIT")
 endif()
 
 if(PGBAR_INSTALL)
+  include(GNUInstallDirs)
   configure_package_config_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/pgbarConfig.cmake.in
     ${CMAKE_CURRENT_BINARY_DIR}/pgbarConfig.cmake
-    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/pgbar)
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME})
   write_basic_package_version_file(
     ${CMAKE_CURRENT_BINARY_DIR}/pgbarConfigVersion.cmake
     VERSION ${PROJECT_VERSION}
@@ -59,89 +58,100 @@ if(PGBAR_INSTALL)
     @ONLY)
 
   install(TARGETS pgbar EXPORT pgbarTargets)
-  install(
-    EXPORT pgbarTargets
-    FILE pgbarTargets.cmake
-    NAMESPACE pgbar::
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/pgbar)
-  install(
-    FILES ${CMAKE_CURRENT_BINARY_DIR}/pgbar.pc
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
-  install(FILES README.md DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/docs/pgbar)
-  install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/licenses/pgbar)
-  install(
-    FILES ${CMAKE_CURRENT_BINARY_DIR}/pgbarConfig.cmake
-      ${CMAKE_CURRENT_BINARY_DIR}/pgbarConfigVersion.cmake
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/pgbar)
-  install(
-    DIRECTORY include/
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-    PATTERN "Makefile" EXCLUDE)
-  install(
-    DIRECTORY docs/
-    DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/docs/pgbar)
+  install(EXPORT pgbarTargets
+          FILE pgbarTargets.cmake
+          NAMESPACE pgbar::
+          DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME})
+  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/pgbar.pc
+          DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
+  install(FILES README.md DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/docs/${PROJECT_NAME})
+  install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/licenses/${PROJECT_NAME})
+  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/pgbarConfig.cmake
+          ${CMAKE_CURRENT_BINARY_DIR}/pgbarConfigVersion.cmake
+          DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME})
+  install(DIRECTORY include/
+          DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+          PATTERN "Makefile" EXCLUDE)
+  install(DIRECTORY docs/
+          DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/docs/${PROJECT_NAME})
 endif()
 
 if(PGBAR_PACKAGE)
-  # Only read the.gitignore in the root directory
-  if(EXISTS "${PROJECT_SOURCE_DIR}/.gitignore")
-    file(READ ".gitignore" DOT_GITIGNORE)
-    string(REPLACE ";" "RANDOMSEQUENCE" DOT_GITIGNORE "${DOT_GITIGNORE}")
-    string(REPLACE "\n" ";" DOT_GITIGNORE "${DOT_GITIGNORE}")
-    string(REPLACE "RANDOMSEQUENCE" "\\;" DOT_GITIGNORE "${DOT_GITIGNORE}")
-    foreach(IGNORE_LINE ${DOT_GITIGNORE})
-      if(NOT IGNORE_LINE OR IGNORE_LINE MATCHES "^#")
-        continue()
-      endif()
-
-      string(REPLACE "\\" "\\\\" IGNORE_LINE "${IGNORE_LINE}")
-      string(REPLACE "." "\\\\." IGNORE_LINE "${IGNORE_LINE}")
-      string(REPLACE "*" ".*" IGNORE_LINE "${IGNORE_LINE}")
-      string(REPLACE "+" "\\\\+" IGNORE_LINE "${IGNORE_LINE}")
-      list(APPEND CPACK_IGNORE_FILES "${IGNORE_LINE}")
-      list(APPEND CPACK_SOURCE_IGNORE_FILES "${IGNORE_LINE}")
-    endforeach()
+  if(NOT DEFINED PGBAR_PKG_NAME OR PGBAR_PKG_NAME STREQUAL "")
+    set(PGBAR_PKG_NAME "${PROJECT_NAME}-${PGBAR_VERSION}-${PGBAR_STAGE}")
   endif()
 
-  list(
-    APPEND CPACK_IGNORE_FILES
-    "(^|/)\\\\.[^/]+$"
-    "pgbar\\\\.pc"
-    "pgbar\\\\.pc\\\\.in"
-    "include/Makefile"
-    "misc/"
-    "images/")
-  list(APPEND CPACK_SOURCE_IGNORE_FILES "misc/")
-  set(CPACK_PACKAGE_FILE_NAME "${PROJECT_NAME}-${PROJECT_VERSION}")
-  set(CPACK_SOURCE_GENERATOR "ZIP")
-  set(CPACK_GENERATOR "ZIP")
+  set(PGBAR_PKG_ROOT "${CMAKE_CURRENT_BINARY_DIR}/_pkg_root")
+  set(PGBAR_PKG_DIR "${PGBAR_PKG_ROOT}/${PROJECT_NAME}")
+  set(PGBAR_PKG_FMT "zip")
+  set(PGBAR_PKG_FILE "${CMAKE_CURRENT_BINARY_DIR}/${PGBAR_PKG_NAME}.${PGBAR_PKG_FMT}")
 
-  include(CPack)
+  set(PGBAR_INS_STAMP "installed")
+  add_custom_command(
+    OUTPUT "${PGBAR_PKG_ROOT}/${PGBAR_INS_STAMP}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${PGBAR_PKG_DIR}
+    COMMAND ${CMAKE_COMMAND} -E env
+            DESTDIR=${PGBAR_PKG_ROOT}
+            ${CMAKE_COMMAND} --install ${CMAKE_CURRENT_BINARY_DIR} --prefix "/${PROJECT_NAME}"
+    COMMAND ${CMAKE_COMMAND} -E touch "${PGBAR_PKG_ROOT}/${PGBAR_INS_STAMP}"
+    COMMENT "Installing ${PROJECT_NAME} into staging directory")
+
+  # Adjust the directory tree structure to conform to the release package structure
+  # instead of the GNU installation structure
+  set(PGBAR_MOVEUP "${CMAKE_SOURCE_DIR}/cmake/moveup.cmake")
+  set(PGBAR_ADJT_STAMP "adjusted")
+  add_custom_command(
+    OUTPUT "${PGBAR_PKG_ROOT}/${PGBAR_ADJT_STAMP}"
+    DEPENDS "${PGBAR_PKG_ROOT}/${PGBAR_INS_STAMP}"
+
+    COMMAND ${CMAKE_COMMAND} -DDIR="${PGBAR_PKG_ROOT}/${PROJECT_NAME}/${CMAKE_INSTALL_DATAROOTDIR}/docs/${PROJECT_NAME}" -P ${PGBAR_MOVEUP}
+    COMMAND ${CMAKE_COMMAND} -E remove_directory "${PGBAR_PKG_ROOT}/${PROJECT_NAME}/${CMAKE_INSTALL_DATAROOTDIR}/docs/${PROJECT_NAME}"
+
+    COMMAND ${CMAKE_COMMAND} -DDIR="${PGBAR_PKG_ROOT}/${PROJECT_NAME}/${CMAKE_INSTALL_DATAROOTDIR}/licenses/${PROJECT_NAME}" -P ${PGBAR_MOVEUP}
+    COMMAND ${CMAKE_COMMAND} -E remove_directory "${PGBAR_PKG_ROOT}/${PROJECT_NAME}/${CMAKE_INSTALL_DATAROOTDIR}/licenses/${PROJECT_NAME}"
+
+    COMMAND ${CMAKE_COMMAND} -DDIR="${PGBAR_PKG_ROOT}/${PROJECT_NAME}/${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}" -P ${PGBAR_MOVEUP}
+    COMMAND ${CMAKE_COMMAND} -E remove_directory "${PGBAR_PKG_ROOT}/${PROJECT_NAME}/${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}"
+
+    COMMAND ${CMAKE_COMMAND} -E touch "${PGBAR_PKG_ROOT}/${PGBAR_ADJT_STAMP}"
+    COMMENT "Adjusting directory tree")
+
+  add_custom_command(
+    OUTPUT ${PGBAR_PKG_FILE}
+    DEPENDS "${PGBAR_PKG_ROOT}/${PGBAR_ADJT_STAMP}"
+    COMMAND ${CMAKE_COMMAND} -E tar
+            cf ${PGBAR_PKG_FILE} --format=${PGBAR_PKG_FMT}
+            -- ${PROJECT_NAME}
+    WORKING_DIRECTORY ${PGBAR_PKG_ROOT}
+    COMMENT "Packaging ${PROJECT_NAME}")
+  add_custom_target(pack DEPENDS ${PGBAR_PKG_FILE})
 endif()
 
 if(PGBAR_BUILD_DEMO)
   file(GLOB DEMO_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/demo/*.cpp")
 
-  set(DEMO_TARGETS)
+  set(PGBAR_DEMO)
   foreach(DEMO_FILE ${DEMO_SOURCES})
     get_filename_component(DEMO_NAME ${DEMO_FILE} NAME_WE)
-    set(TARGET_NAME "demo_${DEMO_NAME}")
+    set(PGBAR_DEMO_NAME "demo_${DEMO_NAME}")
 
-    add_custom_target(${TARGET_NAME}
+    add_custom_target(
+      ${PGBAR_DEMO_NAME}
       COMMAND ${CMAKE_MAKE_PROGRAM} -C ${CMAKE_CURRENT_SOURCE_DIR}/demo ${DEMO_NAME}
       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/demo
       COMMENT "Building demo ${DEMO_NAME} using Makefile"
       USES_TERMINAL)
-    list(APPEND DEMO_TARGETS ${TARGET_NAME})
+    list(APPEND PGBAR_DEMO ${PGBAR_DEMO_NAME})
   endforeach()
 
   # Manually inject to trigger the generation of compile commands.json.
-  add_executable(main "demo/main.cpp")
-  target_link_libraries(main PRIVATE pgbar)
-  set_target_properties(main PROPERTIES EXCLUDE_FROM_ALL TRUE)
+  add_executable(iterate "demo/iterate.cpp")
+  target_link_libraries(iterate PRIVATE pgbar)
+  set_target_properties(iterate PROPERTIES EXCLUDE_FROM_ALL TRUE)
 
-  add_custom_target(demo
-    DEPENDS ${DEMO_TARGETS}
+  add_custom_target(
+    demo
+    DEPENDS ${PGBAR_DEMO}
     COMMENT "Building all demo programs")
 endif()
 
