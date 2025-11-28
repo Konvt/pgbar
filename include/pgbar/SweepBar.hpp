@@ -105,27 +105,27 @@ namespace pgbar {
         static_assert( _details::traits::is_instance_of<ArgSet, _details::traits::TypeSet>::value,
                        "pgbar::config::Sweep::initialize: Invalid template type" );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Shift>::value )
-          unpacker( self, option::Shift( -3 ) );
+          unpack( self, option::Shift( -3 ) );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Starting>::value )
-          unpacker( self, option::Starting( u8"[" ) );
+          unpack( self, option::Starting( u8"[" ) );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Ending>::value )
-          unpacker( self, option::Ending( u8"]" ) );
+          unpack( self, option::Ending( u8"]" ) );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::BarWidth>::value )
-          unpacker( self, option::BarWidth( 30 ) );
+          unpack( self, option::BarWidth( 30 ) );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Filler>::value )
-          unpacker( self, option::Filler( u8"-" ) );
+          unpack( self, option::Filler( u8"-" ) );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Lead>::value )
-          unpacker( self, option::Lead( u8"<=>" ) );
+          unpack( self, option::Lead( u8"<=>" ) );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Divider>::value )
-          unpacker( self, option::Divider( u8" | " ) );
+          unpack( self, option::Divider( u8" | " ) );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::InfoColor>::value )
-          unpacker( self, option::InfoColor( color::Cyan ) );
+          unpack( self, option::InfoColor( color::Cyan ) );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::SpeedUnit>::value )
-          unpacker( self, option::SpeedUnit( { u8"Hz", u8"kHz", u8"MHz", u8"GHz" } ) );
+          unpack( self, option::SpeedUnit( { u8"Hz", u8"kHz", u8"MHz", u8"GHz" } ) );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Magnitude>::value )
-          unpacker( self, option::Magnitude( 1000 ) );
+          unpack( self, option::Magnitude( 1000 ) );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Style>::value )
-          unpacker( self, option::Style( Base::Ani | Base::Elpsd ) );
+          unpack( self, option::Style( Base::Ani | Base::Elpsd ) );
       }
 
     protected:
@@ -142,7 +142,7 @@ namespace pgbar {
       Sweep( Sweep&& )                   = default;
       Sweep& operator=( const Sweep& ) & = default;
       Sweep& operator=( Sweep&& ) &      = default;
-      ~Sweep()      = default;
+      ~Sweep()                           = default;
     };
   } // namespace config
 

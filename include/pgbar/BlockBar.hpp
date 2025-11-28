@@ -110,36 +110,36 @@ namespace pgbar {
         static_assert( _details::traits::is_instance_of<ArgSet, _details::traits::TypeSet>::value,
                        "pgbar::config::Block::initialize: Invalid template type" );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Reversed>::value )
-          unpacker( self, option::Reversed( false ) );
+          unpack( self, option::Reversed( false ) );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Lead>::value )
-          unpacker( self,
-                    option::Lead( { u8" ",
-                                    u8"\u258F",
-                                    u8"\u258E",
-                                    u8"\u258D",
-                                    u8"\u258C",
-                                    u8"\u258B",
-                                    u8"\u258A",
-                                    u8"\u2589" } ) );
+          unpack( self,
+                  option::Lead( { u8" ",
+                                  u8"\u258F",
+                                  u8"\u258E",
+                                  u8"\u258D",
+                                  u8"\u258C",
+                                  u8"\u258B",
+                                  u8"\u258A",
+                                  u8"\u2589" } ) );
         // In some editing environments,
         // directly writing character literals can lead to very strange encoding conversion errors.
         // Therefore, here we use Unicode code points to directly specify the required characters.
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::BarWidth>::value )
-          unpacker( self, option::BarWidth( 30 ) );
+          unpack( self, option::BarWidth( 30 ) );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Filler>::value )
-          unpacker( self, option::Filler( u8"\u2588" ) );
+          unpack( self, option::Filler( u8"\u2588" ) );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Remains>::value )
-          unpacker( self, option::Remains( u8" " ) );
+          unpack( self, option::Remains( u8" " ) );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Divider>::value )
-          unpacker( self, option::Divider( u8" | " ) );
+          unpack( self, option::Divider( u8" | " ) );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::InfoColor>::value )
-          unpacker( self, option::InfoColor( color::Cyan ) );
+          unpack( self, option::InfoColor( color::Cyan ) );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::SpeedUnit>::value )
-          unpacker( self, option::SpeedUnit( { u8"Hz", u8"kHz", u8"MHz", u8"GHz" } ) );
+          unpack( self, option::SpeedUnit( { u8"Hz", u8"kHz", u8"MHz", u8"GHz" } ) );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Magnitude>::value )
-          unpacker( self, option::Magnitude( 1000 ) );
+          unpack( self, option::Magnitude( 1000 ) );
         if PGBAR__CXX17_CNSTXPR ( !_details::traits::TpContain<ArgSet, option::Style>::value )
-          unpacker( self, option::Style( Base::Entire ) );
+          unpack( self, option::Style( Base::Entire ) );
       }
 
     protected:
@@ -156,7 +156,7 @@ namespace pgbar {
       Block( Block&& )                   = default;
       Block& operator=( const Block& ) & = default;
       Block& operator=( Block&& ) &      = default;
-      ~Block()      = default;
+      ~Block()                           = default;
     };
   } // namespace config
 

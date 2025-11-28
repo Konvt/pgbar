@@ -47,8 +47,8 @@ namespace pgbar {
                                              traits::OptionFor_t<assets::Postfix>,
                                              traits::OptionFor_t<assets::Segment>>;
 
-        friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR void unpacker( BasicConfig& cfg,
-                                                                      option::Style&& val ) noexcept
+        friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR void unpack( BasicConfig& cfg,
+                                                                    option::Style&& val ) noexcept
         {
           cfg.visual_masks_ = val.value();
         }
@@ -154,7 +154,7 @@ namespace pgbar {
         PGBAR__CXX23_CNSTXPR BasicConfig( Args&&... args )
         {
           Derived::template inject<traits::TypeSet<typename std::decay<Args>::type...>>( *this );
-          (void)std::initializer_list<bool> { ( unpacker( *this, std::forward<Args>( args ) ), false )... };
+          (void)std::initializer_list<bool> { ( unpack( *this, std::forward<Args>( args ) ), false )... };
         }
 
         BasicConfig( const Self& other )
@@ -209,7 +209,7 @@ namespace pgbar {
         Derived& style( types::Bit8 val ) & noexcept
         {
           std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          unpacker( *this, option::Style( val ) );
+          unpack( *this, option::Style( val ) );
           return static_cast<Derived&>( *this );
         }
 
@@ -227,13 +227,13 @@ namespace pgbar {
 #endif
           set( Arg arg, Args... args ) & noexcept(
             traits::AllOf<
-              traits::BoolConstant<noexcept( unpacker( std::declval<Derived&>(), std::move( arg ) ) )>,
-              traits::BoolConstant<noexcept( unpacker( std::declval<Derived&>(), std::move( args ) ) )>...>::
+              traits::BoolConstant<noexcept( unpack( std::declval<Derived&>(), std::move( arg ) ) )>,
+              traits::BoolConstant<noexcept( unpack( std::declval<Derived&>(), std::move( args ) ) )>...>::
               value )
         {
           std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          unpacker( *this, std::move( arg ) );
-          (void)std::initializer_list<bool> { ( unpacker( *this, std::move( args ) ), false )... };
+          unpack( *this, std::move( arg ) );
+          (void)std::initializer_list<bool> { ( unpack( *this, std::move( args ) ), false )... };
           return static_cast<Derived&>( *this );
         }
 

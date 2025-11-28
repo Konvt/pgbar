@@ -22,7 +22,7 @@ namespace pgbar {
   Constexpr ClassName( ClassName&& )                  = default; \
   Constexpr ClassName& operator=( const ClassName& )& = default; \
   Constexpr ClassName& operator=( ClassName&& )&      = default; \
-  ~ClassName()                   = default;
+  ~ClassName()                                        = default;
 
 #define PGBAR__EMPTY_COMPONENT( ClassName )                                 \
   constexpr ClassName()                                          = default; \
@@ -30,15 +30,15 @@ namespace pgbar {
   constexpr ClassName( ClassName&& )                             = default; \
   PGBAR__CXX14_CNSTXPR ClassName& operator=( const ClassName& )& = default; \
   PGBAR__CXX14_CNSTXPR ClassName& operator=( ClassName&& )&      = default; \
-  ~ClassName()                              = default;
+  ~ClassName()                                                   = default;
 
       template<typename Derived>
       class CoreConfig {
-#define PGBAR__UNPAKING( OptionName, MemberName )                                                   \
-  friend PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR void unpacker( CoreConfig& cfg,                    \
-                                                                option::OptionName&& val ) noexcept \
-  {                                                                                                 \
-    cfg.fonts_[utils::as_val( Mask::OptionName )] = val.value();                                    \
+#define PGBAR__UNPAKING( OptionName, MemberName )                                                 \
+  friend PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR void unpack( CoreConfig& cfg,                    \
+                                                              option::OptionName&& val ) noexcept \
+  {                                                                                               \
+    cfg.fonts_[utils::as_val( Mask::OptionName )] = val.value();                                  \
   }
         PGBAR__UNPAKING( Colored, colored_ )
         PGBAR__UNPAKING( Bolded, bolded_ )
@@ -91,7 +91,7 @@ namespace pgbar {
 
 #define PGBAR__METHOD( OptionName, ParamName )               \
   std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ }; \
-  unpacker( *this, option::OptionName( ParamName ) );        \
+  unpack( *this, option::OptionName( ParamName ) );          \
   return static_cast<Derived&>( *this )
 
         // Enable or disable the color effect.
@@ -116,8 +116,8 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class Countable : public Base {
-        friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR void unpacker( Countable& cfg,
-                                                                      option::Tasks&& val ) noexcept
+        friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR void unpack( Countable& cfg,
+                                                                    option::Tasks&& val ) noexcept
         {
           cfg.task_range_ = slice::NumericSpan<std::uint64_t>( val.value() );
         }
@@ -133,7 +133,7 @@ namespace pgbar {
         Derived& tasks( std::uint64_t param ) & noexcept
         {
           std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          unpacker( *this, option::Tasks( param ) );
+          unpack( *this, option::Tasks( param ) );
           return static_cast<Derived&>( *this );
         }
         // Get the current number of tasks.
@@ -152,8 +152,8 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class Reversible : public Base {
-        friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR void unpacker( Reversible& cfg,
-                                                                      option::Reversed&& val ) noexcept
+        friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR void unpack( Reversible& cfg,
+                                                                    option::Reversed&& val ) noexcept
         {
           cfg.reversed_ = val.value();
         }
@@ -168,7 +168,7 @@ namespace pgbar {
         Derived& reverse( bool flag ) & noexcept
         {
           std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          unpacker( *this, option::Reversed( flag ) );
+          unpack( *this, option::Reversed( flag ) );
           return static_cast<Derived&>( *this );
         }
 
@@ -187,12 +187,11 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class Frames : public Base {
-        friend PGBAR__FORCEINLINE void unpacker( Frames& cfg, option::LeadColor&& val ) noexcept
+        friend PGBAR__FORCEINLINE void unpack( Frames& cfg, option::LeadColor&& val ) noexcept
         {
           cfg.lead_col_ = val.value();
         }
-        friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR void unpacker( Frames& cfg,
-                                                                      option::Lead&& val ) noexcept
+        friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR void unpack( Frames& cfg, option::Lead&& val ) noexcept
         {
           if ( std::all_of( val.value().cbegin(),
                             val.value().cend(),
@@ -227,7 +226,7 @@ namespace pgbar {
 
 #define PGBAR__METHOD( OptionName, ParamName, Operation )          \
   std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
-  unpacker( *this, option::OptionName( Operation( ParamName ) ) ); \
+  unpack( *this, option::OptionName( Operation( ParamName ) ) );   \
   return static_cast<Derived&>( *this )
 
         /**
@@ -270,10 +269,10 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class Filler : public Base {
-#define PGBAR__UNPAKING( OptionName, MemberName, Constexpr )                                          \
-  friend PGBAR__FORCEINLINE Constexpr void unpacker( Filler& cfg, option::OptionName&& val ) noexcept \
-  {                                                                                                   \
-    cfg.MemberName = std::move( val.value() );                                                        \
+#define PGBAR__UNPAKING( OptionName, MemberName, Constexpr )                                        \
+  friend PGBAR__FORCEINLINE Constexpr void unpack( Filler& cfg, option::OptionName&& val ) noexcept \
+  {                                                                                                 \
+    cfg.MemberName = std::move( val.value() );                                                      \
   }
         PGBAR__UNPAKING( Filler, filler_, PGBAR__CXX20_CNSTXPR )
         PGBAR__UNPAKING( FillerColor, filler_col_, )
@@ -289,7 +288,7 @@ namespace pgbar {
 
 #define PGBAR__METHOD( OptionName, ParamName, Operation )          \
   std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
-  unpacker( *this, option::OptionName( Operation( ParamName ) ) ); \
+  unpack( *this, option::OptionName( Operation( ParamName ) ) );   \
   return static_cast<Derived&>( *this )
 
         /**
@@ -326,10 +325,10 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class Remains : public Base {
-#define PGBAR__UNPAKING( OptionName, MemberName, Constexpr )                                           \
-  friend PGBAR__FORCEINLINE Constexpr void unpacker( Remains& cfg, option::OptionName&& val ) noexcept \
-  {                                                                                                    \
-    cfg.MemberName = std::move( val.value() );                                                         \
+#define PGBAR__UNPAKING( OptionName, MemberName, Constexpr )                                         \
+  friend PGBAR__FORCEINLINE Constexpr void unpack( Remains& cfg, option::OptionName&& val ) noexcept \
+  {                                                                                                  \
+    cfg.MemberName = std::move( val.value() );                                                       \
   }
         PGBAR__UNPAKING( Remains, remains_, PGBAR__CXX20_CNSTXPR )
         PGBAR__UNPAKING( RemainsColor, remains_col_, )
@@ -345,7 +344,7 @@ namespace pgbar {
 
 #define PGBAR__METHOD( OptionName, ParamName, Operation )          \
   std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
-  unpacker( *this, option::OptionName( Operation( ParamName ) ) ); \
+  unpack( *this, option::OptionName( Operation( ParamName ) ) );   \
   return static_cast<Derived&>( *this )
 
         Derived& remains_color( types::HexRGB _remains_color ) &
@@ -383,8 +382,8 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class BasicAnimation : public Base {
-        friend PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR void unpacker( BasicAnimation& cfg,
-                                                                      option::Shift&& val ) noexcept
+        friend PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR void unpack( BasicAnimation& cfg,
+                                                                    option::Shift&& val ) noexcept
         {
           cfg.shift_factor_ = val.value() < 0 ? ( 1.0 / ( -val.value() ) ) : val.value();
         }
@@ -407,7 +406,7 @@ namespace pgbar {
         Derived& shift( std::int8_t _shift_factor ) & noexcept
         {
           std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          unpacker( *this, option::Shift( _shift_factor ) );
+          unpack( *this, option::Shift( _shift_factor ) );
           return static_cast<Derived&>( *this );
         }
 
@@ -421,11 +420,10 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class BasicIndicator : public Base {
-#define PGBAR__UNPAKING( OptionName, MemberName, Constexpr )                             \
-  friend PGBAR__FORCEINLINE Constexpr void unpacker( BasicIndicator& cfg,                \
-                                                     option::OptionName&& val ) noexcept \
-  {                                                                                      \
-    cfg.MemberName = std::move( val.value() );                                           \
+#define PGBAR__UNPAKING( OptionName, MemberName, Constexpr )                                                \
+  friend PGBAR__FORCEINLINE Constexpr void unpack( BasicIndicator& cfg, option::OptionName&& val ) noexcept \
+  {                                                                                                         \
+    cfg.MemberName = std::move( val.value() );                                                              \
   }
         PGBAR__UNPAKING( Starting, starting_, PGBAR__CXX20_CNSTXPR )
         PGBAR__UNPAKING( Ending, ending_, PGBAR__CXX20_CNSTXPR )
@@ -450,7 +448,7 @@ namespace pgbar {
 
 #define PGBAR__METHOD( OptionName, ParamName, Operation )          \
   std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
-  unpacker( *this, option::OptionName( Operation( ParamName ) ) ); \
+  unpack( *this, option::OptionName( Operation( ParamName ) ) );   \
   return static_cast<Derived&>( *this )
 
         /**
@@ -507,10 +505,10 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class Prefix : public Base {
-#define PGBAR__UNPAKING( OptionName, MemberName, Constexpr )                                          \
-  friend PGBAR__FORCEINLINE Constexpr void unpacker( Prefix& cfg, option::OptionName&& val ) noexcept \
-  {                                                                                                   \
-    cfg.MemberName = std::move( val.value() );                                                        \
+#define PGBAR__UNPAKING( OptionName, MemberName, Constexpr )                                        \
+  friend PGBAR__FORCEINLINE Constexpr void unpack( Prefix& cfg, option::OptionName&& val ) noexcept \
+  {                                                                                                 \
+    cfg.MemberName = std::move( val.value() );                                                      \
   }
         PGBAR__UNPAKING( Prefix, prefix_, PGBAR__CXX20_CNSTXPR )
         PGBAR__UNPAKING( PrefixColor, prfx_col_, )
@@ -539,7 +537,7 @@ namespace pgbar {
 
 #define PGBAR__METHOD( OptionName, ParamName, Operation )          \
   std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
-  unpacker( *this, option::OptionName( Operation( ParamName ) ) ); \
+  unpack( *this, option::OptionName( Operation( ParamName ) ) );   \
   return static_cast<Derived&>( *this )
 
         /**
@@ -573,10 +571,10 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class Postfix : public Base {
-#define PGBAR__UNPAKING( OptionName, MemberName, Constexpr )                                           \
-  friend PGBAR__FORCEINLINE Constexpr void unpacker( Postfix& cfg, option::OptionName&& val ) noexcept \
-  {                                                                                                    \
-    cfg.MemberName = std::move( val.value() );                                                         \
+#define PGBAR__UNPAKING( OptionName, MemberName, Constexpr )                                         \
+  friend PGBAR__FORCEINLINE Constexpr void unpack( Postfix& cfg, option::OptionName&& val ) noexcept \
+  {                                                                                                  \
+    cfg.MemberName = std::move( val.value() );                                                       \
   }
         PGBAR__UNPAKING( Postfix, postfix_, PGBAR__CXX20_CNSTXPR )
         PGBAR__UNPAKING( PostfixColor, pstfx_col_, )
@@ -606,7 +604,7 @@ namespace pgbar {
 
 #define PGBAR__METHOD( OptionName, ParamName, Operation )          \
   std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
-  unpacker( *this, option::OptionName( Operation( ParamName ) ) ); \
+  unpack( *this, option::OptionName( Operation( ParamName ) ) );   \
   return static_cast<Derived&>( *this )
 
         /**
@@ -645,10 +643,10 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class Segment : public Base {
-#define PGBAR__UNPAKING( OptionName, MemberName, Operation, Constexpr )                                \
-  friend PGBAR__FORCEINLINE Constexpr void unpacker( Segment& cfg, option::OptionName&& val ) noexcept \
-  {                                                                                                    \
-    cfg.MemberName = Operation( val.value() );                                                         \
+#define PGBAR__UNPAKING( OptionName, MemberName, Operation, Constexpr )                              \
+  friend PGBAR__FORCEINLINE Constexpr void unpack( Segment& cfg, option::OptionName&& val ) noexcept \
+  {                                                                                                  \
+    cfg.MemberName = Operation( val.value() );                                                       \
   }
         PGBAR__UNPAKING( InfoColor, info_col_, std::move, )
         PGBAR__UNPAKING( Divider, divider_, std::move, PGBAR__CXX20_CNSTXPR )
@@ -677,7 +675,7 @@ namespace pgbar {
 
 #define PGBAR__METHOD( OptionName, ParamName, Operation )          \
   std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
-  unpacker( *this, option::OptionName( Operation( ParamName ) ) ); \
+  unpack( *this, option::OptionName( Operation( ParamName ) ) );   \
   return static_cast<Derived&>( *this )
 
         /**
@@ -761,8 +759,8 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class SpeedMeter : public Base {
-        friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR void unpacker( SpeedMeter& cfg,
-                                                                      option::SpeedUnit&& val ) noexcept
+        friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR void unpack( SpeedMeter& cfg,
+                                                                    option::SpeedUnit&& val ) noexcept
         {
           cfg.units_            = std::move( val.value() );
           cfg.nth_longest_unit_ = static_cast<std::uint8_t>( std::distance(
@@ -773,8 +771,8 @@ namespace pgbar {
                                 return a.width() < b.width();
                               } ) ) );
         }
-        friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR void unpacker( SpeedMeter& cfg,
-                                                                      option::Magnitude&& val ) noexcept
+        friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR void unpack( SpeedMeter& cfg,
+                                                                    option::Magnitude&& val ) noexcept
         {
           cfg.magnitude_ = val.value();
         }
@@ -838,7 +836,7 @@ namespace pgbar {
 
 #define PGBAR__METHOD( OptionName, ParamName )                     \
   std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
-  unpacker( *this, option::OptionName( std::move( ParamName ) ) ); \
+  unpack( *this, option::OptionName( std::move( ParamName ) ) );   \
   return static_cast<Derived&>( *this )
 
         /**

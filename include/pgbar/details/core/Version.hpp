@@ -1,9 +1,9 @@
 #ifndef PGBAR_VERSION
 
-# define PGBAR_MAJOR   1
-# define PGBAR_MINOR   0
-# define PGBAR_PATCH   0
-# define PGBAR_STAGE "alpha.1"
+# define PGBAR_MAJOR 1
+# define PGBAR_MINOR 0
+# define PGBAR_PATCH 0
+# define PGBAR_STAGE "nightly"
 
 # define PGBAR__STR( x ) #x
 # define PGBAR__GEN_VER( major, minor, patch ) \
