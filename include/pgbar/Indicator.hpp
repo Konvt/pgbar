@@ -32,6 +32,7 @@ namespace pgbar {
 
     virtual void reset()                                  = 0;
     virtual void abort() noexcept                         = 0;
+    virtual void tick() &                                 = 0;
     PGBAR__NODISCARD virtual bool active() const noexcept = 0;
 
     // Wait until the indicator is Stop.

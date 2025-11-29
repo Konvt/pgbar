@@ -24,11 +24,11 @@ namespace pgbar {
   namespace _details {
     namespace assets {
       template<typename Base, typename Derived>
-      class TaskCounter : public Base {
+      class IterableBar : public Base {
         // Throws the exception::InvalidState if current object is active.
         PGBAR__FORCEINLINE void throw_if_active()
         {
-          if ( this->active() )
+          if ( static_cast<Derived*>( this )->active() )
             PGBAR__UNLIKELY throw exception::InvalidState( "pgbar: try to iterate using an active object" );
         }
 
@@ -40,21 +40,21 @@ namespace pgbar {
         template<
           typename... Args,
           typename = typename std::enable_if<traits::Not<traits::AnyOf<
-            std::is_base_of<TaskCounter<Base, Derived>, typename std::decay<Args>::type>...>>::value>::type>
-        constexpr TaskCounter( Args&&... args )
+            std::is_base_of<IterableBar<Base, Derived>, typename std::decay<Args>::type>...>>::value>::type>
+        constexpr IterableBar( Args&&... args )
           noexcept( std::is_nothrow_constructible<Base, Args&&...>::value )
           : Base( std::forward<Args>( args )... ), task_cnt_ { 0 }
         {}
-        PGBAR__CXX14_CNSTXPR TaskCounter( TaskCounter&& rhs ) noexcept : Base( std::move( rhs ) )
+        PGBAR__CXX14_CNSTXPR IterableBar( IterableBar&& rhs ) noexcept : Base( std::move( rhs ) )
         {
           task_cnt_.store( 0, std::memory_order_relaxed );
         }
-        PGBAR__CXX14_CNSTXPR TaskCounter& operator=( TaskCounter&& rhs ) & noexcept
+        PGBAR__CXX14_CNSTXPR IterableBar& operator=( IterableBar&& rhs ) & noexcept
         {
           Base::operator=( std::move( rhs ) );
           return *this;
         }
-        ~TaskCounter() = default;
+        ~IterableBar() = default;
 
         // Get the progress of the task.
         PGBAR__NODISCARD std::uint64_t progress() const noexcept
@@ -268,20 +268,20 @@ namespace pgbar {
       };
 
       template<typename Base, typename Derived>
-      class FrameCounter : public Base {
+      class MotionalBar : public Base {
       protected:
         types::Size idx_frame_;
 
       public:
         using Base::Base;
-        constexpr FrameCounter() = default;
-        constexpr FrameCounter( FrameCounter&& rhs ) noexcept : Base( std::move( rhs ) ) {}
-        PGBAR__CXX14_CNSTXPR FrameCounter& operator=( FrameCounter&& rhs ) & noexcept
+        constexpr MotionalBar() = default;
+        constexpr MotionalBar( MotionalBar&& rhs ) noexcept : Base( std::move( rhs ) ) {}
+        PGBAR__CXX14_CNSTXPR MotionalBar& operator=( MotionalBar&& rhs ) & noexcept
         {
           Base::operator=( std::move( rhs ) );
           return *this;
         }
-        ~FrameCounter() = default;
+        ~MotionalBar() = default;
       };
 
       template<typename Base, typename Derived>
@@ -714,7 +714,7 @@ namespace pgbar {
         PGBAR__CXX14_CNSTXPR Self& operator=( Self&& rhs ) & = default;
         PGBAR__CXX20_CNSTXPR virtual ~TickableBar()          = default;
 
-        PGBAR__FORCEINLINE void tick() &
+        PGBAR__FORCEINLINE void tick() & final
         {
           static_cast<Derived*>( this )->do_tick(
             [this]() noexcept { this->task_cnt_.fetch_add( 1, std::memory_order_release ); } );
@@ -1049,7 +1049,7 @@ namespace pgbar {
         using Base::Base;
         constexpr BoundedFrameBar( BoundedFrameBar&& )                         = default;
         PGBAR__CXX14_CNSTXPR BoundedFrameBar& operator=( BoundedFrameBar&& ) & = default;
-        ~BoundedFrameBar()                                = default;
+        ~BoundedFrameBar()                                                     = default;
       };
 
       template<typename Base, typename Derived>
@@ -1069,16 +1069,16 @@ namespace pgbar {
         using Base::Base;
         constexpr NullableFrameBar( NullableFrameBar&& )                         = default;
         PGBAR__CXX14_CNSTXPR NullableFrameBar& operator=( NullableFrameBar&& ) & = default;
-        ~NullableFrameBar()                                 = default;
+        ~NullableFrameBar()                                                      = default;
       };
     } // namespace assets
 
     namespace traits {
       PGBAR__INHERIT_REGISTER( assets::ReactiveBar, assets::CoreBar );
-      PGBAR__INHERIT_REGISTER( assets::TickableBar, assets::TaskCounter, assets::CoreBar );
+      PGBAR__INHERIT_REGISTER( assets::TickableBar, assets::IterableBar, assets::CoreBar );
       PGBAR__INHERIT_REGISTER( assets::PlainBar, assets::TickableBar, assets::ReactiveBar );
       PGBAR__INHERIT_REGISTER( assets::FrameBar,
-                               assets::FrameCounter,
+                               assets::MotionalBar,
                                assets::ReactiveBar,
                                assets::TickableBar );
       PGBAR__INHERIT_REGISTER( assets::BoundedFrameBar, assets::FrameBar );

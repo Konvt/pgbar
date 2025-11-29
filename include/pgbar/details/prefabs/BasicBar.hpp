@@ -71,7 +71,7 @@ namespace pgbar {
                 decltype( check( std::declval<typename std::remove_cv<B>::type>() ) )>::value;
       };
       template<typename B>
-      struct is_iterable_bar : AllOf<is_bar<B>, is_instance_of<B, assets::TaskCounter>> {};
+      struct is_iterable_bar : AllOf<is_bar<B>, is_instance_of<B, assets::IterableBar>> {};
       template<typename B>
       struct is_reactive_bar : AllOf<is_bar<B>, is_instance_of<B, assets::ReactiveBar>> {};
     } // namespace traits

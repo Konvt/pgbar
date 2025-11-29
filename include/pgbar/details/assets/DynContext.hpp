@@ -13,24 +13,6 @@ namespace pgbar {
           using Self = Slot;
 
           template<typename Derived>
-          static void shut( Indicator* item )
-          {
-            static_assert(
-              traits::AllOf<std::is_base_of<Indicator, Derived>, traits::is_bar<Derived>>::value,
-              "pgbar::_details::assets::DynContext::Slot::shut: Derived must inherit from Indicator" );
-            PGBAR__TRUST( item != nullptr );
-            static_cast<Derived*>( item )->reset();
-          }
-          template<typename Derived>
-          static void kill( Indicator* item ) noexcept
-          {
-            static_assert(
-              traits::AllOf<std::is_base_of<Indicator, Derived>, traits::is_bar<Derived>>::value,
-              "pgbar::_details::assets::DynContext::Slot::kill: Derived must inherit from Indicator" );
-            PGBAR__TRUST( item != nullptr );
-            static_cast<Derived*>( item )->abort();
-          }
-          template<typename Derived>
           static void render( Indicator* item )
           {
             static_assert(
@@ -41,17 +23,12 @@ namespace pgbar {
           }
 
         public:
-          void ( *shut_ )( Indicator* );
-          void ( *kill_ )( Indicator* ) noexcept;
           void ( *render_ )( Indicator* );
           Indicator* target_;
 
           template<typename Config>
           Slot( prefabs::ManagedBar<Config, Outlet, Mode, Area>* item ) noexcept
-            : shut_ { shut<prefabs::ManagedBar<Config, Outlet, Mode, Area>> }
-            , kill_ { kill<prefabs::ManagedBar<Config, Outlet, Mode, Area>> }
-            , render_ { render<prefabs::BasicBar<Config, Outlet, Mode, Area>> }
-            , target_ { item }
+            : render_ { render<prefabs::BasicBar<Config, Outlet, Mode, Area>> }, target_ { item }
           {}
         };
 
@@ -145,13 +122,10 @@ namespace pgbar {
           if ( state_.load( std::memory_order_acquire ) != State::Stop ) {
             for ( types::Size i = 0; i < items_.size(); ++i ) {
               if ( items_[i].target_ != nullptr ) {
-                if PGBAR__CXX17_CNSTXPR ( Forced ) {
-                  PGBAR__ASSERT( items_[i].kill_ != nullptr );
-                  ( *items_[i].kill_ )( items_[i].target_ );
-                } else {
-                  PGBAR__ASSERT( items_[i].shut_ != nullptr );
-                  ( *items_[i].shut_ )( items_[i].target_ );
-                }
+                if PGBAR__CXX17_CNSTXPR ( Forced )
+                  items_[i].target_->abort();
+                else
+                  items_[i].target_->reset();
               }
             }
             render::Renderer<Outlet, Mode>::itself().dismiss();
