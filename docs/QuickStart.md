@@ -2780,7 +2780,7 @@ int main()
 ## Working interval of renderer 
 To improve performance, the background renderer pauses for a fixed period of time before performing the render task. The amount of this interval can be obtained and modified by the `pgbar::config::refresh_interval()` method.
 
-The time unit of `pgbar::config::refresh_interval()` is defined as `pgbar::config::TimeUnit`; Generally, it is an alias for the type `std::chrono::nanoseconds`.
+The time unit of `pgbar::config::refresh_interval()` is defined as `pgbar::TimeGranule`; Generally, it is an alias for the type `std::chrono::nanoseconds`.
 
 Calling this method is completely thread-safe, so you can adjust the renderer's pause interval during any progress bar run.
 

@@ -710,7 +710,7 @@ namespace pgbar {
         std::uint8_t nth_longest_unit_;
 
         io::Stringbuf& build_speed( io::Stringbuf& buffer,
-                                    const types::TimeUnit& time_passed,
+                                    const TimeGranule& time_passed,
                                     std::uint64_t num_task_done,
                                     std::uint64_t num_all_tasks ) const
         {
@@ -831,7 +831,7 @@ namespace pgbar {
       template<typename Base, typename Derived>
       class Timer : public Base {
         PGBAR__NODISCARD PGBAR__FORCEINLINE io::Stringbuf& to_hms( io::Stringbuf& buffer,
-                                                                   types::TimeUnit duration ) const
+                                                                   TimeGranule duration ) const
         {
           auto zfill2 = [&]( std::int64_t num_time ) -> io::Stringbuf& {
             PGBAR__TRUST( num_time >= 0 );
@@ -856,7 +856,7 @@ namespace pgbar {
       protected:
 #define PGBAR__ELASPED u8"--:--:--"
         PGBAR__FORCEINLINE io::Stringbuf& build_elapsed( io::Stringbuf& buffer,
-                                                         types::TimeUnit time_passed ) const
+                                                         TimeGranule time_passed ) const
         {
           return to_hms( buffer, time_passed );
         }
@@ -867,7 +867,7 @@ namespace pgbar {
 
 #define PGBAR__COUNTDOWN u8"~" PGBAR__ELASPED
         PGBAR__CXX20_CNSTXPR io::Stringbuf& build_countdown( io::Stringbuf& buffer,
-                                                             const types::TimeUnit& time_passed,
+                                                             const TimeGranule& time_passed,
                                                              std::uint64_t num_task_done,
                                                              std::uint64_t num_all_tasks ) const
         {

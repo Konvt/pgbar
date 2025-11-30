@@ -2774,7 +2774,7 @@ int main()
 ## 渲染器工作间隔
 为了提升性能表现，后台渲染器会停顿一个固定的时间间隔后再执行渲染任务，这个时间间隔的大小可以经由 `pgbar::config::refresh_interval()` 方法获取和修改。
 
-`pgbar::config::refresh_interval()` 使用的时间单位被定义在 `pgbar::config::TimeUnit` 中；一般来说，它是类型 `std::chrono::nanoseconds` 的别名。
+`pgbar::config::refresh_interval()` 使用的时间单位被定义在 `pgbar::TimeGranule` 中；一般来说，它是类型 `std::chrono::nanoseconds` 的别名。
 
 调用该方法是完全线程安全的，因此可以在任意进度条运行过程中调整渲染器的停顿间隔。
 

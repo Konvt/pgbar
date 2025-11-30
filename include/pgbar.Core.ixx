@@ -55,7 +55,6 @@ export namespace pgbar {
     using pgbar::config::intty;
     using pgbar::config::refresh_interval;
     using pgbar::config::terminal_width;
-    using pgbar::config::TimeUnit;
   } // namespace config
 
   namespace slice {
@@ -65,10 +64,10 @@ export namespace pgbar {
     using pgbar::slice::TrackedSpan;
   }
 
+  using pgbar::TimeGranule;
   using pgbar::Channel;
   using pgbar::Policy;
   using pgbar::Region;
-
   using pgbar::Color;
 
   using pgbar::Indicator;

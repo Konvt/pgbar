@@ -12,7 +12,7 @@ namespace pgbar {
       class Renderer<Tag, Policy::Async> final {
         using Self = Renderer;
 
-        static std::atomic<types::TimeUnit> _working_interval;
+        static std::atomic<TimeGranule> _working_interval;
 
         wrappers::UniqueFunction<void()> task_;
         // Since no condition variables are used here,
@@ -26,12 +26,12 @@ namespace pgbar {
 
       public:
         // Get the current working interval for all threads.
-        PGBAR__NODISCARD static PGBAR__FORCEINLINE types::TimeUnit working_interval()
+        PGBAR__NODISCARD static PGBAR__FORCEINLINE TimeGranule working_interval()
         {
           return _working_interval.load( std::memory_order_acquire );
         }
         // Adjust the thread working interval between this loop and the next loop.
-        static PGBAR__FORCEINLINE void working_interval( types::TimeUnit new_rate )
+        static PGBAR__FORCEINLINE void working_interval( TimeGranule new_rate )
         {
           _working_interval.store( new_rate, std::memory_order_release );
         }
@@ -149,8 +149,8 @@ namespace pgbar {
         }
       };
       template<Channel Tag>
-      std::atomic<types::TimeUnit> Renderer<Tag, Policy::Async>::_working_interval {
-        std::chrono::duration_cast<types::TimeUnit>( std::chrono::milliseconds( 40 ) )
+      std::atomic<TimeGranule> Renderer<Tag, Policy::Async>::_working_interval {
+        std::chrono::duration_cast<TimeGranule>( std::chrono::milliseconds( 40 ) )
       };
 
       template<Channel Tag>

@@ -92,21 +92,20 @@ namespace pgbar {
       return _details::console::TermContext<Channel::Stderr>::itself().width();
     }
 
-    using TimeUnit = _details::types::TimeUnit;
     // Get the current output interval.
     template<Channel Outlet>
-    PGBAR__NODISCARD TimeUnit refresh_interval() noexcept
+    PGBAR__NODISCARD TimeGranule refresh_interval() noexcept
     {
       return _details::render::Renderer<Outlet, Policy::Async>::working_interval();
     }
     // Set the new output interval.
     template<Channel Outlet>
-    void refresh_interval( TimeUnit new_rate ) noexcept
+    void refresh_interval( TimeGranule new_rate ) noexcept
     {
       _details::render::Renderer<Outlet, Policy::Async>::working_interval( new_rate );
     }
     // Set every channels to the same output interval.
-    inline void refresh_interval( TimeUnit new_rate ) noexcept
+    inline void refresh_interval( TimeGranule new_rate ) noexcept
     {
       _details::render::Renderer<Channel::Stderr, Policy::Async>::working_interval( new_rate );
       _details::render::Renderer<Channel::Stdout, Policy::Async>::working_interval( new_rate );
