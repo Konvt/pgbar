@@ -113,7 +113,7 @@ namespace pgbar {
         }
         friend PGBAR__CXX20_CNSTXPR void swap( Stringbuf& a, Stringbuf& b ) noexcept { a.swap( b ); }
 
-#ifdef __cpp_char8_t
+#ifdef __cpp_lib_char8_t
         PGBAR__FORCEINLINE Self& append( types::LitU8 info, types::Size num = 1 ) &
         {
           while ( num-- )

@@ -250,7 +250,8 @@ namespace pgbar {
 #ifdef __cpp_char8_t
         static_assert( sizeof( char8_t ) == sizeof( char ),
                        "pgbar::_details::charcodes::U8Raw: Unexpected type size mismatch" );
-
+#endif
+#ifdef __cpp_lib_char8_t
         explicit U8Raw( types::LitU8 u8_sv ) : U8Raw()
         {
           auto new_bytes = types::String( u8_sv.size(), '\0' );

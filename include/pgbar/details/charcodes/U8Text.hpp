@@ -121,7 +121,7 @@ namespace pgbar {
         }
         friend PGBAR__CXX20_CNSTXPR void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
 
-#ifdef __cpp_char8_t
+#ifdef __cpp_lib_char8_t
         explicit U8Text( types::LitU8 u8_sv ) : U8Text()
         {
           auto new_bytes = types::String( u8_sv.size(), '\0' );

@@ -23,7 +23,7 @@ namespace pgbar {
       using ROStr  = typename std::add_lvalue_reference<typename std::add_const<String>::type>::type;
       using LitStr = typename std::add_pointer<typename std::add_const<Char>::type>::type;
 #endif
-#if defined( __cpp_lib_string_view ) && defined( __cpp_lib_char8_t )
+#ifdef __cpp_lib_char8_t
       using LitU8 = std::u8string_view;
 #else
       using LitU8 = LitStr;
