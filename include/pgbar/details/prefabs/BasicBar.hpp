@@ -78,18 +78,18 @@ namespace pgbar {
   } // namespace _details
 
   template<typename Bar, typename N, typename... Options>
+  PGBAR__NODISCARD PGBAR__FORCEINLINE auto iterate( N startpoint, N endpoint, N step, Options&&... options )
+    ->
 #ifdef __cpp_concepts
+    slice::TrackedSpan<slice::NumericSpan<N>, std::shared_ptr<Bar>>
     requires( std::is_arithmetic_v<N> && _details::traits::is_iterable_bar<Bar>::value
               && std::is_constructible_v<Bar, Options && ...> )
-  PGBAR__NODISCARD PGBAR__FORCEINLINE slice::TrackedSpan<slice::NumericSpan<N>, std::shared_ptr<Bar>>
 #else
-  PGBAR__NODISCARD PGBAR__FORCEINLINE
     typename std::enable_if<_details::traits::AllOf<std::is_arithmetic<N>,
                                                     _details::traits::is_iterable_bar<Bar>,
                                                     std::is_constructible<Bar, Options&&...>>::value,
                             slice::TrackedSpan<slice::NumericSpan<N>, std::shared_ptr<Bar>>>::type
 #endif
-    iterate( N startpoint, N endpoint, N step, Options&&... options )
   {
     return {
       { startpoint, endpoint, step },
@@ -97,26 +97,30 @@ namespace pgbar {
     };
   }
   template<typename Bar, typename N, typename Act, typename... Options>
+  PGBAR__NODISCARD PGBAR__FORCEINLINE auto iterate( N startpoint,
+                                                    N endpoint,
+                                                    N step,
+                                                    Act&& act,
+                                                    Options&&... options ) ->
 #ifdef __cpp_concepts
+    slice::TrackedSpan<slice::NumericSpan<N>, std::shared_ptr<Bar>>
     requires(
       std::is_arithmetic_v<N> && _details::traits::is_iterable_bar<Bar>::value
       && _details::traits::is_reactive_bar<Bar>::value
       && std::is_same_v<std::remove_reference_t<decltype( std::declval<Act &&>() | std::declval<Bar>() )>,
                         Bar>
       && std::is_constructible_v<Bar, Options && ...> )
-  PGBAR__NODISCARD PGBAR__FORCEINLINE slice::TrackedSpan<slice::NumericSpan<N>, std::shared_ptr<Bar>>
 #else
-  PGBAR__NODISCARD PGBAR__FORCEINLINE typename std::enable_if<
-    _details::traits::AllOf<std::is_arithmetic<N>,
-                            _details::traits::is_iterable_bar<Bar>,
-                            _details::traits::is_reactive_bar<Bar>,
-                            std::is_same<typename std::remove_reference<
-                                           decltype( std::declval<Act&&>() | std::declval<Bar>() )>::type,
-                                         Bar>,
-                            std::is_constructible<Bar, Options&&...>>::value,
-    slice::TrackedSpan<slice::NumericSpan<N>, std::shared_ptr<Bar>>>::type
+    typename std::enable_if<
+      _details::traits::AllOf<std::is_arithmetic<N>,
+                              _details::traits::is_iterable_bar<Bar>,
+                              _details::traits::is_reactive_bar<Bar>,
+                              std::is_same<typename std::remove_reference<
+                                             decltype( std::declval<Act&&>() | std::declval<Bar>() )>::type,
+                                           Bar>,
+                              std::is_constructible<Bar, Options&&...>>::value,
+      slice::TrackedSpan<slice::NumericSpan<N>, std::shared_ptr<Bar>>>::type
 #endif
-    iterate( N startpoint, N endpoint, N step, Act&& act, Options&&... options )
   {
     return {
       { startpoint, endpoint, step },
@@ -124,23 +128,28 @@ namespace pgbar {
     };
   }
   template<typename Bar, typename N, typename Proc, typename... Options>
+  PGBAR__FORCEINLINE auto iterate( N startpoint, N endpoint, N step, Proc&& op, Options&&... options )
 #ifdef __cpp_concepts
     requires( std::is_arithmetic_v<N> && _details::traits::is_iterable_bar<Bar>::value
               && std::is_constructible_v<Bar, Options && ...> && requires( N ele, Proc&& op ) { op( ele ); } )
-  PGBAR__FORCEINLINE void
 #else
-  PGBAR__FORCEINLINE typename std::enable_if<_details::traits::AllOf<
-    std::is_arithmetic<N>,
-    _details::traits::is_iterable_bar<Bar>,
-    std::is_constructible<Bar, Options&&...>,
-    std::is_void<decltype( std::declval<Proc&&>()( std::declval<N>() ), void() )>>::value>::type
+    -> typename std::enable_if<_details::traits::AllOf<
+      std::is_arithmetic<N>,
+      _details::traits::is_iterable_bar<Bar>,
+      std::is_constructible<Bar, Options&&...>,
+      std::is_void<decltype( std::declval<Proc&&>()( std::declval<N>() ), void() )>>::value>::type
 #endif
-    iterate( N startpoint, N endpoint, N step, Proc&& op, Options&&... options )
   {
     Bar( std::forward<Options>( options )... )
       .iterate( startpoint, endpoint, step, std::forward<Proc>( op ) );
   }
   template<typename Bar, typename N, typename Proc, typename Act, typename... Options>
+  PGBAR__FORCEINLINE auto iterate( N startpoint,
+                                   N endpoint,
+                                   N step,
+                                   Proc&& op,
+                                   Act&& act,
+                                   Options&&... options )
 #ifdef __cpp_concepts
     requires(
       std::is_arithmetic_v<N> && _details::traits::is_iterable_bar<Bar>::value
@@ -148,18 +157,16 @@ namespace pgbar {
       && std::is_same_v<std::remove_reference_t<decltype( std::declval<Act &&>() | std::declval<Bar>() )>,
                         Bar>
       && std::is_constructible_v<Bar, Options && ...> )
-  PGBAR__FORCEINLINE void
 #else
-  PGBAR__FORCEINLINE typename std::enable_if<
-    _details::traits::AllOf<std::is_arithmetic<N>,
-                            _details::traits::is_iterable_bar<Bar>,
-                            _details::traits::is_reactive_bar<Bar>,
-                            std::is_same<typename std::remove_reference<
-                                           decltype( std::declval<Act&&>() | std::declval<Bar>() )>::type,
-                                         Bar>,
-                            std::is_constructible<Bar, Options&&...>>::value>::type
+    -> typename std::enable_if<
+      _details::traits::AllOf<std::is_arithmetic<N>,
+                              _details::traits::is_iterable_bar<Bar>,
+                              _details::traits::is_reactive_bar<Bar>,
+                              std::is_same<typename std::remove_reference<
+                                             decltype( std::declval<Act&&>() | std::declval<Bar>() )>::type,
+                                           Bar>,
+                              std::is_constructible<Bar, Options&&...>>::value>::type
 #endif
-    iterate( N startpoint, N endpoint, N step, Proc&& op, Act&& act, Options&&... options )
   {
     ( std::forward<Act>( act ) | Bar( std::forward<Options>( options )... ) )
       .iterate( startpoint, endpoint, step, std::forward<Proc>( op ) );
@@ -325,18 +332,17 @@ namespace pgbar {
   //////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   template<typename Bar, typename N, typename... Options>
+  PGBAR__NODISCARD PGBAR__FORCEINLINE auto iterate( N endpoint, N step, Options&&... options ) ->
 #ifdef __cpp_concepts
+    slice::TrackedSpan<slice::NumericSpan<N>, std::shared_ptr<Bar>>
     requires( std::is_floating_point_v<N> && _details::traits::is_iterable_bar<Bar>::value
               && std::is_constructible_v<Bar, Options && ...> )
-  PGBAR__NODISCARD PGBAR__FORCEINLINE slice::TrackedSpan<slice::NumericSpan<N>, std::shared_ptr<Bar>>
 #else
-  PGBAR__NODISCARD PGBAR__FORCEINLINE
     typename std::enable_if<_details::traits::AllOf<std::is_floating_point<N>,
                                                     _details::traits::is_iterable_bar<Bar>,
                                                     std::is_constructible<Bar, Options&&...>>::value,
                             slice::TrackedSpan<slice::NumericSpan<N>, std::shared_ptr<Bar>>>::type
 #endif
-    iterate( N endpoint, N step, Options&&... options )
   {
     return {
       { {}, endpoint, step },
@@ -344,26 +350,26 @@ namespace pgbar {
     };
   }
   template<typename Bar, typename N, typename Act, typename... Options>
+  PGBAR__NODISCARD PGBAR__FORCEINLINE auto iterate( N endpoint, N step, Act&& act, Options&&... options ) ->
 #ifdef __cpp_concepts
+    slice::TrackedSpan<slice::NumericSpan<N>, std::shared_ptr<Bar>>
     requires(
       std::is_floating_point_v<N> && _details::traits::is_iterable_bar<Bar>::value
       && _details::traits::is_reactive_bar<Bar>::value
       && std::is_same_v<std::remove_reference_t<decltype( std::declval<Act &&>() | std::declval<Bar>() )>,
                         Bar>
       && std::is_constructible_v<Bar, Options && ...> )
-  PGBAR__NODISCARD PGBAR__FORCEINLINE slice::TrackedSpan<slice::NumericSpan<N>, std::shared_ptr<Bar>>
 #else
-  PGBAR__NODISCARD PGBAR__FORCEINLINE typename std::enable_if<
-    _details::traits::AllOf<std::is_floating_point<N>,
-                            _details::traits::is_iterable_bar<Bar>,
-                            _details::traits::is_reactive_bar<Bar>,
-                            std::is_same<typename std::remove_reference<
-                                           decltype( std::declval<Act&&>() | std::declval<Bar>() )>::type,
-                                         Bar>,
-                            std::is_constructible<Bar, Options&&...>>::value,
-    slice::TrackedSpan<slice::NumericSpan<N>, std::shared_ptr<Bar>>>::type
+    typename std::enable_if<
+      _details::traits::AllOf<std::is_floating_point<N>,
+                              _details::traits::is_iterable_bar<Bar>,
+                              _details::traits::is_reactive_bar<Bar>,
+                              std::is_same<typename std::remove_reference<
+                                             decltype( std::declval<Act&&>() | std::declval<Bar>() )>::type,
+                                           Bar>,
+                              std::is_constructible<Bar, Options&&...>>::value,
+      slice::TrackedSpan<slice::NumericSpan<N>, std::shared_ptr<Bar>>>::type
 #endif
-    iterate( N endpoint, N step, Act&& act, Options&&... options )
   {
     return {
       { {}, endpoint, step },
@@ -371,22 +377,22 @@ namespace pgbar {
     };
   }
   template<typename Bar, typename N, typename Proc, typename... Options>
+  PGBAR__FORCEINLINE auto iterate( N endpoint, N step, Proc&& op, Options&&... options )
 #ifdef __cpp_concepts
     requires( std::is_floating_point_v<N> && _details::traits::is_iterable_bar<Bar>::value
               && std::is_constructible_v<Bar, Options && ...> && requires( N ele, Proc&& op ) { op( ele ); } )
-  PGBAR__FORCEINLINE void
 #else
-  PGBAR__FORCEINLINE typename std::enable_if<_details::traits::AllOf<
-    std::is_floating_point<N>,
-    _details::traits::is_iterable_bar<Bar>,
-    std::is_constructible<Bar, Options&&...>,
-    std::is_void<decltype( std::declval<Proc&&>( std::declval<N>() ), void() )>>::value>::type
+    -> typename std::enable_if<_details::traits::AllOf<
+      std::is_floating_point<N>,
+      _details::traits::is_iterable_bar<Bar>,
+      std::is_constructible<Bar, Options&&...>,
+      std::is_void<decltype( std::declval<Proc&&>( std::declval<N>() ), void() )>>::value>::type
 #endif
-    iterate( N endpoint, N step, Proc&& op, Options&&... options )
   {
     Bar( std::forward<Options>( options )... ).iterate( endpoint, step, std::forward<Proc>( op ) );
   }
   template<typename Bar, typename N, typename Proc, typename Act, typename... Options>
+  PGBAR__FORCEINLINE auto iterate( N endpoint, N step, Proc&& op, Act&& act, Options&&... options )
 #ifdef __cpp_concepts
     requires(
       std::is_floating_point_v<N> && _details::traits::is_iterable_bar<Bar>::value
@@ -394,18 +400,16 @@ namespace pgbar {
       && std::is_same_v<std::remove_reference_t<decltype( std::declval<Act &&>() | std::declval<Bar>() )>,
                         Bar>
       && std::is_constructible_v<Bar, Options && ...> )
-  PGBAR__FORCEINLINE void
 #else
-  PGBAR__FORCEINLINE typename std::enable_if<
-    _details::traits::AllOf<std::is_floating_point<N>,
-                            _details::traits::is_iterable_bar<Bar>,
-                            _details::traits::is_reactive_bar<Bar>,
-                            std::is_same<typename std::remove_reference<
-                                           decltype( std::declval<Act&&>() | std::declval<Bar>() )>::type,
-                                         Bar>,
-                            std::is_constructible<Bar, Options&&...>>::value>::type
+    -> typename std::enable_if<
+      _details::traits::AllOf<std::is_floating_point<N>,
+                              _details::traits::is_iterable_bar<Bar>,
+                              _details::traits::is_reactive_bar<Bar>,
+                              std::is_same<typename std::remove_reference<
+                                             decltype( std::declval<Act&&>() | std::declval<Bar>() )>::type,
+                                           Bar>,
+                              std::is_constructible<Bar, Options&&...>>::value>::type
 #endif
-    iterate( N endpoint, N step, Proc&& op, Act&& act, Options&&... options )
   {
     ( std::forward<Act>( act ) | Bar( std::forward<Options>( options )... ) )
       .iterate( endpoint, step, std::forward<Proc>( op ) );
@@ -569,18 +573,17 @@ namespace pgbar {
   //////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   template<typename Bar, typename N, typename... Options>
+  PGBAR__NODISCARD PGBAR__FORCEINLINE auto iterate( N startpoint, N endpoint, Options&&... options ) ->
 #ifdef __cpp_concepts
+    slice::TrackedSpan<slice::NumericSpan<N>, std::shared_ptr<Bar>>
     requires( std::is_integral_v<N> && _details::traits::is_iterable_bar<Bar>::value
               && std::is_constructible_v<Bar, Options && ...> )
-  PGBAR__NODISCARD PGBAR__FORCEINLINE slice::TrackedSpan<slice::NumericSpan<N>, std::shared_ptr<Bar>>
 #else
-  PGBAR__NODISCARD PGBAR__FORCEINLINE
     typename std::enable_if<_details::traits::AllOf<std::is_integral<N>,
                                                     _details::traits::is_iterable_bar<Bar>,
                                                     std::is_constructible<Bar, Options&&...>>::value,
                             slice::TrackedSpan<slice::NumericSpan<N>, std::shared_ptr<Bar>>>::type
 #endif
-    iterate( N startpoint, N endpoint, Options&&... options )
   {
     return {
       { startpoint, endpoint },
@@ -588,25 +591,28 @@ namespace pgbar {
     };
   }
   template<typename Bar, typename N, typename Act, typename... Options>
+  PGBAR__NODISCARD PGBAR__FORCEINLINE auto iterate( N startpoint,
+                                                    N endpoint,
+                                                    Act&& act,
+                                                    Options&&... options ) ->
 #ifdef __cpp_concepts
+    slice::TrackedSpan<slice::NumericSpan<N>, std::shared_ptr<Bar>>
     requires(
       std::is_integral_v<N> && _details::traits::is_iterable_bar<Bar>::value
       && _details::traits::is_reactive_bar<Bar>::value
       && std::is_same_v<std::remove_reference_t<decltype( std::declval<Act &&>() | std::declval<Bar>() )>,
                         Bar>
       && std::is_constructible_v<Bar, Options && ...> )
-  PGBAR__NODISCARD PGBAR__FORCEINLINE slice::TrackedSpan<slice::NumericSpan<N>, std::shared_ptr<Bar>>
 #else
-  PGBAR__NODISCARD PGBAR__FORCEINLINE typename std::enable_if<
-    _details::traits::AllOf<std::is_integral<N>,
-                            _details::traits::is_iterable_bar<Bar>,
-                            std::is_same<typename std::remove_reference<
-                                           decltype( std::declval<Act&&>() | std::declval<Bar>() )>::type,
-                                         Bar>,
-                            std::is_constructible<Bar, Options&&...>>::value,
-    slice::TrackedSpan<slice::NumericSpan<N>, std::shared_ptr<Bar>>>::type
+    typename std::enable_if<
+      _details::traits::AllOf<std::is_integral<N>,
+                              _details::traits::is_iterable_bar<Bar>,
+                              std::is_same<typename std::remove_reference<
+                                             decltype( std::declval<Act&&>() | std::declval<Bar>() )>::type,
+                                           Bar>,
+                              std::is_constructible<Bar, Options&&...>>::value,
+      slice::TrackedSpan<slice::NumericSpan<N>, std::shared_ptr<Bar>>>::type
 #endif
-    iterate( N startpoint, N endpoint, Act&& act, Options&&... options )
   {
     return {
       { startpoint, endpoint },
@@ -614,22 +620,22 @@ namespace pgbar {
     };
   }
   template<typename Bar, typename N, typename Proc, typename... Options>
+  PGBAR__FORCEINLINE auto iterate( N startpoint, N endpoint, Proc&& op, Options&&... options )
 #ifdef __cpp_concepts
     requires( std::is_integral_v<N> && _details::traits::is_iterable_bar<Bar>::value
               && std::is_constructible_v<Bar, Options && ...> && requires( N ele, Proc&& op ) { op( ele ); } )
-  PGBAR__FORCEINLINE void
 #else
-  PGBAR__FORCEINLINE typename std::enable_if<_details::traits::AllOf<
-    std::is_integral<N>,
-    _details::traits::is_iterable_bar<Bar>,
-    std::is_constructible<Bar, Options&&...>,
-    std::is_void<decltype( std::declval<Proc&&>( std::declval<N>() ), void() )>>::value>::type
+    -> typename std::enable_if<_details::traits::AllOf<
+      std::is_integral<N>,
+      _details::traits::is_iterable_bar<Bar>,
+      std::is_constructible<Bar, Options&&...>,
+      std::is_void<decltype( std::declval<Proc&&>( std::declval<N>() ), void() )>>::value>::type
 #endif
-    iterate( N startpoint, N endpoint, Proc&& op, Options&&... options )
   {
     Bar( std::forward<Options>( options )... ).iterate( startpoint, endpoint, std::forward<Proc>( op ) );
   }
   template<typename Bar, typename N, typename Proc, typename Act, typename... Options>
+  PGBAR__FORCEINLINE auto iterate( N startpoint, N endpoint, Proc&& op, Act&& act, Options&&... options )
 #ifdef __cpp_concepts
     requires(
       std::is_integral_v<N> && _details::traits::is_iterable_bar<Bar>::value
@@ -637,17 +643,15 @@ namespace pgbar {
       && std::is_same_v<std::remove_reference_t<decltype( std::declval<Act &&>() | std::declval<Bar>() )>,
                         Bar>
       && std::is_constructible_v<Bar, Options && ...> )
-  PGBAR__FORCEINLINE void
 #else
-  PGBAR__FORCEINLINE typename std::enable_if<
-    _details::traits::AllOf<std::is_integral<N>,
-                            _details::traits::is_iterable_bar<Bar>,
-                            std::is_same<typename std::remove_reference<
-                                           decltype( std::declval<Act&&>() | std::declval<Bar>() )>::type,
-                                         Bar>,
-                            std::is_constructible<Bar, Options&&...>>::value>::type
+    -> typename std::enable_if<
+      _details::traits::AllOf<std::is_integral<N>,
+                              _details::traits::is_iterable_bar<Bar>,
+                              std::is_same<typename std::remove_reference<
+                                             decltype( std::declval<Act&&>() | std::declval<Bar>() )>::type,
+                                           Bar>,
+                              std::is_constructible<Bar, Options&&...>>::value>::type
 #endif
-    iterate( N startpoint, N endpoint, Proc&& op, Act&& act, Options&&... options )
   {
     ( std::forward<Act>( act ) | Bar( std::forward<Options>( options )... ) )
       .iterate( startpoint, endpoint, std::forward<Proc>( op ) );
@@ -781,7 +785,7 @@ namespace pgbar {
                     | std::declval<_details::prefabs::BasicBar<Config, Outlet, Mode, Area>>() )>,
         _details::prefabs::BasicBar<Config, Outlet, Mode, Area>>
       && std::is_constructible_v<Config, Options && ...> )
-  PGBAR__FORCEINLINE void
+  PGBAR__FORCEINLINE auto
 #else
            ,
            typename std::enable_if<
@@ -809,63 +813,62 @@ namespace pgbar {
   //////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   template<typename Bar, typename N, typename... Options>
+  PGBAR__NODISCARD PGBAR__FORCEINLINE auto iterate( N endpoint, Options&&... options ) ->
 #ifdef __cpp_concepts
+    slice::TrackedSpan<slice::NumericSpan<N>, std::shared_ptr<Bar>>
     requires( std::is_integral_v<N> && _details::traits::is_iterable_bar<Bar>::value
               && std::is_constructible_v<Bar, Options && ...> )
-  PGBAR__NODISCARD PGBAR__FORCEINLINE slice::TrackedSpan<slice::NumericSpan<N>, std::shared_ptr<Bar>>
 #else
-  PGBAR__NODISCARD PGBAR__FORCEINLINE
     typename std::enable_if<_details::traits::AllOf<std::is_integral<N>,
                                                     _details::traits::is_iterable_bar<Bar>,
                                                     std::is_constructible<Bar, Options&&...>>::value,
                             slice::TrackedSpan<slice::NumericSpan<N>, std::shared_ptr<Bar>>>::type
 #endif
-    iterate( N endpoint, Options&&... options )
   {
     return { { endpoint }, std::make_shared<Bar>( std::forward<Options>( options )... ) };
   }
   template<typename Bar, typename N, typename Act, typename... Options>
+  PGBAR__NODISCARD PGBAR__FORCEINLINE auto iterate( N endpoint, Act&& act, Options&&... options ) ->
 #ifdef __cpp_concepts
+    slice::TrackedSpan<slice::NumericSpan<N>, std::shared_ptr<Bar>>
     requires(
       std::is_integral_v<N> && _details::traits::is_iterable_bar<Bar>::value
       && _details::traits::is_reactive_bar<Bar>::value
       && std::is_same_v<std::remove_reference_t<decltype( std::declval<Act &&>() | std::declval<Bar>() )>,
                         Bar>
       && std::is_constructible_v<Bar, Options && ...> )
-  PGBAR__NODISCARD PGBAR__FORCEINLINE slice::TrackedSpan<slice::NumericSpan<N>, std::shared_ptr<Bar>>
 #else
-  PGBAR__NODISCARD PGBAR__FORCEINLINE typename std::enable_if<
-    _details::traits::AllOf<std::is_integral<N>,
-                            _details::traits::is_iterable_bar<Bar>,
-                            _details::traits::is_reactive_bar<Bar>,
-                            std::is_same<typename std::remove_reference<
-                                           decltype( std::declval<Act&&>() | std::declval<Bar>() )>::type,
-                                         Bar>,
-                            std::is_constructible<Bar, Options&&...>>::value,
-    slice::TrackedSpan<slice::NumericSpan<N>, std::shared_ptr<Bar>>>::type
+    typename std::enable_if<
+      _details::traits::AllOf<std::is_integral<N>,
+                              _details::traits::is_iterable_bar<Bar>,
+                              _details::traits::is_reactive_bar<Bar>,
+                              std::is_same<typename std::remove_reference<
+                                             decltype( std::declval<Act&&>() | std::declval<Bar>() )>::type,
+                                           Bar>,
+                              std::is_constructible<Bar, Options&&...>>::value,
+      slice::TrackedSpan<slice::NumericSpan<N>, std::shared_ptr<Bar>>>::type
 #endif
-    iterate( N endpoint, Act&& act, Options&&... options )
   {
     return { { endpoint },
              std::make_shared<Bar>( std::forward<Act>( act ) | Bar( std::forward<Options>( options )... ) ) };
   }
   template<typename Bar, typename N, typename Proc, typename... Options>
+  PGBAR__FORCEINLINE auto iterate( N endpoint, Proc&& op, Options&&... options )
 #ifdef __cpp_concepts
     requires( std::is_integral_v<N> && _details::traits::is_iterable_bar<Bar>::value
               && std::is_constructible_v<Bar, Options && ...> && requires( N ele, Proc&& op ) { op( ele ); } )
-  PGBAR__FORCEINLINE void
 #else
-  PGBAR__FORCEINLINE typename std::enable_if<_details::traits::AllOf<
-    std::is_integral<N>,
-    _details::traits::is_iterable_bar<Bar>,
-    std::is_constructible<Bar, Options&&...>,
-    std::is_void<decltype( std::declval<Proc&&>( std::declval<N>() ), void() )>>::value>::type
+    -> typename std::enable_if<_details::traits::AllOf<
+      std::is_integral<N>,
+      _details::traits::is_iterable_bar<Bar>,
+      std::is_constructible<Bar, Options&&...>,
+      std::is_void<decltype( std::declval<Proc&&>( std::declval<N>() ), void() )>>::value>::type
 #endif
-    iterate( N endpoint, Proc&& op, Options&&... options )
   {
     Bar( std::forward<Options>( options )... ).iterate( endpoint, std::forward<Proc>( op ) );
   }
   template<typename Bar, typename N, typename Proc, typename Act, typename... Options>
+  PGBAR__FORCEINLINE auto iterate( N endpoint, Proc&& op, Act&& act, Options&&... options )
 #ifdef __cpp_concepts
     requires(
       std::is_integral_v<N> && _details::traits::is_iterable_bar<Bar>::value
@@ -873,18 +876,16 @@ namespace pgbar {
       && std::is_same_v<std::remove_reference_t<decltype( std::declval<Act &&>() | std::declval<Bar>() )>,
                         Bar>
       && std::is_constructible_v<Bar, Options && ...> )
-  PGBAR__FORCEINLINE void
 #else
-  PGBAR__FORCEINLINE typename std::enable_if<
-    _details::traits::AllOf<std::is_integral<N>,
-                            _details::traits::is_iterable_bar<Bar>,
-                            _details::traits::is_reactive_bar<Bar>,
-                            std::is_same<typename std::remove_reference<
-                                           decltype( std::declval<Act&&>() | std::declval<Bar>() )>::type,
-                                         Bar>,
-                            std::is_constructible<Bar, Options&&...>>::value>::type
+    -> typename std::enable_if<
+      _details::traits::AllOf<std::is_integral<N>,
+                              _details::traits::is_iterable_bar<Bar>,
+                              _details::traits::is_reactive_bar<Bar>,
+                              std::is_same<typename std::remove_reference<
+                                             decltype( std::declval<Act&&>() | std::declval<Bar>() )>::type,
+                                           Bar>,
+                              std::is_constructible<Bar, Options&&...>>::value>::type
 #endif
-    iterate( N endpoint, Proc&& op, Act&& act, Options&&... options )
   {
     ( std::forward<Act>( act ) | Bar( std::forward<Options>( options )... ) )
       .iterate( endpoint, std::forward<Proc>( op ) );
@@ -1042,19 +1043,18 @@ namespace pgbar {
   //////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   template<typename Bar, typename Itr, typename Snt, typename... Options>
+  PGBAR__NODISCARD PGBAR__FORCEINLINE auto iterate( Itr startpoint, Snt endpoint, Options&&... options ) ->
 #ifdef __cpp_concepts
+    slice::TrackedSpan<slice::IteratorSpan<Itr, Snt>, std::shared_ptr<Bar>>
     requires( _details::traits::is_sized_cursor<Itr, Snt>::value
               && _details::traits::is_iterable_bar<Bar>::value
               && std::is_constructible_v<Bar, Options && ...> )
-  PGBAR__NODISCARD PGBAR__FORCEINLINE slice::TrackedSpan<slice::IteratorSpan<Itr, Snt>, std::shared_ptr<Bar>>
 #else
-  PGBAR__NODISCARD PGBAR__FORCEINLINE
     typename std::enable_if<_details::traits::AllOf<_details::traits::is_sized_cursor<Itr, Snt>,
                                                     _details::traits::is_iterable_bar<Bar>,
                                                     std::is_constructible<Bar, Options&&...>>::value,
                             slice::TrackedSpan<slice::IteratorSpan<Itr, Snt>, std::shared_ptr<Bar>>>::type
 #endif
-    iterate( Itr startpoint, Snt endpoint, Options&&... options )
   {
     return {
       { std::move( startpoint ), std::move( endpoint ) },
@@ -1062,26 +1062,29 @@ namespace pgbar {
     };
   }
   template<typename Bar, typename Itr, typename Snt, typename Act, typename... Options>
+  PGBAR__NODISCARD PGBAR__FORCEINLINE auto iterate( Itr startpoint,
+                                                    Snt endpoint,
+                                                    Act&& act,
+                                                    Options&&... options ) ->
 #ifdef __cpp_concepts
+    slice::TrackedSpan<slice::IteratorSpan<Itr, Snt>, std::shared_ptr<Bar>>
     requires(
       _details::traits::is_sized_cursor<Itr, Snt>::value && _details::traits::is_iterable_bar<Bar>::value
       && _details::traits::is_reactive_bar<Bar>::value
       && std::is_same_v<std::remove_reference_t<decltype( std::declval<Act &&>() | std::declval<Bar>() )>,
                         Bar>
       && std::is_constructible_v<Bar, Options && ...> )
-  PGBAR__NODISCARD PGBAR__FORCEINLINE slice::TrackedSpan<slice::IteratorSpan<Itr, Snt>, std::shared_ptr<Bar>>
 #else
-  PGBAR__NODISCARD PGBAR__FORCEINLINE typename std::enable_if<
-    _details::traits::AllOf<_details::traits::is_sized_cursor<Itr, Snt>,
-                            _details::traits::is_iterable_bar<Bar>,
-                            _details::traits::is_reactive_bar<Bar>,
-                            std::is_same<typename std::remove_reference<
-                                           decltype( std::declval<Act&&>() | std::declval<Bar>() )>::type,
-                                         Bar>,
-                            std::is_constructible<Bar, Options&&...>>::value,
-    slice::TrackedSpan<slice::IteratorSpan<Itr, Snt>, std::shared_ptr<Bar>>>::type
+    typename std::enable_if<
+      _details::traits::AllOf<_details::traits::is_sized_cursor<Itr, Snt>,
+                              _details::traits::is_iterable_bar<Bar>,
+                              _details::traits::is_reactive_bar<Bar>,
+                              std::is_same<typename std::remove_reference<
+                                             decltype( std::declval<Act&&>() | std::declval<Bar>() )>::type,
+                                           Bar>,
+                              std::is_constructible<Bar, Options&&...>>::value,
+      slice::TrackedSpan<slice::IteratorSpan<Itr, Snt>, std::shared_ptr<Bar>>>::type
 #endif
-    iterate( Itr startpoint, Snt endpoint, Act&& act, Options&&... options )
   {
     return {
       { std::move( startpoint ), std::move( endpoint ) },
@@ -1089,25 +1092,25 @@ namespace pgbar {
     };
   }
   template<typename Bar, typename Itr, typename Snt, typename Proc, typename... Options>
+  PGBAR__FORCEINLINE auto iterate( Itr startpoint, Snt endpoint, Proc&& op, Options&&... options )
 #ifdef __cpp_concepts
     requires( _details::traits::is_sized_cursor<Itr, Snt>::value
               && _details::traits::is_iterable_bar<Bar>::value && std::is_constructible_v<Bar, Options && ...>
               && requires( _details::traits::IterValue_t<Itr> ele, Proc&& op ) { op( ele ); } )
-  PGBAR__FORCEINLINE void
 #else
-  PGBAR__FORCEINLINE typename std::enable_if<_details::traits::AllOf<
-    _details::traits::is_sized_cursor<Itr, Snt>,
-    _details::traits::is_iterable_bar<Bar>,
-    std::is_constructible<Bar, Options&&...>,
-    std::is_void<decltype( std::declval<Proc&&>( std::declval<_details::traits::IterValue_t<Itr>>() ),
-                           void() )>>::value>::type
+    -> typename std::enable_if<_details::traits::AllOf<
+      _details::traits::is_sized_cursor<Itr, Snt>,
+      _details::traits::is_iterable_bar<Bar>,
+      std::is_constructible<Bar, Options&&...>,
+      std::is_void<decltype( std::declval<Proc&&>( std::declval<_details::traits::IterValue_t<Itr>>() ),
+                             void() )>>::value>::type
 #endif
-    iterate( Itr startpoint, Snt endpoint, Proc&& op, Options&&... options )
   {
     Bar( std::forward<Options>( options )... )
       .iterate( std::move( startpoint ), std::move( endpoint ), std::forward<Proc>( op ) );
   }
   template<typename Bar, typename Itr, typename Snt, typename Proc, typename Act, typename... Options>
+  PGBAR__FORCEINLINE auto iterate( Itr startpoint, Snt endpoint, Proc&& op, Act&& act, Options&&... options )
 #ifdef __cpp_concepts
     requires(
       _details::traits::is_sized_cursor<Itr, Snt>::value && _details::traits::is_iterable_bar<Bar>::value
@@ -1115,18 +1118,16 @@ namespace pgbar {
       && std::is_same_v<std::remove_reference_t<decltype( std::declval<Act &&>() | std::declval<Bar>() )>,
                         Bar>
       && std::is_constructible_v<Bar, Options && ...> )
-  PGBAR__FORCEINLINE void
 #else
-  PGBAR__FORCEINLINE typename std::enable_if<
-    _details::traits::AllOf<_details::traits::is_sized_cursor<Itr, Snt>,
-                            _details::traits::is_iterable_bar<Bar>,
-                            _details::traits::is_reactive_bar<Bar>,
-                            std::is_same<typename std::remove_reference<
-                                           decltype( std::declval<Act&&>() | std::declval<Bar>() )>::type,
-                                         Bar>,
-                            std::is_constructible<Bar, Options&&...>>::value>::type
+    -> typename std::enable_if<
+      _details::traits::AllOf<_details::traits::is_sized_cursor<Itr, Snt>,
+                              _details::traits::is_iterable_bar<Bar>,
+                              _details::traits::is_reactive_bar<Bar>,
+                              std::is_same<typename std::remove_reference<
+                                             decltype( std::declval<Act&&>() | std::declval<Bar>() )>::type,
+                                           Bar>,
+                              std::is_constructible<Bar, Options&&...>>::value>::type
 #endif
-    iterate( Itr startpoint, Snt endpoint, Proc&& op, Act&& act, Options&&... options )
   {
     ( std::forward<Act>( act ) | Bar( std::forward<Options>( options )... ) )
       .iterate( std::move( startpoint ), std::move( endpoint ), std::forward<Proc>( op ) );
@@ -1294,47 +1295,44 @@ namespace pgbar {
   //////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   template<typename Bar, class R, typename... Options>
+  PGBAR__NODISCARD PGBAR__FORCEINLINE auto iterate( R&& range, Options&&... options ) ->
 #ifdef __cpp_concepts
+    slice::TrackedSpan<slice::BoundedSpan<std::remove_reference_t<R>>, std::shared_ptr<Bar>>
     requires( _details::traits::is_bounded_range<R>::value && !std::ranges::view<std::remove_reference_t<R>>
               && _details::traits::is_iterable_bar<Bar>::value
               && std::is_constructible_v<Bar, Options && ...> )
-  PGBAR__NODISCARD PGBAR__FORCEINLINE
-    slice::TrackedSpan<slice::BoundedSpan<std::remove_reference_t<R>>, std::shared_ptr<Bar>>
 #else
-  PGBAR__NODISCARD PGBAR__FORCEINLINE
     typename std::enable_if<_details::traits::AllOf<_details::traits::is_bounded_range<R>,
                                                     _details::traits::is_iterable_bar<Bar>,
                                                     std::is_constructible<Bar, Options&&...>>::value,
                             slice::TrackedSpan<slice::BoundedSpan<typename std::remove_reference<R>::type>,
                                                std::shared_ptr<Bar>>>::type
 #endif
-    iterate( R&& range, Options&&... options )
   {
     return { { std::forward<R>( range ) }, std::make_shared<Bar>( std::forward<Options>( options )... ) };
   }
   template<typename Bar, class R, typename Act, typename... Options>
+  PGBAR__NODISCARD PGBAR__FORCEINLINE auto iterate( R&& range, Act&& act, Options&&... options ) ->
 #ifdef __cpp_concepts
+    slice::TrackedSpan<slice::BoundedSpan<std::remove_reference_t<R>>, std::shared_ptr<Bar>>
     requires(
       _details::traits::is_bounded_range<R>::value && !std::ranges::view<std::remove_reference_t<R>>
       && _details::traits::is_iterable_bar<Bar>::value && _details::traits::is_reactive_bar<Bar>::value
       && std::is_same_v<std::remove_reference_t<decltype( std::declval<Act &&>() | std::declval<Bar>() )>,
                         Bar>
       && std::is_constructible_v<Bar, Options && ...> )
-  PGBAR__NODISCARD PGBAR__FORCEINLINE
-    slice::TrackedSpan<slice::BoundedSpan<std::remove_reference_t<R>>, std::shared_ptr<Bar>>
 #else
-  PGBAR__NODISCARD PGBAR__FORCEINLINE typename std::enable_if<
-    _details::traits::AllOf<_details::traits::is_bounded_range<R>,
-                            _details::traits::is_iterable_bar<Bar>,
-                            _details::traits::is_reactive_bar<Bar>,
-                            std::is_same<typename std::remove_reference<
-                                           decltype( std::declval<Act&&>() | std::declval<Bar>() )>::type,
-                                         Bar>,
-                            std::is_constructible<Bar, Options&&...>>::value,
-    slice::TrackedSpan<slice::BoundedSpan<typename std::remove_reference<R>::type>,
-                       std::shared_ptr<Bar>>>::type
+    typename std::enable_if<
+      _details::traits::AllOf<_details::traits::is_bounded_range<R>,
+                              _details::traits::is_iterable_bar<Bar>,
+                              _details::traits::is_reactive_bar<Bar>,
+                              std::is_same<typename std::remove_reference<
+                                             decltype( std::declval<Act&&>() | std::declval<Bar>() )>::type,
+                                           Bar>,
+                              std::is_constructible<Bar, Options&&...>>::value,
+      slice::TrackedSpan<slice::BoundedSpan<typename std::remove_reference<R>::type>,
+                         std::shared_ptr<Bar>>>::type
 #endif
-    iterate( R&& range, Act&& act, Options&&... options )
   {
     return { { std::forward<R>( range ) },
              std::make_shared<Bar>( std::forward<Act>( act ) | Bar( std::forward<Options>( options )... ) ) };
@@ -1365,26 +1363,27 @@ namespace pgbar {
   }
 #endif
   template<typename Bar, class R, typename Proc, typename... Options>
+  PGBAR__FORCEINLINE auto iterate( R&& range, Proc&& op, Options&&... options )
 #ifdef __cpp_concepts
     requires( _details::traits::is_bounded_range<R>::value && _details::traits::is_iterable_bar<Bar>::value
               && std::is_constructible_v<Bar, Options && ...>
-              && requires( _details::traits::IterValue_t<_details::traits::IteratorOf_t<R>> ele,
-                           Proc&& op ) { op( ele ); } )
-  PGBAR__FORCEINLINE void
+              && requires( _details::traits::IterValue_t<_details::traits::IteratorOf_t<R>> ele, Proc&& op ) {
+                   op( ele );
+                 } )
 #else
-  PGBAR__FORCEINLINE typename std::enable_if<_details::traits::AllOf<
-    _details::traits::is_bounded_range<R>,
-    _details::traits::is_iterable_bar<Bar>,
-    std::is_constructible<Bar, Options&&...>,
-    std::is_void<decltype( std::declval<Proc&&>( std::declval<_details::traits::IterValue_t<
-                                                   _details::traits::IteratorOf_t<R>>>() ),
-                           void() )>>::value>::type
+    -> typename std::enable_if<_details::traits::AllOf<
+      _details::traits::is_bounded_range<R>,
+      _details::traits::is_iterable_bar<Bar>,
+      std::is_constructible<Bar, Options&&...>,
+      std::is_void<decltype( std::declval<Proc&&>( std::declval<_details::traits::IterValue_t<
+                                                     _details::traits::IteratorOf_t<R>>>() ),
+                             void() )>>::value>::type
 #endif
-    iterate( R&& range, Proc&& op, Options&&... options )
   {
     Bar( std::forward<Options>( options )... ).iterate( std::forward<R>( range ), std::forward<Proc>( op ) );
   }
   template<typename Bar, class R, typename Proc, typename Act, typename... Options>
+  PGBAR__FORCEINLINE auto iterate( R&& range, Proc&& op, Act&& act, Options&&... options )
 #ifdef __cpp_concepts
     requires(
       _details::traits::is_bounded_range<R>::value && _details::traits::is_iterable_bar<Bar>::value
@@ -1392,18 +1391,16 @@ namespace pgbar {
       && std::is_same_v<std::remove_reference_t<decltype( std::declval<Act &&>() | std::declval<Bar>() )>,
                         Bar>
       && std::is_constructible_v<Bar, Options && ...> )
-  PGBAR__FORCEINLINE void
 #else
-  PGBAR__FORCEINLINE typename std::enable_if<
-    _details::traits::AllOf<_details::traits::is_bounded_range<R>,
-                            _details::traits::is_iterable_bar<Bar>,
-                            _details::traits::is_reactive_bar<Bar>,
-                            std::is_same<typename std::remove_reference<
-                                           decltype( std::declval<Act&&>() | std::declval<Bar>() )>::type,
-                                         Bar>,
-                            std::is_constructible<Bar, Options&&...>>::value>::type
+    -> typename std::enable_if<
+      _details::traits::AllOf<_details::traits::is_bounded_range<R>,
+                              _details::traits::is_iterable_bar<Bar>,
+                              _details::traits::is_reactive_bar<Bar>,
+                              std::is_same<typename std::remove_reference<
+                                             decltype( std::declval<Act&&>() | std::declval<Bar>() )>::type,
+                                           Bar>,
+                              std::is_constructible<Bar, Options&&...>>::value>::type
 #endif
-    iterate( R&& range, Proc&& op, Act&& act, Options&&... options )
   {
     ( std::forward<Act>( act ) | Bar( std::forward<Options>( options )... ) )
       .iterate( std::forward<R>( range ), std::forward<Proc>( op ) );

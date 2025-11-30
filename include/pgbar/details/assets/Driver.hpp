@@ -68,16 +68,15 @@ namespace pgbar {
          * @return Return a range `[startpoint, endpoint)` that moves unidirectionally.
          */
         template<typename N>
+        PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR auto iterate( N startpoint, N endpoint, N step ) &
 #ifdef __cpp_concepts
+          -> slice::TrackedSpan<slice::NumericSpan<N>, wrappers::MovableRef<Derived>>
           requires std::is_arithmetic_v<N>
-        PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR
-          slice::TrackedSpan<slice::NumericSpan<N>, wrappers::MovableRef<Derived>>
 #else
-        PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR typename std::enable_if<
-          std::is_arithmetic<N>::value,
-          slice::TrackedSpan<slice::NumericSpan<N>, wrappers::MovableRef<Derived>>>::type
+          -> typename std::enable_if<
+            std::is_arithmetic<N>::value,
+            slice::TrackedSpan<slice::NumericSpan<N>, wrappers::MovableRef<Derived>>>::type
 #endif
-          iterate( N startpoint, N endpoint, N step ) &
         { // default parameter will cause ambiguous overloads
           // so we have to write them all
           throw_if_active();
@@ -87,28 +86,27 @@ namespace pgbar {
           };
         }
         template<typename N, typename Proc>
+        PGBAR__CXX14_CNSTXPR auto iterate( N startpoint, N endpoint, N step, Proc&& op )
 #ifdef __cpp_concepts
           requires std::is_arithmetic_v<N>
-        PGBAR__CXX14_CNSTXPR void
 #else
-        PGBAR__CXX14_CNSTXPR typename std::enable_if<std::is_arithmetic<N>::value>::type
+          -> typename std::enable_if<std::is_arithmetic<N>::value>::type
 #endif
-          iterate( N startpoint, N endpoint, N step, Proc&& op )
         {
           for ( N e : iterate( startpoint, endpoint, step ) )
             (void)op( e );
         }
 
         template<typename N>
+        PGBAR__NODISCARD auto iterate( N endpoint, N step ) &
 #ifdef __cpp_concepts
+          -> slice::TrackedSpan<slice::NumericSpan<N>, wrappers::MovableRef<Derived>>
           requires std::is_floating_point_v<N>
-        PGBAR__NODISCARD slice::TrackedSpan<slice::NumericSpan<N>, wrappers::MovableRef<Derived>>
 #else
-        PGBAR__NODISCARD typename std::enable_if<
-          std::is_floating_point<N>::value,
-          slice::TrackedSpan<slice::NumericSpan<N>, wrappers::MovableRef<Derived>>>::type
+          -> typename std::enable_if<
+            std::is_floating_point<N>::value,
+            slice::TrackedSpan<slice::NumericSpan<N>, wrappers::MovableRef<Derived>>>::type
 #endif
-          iterate( N endpoint, N step ) &
         {
           throw_if_active();
           return {
@@ -117,13 +115,12 @@ namespace pgbar {
           };
         }
         template<typename N, typename Proc>
+        auto iterate( N endpoint, N step, Proc&& op )
 #ifdef __cpp_concepts
           requires std::is_floating_point_v<N>
-        void
 #else
-        typename std::enable_if<std::is_floating_point<N>::value>::type
+          -> typename std::enable_if<std::is_floating_point<N>::value>::type
 #endif
-          iterate( N endpoint, N step, Proc&& op )
         {
           for ( N e : iterate( endpoint, step ) )
             (void)op( e );
@@ -131,16 +128,15 @@ namespace pgbar {
 
         // Only available for integer types.
         template<typename N>
+        PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR auto iterate( N startpoint, N endpoint ) &
 #ifdef __cpp_concepts
+          -> slice::TrackedSpan<slice::NumericSpan<N>, wrappers::MovableRef<Derived>>
           requires std::is_integral_v<N>
-        PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR
-          slice::TrackedSpan<slice::NumericSpan<N>, wrappers::MovableRef<Derived>>
 #else
-        PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR typename std::enable_if<
-          std::is_integral<N>::value,
-          slice::TrackedSpan<slice::NumericSpan<N>, wrappers::MovableRef<Derived>>>::type
+          -> typename std::enable_if<
+            std::is_integral<N>::value,
+            slice::TrackedSpan<slice::NumericSpan<N>, wrappers::MovableRef<Derived>>>::type
 #endif
-          iterate( N startpoint, N endpoint ) &
         {
           throw_if_active();
           return {
@@ -149,41 +145,38 @@ namespace pgbar {
           };
         }
         template<typename N, typename Proc>
+        PGBAR__CXX14_CNSTXPR auto iterate( N startpoint, N endpoint, Proc&& op )
 #ifdef __cpp_concepts
           requires std::is_integral_v<N>
-        PGBAR__CXX14_CNSTXPR void
 #else
-        PGBAR__CXX14_CNSTXPR typename std::enable_if<std::is_integral<N>::value>::type
+          -> typename std::enable_if<std::is_integral<N>::value>::type
 #endif
-          iterate( N startpoint, N endpoint, Proc&& op )
         {
           for ( N e : iterate( startpoint, endpoint ) )
             (void)op( e );
         }
 
         template<typename N>
+        PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR auto iterate( N endpoint ) &
 #ifdef __cpp_concepts
+          -> slice::TrackedSpan<slice::NumericSpan<N>, wrappers::MovableRef<Derived>>
           requires std::is_integral_v<N>
-        PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR
-          slice::TrackedSpan<slice::NumericSpan<N>, wrappers::MovableRef<Derived>>
 #else
-        PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR typename std::enable_if<
-          std::is_integral<N>::value,
-          slice::TrackedSpan<slice::NumericSpan<N>, wrappers::MovableRef<Derived>>>::type
+          -> typename std::enable_if<
+            std::is_integral<N>::value,
+            slice::TrackedSpan<slice::NumericSpan<N>, wrappers::MovableRef<Derived>>>::type
 #endif
-          iterate( N endpoint ) &
         {
           throw_if_active();
           return { { endpoint }, wrappers::mref( static_cast<Derived&>( *this ) ) };
         }
         template<typename N, typename Proc>
+        PGBAR__CXX14_CNSTXPR auto iterate( N endpoint, Proc&& op )
 #ifdef __cpp_concepts
           requires std::is_integral_v<N>
-        PGBAR__CXX14_CNSTXPR void
 #else
-        PGBAR__CXX14_CNSTXPR typename std::enable_if<std::is_integral<N>::value>::type
+          -> typename std::enable_if<std::is_integral<N>::value>::type
 #endif
-          iterate( N endpoint, Proc&& op )
         {
           for ( N e : iterate( endpoint ) )
             (void)op( e );
@@ -191,18 +184,17 @@ namespace pgbar {
 
         // Visualize unidirectional traversal of a iterator interval defined by parameters.
         template<typename Itr, typename Snt>
+        PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR auto iterate( Itr startpoint, Snt endpoint ) & noexcept(
+          traits::AllOf<std::is_nothrow_move_constructible<Itr>,
+                        std::is_nothrow_move_constructible<Snt>>::value )
 #ifdef __cpp_concepts
+          -> slice::TrackedSpan<slice::IteratorSpan<Itr, Snt>, wrappers::MovableRef<Derived>>
           requires traits::is_sized_cursor<Itr, Snt>::value
-        PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR
-          slice::TrackedSpan<slice::IteratorSpan<Itr, Snt>, wrappers::MovableRef<Derived>>
 #else
-        PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR typename std::enable_if<
-          traits::is_sized_cursor<Itr, Snt>::value,
-          slice::TrackedSpan<slice::IteratorSpan<Itr, Snt>, wrappers::MovableRef<Derived>>>::type
+          -> typename std::enable_if<
+            traits::is_sized_cursor<Itr, Snt>::value,
+            slice::TrackedSpan<slice::IteratorSpan<Itr, Snt>, wrappers::MovableRef<Derived>>>::type
 #endif
-          iterate( Itr startpoint,
-                   Snt endpoint ) & noexcept( traits::AllOf<std::is_nothrow_move_constructible<Itr>,
-                                                            std::is_nothrow_move_constructible<Snt>>::value )
         {
           throw_if_active();
           return {
@@ -211,13 +203,12 @@ namespace pgbar {
           };
         }
         template<typename Itr, typename Snt, typename Proc>
+        PGBAR__CXX14_CNSTXPR auto iterate( Itr startpoint, Snt endpoint, Proc&& op )
 #ifdef __cpp_concepts
           requires traits::is_sized_cursor<Itr, Snt>::value
-        PGBAR__CXX14_CNSTXPR void
 #else
-        PGBAR__CXX14_CNSTXPR typename std::enable_if<traits::is_sized_cursor<Itr, Snt>::value>::type
+          -> typename std::enable_if<traits::is_sized_cursor<Itr, Snt>::value>::type
 #endif
-          iterate( Itr startpoint, Snt endpoint, Proc&& op )
         {
           for ( auto&& e : iterate( std::move( startpoint ), std::move( endpoint ) ) )
             (void)op( std::forward<decltype( e )>( e ) );
@@ -226,18 +217,17 @@ namespace pgbar {
         // Visualize unidirectional traversal of a abstract range interval defined by `container`'s
         // slice.
         template<class R>
+        PGBAR__NODISCARD PGBAR__CXX17_CNSTXPR auto iterate( R& container ) &
 #ifdef __cpp_concepts
+          -> slice::TrackedSpan<slice::BoundedSpan<std::remove_reference_t<R>>, wrappers::MovableRef<Derived>>
           requires( traits::is_bounded_range<std::remove_reference_t<R>>::value
                     && !std::ranges::view<std::remove_reference_t<R>> )
-        PGBAR__NODISCARD PGBAR__CXX17_CNSTXPR
-          slice::TrackedSpan<slice::BoundedSpan<std::remove_reference_t<R>>, wrappers::MovableRef<Derived>>
 #else
-        PGBAR__NODISCARD PGBAR__CXX17_CNSTXPR typename std::enable_if<
-          traits::is_bounded_range<typename std::remove_reference<R>::type>::value,
-          slice::TrackedSpan<slice::BoundedSpan<typename std::remove_reference<R>::type>,
-                             wrappers::MovableRef<Derived>>>::type
+          -> typename std::enable_if<
+            traits::is_bounded_range<typename std::remove_reference<R>::type>::value,
+            slice::TrackedSpan<slice::BoundedSpan<typename std::remove_reference<R>::type>,
+                               wrappers::MovableRef<Derived>>>::type
 #endif
-          iterate( R& container ) &
         {
           throw_if_active();
           return { { container }, wrappers::mref( static_cast<Derived&>( *this ) ) };
@@ -253,14 +243,13 @@ namespace pgbar {
         }
 #endif
         template<class R, typename Proc>
+        PGBAR__CXX17_CNSTXPR auto iterate( R&& range, Proc&& op )
 #ifdef __cpp_concepts
           requires traits::is_bounded_range<std::remove_reference_t<R>>::value
-        PGBAR__CXX17_CNSTXPR void
 #else
-        PGBAR__CXX17_CNSTXPR typename std::enable_if<
-          traits::is_bounded_range<typename std::remove_reference<R>::type>::value>::type
+          -> typename std::enable_if<
+            traits::is_bounded_range<typename std::remove_reference<R>::type>::value>::type
 #endif
-          iterate( R&& range, Proc&& op )
         {
           for ( auto&& e : iterate( std::forward<R>( range ) ) )
             (void)op( std::forward<decltype( e )>( e ) );
