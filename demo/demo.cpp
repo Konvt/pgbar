@@ -31,9 +31,9 @@ int main()
     // Bind a callback executed at the end of the iteration below.
     bar.at<0>() |= [&]( pgbar::ProgressBar<>& self ) {
       if ( flag )
-        self.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
+        self.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::Color::Green );
       else
-        self.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
+        self.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::Color::Red );
     };
 
     mt19937 rd { random_device {}() };
@@ -45,9 +45,9 @@ int main()
     bool flag = true;
     bar.at<1>() |= [&]( pgbar::BlockBar<>& self ) {
       if ( flag )
-        self.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
+        self.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::Color::Green );
       else
-        self.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
+        self.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::Color::Red );
     };
 
     mt19937 rd { random_device {}() };

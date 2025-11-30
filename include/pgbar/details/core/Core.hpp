@@ -164,11 +164,4 @@
 // Pack multiple macro parameters into a single one.
 #define PGBAR__WRAP( ... ) __VA_ARGS__
 
-namespace pgbar {
-  // A enum that specifies the type of the output stream.
-  enum class Channel : int { Stdout = 1, Stderr = 2 };
-  enum class Policy : std::uint8_t { Async, Sync };
-  enum class Region : std::uint8_t { Fixed, Relative };
-} // namespace pgbar
-
 #endif

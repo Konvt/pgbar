@@ -540,9 +540,9 @@ int main()
   bool flag = true;
   auto callback = [&]( pgbar::ProgressBar<>& self ) {
     if ( flag )
-      self.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
+      self.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::Color::Green );
     else
-      self.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
+      self.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::Color::Red );
   };
 
   bar.action( callback );
@@ -1001,9 +1001,9 @@ int main()
   bool flag = true;
   auto callback = [&]( pgbar::BlockBar<>& self ) {
     if ( flag )
-      self.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
+      self.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::Color::Green );
     else
-      self.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
+      self.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::Color::Red );
   };
 
   bar.action( callback );
@@ -1429,9 +1429,9 @@ int main()
   bool flag = true;
   auto callback = [&]( pgbar::SpinBar<>& self ) {
     if ( flag )
-      self.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
+      self.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::Color::Green );
     else
-      self.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
+      self.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::Color::Red );
   };
 
   bar.action( callback );
@@ -1887,9 +1887,9 @@ int main()
   bool flag = true;
   auto callback = [&]( pgbar::SweepBar<>& self ) {
     if ( flag )
-      self.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
+      self.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::Color::Green );
     else
-      self.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
+      self.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::Color::Red );
   };
 
   bar.action( callback );
@@ -2345,9 +2345,9 @@ int main()
   bool flag = true;
   auto callback = [&]( pgbar::FlowBar<>& self ) {
     if ( flag )
-      self.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::color::Green );
+      self.config().prefix( "✔ Mission Accomplished" ).prefix_color( pgbar::Color::Green );
     else
-      self.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::color::Red );
+      self.config().prefix( "❌ Mission failed" ).prefix_color( pgbar::Color::Red );
   };
 
   bar.action( callback );

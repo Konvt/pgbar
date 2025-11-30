@@ -1,8 +1,8 @@
 #ifndef PGBAR__COLOR
 #define PGBAR__COLOR
 
-#include "../../../color/Color.hpp"
 #include "../../io/Stringbuf.hpp"
+#include "../../utils/Backport.hpp"
 #ifdef __cpp_lib_to_chars
 # include <charconv>
 #endif
@@ -91,12 +91,12 @@ namespace pgbar {
             }
 #endif
           }
-          PGBAR__CXX23_CNSTXPR void from_str( types::ROStr hex_str ) &
+          PGBAR__CXX23_CNSTXPR void from_str( const types::Char* hex_str, types::Size length ) &
           {
-            if ( ( hex_str.size() != 7 && hex_str.size() != 4 ) || hex_str.front() != '#' )
+            if ( ( length != 7 && length != 4 ) || *hex_str != '#' )
               throw exception::InvalidArgument( "pgbar: invalid hex color format" );
 
-            for ( types::Size i = 1; i < hex_str.size(); i++ ) {
+            for ( types::Size i = 1; i < length; i++ ) {
               if ( ( hex_str[i] < '0' || hex_str[i] > '9' ) && ( hex_str[i] < 'A' || hex_str[i] > 'F' )
                    && ( hex_str[i] < 'a' || hex_str[i] > 'f' ) )
                 throw exception::InvalidArgument( "pgbar: invalid hexadecimal letter" );
@@ -104,8 +104,8 @@ namespace pgbar {
 
 #ifndef PGBAR_NOCOLOR
             std::uint32_t hex_val = 0;
-            if ( hex_str.size() == 4 ) {
-              for ( types::Size i = 1; i < hex_str.size(); ++i ) {
+            if ( length == 4 ) {
+              for ( types::Size i = 1; i < length; ++i ) {
                 hex_val <<= 4;
                 if ( hex_str[i] >= '0' && hex_str[i] <= '9' )
                   hex_val = ( ( hex_val | ( hex_str[i] - '0' ) ) << 4 ) | ( hex_str[i] - '0' );
@@ -115,7 +115,7 @@ namespace pgbar {
                   hex_val = ( ( hex_val | ( hex_str[i] - 'a' + 10 ) ) << 4 ) | ( hex_str[i] - 'a' + 10 );
               }
             } else {
-              for ( types::Size i = 1; i < hex_str.size(); ++i ) {
+              for ( types::Size i = 1; i < length; ++i ) {
                 hex_val <<= 4;
                 if ( hex_str[i] >= '0' && hex_str[i] <= '9' )
                   hex_val |= hex_str[i] - '0';
@@ -130,40 +130,60 @@ namespace pgbar {
           }
 
         public:
-          PGBAR__CXX23_CNSTXPR RGBColor() noexcept { clear(); }
+          PGBAR__CXX20_CNSTXPR RGBColor() noexcept { clear(); }
 
           PGBAR__CXX23_CNSTXPR RGBColor( types::HexRGB hex_val ) noexcept : RGBColor()
           {
             from_hex( hex_val );
           }
-          PGBAR__CXX23_CNSTXPR RGBColor( types::ROStr hex_str ) : RGBColor() { from_str( hex_str ); }
+          PGBAR__CXX23_CNSTXPR RGBColor( Color enum_val ) noexcept : RGBColor( utils::as_val( enum_val ) ) {}
+          PGBAR__CXX23_CNSTXPR RGBColor( types::ROStr hex_str ) : RGBColor()
+          {
+            from_str( hex_str.data(), hex_str.size() );
+          }
+          template<types::Size N>
+          PGBAR__CXX23_CNSTXPR RGBColor( const types::Char ( &hex_str )[N] ) : RGBColor()
+          {
+            from_str( hex_str, N - 1 );
+          }
 
-          PGBAR__CXX23_CNSTXPR RGBColor( const Self& other ) noexcept = default;
-          PGBAR__CXX23_CNSTXPR Self& operator=( const Self& other ) & = default;
+          PGBAR__CXX20_CNSTXPR RGBColor( const Self& other )          = default;
+          PGBAR__CXX20_CNSTXPR Self& operator=( const Self& other ) & = default;
 
           PGBAR__CXX23_CNSTXPR Self& operator=( types::HexRGB hex_val ) & noexcept
           {
             from_hex( hex_val );
             return *this;
           }
+          PGBAR__CXX23_CNSTXPR Self& operator=( Color enum_val ) & noexcept
+          {
+            from_hex( utils::as_val( enum_val ) );
+            return *this;
+          }
           PGBAR__CXX23_CNSTXPR Self& operator=( types::ROStr hex_str ) &
           {
-            from_str( hex_str );
+            from_str( hex_str.data(), hex_str.size() );
+            return *this;
+          }
+          template<types::Size N>
+          PGBAR__CXX23_CNSTXPR Self& operator=( const types::Char ( &hex_str )[N] ) &
+          {
+            from_str( hex_str, N );
             return *this;
           }
 
-          PGBAR__FORCEINLINE PGBAR__CXX23_CNSTXPR void clear() noexcept
+          PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR void clear() noexcept
           {
             std::fill( sgr_.begin(), sgr_.end(), '\0' );
             length_ = 0;
           }
 
-          PGBAR__CXX23_CNSTXPR void swap( RGBColor& other ) noexcept
+          PGBAR__CXX20_CNSTXPR void swap( RGBColor& other ) noexcept
           {
             std::swap( sgr_, other.sgr_ );
             std::swap( length_, other.length_ );
           }
-          friend PGBAR__CXX23_CNSTXPR void swap( RGBColor& a, RGBColor& b ) noexcept { a.swap( b ); }
+          friend PGBAR__CXX20_CNSTXPR void swap( RGBColor& a, RGBColor& b ) noexcept { a.swap( b ); }
 
           friend PGBAR__FORCEINLINE io::Stringbuf& operator<<( io::Stringbuf& buf, const Self& col )
           {

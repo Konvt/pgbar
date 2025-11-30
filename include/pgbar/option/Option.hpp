@@ -156,15 +156,15 @@ public                           \
     };
 
 #undef PGBAR__DEFAULT_OPTION
-#define PGBAR__DEFAULT_OPTION( StructName, ParamName )                                               \
-private:                                                                                             \
-  using Data = _details::console::escodes::RGBColor;                                                 \
-  using Base = _details::wrappers::OptionWrapper<Data>;                                              \
-                                                                                                     \
-public:                                                                                              \
-  PGBAR__CXX23_CNSTXPR StructName() = default;                                                       \
-  PGBAR__CXX23_CNSTXPR StructName( _details::types::ROStr ParamName ) : Base( Data( ParamName ) ) {} \
-  PGBAR__CXX23_CNSTXPR StructName( _details::types::HexRGB ParamName ) : Base( Data( ParamName ) ) {}
+#define PGBAR__DEFAULT_OPTION( StructName, ParamName )                                  \
+private:                                                                                \
+  using Base = _details::wrappers::OptionWrapper<_details::console::escodes::RGBColor>; \
+                                                                                        \
+public:                                                                                 \
+  PGBAR__CXX23_CNSTXPR StructName() = default;                                          \
+  PGBAR__CXX23_CNSTXPR StructName( _details::console::escodes::RGBColor ParamName )     \
+    : Base( std::move( ParamName ) )                                                    \
+  {}
 
     // A wrapper that stores the prefix text color.
     struct PrefixColor : PGBAR__BASE( _details::console::escodes::RGBColor ) {

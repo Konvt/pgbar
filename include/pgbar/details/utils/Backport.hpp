@@ -285,13 +285,13 @@ namespace pgbar {
 
 #ifdef __cpp_lib_to_underlying
       template<typename E>
-      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CNSTEVAL auto as_val( E enum_val ) noexcept
+      PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr auto as_val( E enum_val ) noexcept
       {
         return std::to_underlying( enum_val );
       }
 #else
       template<typename E>
-      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CNSTEVAL typename std::underlying_type<E>::type as_val(
+      PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr typename std::underlying_type<E>::type as_val(
         E enum_val ) noexcept
       {
         return static_cast<typename std::underlying_type<E>::type>( enum_val );

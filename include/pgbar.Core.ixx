@@ -1,7 +1,6 @@
 module;
 
 #include "pgbar/Indicator.hpp"
-#include "pgbar/color/Color.hpp"
 #include "pgbar/exception/Error.hpp"
 #include "pgbar/option/Option.hpp"
 #include "pgbar/slice/BoundedSpan.hpp"
@@ -59,18 +58,6 @@ export namespace pgbar {
     using pgbar::config::TimeUnit;
   } // namespace config
 
-  namespace color {
-    using pgbar::color::Black;
-    using pgbar::color::Blue;
-    using pgbar::color::Cyan;
-    using pgbar::color::Green;
-    using pgbar::color::Magenta;
-    using pgbar::color::None;
-    using pgbar::color::Red;
-    using pgbar::color::White;
-    using pgbar::color::Yellow;
-  } // namespace color
-
   namespace slice {
     using pgbar::slice::BoundedSpan;
     using pgbar::slice::IteratorSpan;
@@ -81,6 +68,8 @@ export namespace pgbar {
   using pgbar::Channel;
   using pgbar::Policy;
   using pgbar::Region;
+
+  using pgbar::Color;
 
   using pgbar::Indicator;
   using pgbar::iterate;

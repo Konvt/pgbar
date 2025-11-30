@@ -23,7 +23,7 @@ namespace pgbar {
       using ROStr  = typename std::add_lvalue_reference<typename std::add_const<String>::type>::type;
       using LitStr = typename std::add_pointer<typename std::add_const<Char>::type>::type;
 #endif
-#ifdef __cpp_char8_t
+#if defined( __cpp_lib_string_view ) && defined( __cpp_lib_char8_t )
       using LitU8 = std::u8string_view;
 #else
       using LitU8 = LitStr;
@@ -41,6 +41,33 @@ namespace pgbar {
       using GlyphWidth = std::uint8_t; // value is between [0, 3]
     } // namespace types
   } // namespace _details
+
+  // A enum that specifies the type of the output stream.
+  enum class Channel : int { Stdout = 1, Stderr = 2 };
+  enum class Policy : bool { Async, Sync };
+  enum class Region : bool { Fixed, Relative };
+
+#define PGBAR__DEFAULT 0xC105EA11 // C1O5E -> ClOSE, A11 -> All
+#define PGBAR__BLACK   0x000000
+#define PGBAR__RED     0xFF0000
+#define PGBAR__GREEN   0x00FF00
+#define PGBAR__BLUE    0x0000FF
+#define PGBAR__YELLOW  0xFFFF00
+#define PGBAR__MAGENTA 0x800080
+#define PGBAR__CYAN    0x00FFFF
+#define PGBAR__WHITE   0xFFFFFF
+
+  enum class Color : std::uint32_t {
+    None    = PGBAR__DEFAULT,
+    Black   = PGBAR__BLACK,
+    Red     = PGBAR__RED,
+    Green   = PGBAR__GREEN,
+    Blue    = PGBAR__BLUE,
+    Yellow  = PGBAR__YELLOW,
+    Magenta = PGBAR__MAGENTA,
+    Cyan    = PGBAR__CYAN,
+    White   = PGBAR__WHITE,
+  };
 } // namespace pgbar
 
 #endif

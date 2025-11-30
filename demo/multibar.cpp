@@ -11,9 +11,9 @@ int main()
   auto mbar = pgbar::make_multi(
     pgbar::config::Flow( pgbar::option::Style( pgbar::config::Flow::Entire ),
                          pgbar::option::Filler( "━" ),
-                         pgbar::option::FillerColor( pgbar::color::Red ),
+                         pgbar::option::FillerColor( pgbar::Color::Red ),
                          pgbar::option::Lead( "━━" ),
-                         pgbar::option::LeadColor( pgbar::color::White ),
+                         pgbar::option::LeadColor( pgbar::Color::White ),
                          pgbar::option::InfoColor( "#F5B0B6" ),
                          pgbar::option::Starting(),
                          pgbar::option::Ending() ),
@@ -27,7 +27,7 @@ int main()
   mbar.config<0>().tasks( ( std::tuple_size<decltype( mbar )>::value - 1 ) * 2 );
   // Bind a callback that will be executed at the end of the iteration below.
   mbar.at<0>() |=
-    [&]( pgbar::FlowBar<>& self ) { self.config().filler_color( pgbar::color::Green ).lead( "" ); };
+    [&]( pgbar::FlowBar<>& self ) { self.config().filler_color( pgbar::Color::Green ).lead( "" ); };
   // Bind a callback to mark that the current bar has been compeleted.
   mbar.at<1>() |= [&]() { mbar.tick<0>(); };
   mbar.at<2>() |= [&]() { mbar.tick<0>(); };

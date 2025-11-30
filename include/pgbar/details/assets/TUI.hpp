@@ -229,31 +229,21 @@ namespace pgbar {
   unpack( *this, option::OptionName( Operation( ParamName ) ) );   \
   return static_cast<Derived&>( *this )
 
-        /**
-         * @throw exception::InvalidArgument
-         *
-         * If the passed parameters are not coding in UTF-8.
-         */
+        /// @throw exception::InvalidArgument If the passed parameters are not coding in UTF-8.
         Derived& lead( std::vector<types::String> _leads ) & { PGBAR__METHOD( Lead, _leads, std::move ); }
-        /**
-         * @throw exception::InvalidArgument
-         *
-         * If the passed parameters are not coding in UTF-8.
-         */
+        /// @throw exception::InvalidArgument If the passed parameters are not coding in UTF-8.
         Derived& lead( types::String _lead ) & { PGBAR__METHOD( Lead, _lead, std::move ); }
 #ifdef __cpp_char8_t
         Derived& lead( const std::vector<types::LitU8>& _leads ) & { PGBAR__METHOD( Lead, _leads, ); }
         Derived& lead( types::LitU8 _lead ) & { PGBAR__METHOD( Lead, _lead, ); }
 #endif
 
-        // Set the color of the component `lead`.
-        Derived& lead_color( types::HexRGB _lead_color ) & { PGBAR__METHOD( LeadColor, _lead_color, ); }
-        /**
-         * @throw exception::InvalidArgument
-         *
-         * If the passed parameters is not a valid RGB color string.
-         */
-        Derived& lead_color( types::ROStr _lead_color ) & { PGBAR__METHOD( LeadColor, _lead_color, ); }
+        /// @brief Set the color of the component `lead`.
+        /// @throw exception::InvalidArgument If the passed parameters is not a valid RGB color string.
+        Derived& lead_color( console::escodes::RGBColor _lead_color ) &
+        {
+          PGBAR__METHOD( LeadColor, _lead_color, std::move );
+        }
 
 #undef PGBAR__METHOD
 
@@ -291,27 +281,16 @@ namespace pgbar {
   unpack( *this, option::OptionName( Operation( ParamName ) ) );   \
   return static_cast<Derived&>( *this )
 
-        /**
-         * @throw exception::InvalidArgument
-         *
-         * If the passed parameters are not coding in UTF-8.
-         */
+        /// @throw exception::InvalidArgument If the passed parameters are not coding in UTF-8.
         Derived& filler( types::String _filler ) & { PGBAR__METHOD( Filler, _filler, std::move ); }
 #ifdef __cpp_char8_t
         Derived& filler( types::LitU8 _filler ) & { PGBAR__METHOD( Filler, _filler, ); }
 #endif
-        Derived& filler_color( types::HexRGB _filler_color ) &
+
+        /// @throw exception::InvalidArgument If the passed parameters is not a valid RGB color string.
+        Derived& filler_color( console::escodes::RGBColor _filler_color ) &
         {
-          PGBAR__METHOD( FillerColor, _filler_color, );
-        }
-        /**
-         * @throw exception::InvalidArgument
-         *
-         * If the passed parameters is not a valid RGB color string.
-         */
-        Derived& filler_color( types::ROStr _filler_color ) &
-        {
-          PGBAR__METHOD( FillerColor, _filler_color, );
+          PGBAR__METHOD( FillerColor, _filler_color, std::move );
         }
 
 #undef PGBAR__METHOD
@@ -347,25 +326,13 @@ namespace pgbar {
   unpack( *this, option::OptionName( Operation( ParamName ) ) );   \
   return static_cast<Derived&>( *this )
 
-        Derived& remains_color( types::HexRGB _remains_color ) &
+        /// @throw exception::InvalidArgument If the passed parameters is not a valid RGB color string.
+        Derived& remains_color( console::escodes::RGBColor _remains_color ) &
         {
-          PGBAR__METHOD( RemainsColor, _remains_color, );
-        }
-        /**
-         * @throw exception::InvalidArgument
-         *
-         * If the passed parameters is not a valid RGB color string.
-         */
-        Derived& remains_color( types::ROStr _remains_color ) &
-        {
-          PGBAR__METHOD( RemainsColor, _remains_color, );
+          PGBAR__METHOD( RemainsColor, _remains_color, std::move );
         }
 
-        /**
-         * @throw exception::InvalidArgument
-         *
-         * If the passed parameters are not coding in UTF-8.
-         */
+        /// @throw exception::InvalidArgument If the passed parameters are not coding in UTF-8.
         Derived& remains( types::String _remains ) & { PGBAR__METHOD( Remains, _remains, std::move ); }
 #ifdef __cpp_char8_t
         Derived& remains( types::LitU8 _remains ) & { PGBAR__METHOD( Remains, _remains, ); }
@@ -451,37 +418,26 @@ namespace pgbar {
   unpack( *this, option::OptionName( Operation( ParamName ) ) );   \
   return static_cast<Derived&>( *this )
 
-        /**
-         * @throw exception::InvalidArgument
-         *
-         * If the passed parameters are not coding in UTF-8.
-         */
+        /// @throw exception::InvalidArgument If the passed parameters are not coding in UTF-8.
         Derived& starting( types::String _starting ) & { PGBAR__METHOD( Starting, _starting, std::move ); }
-        /**
-         * @throw exception::InvalidArgument
-         *
-         * If the passed parameters are not coding in UTF-8.
-         */
+        /// @throw exception::InvalidArgument If the passed parameters are not coding in UTF-8.
         Derived& ending( types::String _ending ) & { PGBAR__METHOD( Ending, _ending, std::move ); }
 #ifdef __cpp_char8_t
         Derived& starting( types::LitU8 _starting ) & { PGBAR__METHOD( Starting, _starting, ); }
         Derived& ending( types::LitU8 _ending ) & { PGBAR__METHOD( Ending, _ending, ); }
 #endif
 
-        Derived& start_color( types::HexRGB _start_color ) & { PGBAR__METHOD( StartColor, _start_color, ); }
-        /**
-         * @throw exception::InvalidArgument
-         *
-         * If the passed parameters is not a valid RGB color string.
-         */
-        Derived& start_color( types::ROStr _start_color ) & { PGBAR__METHOD( StartColor, _start_color, ); }
-        Derived& end_color( types::HexRGB _end_color ) & { PGBAR__METHOD( EndColor, _end_color, ); }
-        /**
-         * @throw exception::InvalidArgument
-         *
-         * If the passed parameters is not a valid RGB color string.
-         */
-        Derived& end_color( types::ROStr _end_color ) & { PGBAR__METHOD( EndColor, _end_color, ); }
+        /// @throw exception::InvalidArgument  If the passed parameters is not a valid RGB color string.
+        Derived& start_color( console::escodes::RGBColor _start_color ) &
+        {
+          PGBAR__METHOD( StartColor, _start_color, std::move );
+        }
+        /// @throw exception::InvalidArgument If the passed parameters is not a valid RGB color string.
+        Derived& end_color( console::escodes::RGBColor _end_color ) &
+        {
+          PGBAR__METHOD( EndColor, _end_color, std::move );
+        }
+
         // Set the width of the bar indicator.
         Derived& bar_width( types::Size _width ) & noexcept { PGBAR__METHOD( BarWidth, _width, ); }
 
@@ -540,24 +496,18 @@ namespace pgbar {
   unpack( *this, option::OptionName( Operation( ParamName ) ) );   \
   return static_cast<Derived&>( *this )
 
-        /**
-         * @throw exception::InvalidArgument
-         *
-         * If the passed parameters are not coding in UTF-8.
-         */
+        /// @throw exception::InvalidArgument If the passed parameters are not coding in UTF-8.
         Derived& prefix( types::String _prefix ) & { PGBAR__METHOD( Prefix, _prefix, std::move ); }
 
 #ifdef __cpp_char8_t
         Derived& prefix( types::LitU8 _prefix ) & { PGBAR__METHOD( Prefix, _prefix, ); }
 #endif
 
-        Derived& prefix_color( types::HexRGB _prfx_color ) & { PGBAR__METHOD( PrefixColor, _prfx_color, ); }
-        /**
-         * @throw exception::InvalidArgument
-         *
-         * If the passed parameters is not a valid RGB color string.
-         */
-        Derived& prefix_color( types::ROStr _prfx_color ) & { PGBAR__METHOD( PrefixColor, _prfx_color, ); }
+        /// @throw exception::InvalidArgument If the passed parameters is not a valid RGB color string.
+        Derived& prefix_color( console::escodes::RGBColor _prfx_color ) &
+        {
+          PGBAR__METHOD( PrefixColor, _prfx_color, std::move );
+        }
 
 #undef PGBAR__METHOD
 
@@ -607,28 +557,16 @@ namespace pgbar {
   unpack( *this, option::OptionName( Operation( ParamName ) ) );   \
   return static_cast<Derived&>( *this )
 
-        /**
-         * @throw exception::InvalidArgument
-         *
-         * If the passed parameters are not coding in UTF-8.
-         */
+        /// @throw exception::InvalidArgument If the passed parameters are not coding in UTF-8.
         Derived& postfix( types::String _postfix ) & { PGBAR__METHOD( Postfix, _postfix, std::move ); }
 #ifdef __cpp_char8_t
         Derived& postfix( types::LitU8 _postfix ) & { PGBAR__METHOD( Postfix, _postfix, ); }
 #endif
 
-        Derived& postfix_color( types::HexRGB _pstfx_color ) &
+        /// @throw exception::InvalidArgument If the passed parameters is not a valid RGB color string.
+        Derived& postfix_color( console::escodes::RGBColor _pstfx_color ) &
         {
-          PGBAR__METHOD( PostfixColor, _pstfx_color, );
-        }
-        /**
-         * @throw exception::InvalidArgument
-         *
-         * If the passed parameters is not a valid RGB color string.
-         */
-        Derived& postfix_color( types::ROStr _pstfx_color ) &
-        {
-          PGBAR__METHOD( PostfixColor, _pstfx_color, );
+          PGBAR__METHOD( PostfixColor, _pstfx_color, std::move );
         }
 
 #undef PGBAR__METHOD
@@ -678,26 +616,14 @@ namespace pgbar {
   unpack( *this, option::OptionName( Operation( ParamName ) ) );   \
   return static_cast<Derived&>( *this )
 
-        /**
-         * @throw exception::InvalidArgument
-         *
-         * If the passed parameters are not coding in UTF-8.
-         */
+        /// @throw exception::InvalidArgument If the passed parameters are not coding in UTF-8.
         Derived& divider( types::String _divider ) & { PGBAR__METHOD( Divider, _divider, std::move ); }
-        /**
-         * @throw exception::InvalidArgument
-         *
-         * If the passed parameters are not coding in UTF-8.
-         */
+        /// @throw exception::InvalidArgument If the passed parameters are not coding in UTF-8.
         Derived& left_border( types::String _l_border ) &
         {
           PGBAR__METHOD( LeftBorder, _l_border, std::move );
         }
-        /**
-         * @throw exception::InvalidArgument
-         *
-         * If the passed parameters are not coding in UTF-8.
-         */
+        /// @throw exception::InvalidArgument If the passed parameters are not coding in UTF-8.
         Derived& right_border( types::String _r_border ) &
         {
           PGBAR__METHOD( RightBorder, _r_border, std::move );
@@ -708,13 +634,11 @@ namespace pgbar {
         Derived& right_border( types::LitU8 _r_border ) & { PGBAR__METHOD( RightBorder, _r_border, ); }
 #endif
 
-        Derived& info_color( types::HexRGB _info_color ) & { PGBAR__METHOD( InfoColor, _info_color, ); }
-        /**
-         * @throw exception::InvalidArgument
-         *
-         * If the passed parameters is not a valid RGB color string.
-         */
-        Derived& info_color( types::ROStr _info_color ) & { PGBAR__METHOD( InfoColor, _info_color, ); }
+        /// @throw exception::InvalidArgument If the passed parameters is not a valid RGB color string.
+        Derived& info_color( console::escodes::RGBColor _info_color ) &
+        {
+          PGBAR__METHOD( InfoColor, _info_color, std::move );
+        }
 
 #undef PGBAR__METHOD
 
