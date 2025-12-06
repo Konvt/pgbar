@@ -4,6 +4,8 @@
 #include "../core/Core.hpp"
 #if PGBAR__CXX14
 # include <shared_mutex>
+#else
+# include <mutex>
 #endif
 
 namespace pgbar {

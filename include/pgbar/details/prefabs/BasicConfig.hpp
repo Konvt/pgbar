@@ -47,8 +47,7 @@ namespace pgbar {
                                              traits::OptionFor_t<assets::Postfix>,
                                              traits::OptionFor_t<assets::Segment>>;
 
-        friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR void unpack( BasicConfig& cfg,
-                                                                    option::Style&& val ) noexcept
+        friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR void unpack( Self& cfg, option::Style&& val ) noexcept
         {
           cfg.visual_masks_ = val.value();
         }
@@ -162,6 +161,7 @@ namespace pgbar {
                                   std::is_nothrow_copy_assignable<Base>>::value )
         {
           std::lock_guard<concurrent::SharedMutex> lock { other.rw_mtx_ };
+          // Here we are calling the operator= of Base, which is lock-free.
           Base::operator=( other );
           visual_masks_ = other.visual_masks_;
         }
@@ -169,7 +169,7 @@ namespace pgbar {
         {
           // static_assert(
           //   std::is_nothrow_default_constructible<Base>::value,
-          //   "To ensure that the mobile constructor is strictly noexcept, "
+          //   "To ensure that the move ctor is strictly noexcept, "
           //   "it is necessary to require that the default constructor of the base class is noexcept." );
           std::lock_guard<concurrent::SharedMutex> lock { rhs.rw_mtx_ };
           Base::operator=( std::move( rhs ) );
@@ -225,11 +225,7 @@ namespace pgbar {
                                               traits::TpContain<PermittedSet, Args>...>::value,
                                 Derived&>::type
 #endif
-          set( Arg arg, Args... args ) & noexcept(
-            traits::AllOf<
-              traits::BoolConstant<noexcept( unpack( std::declval<Derived&>(), std::move( arg ) ) )>,
-              traits::BoolConstant<noexcept( unpack( std::declval<Derived&>(), std::move( args ) ) )>...>::
-              value )
+          with( Arg arg, Args... args ) &
         {
           std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };
           unpack( *this, std::move( arg ) );
@@ -246,7 +242,7 @@ namespace pgbar {
         PGBAR__NODISCARD Modifier<true> enable() & noexcept { return Modifier<true>( *this ); }
         PGBAR__NODISCARD Modifier<false> disable() & noexcept { return Modifier<false>( *this ); }
 
-        PGBAR__CXX23_CNSTXPR void swap( BasicConfig& other ) noexcept
+        PGBAR__CXX23_CNSTXPR void swap( Self& other ) noexcept
         {
           std::lock( this->rw_mtx_, other.rw_mtx_ );
           std::lock_guard<concurrent::SharedMutex> lock1 { this->rw_mtx_, std::adopt_lock };
@@ -255,7 +251,43 @@ namespace pgbar {
           swap( visual_masks_, other.visual_masks_ );
           Base::swap( other );
         }
-        friend PGBAR__CXX23_CNSTXPR void swap( BasicConfig& a, BasicConfig& b ) noexcept { a.swap( b ); }
+        friend PGBAR__CXX23_CNSTXPR void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
+
+        template<typename Option>
+        friend auto operator|=( Self& cfg, Option&& opt )
+#ifdef __cpp_concepts
+          requires traits::TpContain<PermittedSet, std::decay_t<Option>>::value
+#else
+          -> typename std::enable_if<
+            traits::TpContain<PermittedSet, typename std::decay<Option>::type>::value>::type
+#endif
+        {
+          cfg.with( std::forward<Option>( opt ) );
+        }
+        template<typename Option>
+#ifdef __cpp_concepts
+          requires traits::TpContain<PermittedSet, Option>::value
+        friend Derived&
+#else
+        friend typename std::enable_if<traits::TpContain<PermittedSet, Option>::value, Derived&>::type
+#endif
+          operator|( Self& cfg, Option&& opt )
+        {
+          return cfg.with( std::forward<Option>( opt ) );
+        }
+        template<typename Option>
+#ifdef __cpp_concepts
+          requires traits::TpContain<PermittedSet, std::decay_t<Option>>::value
+        friend Derived&&
+#else
+        friend
+          typename std::enable_if<traits::TpContain<PermittedSet, typename std::decay<Option>::type>::value,
+                                  Derived&&>::type
+#endif
+          operator|( Self&& cfg, Option&& opt )
+        {
+          return std::move( cfg.with( std::forward<Option>( opt ) ) );
+        }
       };
     } // namespace prefabs
 

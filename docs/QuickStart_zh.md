@@ -321,7 +321,7 @@ int main()
     .info_color( "#39C5BB" );
 
   auto config3 = config2; // 构造完毕后也能使用可变模板参数调整
-  config3.set( pgbar::option::Prefix( "Do something" ), pgbar::option::PrefixColor( 0xFFE211 ) );
+  config3.with( pgbar::option::Prefix( "Do something" ), pgbar::option::PrefixColor( 0xFFE211 ) );
 }
 ```
 
@@ -550,7 +550,6 @@ int main()
   bar |= callback;
   // or
   bar | callback;
-  callback | bar;
 }
 ```
 
@@ -784,7 +783,7 @@ int main()
     .info_color( "#39C5BB" );
 
   auto config3 = config2; // 构造完毕后也能使用可变模板参数调整
-  config3.set( pgbar::option::Prefix( "Do something" ), pgbar::option::PrefixColor( 0xFFE211 ) );
+  config3.with( pgbar::option::Prefix( "Do something" ), pgbar::option::PrefixColor( 0xFFE211 ) );
 }
 ```
 
@@ -1011,7 +1010,6 @@ int main()
   bar |= callback;
   // or
   bar | callback;
-  callback | bar;
 }
 ```
 
@@ -1210,7 +1208,7 @@ int main()
     .info_color( "#39C5BB" );
 
   auto config3 = config2; // 构造完毕后也能使用可变模板参数调整
-  config3.set( pgbar::option::Prefix( "Do something" ), pgbar::option::PrefixColor( 0xFFE211 ) );
+  config3.with( pgbar::option::Prefix( "Do something" ), pgbar::option::PrefixColor( 0xFFE211 ) );
 }
 ```
 
@@ -1439,7 +1437,6 @@ int main()
   bar |= callback;
   // or
   bar | callback;
-  callback | bar;
 }
 ```
 
@@ -1669,7 +1666,7 @@ int main()
     .info_color( "#39C5BB" );
 
   auto config3 = config2; // 构造完毕后也能使用可变模板参数调整
-  config3.set( pgbar::option::Prefix( "Do something" ), pgbar::option::PrefixColor( 0xFFE211 ) );
+  config3.with( pgbar::option::Prefix( "Do something" ), pgbar::option::PrefixColor( 0xFFE211 ) );
 }
 ```
 
@@ -1898,7 +1895,6 @@ int main()
   bar |= callback;
   // or
   bar | callback;
-  callback | bar;
 }
 ```
 
@@ -2128,7 +2124,7 @@ int main()
     .info_color( "#39C5BB" );
 
   auto config3 = config2; // 构造完毕后也能使用可变模板参数调整
-  config3.set( pgbar::option::Prefix( "Do something" ), pgbar::option::PrefixColor( 0xFFE211 ) );
+  config3.with( pgbar::option::Prefix( "Do something" ), pgbar::option::PrefixColor( 0xFFE211 ) );
 }
 ```
 
@@ -2357,7 +2353,6 @@ int main()
   bar |= callback;
   // or
   bar | callback;
-  callback | bar;
 }
 ```
 

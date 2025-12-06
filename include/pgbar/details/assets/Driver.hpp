@@ -546,113 +546,59 @@ namespace pgbar {
         }
 
         template<typename F>
+        friend PGBAR__FORCEINLINE auto operator|=( Self& bar, F&& fn )
 #ifdef __cpp_concepts
-          requires( !std::is_null_pointer_v<std::decay_t<F>>
-                    && (std::is_constructible_v<wrappers::UniqueFunction<void()>, F &&>
-                        || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F &&>))
+          requires( std::is_constructible_v<wrappers::UniqueFunction<void()>, F &&>
+                    || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F &&> )
+#else
+          -> typename std::enable_if<traits::AllOf<
+            traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
+            traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F&&>,
+                          std::is_constructible<wrappers::UniqueFunction<void( Derived& )>, F&&>>>::value>::
+            type
+#endif
+        {
+          bar.action( std::forward<F>( fn ) );
+        }
+        template<typename F>
+#ifdef __cpp_concepts
+          requires( std::is_constructible_v<wrappers::UniqueFunction<void()>, F &&>
+                    || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F &&> )
         friend PGBAR__FORCEINLINE Derived&
 #else
         friend PGBAR__FORCEINLINE typename std::enable_if<
           traits::AllOf<
-            traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
             traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F&&>,
                           std::is_constructible<wrappers::UniqueFunction<void( Derived& )>, F&&>>>::value,
           Derived&>::type
 #endif
-          operator|=( Self& bar, F&& fn ) noexcept( noexcept( bar.action( std::forward<F>( fn ) ) ) )
+          operator|( Self& bar, F&& fn )
         {
           return bar.action( std::forward<F>( fn ) );
         }
         template<typename F>
 #ifdef __cpp_concepts
-          requires( !std::is_null_pointer_v<std::decay_t<F>>
-                    && (std::is_constructible_v<wrappers::UniqueFunction<void()>, F &&>
-                        || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F &&>))
-        friend PGBAR__FORCEINLINE Derived&
-#else
-        friend PGBAR__FORCEINLINE typename std::enable_if<
-          traits::AllOf<
-            traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
-            traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F&&>,
-                          std::is_constructible<wrappers::UniqueFunction<void( Derived& )>, F&&>>>::value,
-          Derived&>::type
-#endif
-          operator|( Self& bar, F&& fn ) noexcept( noexcept( bar.action( std::forward<F>( fn ) ) ) )
-        {
-          return bar.action( std::forward<F>( fn ) );
-        }
-        template<typename F>
-#ifdef __cpp_concepts
-          requires( !std::is_null_pointer_v<std::decay_t<F>>
-                    && (std::is_constructible_v<wrappers::UniqueFunction<void()>, F &&>
-                        || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F &&>))
-        friend PGBAR__FORCEINLINE Derived&
-#else
-        friend PGBAR__FORCEINLINE typename std::enable_if<
-          traits::AllOf<
-            traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
-            traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F&&>,
-                          std::is_constructible<wrappers::UniqueFunction<void( Derived& )>, F&&>>>::value,
-          Derived&>::type
-#endif
-          operator|( F&& fn, Self& bar ) noexcept( noexcept( bar.action( std::forward<F>( fn ) ) ) )
-        {
-          return bar.action( std::forward<F>( fn ) );
-        }
-        template<typename F>
-#ifdef __cpp_concepts
-          requires( !std::is_null_pointer_v<std::decay_t<F>>
-                    && (std::is_constructible_v<wrappers::UniqueFunction<void()>, F &&>
-                        || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F &&>))
+          requires( std::is_constructible_v<wrappers::UniqueFunction<void()>, F &&>
+                    || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F &&> )
         friend PGBAR__FORCEINLINE Derived&&
 #else
         friend PGBAR__FORCEINLINE typename std::enable_if<
           traits::AllOf<
-            traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
             traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F&&>,
                           std::is_constructible<wrappers::UniqueFunction<void( Derived& )>, F&&>>>::value,
           Derived&&>::type
 #endif
-          operator|( Self&& bar, F&& fn ) noexcept( noexcept( bar.action( std::forward<F>( fn ) ) ) )
-        {
-          return std::move( bar.action( std::forward<F>( fn ) ) );
-        }
-        template<typename F>
-#ifdef __cpp_concepts
-          requires( !std::is_null_pointer_v<std::decay_t<F>>
-                    && (std::is_constructible_v<wrappers::UniqueFunction<void()>, F &&>
-                        || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F &&>))
-        friend PGBAR__FORCEINLINE Derived&&
-#else
-        friend PGBAR__FORCEINLINE typename std::enable_if<
-          traits::AllOf<
-            traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
-            traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F&&>,
-                          std::is_constructible<wrappers::UniqueFunction<void( Derived& )>, F&&>>>::value,
-          Derived&&>::type
-#endif
-          operator|( F&& fn, Self&& bar ) noexcept( noexcept( bar.action( std::forward<F>( fn ) ) ) )
+          operator|( Self&& bar, F&& fn )
         {
           return std::move( bar.action( std::forward<F>( fn ) ) );
         }
 
-        friend PGBAR__FORCEINLINE Derived& operator|=( Self& bar, std::nullptr_t ) noexcept
-        {
-          return bar.action();
-        }
+        friend PGBAR__FORCEINLINE void operator|=( Self& bar, std::nullptr_t ) noexcept { bar.action(); }
         friend PGBAR__FORCEINLINE Derived& operator|( Self& bar, std::nullptr_t ) noexcept
         {
           return bar.action();
         }
-        friend PGBAR__FORCEINLINE Derived& operator|( std::nullptr_t, Self& bar ) noexcept
-        {
-          return bar.action();
-        }
         friend PGBAR__FORCEINLINE Derived&& operator|( Self&& bar, std::nullptr_t ) noexcept
-        {
-          return std::move( bar.action() );
-        }
-        friend PGBAR__FORCEINLINE Derived&& operator|( std::nullptr_t, Self&& bar ) noexcept
         {
           return std::move( bar.action() );
         }
