@@ -18,10 +18,10 @@ namespace pgbar {
       using UniqueFunction = std::move_only_function<Signature...>;
 #else
       template<typename Derived>
-      class FnStorage {
+      class FnStore {
       protected:
         union alignas( std::max_align_t ) AnyFn {
-          types::Byte buf_[sizeof( void* ) * 2];
+          types::Byte sso_[sizeof( void* ) * 2];
           types::Byte* dptr_;
 
           constexpr AnyFn() noexcept : dptr_ { nullptr } {}
@@ -38,7 +38,7 @@ namespace pgbar {
         template<typename T>
         using Inlinable = traits::AllOf<
           std::is_nothrow_move_constructible<T>,
-          traits::BoolConstant<( sizeof( AnyFn::buf_ ) >= sizeof( T ) && alignof( AnyFn ) >= alignof( T ) )>>;
+          traits::BoolConstant<( sizeof( AnyFn::sso_ ) >= sizeof( T ) && alignof( AnyFn ) >= alignof( T ) )>>;
 
         const VTable* vtable_;
         AnyFn callee_;
@@ -49,13 +49,13 @@ namespace pgbar {
         template<typename T>
         static PGBAR__NOINLINE PGBAR__CXX14_CNSTXPR void destroy_inline( AnyFn& fn ) noexcept
         {
-          const auto ptr = utils::launder_as<T>( &fn.buf_ );
+          const auto ptr = utils::launder_as<T>( &fn.sso_ );
           ptr->~T();
         }
         template<typename T>
         static PGBAR__NOINLINE void move_inline( AnyFn& dst, AnyFn& src ) noexcept
         {
-          new ( &dst.buf_ ) T( std::move( *utils::launder_as<T>( &src.buf_ ) ) );
+          new ( &dst.sso_ ) T( std::move( *utils::launder_as<T>( &src.sso_ ) ) );
           destroy_inline<T>( src );
         }
 
@@ -82,8 +82,8 @@ namespace pgbar {
           store_fn( const VTable*( &vtable ), AnyFn& any, F&& fn ) noexcept
         {
           using T             = typename std::decay<F>::type;
-          const auto location = new ( &any.buf_ ) T( std::forward<F>( fn ) );
-          PGBAR__TRUST( static_cast<void*>( location ) == static_cast<void*>( &any.buf_ ) );
+          const auto location = new ( &any.sso_ ) T( std::forward<F>( fn ) );
+          PGBAR__TRUST( static_cast<void*>( location ) == static_cast<void*>( &any.sso_ ) );
           (void)location;
           vtable = &table_inline<T>();
         }
@@ -128,7 +128,7 @@ namespace pgbar {
           return tbl;
         }
 
-        PGBAR__CXX23_CNSTXPR FnStorage() noexcept : vtable_ { &table_null() } {}
+        PGBAR__CXX23_CNSTXPR FnStore() noexcept : vtable_ { &table_null() } {}
 
         PGBAR__CXX23_CNSTXPR void reset() noexcept
         {
@@ -150,13 +150,13 @@ namespace pgbar {
         }
 
       public:
-        PGBAR__CXX23_CNSTXPR FnStorage( FnStorage&& rhs ) noexcept : vtable_ { rhs.vtable_ }
+        PGBAR__CXX23_CNSTXPR FnStore( FnStore&& rhs ) noexcept : vtable_ { rhs.vtable_ }
         {
           PGBAR__TRUST( rhs.vtable_ != nullptr );
           vtable_->move( callee_, rhs.callee_ );
           rhs.vtable_ = &table_null();
         }
-        PGBAR__CXX23_CNSTXPR FnStorage& operator=( FnStorage&& rhs ) & noexcept
+        PGBAR__CXX23_CNSTXPR FnStore& operator=( FnStore&& rhs ) & noexcept
         {
           PGBAR__TRUST( this != &rhs );
           PGBAR__TRUST( vtable_ != nullptr );
@@ -168,9 +168,9 @@ namespace pgbar {
           vtable_->move( callee_, rhs.callee_ );
           return *this;
         }
-        PGBAR__CXX23_CNSTXPR ~FnStorage() noexcept { reset(); }
+        PGBAR__CXX23_CNSTXPR ~FnStore() noexcept { reset(); }
 
-        PGBAR__CXX23_CNSTXPR void swap( FnStorage& other ) noexcept
+        PGBAR__CXX23_CNSTXPR void swap( FnStore& other ) noexcept
         {
           PGBAR__TRUST( vtable_ != nullptr );
           PGBAR__TRUST( other.vtable_ != nullptr );
@@ -182,12 +182,12 @@ namespace pgbar {
           PGBAR__TRUST( this->vtable_ != nullptr );
           PGBAR__TRUST( other.vtable_ != nullptr );
         }
-        friend PGBAR__CXX23_CNSTXPR void swap( FnStorage& a, FnStorage& b ) noexcept { return a.swap( b ); }
-        friend constexpr bool operator==( const FnStorage& a, std::nullptr_t ) noexcept
+        friend PGBAR__CXX23_CNSTXPR void swap( FnStore& a, FnStore& b ) noexcept { return a.swap( b ); }
+        friend constexpr bool operator==( const FnStore& a, std::nullptr_t ) noexcept
         {
           return !static_cast<bool>( a );
         }
-        friend constexpr bool operator!=( const FnStorage& a, std::nullptr_t ) noexcept
+        friend constexpr bool operator!=( const FnStore& a, std::nullptr_t ) noexcept
         {
           return static_cast<bool>( a );
         }
@@ -196,10 +196,10 @@ namespace pgbar {
       // `CrefInfo` can be any types that contains the `cref` info of the functor.
       // e.g. For the function type `void () const&`, the `CrefInfo` can be: `const int&`.
       template<typename Derived, typename CrefInfo, typename R, bool Noexcept, typename... Args>
-      class FnInvoker : public FnStorage<Derived> {
-        friend class FnStorage<Derived>;
+      class FnInvoker : public FnStore<Derived> {
+        friend class FnStore<Derived>;
 
-        using typename FnStorage<Derived>::AnyFn;
+        using typename FnStore<Derived>::AnyFn;
         template<typename T>
         using Param_t = typename std::conditional<std::is_scalar<T>::value, T, T&&>::type;
         template<typename T>
@@ -223,7 +223,7 @@ namespace pgbar {
         static PGBAR__NOINLINE PGBAR__CXX14_CNSTXPR R invoke_inline( const AnyFn& fn, Param_t<Args>... args )
           noexcept( Noexcept )
         {
-          const auto ptr = utils::launder_as<Fn_t<T>>( ( &const_cast<AnyFn&>( fn ).buf_ ) );
+          const auto ptr = utils::launder_as<Fn_t<T>>( ( &const_cast<AnyFn&>( fn ).sso_ ) );
           return utils::invoke( utils::forward_as<CrefInfo>( *ptr ), std::forward<Args>( args )... );
         }
         template<typename T>
@@ -250,7 +250,7 @@ namespace pgbar {
       class UniqueFunction<R( Args... )>
         : public FnInvoker<UniqueFunction<R( Args... )>, int&, R, false, Args...> {
         // Function types without ref qualifier will be treated as non-const lvalue reference types.
-        using Base = FnStorage<UniqueFunction>;
+        using Base = FnStore<UniqueFunction>;
 
       public:
         UniqueFunction( const UniqueFunction& )              = delete;

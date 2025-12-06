@@ -447,23 +447,23 @@ namespace pgbar {
           tag_       = Tag::Nil;
         }
 
-        void move_to( ReactiveBar& lhs ) & noexcept
+        void move_to( ReactiveBar& other ) & noexcept
         {
-          lhs.destroy();
+          other.destroy();
           switch ( tag_ ) {
           case Tag::Nullary:
-            new ( std::addressof( lhs.hook_.on_ ) )
+            new ( std::addressof( other.hook_.on_ ) )
               wrappers::UniqueFunction<void()>( std::move( hook_.on_ ) );
             break;
           case Tag::Unary:
-            new ( std::addressof( lhs.hook_.on_self_ ) )
+            new ( std::addressof( other.hook_.on_self_ ) )
               wrappers::UniqueFunction<void( Derived& )>( std::move( hook_.on_self_ ) );
             break;
 
           case Tag::Nil: PGBAR__FALLTHROUGH;
           default:       break;
           }
-          lhs.tag_ = tag_;
+          other.tag_ = tag_;
           destroy();
         }
 
