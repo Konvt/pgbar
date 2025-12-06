@@ -142,18 +142,18 @@ namespace pgbar {
 
 #ifdef __cpp_concepts
         template<typename... Args>
-          requires( traits::Distinct<traits::TypeList<std::decay_t<Args>...>>::value
-                    && ( traits::TpContain<PermittedSet, std::decay_t<Args>>::value && ... ) )
+          requires( traits::Distinct<traits::TypeList<Args...>>::value
+                    && ( traits::TpContain<PermittedSet, Args>::value && ... ) )
 #else
         template<typename... Args,
-                 typename = typename std::enable_if<traits::AllOf<
-                   traits::Distinct<traits::TypeList<typename std::decay<Args>::type...>>,
-                   traits::TpContain<PermittedSet, typename std::decay<Args>::type>...>::value>::type>
+                 typename = typename std::enable_if<
+                   traits::AllOf<traits::Distinct<traits::TypeList<Args...>>,
+                                 traits::TpContain<PermittedSet, Args>...>::value>::type>
 #endif
-        PGBAR__CXX23_CNSTXPR BasicConfig( Args&&... args )
+        PGBAR__CXX23_CNSTXPR BasicConfig( Args... args )
         {
-          Derived::template inject<traits::TypeSet<typename std::decay<Args>::type...>>( *this );
-          (void)std::initializer_list<bool> { ( unpack( *this, std::forward<Args>( args ) ), false )... };
+          Derived::template inject<traits::TypeSet<Args...>>( *this );
+          (void)std::initializer_list<bool> { ( unpack( *this, std::move( args ) ), false )... };
         }
 
         BasicConfig( const Self& other )
