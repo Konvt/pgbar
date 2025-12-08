@@ -49,13 +49,12 @@ namespace pgbar {
         template<typename T>
         static PGBAR__NOINLINE PGBAR__CXX14_CNSTXPR void destroy_inline( AnyFn& fn ) noexcept
         {
-          const auto ptr = utils::launder_as<T>( &fn.sso_ );
-          ptr->~T();
+          utils::destruct_at( utils::launder_as<T>( &fn.sso_ ) );
         }
         template<typename T>
         static PGBAR__NOINLINE void move_inline( AnyFn& dst, AnyFn& src ) noexcept
         {
-          new ( &dst.sso_ ) T( std::move( *utils::launder_as<T>( &src.sso_ ) ) );
+          utils::construct_at<T>( &dst.sso_, std::move( *utils::launder_as<T>( &src.sso_ ) ) );
           destroy_inline<T>( src );
         }
 
@@ -63,11 +62,11 @@ namespace pgbar {
         static PGBAR__NOINLINE PGBAR__CXX20_CNSTXPR void destroy_dynamic( AnyFn& fn ) noexcept
         {
           const auto dptr = utils::launder_as<T>( fn.dptr_ );
-          dptr->~T();
-# if PGBAR__CXX17
-          operator delete( fn.dptr_, std::align_val_t( alignof( T ) ) );
+          utils::destruct_at( dptr );
+# ifdef __cpp_aligned_new
+          ::operator delete( fn.dptr_, std::align_val_t( alignof( T ) ) );
 # else
-          operator delete( fn.dptr_ );
+          ::operator delete( fn.dptr_ );
 # endif
         }
         template<typename T>
@@ -82,7 +81,7 @@ namespace pgbar {
           store_fn( const VTable*( &vtable ), AnyFn& any, F&& fn ) noexcept
         {
           using T             = typename std::decay<F>::type;
-          const auto location = new ( &any.sso_ ) T( std::forward<F>( fn ) );
+          const auto location = utils::construct_at<T>( &any.sso_, std::forward<F>( fn ) );
           PGBAR__TRUST( static_cast<void*>( location ) == static_cast<void*>( &any.sso_ ) );
           (void)location;
           vtable = &table_inline<T>();
@@ -93,14 +92,16 @@ namespace pgbar {
         {
           using T   = typename std::decay<F>::type;
           auto dptr = std::unique_ptr<void, void ( * )( void* )>(
-# if PGBAR__CXX17
-            operator new( sizeof( T ), std::align_val_t( alignof( T ) ) ),
+# ifdef __cpp_aligned_new
+            ::operator new( sizeof( T ), std::align_val_t( alignof( T ) ) ),
+            +[]( void* ptr ) { ::operator delete( ptr, std::align_val_t( alignof( T ) ) ); }
 # else
-            operator new( sizeof( T ) ),
+            ::operator new( sizeof( T ) ),
+            +[]( void* ptr ) { ::operator delete( ptr ); }
 # endif
-            +[]( void* ptr ) { operator delete( ptr ); } );
+          );
 
-          const auto location = new ( dptr.get() ) T( std::forward<F>( fn ) );
+          const auto location = utils::construct_at<T>( dptr.get(), std::forward<F>( fn ) );
           PGBAR__ASSERT( static_cast<void*>( location ) == dptr.get() );
           (void)location;
 

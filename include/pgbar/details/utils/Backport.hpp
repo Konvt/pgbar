@@ -6,7 +6,6 @@
 #include <exception>
 #include <functional>
 #include <memory>
-#include <new>
 #include <utility>
 #ifndef __cpp_lib_invoke
 # include "../traits/Backport.hpp"
@@ -47,16 +46,23 @@ namespace pgbar {
 
       // Available only for objects that constructed by placement new.
       template<typename T>
-      PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR void destruct_at( T& object )
+      PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR void destruct_at( T* location )
         noexcept( std::is_nothrow_destructible<T>::value )
       {
 #if PGBAR__CXX17
-        std::destroy_at( std::addressof( object ) );
+        std::destroy_at( location );
 #else
         static_assert( !std::is_array<T>::value,
                        "pgbar::_details::utils::destruct_at: The program is ill-formed" );
-        object.~T();
+        if PGBAR__CXX17_CNSTXPR ( !std::is_trivially_destructible<T>::value )
+          location->~T();
 #endif
+      }
+      template<typename T>
+      PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR void destruct_at( T& object )
+        noexcept( std::is_nothrow_destructible<T>::value )
+      {
+        destruct_at( std::addressof( object ) );
       }
 
       // Available only for buffers that use placement new.
@@ -262,7 +268,7 @@ namespace pgbar {
       {
         return std::ranges::size( std::forward<Range>( rn ) );
       }
-#elif PGBAR__CXX17
+#elif defined( __cpp_lib_nonmember_container_access )
       template<typename Range>
       PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr types::Size size( Range&& rn )
         noexcept( noexcept( std::size( std::forward<Range>( rn ) ) ) )
@@ -282,6 +288,37 @@ namespace pgbar {
         return N;
       }
 #endif
+
+#if PGBAR__CXX20
+      template<typename T, typename... Args>
+      PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR T* construct_at( void* location, Args&&... args )
+        noexcept( noexcept( std::construct_at( std::declval<T*>(), std::forward<Args>( args )... ) ) )
+      {
+        return std::construct_at( reinterpret_cast<T*>( location ), std::forward<Args>( args )... );
+      }
+#else
+      template<typename T, typename... Args>
+      PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR typename std::enable_if<std::is_array<T>::value, T*>::type
+        construct_at( T* location ) noexcept( noexcept( ::new( std::declval<void*>() ) T[1]() ) )
+      {
+        // static_assert( !std::is_unbounded_array_v<T> );
+        return ::new ( location ) T[1]();
+      }
+      template<typename T, typename... Args>
+      PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR typename std::enable_if<!std::is_array<T>::value, T*>::type
+        construct_at( T* location, Args&&... args )
+          noexcept( noexcept( ::new( std::declval<void*>() ) T( std::forward<Args>( args )... ) ) )
+      {
+        return ::new ( location ) T( std::forward<Args>( args )... );
+      }
+#endif
+      template<typename T, typename U, typename... Args>
+      PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR T* construct_at( U* location, Args&&... args )
+        noexcept( noexcept( construct_at( std::declval<T*>(), std::forward<Args>( args )... ) ) )
+      {
+        static_assert( !std::is_void<T>::value, "pgbar::_details::utils::construct_at: Invalid type" );
+        return construct_at( reinterpret_cast<T*>( location ), std::forward<Args>( args )... );
+      }
 
 #ifdef __cpp_lib_to_underlying
       template<typename E>

@@ -451,14 +451,12 @@ namespace pgbar {
         {
           other.destroy();
           switch ( tag_ ) {
-          case Tag::Nullary:
-            new ( std::addressof( other.hook_.on_ ) )
-              wrappers::UniqueFunction<void()>( std::move( hook_.on_ ) );
-            break;
-          case Tag::Unary:
-            new ( std::addressof( other.hook_.on_self_ ) )
-              wrappers::UniqueFunction<void( Derived& )>( std::move( hook_.on_self_ ) );
-            break;
+          case Tag::Nullary: {
+            utils::construct_at( std::addressof( other.hook_.on_ ), std::move( hook_.on_ ) );
+          } break;
+          case Tag::Unary: {
+            utils::construct_at( std::addressof( other.hook_.on_self_ ), std::move( hook_.on_self_ ) );
+          } break;
 
           case Tag::Nil: PGBAR__FALLTHROUGH;
           default:       break;
@@ -514,7 +512,7 @@ namespace pgbar {
             std::is_nothrow_constructible<wrappers::UniqueFunction<void()>, F>::value )
         {
           std::lock_guard<std::mutex> lock { this->mtx_ };
-          new ( std::addressof( hook_.on_ ) ) wrappers::UniqueFunction<void()>( std::forward<F>( fn ) );
+          utils::construct_at( std::addressof( hook_.on_ ), std::forward<F>( fn ) );
           tag_ = Tag::Nullary;
           return static_cast<Derived&>( *this );
         }
@@ -533,8 +531,7 @@ namespace pgbar {
             std::is_nothrow_constructible<wrappers::UniqueFunction<void( Derived& )>, F>::value )
         {
           std::lock_guard<std::mutex> lock { this->mtx_ };
-          new ( std::addressof( hook_.on_self_ ) )
-            wrappers::UniqueFunction<void( Derived& )>( std::forward<F>( fn ) );
+          utils::construct_at( std::addressof( hook_.on_self_ ), std::forward<F>( fn ) );
           tag_ = Tag::Unary;
           return static_cast<Derived&>( *this );
         }
@@ -613,7 +610,7 @@ namespace pgbar {
             else {
               wrappers::UniqueFunction<void()> tmp { std::move( hook_.on_ ) };
               other.move_to( *this );
-              new ( std::addressof( other.hook_.on_ ) ) wrappers::UniqueFunction<void()>( std::move( tmp ) );
+              utils::construct_at( std::addressof( other.hook_.on_ ), std::move( tmp ) );
               other.tag_ = Tag::Nullary;
             }
             break;
@@ -624,8 +621,7 @@ namespace pgbar {
             else {
               wrappers::UniqueFunction<void( Derived& )> tmp { std::move( hook_.on_self_ ) };
               other.move_to( *this );
-              new ( std::addressof( other.hook_.on_self_ ) )
-                wrappers::UniqueFunction<void( Derived& )>( std::move( tmp ) );
+              utils::construct_at( std::addressof( other.hook_.on_self_ ), std::move( tmp ) );
               other.tag_ = Tag::Unary;
             }
             break;
