@@ -73,45 +73,30 @@ namespace pgbar {
           types::Size total_written = 0;
           do {
             DWORD num_written = 0;
-            if PGBAR__CXX17_CNSTXPR ( Outlet == Channel::Stdout ) {
-              auto h_stdout = GetStdHandle( STD_OUTPUT_HANDLE );
-              if ( h_stdout == INVALID_HANDLE_VALUE )
-                PGBAR__UNLIKELY throw exception::SystemError(
-                  "pgbar: cannot open the standard output stream" );
-              WriteFile( h_stdout,
-                         bytes.data() + total_written,
-                         static_cast<DWORD>( bytes.size() - total_written ),
-                         &num_written,
-                         nullptr );
-            } else {
-              auto h_stderr = GetStdHandle( STD_ERROR_HANDLE );
-              if ( h_stderr == INVALID_HANDLE_VALUE )
-                PGBAR__UNLIKELY throw exception::SystemError(
-                  "pgbar: cannot open the standard error stream" );
-              WriteFile( h_stderr,
-                         bytes.data() + total_written,
-                         static_cast<DWORD>( bytes.size() - total_written ),
-                         &num_written,
-                         nullptr );
-            }
-            if ( num_written <= 0 )
-              break; // ignore it
+            auto ostream      = []() {
+              if PGBAR__CXX17_CNSTXPR ( Outlet == Channel::Stdout )
+                return GetStdHandle( STD_OUTPUT_HANDLE );
+              else
+                return GetStdHandle( STD_ERROR_HANDLE );
+            }();
+            if ( ostream == INVALID_HANDLE_VALUE )
+              PGBAR__UNLIKELY throw exception::SystemError( "pgbar: cannot open the standard output stream" );
+            WriteFile( ostream,
+                       bytes.data() + total_written,
+                       static_cast<DWORD>( bytes.size() - total_written ),
+                       &num_written,
+                       nullptr );
             total_written += static_cast<types::Size>( num_written );
           } while ( total_written < bytes.size() );
 #elif PGBAR__UNIX
           types::Size total_written = 0;
           do {
-            ssize_t num_written = 0;
-            if PGBAR__CXX17_CNSTXPR ( Outlet == Channel::Stdout )
-              num_written =
-                write( STDOUT_FILENO, bytes.data() + total_written, bytes.size() - total_written );
-            else
-              num_written =
-                write( STDERR_FILENO, bytes.data() + total_written, bytes.size() - total_written );
+            ssize_t num_written =
+              write( utils::as_val( Outlet ), bytes.data() + total_written, bytes.size() - total_written );
             if ( errno == EINTR )
-              num_written = num_written < 0 ? 0 : num_written;
+              num_written = ( std::max )( 0, num_written );
             else if ( num_written < 0 )
-              break;
+              PGBAR__UNLIKELY throw exception::SystemError( "pgbar: write to output stream failed" );
             total_written += static_cast<types::Size>( num_written );
           } while ( total_written < bytes.size() );
 #else
@@ -165,7 +150,7 @@ namespace pgbar {
 
           const auto wlen =
             MultiByteToWideChar( CP_UTF8, 0, buffer_.data(), static_cast<int>( buffer_.size() ), nullptr, 0 );
-          PGBAR__ASSERT( wlen > 0 );
+          PGBAR__TRUST( wlen > 0 );
           wb_buffer_.resize( static_cast<types::Size>( wlen ) );
           MultiByteToWideChar( CP_UTF8,
                                0,
@@ -176,7 +161,7 @@ namespace pgbar {
 
           const auto mblen =
             WideCharToMultiByte( codepage, 0, wb_buffer_.data(), wlen, nullptr, 0, nullptr, nullptr );
-          PGBAR__ASSERT( mblen > 0 );
+          PGBAR__TRUST( mblen > 0 );
           localized_.resize( static_cast<types::Size>( mblen ) );
           WideCharToMultiByte( codepage,
                                0,
