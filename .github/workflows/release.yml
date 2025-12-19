@@ -26,7 +26,10 @@ jobs:
           fi
 
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 1
 
       - name: Set up CMake
         uses: jwlawson/actions-setup-cmake@v2
@@ -36,9 +39,12 @@ jobs:
           cmake --preset package
           cmake --build build --target pack
 
-      - name: Extract release notes
-        id: changelog
+      - name: Extract release info
+        id: release_info
         run: |
+          artifact_name=$(cmake --build build --target artifact | tail -n2 | head -n1)
+          echo "artifact=$artifact_name" >> $GITHUB_OUTPUT
+
           python3 - <<'EOF'
           import os
           import re
@@ -63,8 +69,8 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           name: ${{ steps.version_tag.outputs.version }}
-          body: ${{ steps.changelog.outputs.notes }}
-          files: build/pgbar-${{ steps.version_tag.outputs.version }}.zip
+          body: ${{ steps.release_info.outputs.notes }}
+          files: ${{ steps.release_info.outputs.artifact }}
           prerelease: ${{ steps.prerelease.outputs.prerelease }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

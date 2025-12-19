@@ -86,6 +86,8 @@ if(PGBAR_PACKAGE)
   set(PGBAR_PKG_FMT "zip")
   set(PGBAR_PKG_FILE "${CMAKE_CURRENT_BINARY_DIR}/${PGBAR_PKG_NAME}.${PGBAR_PKG_FMT}")
 
+  add_custom_target(artifact COMMAND ${CMAKE_COMMAND} -E echo ${PGBAR_PKG_FILE})
+
   set(PGBAR_INS_STAMP "installed")
   add_custom_command(
     OUTPUT "${PGBAR_PKG_ROOT}/${PGBAR_INS_STAMP}"
