@@ -35,7 +35,7 @@ namespace pgbar {
       }
 #endif
 
-      int uncaught_exceptions() noexcept
+      inline int uncaught_exceptions() noexcept
       {
 #ifdef __cpp_lib_uncaught_exceptions
         return std::uncaught_exceptions();
