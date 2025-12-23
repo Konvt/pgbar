@@ -31,11 +31,11 @@ namespace pgbar {
       PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX23_CNSTXPR std::unique_ptr<T> make_unique(
         Args&&... args )
       {
-        return std::unique_ptr<T>( new T( std::forward<Args>( args )... ) );
+        return std::unique_ptr<T>( ::new T( std::forward<Args>( args )... ) );
       }
 #endif
 
-      inline int uncaught_exceptions() noexcept
+      PGBAR__FORCEINLINE int uncaught_exceptions() noexcept
       {
 #ifdef __cpp_lib_uncaught_exceptions
         return std::uncaught_exceptions();

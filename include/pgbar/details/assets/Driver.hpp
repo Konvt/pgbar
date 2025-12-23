@@ -960,14 +960,7 @@ namespace pgbar {
       };
 
       template<typename Base, typename Derived>
-      class BoundedFrameBar;
-      template<typename Base,
-               template<typename, Channel, Policy, Region> class Derived,
-               typename S,
-               Channel O,
-               Policy M,
-               Region A>
-      class BoundedFrameBar<Base, Derived<S, O, M, A>> : public Base {
+      class BoundedFrameBar : public Base {
         friend Base;
 
         void warmup() &
@@ -984,14 +977,7 @@ namespace pgbar {
       };
 
       template<typename Base, typename Derived>
-      class NullableFrameBar;
-      template<typename Base,
-               template<typename, Channel, Policy, Region> class Derived,
-               typename S,
-               Channel O,
-               Policy M,
-               Region A>
-      class NullableFrameBar<Base, Derived<S, O, M, A>> : public Base {
+      class NullableFrameBar : public Base {
         friend Base;
 
         void warmup() & {}
