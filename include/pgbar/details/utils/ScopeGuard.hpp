@@ -9,31 +9,31 @@ namespace pgbar {
   namespace _details {
     namespace utils {
       template<typename Fn, typename = void>
-      class ScpStorage { // scope, not that "scp"
+      class ScpStore { // scope, not that "scp"
         Fn callback_;
 
       protected:
         template<typename F>
-        ScpStorage( std::true_type, F&& fn ) noexcept : callback_ { std::forward<F>( fn ) }
+        ScpStore( std::true_type, F&& fn ) noexcept : callback_ { std::forward<F>( fn ) }
         {}
         template<typename F>
-        ScpStorage( std::false_type, F&& fn ) noexcept( std::is_nothrow_constructible<Fn, F&>::value )
+        ScpStore( std::false_type, F&& fn ) noexcept( std::is_nothrow_constructible<Fn, F&>::value )
           : callback_ { fn }
         {}
 
         PGBAR__FORCEINLINE Fn& callback() noexcept { return callback_; }
       };
       template<typename Fn>
-      class ScpStorage<Fn,
-                       typename std::enable_if<
-                         traits::AllOf<std::is_empty<Fn>, traits::Not<traits::is_final<Fn>>>::value>::type>
+      class ScpStore<Fn,
+                     typename std::enable_if<
+                       traits::AllOf<std::is_empty<Fn>, traits::Not<traits::is_final<Fn>>>::value>::type>
         : private Fn {
       protected:
         template<typename F>
-        ScpStorage( std::true_type, F&& fn ) noexcept : Fn( std::forward<F>( fn ) )
+        ScpStore( std::true_type, F&& fn ) noexcept : Fn( std::forward<F>( fn ) )
         {}
         template<typename F>
-        ScpStorage( std::false_type, F&& fn ) noexcept( std::is_nothrow_constructible<Fn, F&>::value )
+        ScpStore( std::false_type, F&& fn ) noexcept( std::is_nothrow_constructible<Fn, F&>::value )
           : Fn( fn )
         {}
 
@@ -45,11 +45,11 @@ namespace pgbar {
 #if PGBAR__CXX17
         PGBAR__NODISCARD
 #endif
-          ScopeFail : protected ScpStorage<Fn> {
+          ScopeFail : private ScpStore<Fn> {
         static_assert( traits::is_invocable<typename std::remove_reference<Fn>::type&>::value,
                        "pgbar::_details::utils::ScopeFail: Invalid callback type" );
         using Self = ScopeFail;
-        using Base = ScpStorage<Fn>;
+        using Base = ScpStore<Fn>;
 
         int exceptions_on_entry_;
 

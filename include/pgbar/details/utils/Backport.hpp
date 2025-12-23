@@ -291,7 +291,7 @@ namespace pgbar {
 
 #if PGBAR__CXX20
       template<typename T, typename... Args>
-      PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR T* construct_at( void* location, Args&&... args )
+      PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR T* construct_at( T* location, Args&&... args )
         noexcept( noexcept( std::construct_at( std::declval<T*>(), std::forward<Args>( args )... ) ) )
       {
         return std::construct_at( reinterpret_cast<T*>( location ), std::forward<Args>( args )... );
