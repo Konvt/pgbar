@@ -316,15 +316,15 @@ namespace pgbar {
         // themselves.
         virtual void do_halt( bool forced = false ) noexcept
         {
-          auto& executor = render::Renderer<Outlet, Mode>::itself();
+          auto& executor = render::Renderer<Outlet>::itself();
           PGBAR__ASSERT( executor.empty() == false );
           if ( !forced )
-            executor.attempt();
+            executor.template trigger<Mode>();
           executor.dismiss_then( []() noexcept { io::OStream<Outlet>::itself().release(); } );
         }
         virtual void do_boot() & noexcept( false )
         {
-          auto& executor = render::Renderer<Outlet, Mode>::itself();
+          auto& executor = render::Renderer<Outlet>::itself();
           if ( !executor.try_appoint( [this]() {
                  // No exceptions are caught here, this should be done by the thread manager.
                  auto& ostream    = io::OStream<Outlet>::itself();
@@ -373,7 +373,7 @@ namespace pgbar {
 
           io::OStream<Outlet>::itself() << io::release; // reset the state.
           auto guard = utils::make_scope_fail( [&executor]() noexcept { executor.dismiss(); } );
-          executor.activate();
+          executor.template activate<Mode>();
         }
 
       public:
@@ -780,8 +780,8 @@ namespace pgbar {
                   do_reset<false>();
                 }
               }
-            else if PGBAR__CXX17_CNSTXPR ( Mode == Policy::Sync )
-              render::Renderer<Outlet, Mode>::itself().execute();
+            else
+              render::Renderer<Outlet>::itself().template commit<Mode>();
           } break;
 
           default: utils::unreachable();
@@ -924,13 +924,12 @@ namespace pgbar {
                   do_reset<false>();
                 }
               }
-            else if PGBAR__CXX17_CNSTXPR ( Mode == Policy::Sync )
-              render::Renderer<Outlet, Mode>::itself().execute();
+            else
+              render::Renderer<Outlet>::itself().template commit<Mode>();
           } break;
 
           case State::ActivityRefresh: {
-            if PGBAR__CXX17_CNSTXPR ( Mode == Policy::Sync )
-              render::Renderer<Outlet, Mode>::itself().execute();
+            render::Renderer<Outlet>::itself().template commit<Mode>();
           } break;
 
           default: utils::unreachable();

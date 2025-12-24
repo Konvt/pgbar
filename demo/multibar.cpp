@@ -24,7 +24,7 @@ int main()
                           pgbar::option::InfoColor( "#7DD4DF" ) ),
     pgbar::config::Block( pgbar::option::Lead( { " ", "▖", "▞", "▛" } ),
                           pgbar::option::InfoColor( "#8AB7EB" ) ) );
-  mbar.config<0>().tasks( ( std::tuple_size<decltype( mbar )>::value - 1 ) * 2 );
+  mbar.config<0>().tasks( ( tuple_size<decltype( mbar )>::value - 1 ) * 2 );
   // Bind a callback that will be executed at the end of the iteration below.
   mbar.at<0>() |=
     [&]( pgbar::FlowBar<>& self ) { self.config().filler_color( pgbar::Color::Green ).lead( "" ); };

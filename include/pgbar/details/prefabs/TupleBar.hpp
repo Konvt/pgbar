@@ -37,15 +37,14 @@ namespace pgbar {
 
         template<types::Size Pos>
         PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR typename std::enable_if<( Pos >= sizeof...( Configs ) )>::type
-          do_render() &
+          do_render( bool, bool ) &
         {}
         template<types::Size Pos = 0>
-        inline typename std::enable_if<( Pos < sizeof...( Configs ) )>::type do_render() &
+        inline typename std::enable_if<( Pos < sizeof...( Configs ) )>::type do_render( bool istty,
+                                                                                        bool hide_done ) &
         {
           PGBAR__ASSERT( online() );
-          auto& ostream        = io::OStream<Outlet>::itself();
-          const auto istty     = console::TermContext<Outlet>::itself().connected();
-          const auto hide_done = config::hide_completed();
+          auto& ostream = io::OStream<Outlet>::itself();
 
           bool this_rendered = false;
           if ( at<Pos>().active() ) {
@@ -77,7 +76,7 @@ namespace pgbar {
             ostream << console::escodes::linewipe;
           }
 
-          return do_render<Pos + 1>(); // tail recursive
+          return do_render<Pos + 1>( istty, hide_done ); // tail recursive
         }
 
         void do_halt( bool forced ) noexcept final
@@ -85,11 +84,11 @@ namespace pgbar {
           // hence the default arguments from the base class declaration are always used.
           // Any default arguments provided in the derived class are ignored.
           if ( online() ) {
-            auto& executor = render::Renderer<Outlet, Mode>::itself();
+            auto& executor = render::Renderer<Outlet>::itself();
             PGBAR__ASSERT( executor.empty() == false );
             std::lock_guard<std::mutex> lock { sched_mtx_ };
             if ( !forced )
-              executor.attempt();
+              executor.template trigger<Mode>();
             if ( alive_cnt_.fetch_sub( 1, std::memory_order_acq_rel ) == 1 ) {
               state_.store( State::Stop, std::memory_order_release );
               executor.dismiss_then( []() noexcept { io::OStream<Outlet>::itself().release(); } );
@@ -99,7 +98,7 @@ namespace pgbar {
         void do_boot() & final
         {
           std::lock_guard<std::mutex> lock { sched_mtx_ };
-          auto& executor = render::Renderer<Outlet, Mode>::itself();
+          auto& executor = render::Renderer<Outlet>::itself();
           if ( state_.load( std::memory_order_acquire ) == State::Stop ) {
             if ( !executor.try_appoint( [this]() {
                    auto& ostream    = io::OStream<Outlet>::itself();
@@ -112,7 +111,8 @@ namespace pgbar {
                      {
                        std::lock_guard<concurrent::SharedMutex> lock { res_mtx_ };
                        active_mask_.reset();
-                       do_render();
+                       do_render( console::TermContext<Outlet>::itself().connected(),
+                                  config::hide_completed() );
                      }
                      ostream << io::flush;
 
@@ -129,7 +129,8 @@ namespace pgbar {
                            ostream.append( console::escodes::prevline, active_mask_.count() )
                              .append( console::escodes::linestart );
                        }
-                       do_render();
+                       do_render( console::TermContext<Outlet>::itself().connected(),
+                                  config::hide_completed() );
                      }
                      ostream << io::flush;
                    } break;
@@ -146,9 +147,9 @@ namespace pgbar {
               state_.store( State::Stop, std::memory_order_release );
               executor.dismiss();
             } );
-            executor.activate();
+            executor.template activate<Mode>();
           } else
-            executor.attempt();
+            executor.template trigger<Mode>();
           alive_cnt_.fetch_add( 1, std::memory_order_release );
           PGBAR__ASSERT( alive_cnt_ <= sizeof...( Configs ) );
         }
@@ -214,14 +215,14 @@ namespace pgbar {
 
         void shut()
         {
-          if ( online() && !_details::render::Renderer<Outlet, Mode>::itself().empty() )
+          if ( online() && !_details::render::Renderer<Outlet>::itself().empty() )
             (void)std::initializer_list<bool> { ( this->ElementAt_t<Tags>::reset(), false )... };
           PGBAR__ASSERT( alive_cnt_ == 0 );
           PGBAR__ASSERT( online() == false );
         }
         void kill() noexcept
         {
-          if ( online() && !_details::render::Renderer<Outlet, Mode>::itself().empty() )
+          if ( online() && !_details::render::Renderer<Outlet>::itself().empty() )
             (void)std::initializer_list<bool> { ( this->ElementAt_t<Tags>::abort(), false )... };
           PGBAR__ASSERT( alive_cnt_ == 0 );
           PGBAR__ASSERT( online() == false );

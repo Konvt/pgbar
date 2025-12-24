@@ -96,19 +96,19 @@ namespace pgbar {
     template<Channel Outlet>
     PGBAR__NODISCARD TimeGranule refresh_interval() noexcept
     {
-      return _details::render::Renderer<Outlet, Policy::Async>::working_interval();
+      return _details::render::Renderer<Outlet>::working_interval();
     }
     // Set the new output interval.
     template<Channel Outlet>
     void refresh_interval( TimeGranule new_rate ) noexcept
     {
-      _details::render::Renderer<Outlet, Policy::Async>::working_interval( new_rate );
+      _details::render::Renderer<Outlet>::working_interval( new_rate );
     }
     // Set every channels to the same output interval.
     inline void refresh_interval( TimeGranule new_rate ) noexcept
     {
-      _details::render::Renderer<Channel::Stderr, Policy::Async>::working_interval( new_rate );
-      _details::render::Renderer<Channel::Stdout, Policy::Async>::working_interval( new_rate );
+      _details::render::Renderer<Channel::Stderr>::working_interval( new_rate );
+      _details::render::Renderer<Channel::Stdout>::working_interval( new_rate );
     }
   } // namespace config
 } // namespace pgbar

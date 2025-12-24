@@ -32,17 +32,17 @@ namespace pgbar {
           {}
         };
 
-        std::vector<Slot> items_;
+        std::vector<Slot> items_                       = {};
         // If Area is equal to Region::Fixed,
         // the variable represents the number of lines that need to be discarded;
         // If Area is equal to Region::Relative,
         // the variable represents the number of nextlines output last time.
-        std::atomic<std::uint64_t> num_modified_lines_;
-        mutable concurrent::SharedMutex res_mtx_;
-        mutable std::mutex sched_mtx_;
+        std::atomic<std::uint64_t> num_modified_lines_ = { 0 };
+        mutable concurrent::SharedMutex res_mtx_       = {};
+        mutable std::mutex sched_mtx_                  = {};
 
         enum class State : std::uint8_t { Stop, Awake, Refresh };
-        std::atomic<State> state_;
+        std::atomic<State> state_ = { State::Stop };
 
         void do_render() &
         {
@@ -128,16 +128,14 @@ namespace pgbar {
                   items_[i].target_->reset();
               }
             }
-            render::Renderer<Outlet, Mode>::itself().dismiss();
+            render::Renderer<Outlet>::itself().dismiss();
           }
           state_.store( State::Stop, std::memory_order_release );
           items_.clear();
         }
 
       public:
-        DynContext() noexcept
-          : items_ {}, num_modified_lines_ { 0 }, res_mtx_ {}, sched_mtx_ {}, state_ { State::Stop }
-        {}
+        DynContext()                                 = default;
         DynContext( const DynContext& )              = delete;
         DynContext& operator=( const DynContext& ) & = delete;
         ~DynContext() noexcept { kill(); }
@@ -149,7 +147,7 @@ namespace pgbar {
         void append( prefabs::ManagedBar<C, Outlet, Mode, Area>* item ) & noexcept( false )
         {
           std::lock_guard<std::mutex> lock1 { sched_mtx_ };
-          auto& executor     = render::Renderer<Outlet, Mode>::itself();
+          auto& executor     = render::Renderer<Outlet>::itself();
           bool activate_flag = false;
           {
             concurrent::SharedLock<concurrent::SharedMutex> lock2 { res_mtx_ };
@@ -218,24 +216,24 @@ namespace pgbar {
               std::lock_guard<concurrent::SharedMutex> lock2 { res_mtx_ };
               items_.emplace_back( item );
             }
-            executor.activate();
+            executor.template activate<Mode>();
           } else {
             {
               std::lock_guard<concurrent::SharedMutex> lock2 { res_mtx_ };
               eliminate();
               items_.emplace_back( item );
             }
-            executor.attempt();
+            executor.template trigger<Mode>();
           }
         }
         void pop( const Indicator* item, bool forced = false ) noexcept
         {
-          auto& executor = render::Renderer<Outlet, Mode>::itself();
+          auto& executor = render::Renderer<Outlet>::itself();
           PGBAR__ASSERT( executor.empty() == false );
           std::lock_guard<std::mutex> lock1 { sched_mtx_ };
           PGBAR__ASSERT( online_count() != 0 );
           if ( !forced )
-            executor.attempt();
+            executor.template trigger<Mode>();
 
           bool suspend_flag = false;
           {
