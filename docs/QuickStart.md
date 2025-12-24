@@ -375,7 +375,7 @@ int main()
 
 Especially it is important to note that the binding to the same output stream objects are not allowed to run at the same time, otherwise it will throw an exception `pgbar::exception::InvalidState`; For a detailed explanation of this, see [FAQ - Design of renderer](#design-of-renderer).
 #### Rendering Scheduling Policies
-`ProgressBar` has three rendering scheduling policies: `pgbar::Policy::Async`, `pgbar::Policy::Signal`, and `pgbar::Policy::Async`. Different rendering policies determine which thread is responsible for performing the rendering task.
+`ProgressBar` has three rendering scheduling policies: `pgbar::Policy::Async`, `pgbar::Policy::Signal`, and `pgbar::Policy::Sync`. Different rendering policies determine which thread is responsible for performing the rendering task.
 
 In the `pgbar::Policy::Async` mode, all rendering tasks are executed by a background thread of the renderer, and this thread will sleep for a certain period of time after each rendering output. The sleep time can be viewed and modified through `pgbar::config::refresh_interval()`.
 
@@ -843,7 +843,7 @@ int main()
 
 Especially it is important to note that the binding to the same output stream objects are not allowed to run at the same time, otherwise it will throw an exception `pgbar::exception::InvalidState`; For a detailed explanation of this, see [FAQ - Design of renderer](#design-of-renderer).
 #### Rendering Scheduling Policies
-`BlockBar` has three rendering scheduling policies: `pgbar::Policy::Async`, `pgbar::Policy::Signal`, and `pgbar::Policy::Async`. Different rendering policies determine which thread is responsible for performing the rendering task.
+`BlockBar` has three rendering scheduling policies: `pgbar::Policy::Async`, `pgbar::Policy::Signal`, and `pgbar::Policy::Sync`. Different rendering policies determine which thread is responsible for performing the rendering task.
 
 In the `pgbar::Policy::Async` mode, all rendering tasks are executed by a background thread of the renderer, and this thread will sleep for a certain period of time after each rendering output. The sleep time can be viewed and modified through `pgbar::config::refresh_interval()`.
 
@@ -1278,7 +1278,7 @@ int main()
 
 Especially it is important to note that the binding to the same output stream objects are not allowed to run at the same time, otherwise it will throw an exception `pgbar::exception::InvalidState`; For a detailed explanation of this, see [FAQ - Design of renderer](#design-of-renderer).
 #### Rendering Scheduling Policies
-`ProgressBar` has three rendering scheduling policies: `pgbar::Policy::Async`, `pgbar::Policy::Signal`, and `pgbar::Policy::Async`. Different rendering policies determine which thread is responsible for performing the rendering task.
+`ProgressBar` has three rendering scheduling policies: `pgbar::Policy::Async`, `pgbar::Policy::Signal`, and `pgbar::Policy::Sync`. Different rendering policies determine which thread is responsible for performing the rendering task.
 
 In the `pgbar::Policy::Async` mode, all rendering tasks are executed by a background thread of the renderer, and this thread will sleep for a certain period of time after each rendering output. The sleep time can be viewed and modified through `pgbar::config::refresh_interval()`.
 
@@ -1744,7 +1744,7 @@ int main()
 
 Especially it is important to note that the binding to the same output stream objects are not allowed to run at the same time, otherwise it will throw an exception `pgbar::exception::InvalidState`; For a detailed explanation of this, see [FAQ - Design of renderer](#design-of-renderer).
 #### Rendering Scheduling Policies
-`ProgressBar` has three rendering scheduling policies: `pgbar::Policy::Async`, `pgbar::Policy::Signal`, and `pgbar::Policy::Async`. Different rendering policies determine which thread is responsible for performing the rendering task.
+`ProgressBar` has three rendering scheduling policies: `pgbar::Policy::Async`, `pgbar::Policy::Signal`, and `pgbar::Policy::Sync`. Different rendering policies determine which thread is responsible for performing the rendering task.
 
 In the `pgbar::Policy::Async` mode, all rendering tasks are executed by a background thread of the renderer, and this thread will sleep for a certain period of time after each rendering output. The sleep time can be viewed and modified through `pgbar::config::refresh_interval()`.
 
@@ -2209,7 +2209,7 @@ int main()
 
 Especially it is important to note that the binding to the same output stream objects are not allowed to run at the same time, otherwise it will throw an exception `pgbar::exception::InvalidState`; For a detailed explanation of this, see [FAQ - Design of renderer](#design-of-renderer).
 #### Rendering Scheduling Policies
-`ProgressBar` has three rendering scheduling policies: `pgbar::Policy::Async`, `pgbar::Policy::Signal`, and `pgbar::Policy::Async`. Different rendering policies determine which thread is responsible for performing the rendering task.
+`ProgressBar` has three rendering scheduling policies: `pgbar::Policy::Async`, `pgbar::Policy::Signal`, and `pgbar::Policy::Sync`. Different rendering policies determine which thread is responsible for performing the rendering task.
 
 In the `pgbar::Policy::Async` mode, all rendering tasks are executed by a background thread of the renderer, and this thread will sleep for a certain period of time after each rendering output. The sleep time can be viewed and modified through `pgbar::config::refresh_interval()`.
 

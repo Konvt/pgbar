@@ -375,7 +375,7 @@ int main()
 
 特别需要注意的是，绑定到相同输出流上的对象不允许同时运行，否则会抛出异常 `pgbar::exception::InvalidState`；关于这一点的详细说明见 [FAQ-渲染器设计](#渲染器设计)。
 #### 渲染调度策略
-`ProgressBar` 有三种渲染调度策略：`pgbar::Policy::Async`、`pgbar::Policy::Signal` 和 `pgbar::Policy::Async`，不同的渲染策略决定了由哪个线程负责执行渲染行为。
+`ProgressBar` 有三种渲染调度策略：`pgbar::Policy::Async`、`pgbar::Policy::Signal` 和 `pgbar::Policy::Sync`，不同的渲染策略决定了由哪个线程负责执行渲染行为。
 
 在 `pgbar::Policy::Async` 模式下，所有渲染行为都由渲染器的后台线程执行，且每次渲染输出后该线程都会休眠一定时间，这个休眠的时间可以通过 `pgbar::config::refresh_interval()` 查看并修改。
 
@@ -843,7 +843,7 @@ int main()
 
 特别需要注意的是，绑定到相同输出流上的对象不允许同时运行，否则会抛出异常 `pgbar::exception::InvalidState`；关于这一点的详细说明见 [FAQ-渲染器设计](#渲染器设计)。
 #### 渲染调度策略
-`BlockBar` 有三种渲染调度策略：`pgbar::Policy::Async`、`pgbar::Policy::Signal` 和 `pgbar::Policy::Async`，不同的渲染策略决定了由哪个线程负责执行渲染行为。
+`BlockBar` 有三种渲染调度策略：`pgbar::Policy::Async`、`pgbar::Policy::Signal` 和 `pgbar::Policy::Sync`，不同的渲染策略决定了由哪个线程负责执行渲染行为。
 
 在 `pgbar::Policy::Async` 模式下，所有渲染行为都由渲染器的后台线程执行，且每次渲染输出后该线程都会休眠一定时间，这个休眠的时间可以通过 `pgbar::config::refresh_interval()` 查看并修改。
 
@@ -1278,7 +1278,7 @@ int main()
 
 特别需要注意的是，绑定到相同输出流上的对象不允许同时运行，否则会抛出异常 `pgbar::exception::InvalidState`；关于这一点的详细说明见 [FAQ-渲染器设计](#渲染器设计)。
 #### 渲染调度策略
-`SpinBar` 有三种渲染调度策略：`pgbar::Policy::Async`、`pgbar::Policy::Signal` 和 `pgbar::Policy::Async`，不同的渲染策略决定了由哪个线程负责执行渲染行为。
+`SpinBar` 有三种渲染调度策略：`pgbar::Policy::Async`、`pgbar::Policy::Signal` 和 `pgbar::Policy::Sync`，不同的渲染策略决定了由哪个线程负责执行渲染行为。
 
 在 `pgbar::Policy::Async` 模式下，所有渲染行为都由渲染器的后台线程执行，且每次渲染输出后该线程都会休眠一定时间，这个休眠的时间可以通过 `pgbar::config::refresh_interval()` 查看并修改。
 
@@ -1744,7 +1744,7 @@ int main()
 
 特别需要注意的是，绑定到相同输出流上的对象不允许同时运行，否则会抛出异常 `pgbar::exception::InvalidState`；关于这一点的详细说明见 [FAQ-渲染器设计](#渲染器设计)。
 #### 渲染调度策略
-`SweepBar` 有三种渲染调度策略：`pgbar::Policy::Async`、`pgbar::Policy::Signal` 和 `pgbar::Policy::Async`，不同的渲染策略决定了由哪个线程负责执行渲染行为。
+`SweepBar` 有三种渲染调度策略：`pgbar::Policy::Async`、`pgbar::Policy::Signal` 和 `pgbar::Policy::Sync`，不同的渲染策略决定了由哪个线程负责执行渲染行为。
 
 在 `pgbar::Policy::Async` 模式下，所有渲染行为都由渲染器的后台线程执行，且每次渲染输出后该线程都会休眠一定时间，这个休眠的时间可以通过 `pgbar::config::refresh_interval()` 查看并修改。
 
@@ -2210,7 +2210,7 @@ int main()
 
 特别需要注意的是，绑定到相同输出流上的对象不允许同时运行，否则会抛出异常 `pgbar::exception::InvalidState`；关于这一点的详细说明见 [FAQ-渲染器设计](#渲染器设计)。
 #### 渲染调度策略
-`FlowBar` 有三种渲染调度策略：`pgbar::Policy::Async`、`pgbar::Policy::Signal` 和 `pgbar::Policy::Async`，不同的渲染策略决定了由哪个线程负责执行渲染行为。
+`FlowBar` 有三种渲染调度策略：`pgbar::Policy::Async`、`pgbar::Policy::Signal` 和 `pgbar::Policy::Sync`，不同的渲染策略决定了由哪个线程负责执行渲染行为。
 
 在 `pgbar::Policy::Async` 模式下，所有渲染行为都由渲染器的后台线程执行，且每次渲染输出后该线程都会休眠一定时间，这个休眠的时间可以通过 `pgbar::config::refresh_interval()` 查看并修改。
 

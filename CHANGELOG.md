@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Marked `tick()` as a pure virtual function in `Indicator`
 - Introduced an enum `pgbar::Color` to replace the namespace `pgbar::color`
-- Added a new rendering strategy: `Channel::Signal`
+- Added a new rendering strategy: `Policy::Signal`
 - Allowed the config types to use `operator|` for chained calls
 
 ### Changed
