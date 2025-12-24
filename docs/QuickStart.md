@@ -8,7 +8,8 @@
       - [Data configuration](#data-configuration)
       - [Thread safety](#thread-safety)
       - [Output stream](#output-stream)
-      - [Rendering strategy](#rendering-strategy)
+      - [Rendering Scheduling Policies](#rendering-scheduling-policies)
+      - [Rendering methods](#rendering-methods)
     - [Interaction with iterable types](#interaction-with-iterable-types)
     - [Custom callback](#custom-callback)
   - [`BlockBar`](#blockbar)
@@ -19,7 +20,8 @@
       - [Data configuration](#data-configuration-1)
       - [Thread safety](#thread-safety-1)
       - [Output stream](#output-stream-1)
-      - [Rendering strategy](#rendering-strategy-1)
+      - [Rendering Scheduling Policies](#rendering-scheduling-policies-1)
+      - [Rendering methods](#rendering-methods-1)
     - [Interaction with iterable types](#interaction-with-iterable-types-1)
     - [Custom callback](#custom-callback-1)
   - [`SpinBar`](#spinbar)
@@ -29,7 +31,8 @@
       - [Data configuration](#data-configuration-2)
       - [Thread safety](#thread-safety-2)
       - [Output stream](#output-stream-2)
-      - [Rendering strategy](#rendering-strategy-2)
+      - [Rendering Scheduling Policies](#rendering-scheduling-policies-2)
+      - [Rendering methods](#rendering-methods-2)
     - [Interaction with iterable types](#interaction-with-iterable-types-2)
     - [Custom callback](#custom-callback-2)
   - [`SweepBar`](#sweepbar)
@@ -40,7 +43,8 @@
       - [Data configuration](#data-configuration-3)
       - [Thread safety](#thread-safety-3)
       - [Output stream](#output-stream-3)
-      - [Rendering strategy](#rendering-strategy-3)
+      - [Rendering Scheduling Policies](#rendering-scheduling-policies-3)
+      - [Rendering methods](#rendering-methods-3)
     - [Interaction with iterable types](#interaction-with-iterable-types-3)
     - [Custom callback](#custom-callback-3)
   - [`FlowBar`](#flowbar)
@@ -51,19 +55,20 @@
       - [Data configuration](#data-configuration-4)
       - [Thread safety](#thread-safety-4)
       - [Output stream](#output-stream-4)
-      - [Rendering strategy](#rendering-strategy-4)
+      - [Rendering Scheduling Policies](#rendering-scheduling-policies-4)
+      - [Rendering methods](#rendering-methods-4)
     - [Interaction with iterable types](#interaction-with-iterable-types-4)
     - [Custom callback](#custom-callback-4)
 - [Progress Bar Synthesizer](#progress-bar-synthesizer)
   - [`MultiBar`](#multibar)
     - [How to use](#how-to-use-5)
     - [Helper functions](#helper-functions)
-    - [Rendering strategy](#rendering-strategy-5)
+    - [Rendering strategy](#rendering-strategy)
     - [Tuple protocol](#tuple-protocol)
   - [`DynamicBar`](#dynamicbar)
     - [How to use](#how-to-use-6)
     - [Helper functions](#helper-functions-1)
-    - [Rendering strategy](#rendering-strategy-6)
+    - [Rendering strategy](#rendering-strategy-1)
 - [Global configuration](#global-configuration)
   - [Coloring effect](#coloring-effect)
   - [Output stream detection](#output-stream-detection)
@@ -369,12 +374,20 @@ int main()
 ```
 
 Especially it is important to note that the binding to the same output stream objects are not allowed to run at the same time, otherwise it will throw an exception `pgbar::exception::InvalidState`; For a detailed explanation of this, see [FAQ - Design of renderer](#design-of-renderer).
-#### Rendering strategy
-There are two rendering scheduling strategies for `ProgressBar`: synchronously (`pgbar::Policy::Sync`) or asynchronously (`pgbar::Policy::Async`); different rendering strategies will hand over the rendering behavior to different threads for execution.
+#### Rendering Scheduling Policies
+`ProgressBar` has three rendering scheduling policies: `pgbar::Policy::Async`, `pgbar::Policy::Signal`, and `pgbar::Policy::Async`. Different rendering policies determine which thread is responsible for performing the rendering task.
 
-When asynchronous rendering (default) is enabled, the progress bar rendering is automatically completed by a background thread at fixed time intervals.
+In the `pgbar::Policy::Async` mode, all rendering tasks are executed by a background thread of the renderer, and this thread will sleep for a certain period of time after each rendering output. The sleep time can be viewed and modified through `pgbar::config::refresh_interval()`.
 
-In the synchronous rendering mode, the rendering action is executed by the thread that calls `tick()` or `tick_to()` each time;  each call to `tick()` not only updates the progress status but also immediately outputs the latest progress bar to the terminal.
+In the `pgbar::Policy::Signal` mode, each time `tick()` or `tick_to()` is called, the thread that invokes this method submits a rendering request to the renderer. Each rendering task is still executed by the background thread, but the thread does not sleep after each rendering task is executed.
+
+At this point, if multiple tasks are submitted to the renderer within a short period of time, the renderer will do its best to consume these task requests as quickly as possible; due to the asynchronous execution nature, the actual execution time of each rendering action will be slightly later than the time when `tick()` or `tick_to()` is called.
+
+And if the progress bar triggers `reset()` or `abort()` before the request count is exhausted, the remaining rendering tasks will be discarded (but this will not affect the actual rendering effect); that is to say, the current rendering mode only guarantees that the number of renderings does not exceed the number of times `tick()` or `tick_to()` is called, and the rendering time will be slightly later than the moment these two methods are called.
+
+In the `pgbar::Policy::Sync` mode, the rendering action is directly executed by the thread that calls the `tick()` or `tick_to()` method each time; that is to say, each call to `tick()` not only updates the progress status but also immediately outputs the latest progress bar to the terminal. 
+
+At this point, each rendering of the progress bar strictly matches the call to `tick()` or `tick_to()`.
 
 The specific rendering strategy is defined by the second template parameter.
 
@@ -391,8 +404,8 @@ int main()
   pgbar::ProgressBar<pgbar::Channel::Stderr, pgbar::Policy::Sync> bar; // use synchronous rendering
 }
 ```
-
-No matter which rendering scheduling strategy is chosen, the specific rendering method on the terminal is determined by the third template parameter `pgbar::Region`.
+#### Rendering methods
+The specific rendering method on the terminal is determined by the third template parameter `pgbar::Region`.
 
 This parameter has two optional values: the default fixed-region rendering `pgbar::Region::Fixed`, and the relative location-based rendering `pgbar::Region::Relative`.
 
@@ -423,7 +436,7 @@ int main()
     bar.tick(); /* do something... */
 
   // Notice: At least two newlines must be inserted after the output information
-  std::cerr << "Extra log information" << std::endl << std::endl;
+  std::cerr << "Extra log information\n\n" << std::flush;
 
   while ( bar.active() )
     bar.tick();
@@ -829,12 +842,20 @@ int main()
 ```
 
 Especially it is important to note that the binding to the same output stream objects are not allowed to run at the same time, otherwise it will throw an exception `pgbar::exception::InvalidState`; For a detailed explanation of this, see [FAQ - Design of renderer](#design-of-renderer).
-#### Rendering strategy
-There are two rendering scheduling strategies for `BlockBar`: synchronously (`pgbar::Policy::Sync`) or asynchronously (`pgbar::Policy::Async`); different rendering strategies will hand over the rendering behavior to different threads for execution.
+#### Rendering Scheduling Policies
+`BlockBar` has three rendering scheduling policies: `pgbar::Policy::Async`, `pgbar::Policy::Signal`, and `pgbar::Policy::Async`. Different rendering policies determine which thread is responsible for performing the rendering task.
 
-When asynchronous rendering (default) is enabled, the progress bar rendering is automatically completed by a background thread at fixed time intervals.
+In the `pgbar::Policy::Async` mode, all rendering tasks are executed by a background thread of the renderer, and this thread will sleep for a certain period of time after each rendering output. The sleep time can be viewed and modified through `pgbar::config::refresh_interval()`.
 
-In the synchronous rendering mode, the rendering action is executed by the thread that calls `tick()` or `tick_to()` each time;  each call to `tick()` not only updates the progress status but also immediately outputs the latest progress bar to the terminal.
+In the `pgbar::Policy::Signal` mode, each time `tick()` or `tick_to()` is called, the thread that invokes this method submits a rendering request to the renderer. Each rendering task is still executed by the background thread, but the thread does not sleep after each rendering task is executed.
+
+At this point, if multiple tasks are submitted to the renderer within a short period of time, the renderer will do its best to consume these task requests as quickly as possible; due to the asynchronous execution nature, the actual execution time of each rendering action will be slightly later than the time when `tick()` or `tick_to()` is called.
+
+And if the progress bar triggers `reset()` or `abort()` before the request count is exhausted, the remaining rendering tasks will be discarded (but this will not affect the actual rendering effect); that is to say, the current rendering mode only guarantees that the number of renderings does not exceed the number of times `tick()` or `tick_to()` is called, and the rendering time will be slightly later than the moment these two methods are called.
+
+In the `pgbar::Policy::Sync` mode, the rendering action is directly executed by the thread that calls the `tick()` or `tick_to()` method each time; that is to say, each call to `tick()` not only updates the progress status but also immediately outputs the latest progress bar to the terminal. 
+
+At this point, each rendering of the progress bar strictly matches the call to `tick()` or `tick_to()`.
 
 The specific rendering strategy is defined by the second template parameter.
 
@@ -851,8 +872,8 @@ int main()
   pgbar::BlockBar<pgbar::Channel::Stderr, pgbar::Policy::Sync> bar; // use synchronous rendering
 }
 ```
-
-No matter which rendering scheduling strategy is chosen, the specific rendering method on the terminal is determined by the third template parameter `pgbar::Region`.
+#### Rendering methods
+The specific rendering method on the terminal is determined by the third template parameter `pgbar::Region`.
 
 This parameter has two optional values: the default fixed-region rendering `pgbar::Region::Fixed`, and the relative location-based rendering `pgbar::Region::Relative`.
 
@@ -883,7 +904,7 @@ int main()
     bar.tick(); /* do something... */
 
   // Notice: At least two newlines must be inserted after the output information
-  std::cerr << "Extra log information" << std::endl << std::endl;
+  std::cerr << "Extra log information\n\n" << std::flush;
 
   while ( bar.active() )
     bar.tick();
@@ -1256,12 +1277,20 @@ int main()
 ```
 
 Especially it is important to note that the binding to the same output stream objects are not allowed to run at the same time, otherwise it will throw an exception `pgbar::exception::InvalidState`; For a detailed explanation of this, see [FAQ - Design of renderer](#design-of-renderer).
-#### Rendering strategy
-There are two rendering scheduling strategies for `SpinBar`: synchronously (`pgbar::Policy::Sync`) or asynchronously (`pgbar::Policy::Async`); different rendering strategies will hand over the rendering behavior to different threads for execution.
+#### Rendering Scheduling Policies
+`ProgressBar` has three rendering scheduling policies: `pgbar::Policy::Async`, `pgbar::Policy::Signal`, and `pgbar::Policy::Async`. Different rendering policies determine which thread is responsible for performing the rendering task.
 
-When asynchronous rendering (default) is enabled, the progress bar rendering is automatically completed by a background thread at fixed time intervals.
+In the `pgbar::Policy::Async` mode, all rendering tasks are executed by a background thread of the renderer, and this thread will sleep for a certain period of time after each rendering output. The sleep time can be viewed and modified through `pgbar::config::refresh_interval()`.
 
-In the synchronous rendering mode, the rendering action is executed by the thread that calls `tick()` or `tick_to()` each time;  each call to `tick()` not only updates the progress status but also immediately outputs the latest progress bar to the terminal.
+In the `pgbar::Policy::Signal` mode, each time `tick()` or `tick_to()` is called, the thread that invokes this method submits a rendering request to the renderer. Each rendering task is still executed by the background thread, but the thread does not sleep after each rendering task is executed.
+
+At this point, if multiple tasks are submitted to the renderer within a short period of time, the renderer will do its best to consume these task requests as quickly as possible; due to the asynchronous execution nature, the actual execution time of each rendering action will be slightly later than the time when `tick()` or `tick_to()` is called.
+
+And if the progress bar triggers `reset()` or `abort()` before the request count is exhausted, the remaining rendering tasks will be discarded (but this will not affect the actual rendering effect); that is to say, the current rendering mode only guarantees that the number of renderings does not exceed the number of times `tick()` or `tick_to()` is called, and the rendering time will be slightly later than the moment these two methods are called.
+
+In the `pgbar::Policy::Sync` mode, the rendering action is directly executed by the thread that calls the `tick()` or `tick_to()` method each time; that is to say, each call to `tick()` not only updates the progress status but also immediately outputs the latest progress bar to the terminal. 
+
+At this point, each rendering of the progress bar strictly matches the call to `tick()` or `tick_to()`.
 
 The specific rendering strategy is defined by the second template parameter.
 
@@ -1278,8 +1307,8 @@ int main()
   pgbar::SpinBar<pgbar::Channel::Stderr, pgbar::Policy::Sync> bar; // use synchronous rendering
 }
 ```
-
-No matter which rendering scheduling strategy is chosen, the specific rendering method on the terminal is determined by the third template parameter `pgbar::Region`.
+#### Rendering methods
+The specific rendering method on the terminal is determined by the third template parameter `pgbar::Region`.
 
 This parameter has two optional values: the default fixed-region rendering `pgbar::Region::Fixed`, and the relative location-based rendering `pgbar::Region::Relative`.
 
@@ -1310,7 +1339,7 @@ int main()
     bar.tick(); /* do something... */
 
   // Notice: At least two newlines must be inserted after the output information
-  std::cerr << "Extra log information" << std::endl << std::endl;
+  std::cerr << "Extra log information\n\n" << std::flush;
 
   while ( bar.active() )
     bar.tick();
@@ -1714,12 +1743,20 @@ int main()
 ```
 
 Especially it is important to note that the binding to the same output stream objects are not allowed to run at the same time, otherwise it will throw an exception `pgbar::exception::InvalidState`; For a detailed explanation of this, see [FAQ - Design of renderer](#design-of-renderer).
-#### Rendering strategy
-There are two rendering scheduling strategies for `SweepBar`: synchronously (`pgbar::Policy::Sync`) or asynchronously (`pgbar::Policy::Async`); different rendering strategies will hand over the rendering behavior to different threads for execution.
+#### Rendering Scheduling Policies
+`ProgressBar` has three rendering scheduling policies: `pgbar::Policy::Async`, `pgbar::Policy::Signal`, and `pgbar::Policy::Async`. Different rendering policies determine which thread is responsible for performing the rendering task.
 
-When asynchronous rendering (default) is enabled, the progress bar rendering is automatically completed by a background thread at fixed time intervals.
+In the `pgbar::Policy::Async` mode, all rendering tasks are executed by a background thread of the renderer, and this thread will sleep for a certain period of time after each rendering output. The sleep time can be viewed and modified through `pgbar::config::refresh_interval()`.
 
-In the synchronous rendering mode, the rendering action is executed by the thread that calls `tick()` or `tick_to()` each time;  each call to `tick()` not only updates the progress status but also immediately outputs the latest progress bar to the terminal.
+In the `pgbar::Policy::Signal` mode, each time `tick()` or `tick_to()` is called, the thread that invokes this method submits a rendering request to the renderer. Each rendering task is still executed by the background thread, but the thread does not sleep after each rendering task is executed.
+
+At this point, if multiple tasks are submitted to the renderer within a short period of time, the renderer will do its best to consume these task requests as quickly as possible; due to the asynchronous execution nature, the actual execution time of each rendering action will be slightly later than the time when `tick()` or `tick_to()` is called.
+
+And if the progress bar triggers `reset()` or `abort()` before the request count is exhausted, the remaining rendering tasks will be discarded (but this will not affect the actual rendering effect); that is to say, the current rendering mode only guarantees that the number of renderings does not exceed the number of times `tick()` or `tick_to()` is called, and the rendering time will be slightly later than the moment these two methods are called.
+
+In the `pgbar::Policy::Sync` mode, the rendering action is directly executed by the thread that calls the `tick()` or `tick_to()` method each time; that is to say, each call to `tick()` not only updates the progress status but also immediately outputs the latest progress bar to the terminal. 
+
+At this point, each rendering of the progress bar strictly matches the call to `tick()` or `tick_to()`.
 
 The specific rendering strategy is defined by the second template parameter.
 
@@ -1736,8 +1773,8 @@ int main()
   pgbar::SweepBar<pgbar::Channel::Stderr, pgbar::Policy::Sync> bar; // use synchronous rendering
 }
 ```
-
-No matter which rendering scheduling strategy is chosen, the specific rendering method on the terminal is determined by the third template parameter `pgbar::Region`.
+#### Rendering methods
+The specific rendering method on the terminal is determined by the third template parameter `pgbar::Region`.
 
 This parameter has two optional values: the default fixed-region rendering `pgbar::Region::Fixed`, and the relative location-based rendering `pgbar::Region::Relative`.
 
@@ -1768,7 +1805,7 @@ int main()
     bar.tick(); /* do something... */
 
   // Notice: At least two newlines must be inserted after the output information
-  std::cerr << "Extra log information" << std::endl << std::endl;
+  std::cerr << "Extra log information\n\n" << std::flush;
 
   while ( bar.active() )
     bar.tick();
@@ -2171,12 +2208,20 @@ int main()
 ```
 
 Especially it is important to note that the binding to the same output stream objects are not allowed to run at the same time, otherwise it will throw an exception `pgbar::exception::InvalidState`; For a detailed explanation of this, see [FAQ - Design of renderer](#design-of-renderer).
-#### Rendering strategy
-There are two rendering scheduling strategies for `FlowBar`: synchronously (`pgbar::Policy::Sync`) or asynchronously (`pgbar::Policy::Async`); different rendering strategies will hand over the rendering behavior to different threads for execution.
+#### Rendering Scheduling Policies
+`ProgressBar` has three rendering scheduling policies: `pgbar::Policy::Async`, `pgbar::Policy::Signal`, and `pgbar::Policy::Async`. Different rendering policies determine which thread is responsible for performing the rendering task.
 
-When asynchronous rendering (default) is enabled, the progress bar rendering is automatically completed by a background thread at fixed time intervals.
+In the `pgbar::Policy::Async` mode, all rendering tasks are executed by a background thread of the renderer, and this thread will sleep for a certain period of time after each rendering output. The sleep time can be viewed and modified through `pgbar::config::refresh_interval()`.
 
-In the synchronous rendering mode, the rendering action is executed by the thread that calls `tick()` or `tick_to()` each time;  each call to `tick()` not only updates the progress status but also immediately outputs the latest progress bar to the terminal.
+In the `pgbar::Policy::Signal` mode, each time `tick()` or `tick_to()` is called, the thread that invokes this method submits a rendering request to the renderer. Each rendering task is still executed by the background thread, but the thread does not sleep after each rendering task is executed.
+
+At this point, if multiple tasks are submitted to the renderer within a short period of time, the renderer will do its best to consume these task requests as quickly as possible; due to the asynchronous execution nature, the actual execution time of each rendering action will be slightly later than the time when `tick()` or `tick_to()` is called.
+
+And if the progress bar triggers `reset()` or `abort()` before the request count is exhausted, the remaining rendering tasks will be discarded (but this will not affect the actual rendering effect); that is to say, the current rendering mode only guarantees that the number of renderings does not exceed the number of times `tick()` or `tick_to()` is called, and the rendering time will be slightly later than the moment these two methods are called.
+
+In the `pgbar::Policy::Sync` mode, the rendering action is directly executed by the thread that calls the `tick()` or `tick_to()` method each time; that is to say, each call to `tick()` not only updates the progress status but also immediately outputs the latest progress bar to the terminal. 
+
+At this point, each rendering of the progress bar strictly matches the call to `tick()` or `tick_to()`.
 
 The specific rendering strategy is defined by the second template parameter.
 
@@ -2193,8 +2238,8 @@ int main()
   pgbar::FlowBar<pgbar::Channel::Stderr, pgbar::Policy::Sync> bar; // use synchronous rendering
 }
 ```
-
-No matter which rendering scheduling strategy is chosen, the specific rendering method on the terminal is determined by the third template parameter `pgbar::Region`.
+#### Rendering methods
+The specific rendering method on the terminal is determined by the third template parameter `pgbar::Region`.
 
 This parameter has two optional values: the default fixed-region rendering `pgbar::Region::Fixed`, and the relative location-based rendering `pgbar::Region::Relative`.
 
@@ -2225,7 +2270,7 @@ int main()
     bar.tick(); /* do something... */
 
   // Notice: At least two newlines must be inserted after the output information
-  std::cerr << "Extra log information" << std::endl << std::endl;
+  std::cerr << "Extra log information\n\n" << std::flush;
 
   while ( bar.active() )
     bar.tick();

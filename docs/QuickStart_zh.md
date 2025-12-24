@@ -8,7 +8,8 @@
       - [数据配置](#数据配置)
       - [线程安全性](#线程安全性)
       - [绑定的输出流](#绑定的输出流)
-      - [渲染策略](#渲染策略)
+      - [渲染调度策略](#渲染调度策略)
+      - [渲染方式](#渲染方式)
     - [与可迭代类型的交互](#与可迭代类型的交互)
     - [自定义回调函数](#自定义回调函数)
   - [`BlockBar`](#blockbar)
@@ -19,7 +20,8 @@
       - [数据配置](#数据配置-1)
       - [线程安全性](#线程安全性-1)
       - [绑定的输出流](#绑定的输出流-1)
-      - [渲染策略](#渲染策略-1)
+      - [渲染调度策略](#渲染调度策略-1)
+      - [渲染方式](#渲染方式-1)
     - [与可迭代类型的交互](#与可迭代类型的交互-1)
     - [自定义回调函数](#自定义回调函数-1)
   - [`SpinBar`](#spinbar)
@@ -29,7 +31,8 @@
       - [数据配置](#数据配置-2)
       - [线程安全性](#线程安全性-2)
       - [绑定的输出流](#绑定的输出流-2)
-      - [渲染策略](#渲染策略-2)
+      - [渲染调度策略](#渲染调度策略-2)
+      - [渲染方式](#渲染方式-2)
     - [与可迭代类型的交互](#与可迭代类型的交互-2)
     - [自定义回调函数](#自定义回调函数-2)
   - [`SweepBar`](#sweepbar)
@@ -40,7 +43,8 @@
       - [数据配置](#数据配置-3)
       - [线程安全性](#线程安全性-3)
       - [绑定的输出流](#绑定的输出流-3)
-      - [渲染策略](#渲染策略-3)
+      - [渲染调度策略](#渲染调度策略-3)
+      - [渲染方式](#渲染方式-3)
     - [与可迭代类型的交互](#与可迭代类型的交互-3)
     - [自定义回调函数](#自定义回调函数-3)
   - [`FlowBar`](#flowbar)
@@ -51,19 +55,20 @@
       - [数据配置](#数据配置-4)
       - [线程安全性](#线程安全性-4)
       - [绑定的输出流](#绑定的输出流-4)
-      - [渲染策略](#渲染策略-4)
+      - [渲染调度策略](#渲染调度策略-4)
+      - [渲染方式](#渲染方式-4)
     - [与可迭代类型的交互](#与可迭代类型的交互-4)
     - [自定义回调函数](#自定义回调函数-4)
 - [进度条合成器](#进度条合成器)
   - [`MultiBar`](#multibar)
     - [交互方式](#交互方式-5)
     - [辅助函数](#辅助函数)
-    - [渲染策略](#渲染策略-5)
+    - [渲染策略](#渲染策略)
     - [元组协议](#元组协议)
   - [`DynamicBar`](#dynamicbar)
     - [交互方式](#交互方式-6)
     - [辅助函数](#辅助函数-1)
-    - [渲染策略](#渲染策略-6)
+    - [渲染策略](#渲染策略-1)
 - [全局设置](#全局设置)
   - [着色效果](#着色效果)
   - [输出流检测](#输出流检测)
@@ -369,12 +374,20 @@ int main()
 ```
 
 特别需要注意的是，绑定到相同输出流上的对象不允许同时运行，否则会抛出异常 `pgbar::exception::InvalidState`；关于这一点的详细说明见 [FAQ-渲染器设计](#渲染器设计)。
-#### 渲染策略
-`ProgressBar` 的渲染调度策略有两种：同步（`pgbar::Policy::Sync`）或异步（`pgbar::Policy::Async`）；不同的调度策略会将渲染行为交给不同的线程执行。
+#### 渲染调度策略
+`ProgressBar` 有三种渲染调度策略：`pgbar::Policy::Async`、`pgbar::Policy::Signal` 和 `pgbar::Policy::Async`，不同的渲染策略决定了由哪个线程负责执行渲染行为。
 
-启用异步渲染（默认）时，进度条的渲染由一个后台线程以固定时间间隔自动完成。
+在 `pgbar::Policy::Async` 模式下，所有渲染行为都由渲染器的后台线程执行，且每次渲染输出后该线程都会休眠一定时间，这个休眠的时间可以通过 `pgbar::config::refresh_interval()` 查看并修改。
 
-而在同步渲染模式下，渲染动作则由每次调用 `tick()` 或 `tick_to()` 的线程执行；每次调用 `tick()` 不仅会更新进度状态，也会立即将最新进度条输出到终端。
+在 `pgbar::Policy::Signal` 模式下，每次调用 `tick()` 或 `tick_to()` 时，调用该方法的线程会向渲染器提交一个渲染请求，每个渲染任务依然由后台线程执行，但每次执行渲染任务后不会休眠。
+
+此时，如果短时间内有多个任务同时提交给渲染器，那么渲染器会尽最大可能快速消耗这些任务请求；由于异步执行性质，每个渲染行为的实际执行时间会略微晚于调用 `tick()` 或 `tick_to()` 的时间。
+
+并且如果在任务数量消耗完之前，进度条触发了 `reset()` 或 `abort()`，那么剩余渲染任务会被丢弃（但不会影响实际渲染效果）；也就是说当前渲染模式只保证渲染次数不大于调用 `tick()` 或 `tick_to()` 的次数，且渲染时机会略微晚于调用这两个方法的时刻。
+
+在 `pgbar::Policy::Sync` 模式下，渲染动作由每次调用 `tick()` 或 `tick_to()` 方法的线程直接执行；也就是说，每次调用 `tick()` 不仅会更新进度状态，也会立即将最新进度条输出到终端。
+
+此时进度条的每一次渲染都严格匹配 `tick()` 或 `tick_to()` 的调用。
 
 具体的渲染策略由第二个模板参数定义。
 
@@ -391,8 +404,8 @@ int main()
   pgbar::ProgressBar<pgbar::Channel::Stderr, pgbar::Policy::Sync> bar; // 使用同步渲染
 }
 ```
-
-无论选择哪种渲染调度策略，终端上的具体渲染方式都由第三个模板参数 `pgbar::Region` 决定。
+#### 渲染方式
+终端上的具体渲染方式由第三个模板参数 `pgbar::Region` 决定。
 
 该参数有两个可选值：默认的固定区域渲染 `pgbar::Region::Fixed`，以及基于相对位置的渲染 `pgbar::Region::Relative`。
 
@@ -423,7 +436,7 @@ int main()
     bar.tick(); /* do something... */
 
   // Notice: At least two newlines must be inserted after the output information
-  std::cerr << "Extra log information" << std::endl << std::endl;
+  std::cerr << "Extra log information\n\n" << std::flush;
 
   while ( bar.active() )
     bar.tick();
@@ -829,12 +842,20 @@ int main()
 ```
 
 特别需要注意的是，绑定到相同输出流上的对象不允许同时运行，否则会抛出异常 `pgbar::exception::InvalidState`；关于这一点的详细说明见 [FAQ-渲染器设计](#渲染器设计)。
-#### 渲染策略
-`BlockBar` 的渲染调度策略有两种：同步（`pgbar::Policy::Sync`）或异步（`pgbar::Policy::Async`）；不同的调度策略会将渲染行为交给不同的线程执行。
+#### 渲染调度策略
+`BlockBar` 有三种渲染调度策略：`pgbar::Policy::Async`、`pgbar::Policy::Signal` 和 `pgbar::Policy::Async`，不同的渲染策略决定了由哪个线程负责执行渲染行为。
 
-启用异步渲染（默认）时，进度条的渲染由一个后台线程以固定时间间隔自动完成。
+在 `pgbar::Policy::Async` 模式下，所有渲染行为都由渲染器的后台线程执行，且每次渲染输出后该线程都会休眠一定时间，这个休眠的时间可以通过 `pgbar::config::refresh_interval()` 查看并修改。
 
-而在同步渲染模式下，渲染动作则由每次调用 `tick()` 或 `tick_to()` 的线程执行；每次调用 `tick()` 不仅会更新进度状态，也会立即将最新进度条输出到终端。
+在 `pgbar::Policy::Signal` 模式下，每次调用 `tick()` 或 `tick_to()` 时，调用该方法的线程会向渲染器提交一个渲染请求，每个渲染任务依然由后台线程执行，但每次执行渲染任务后不会休眠。
+
+此时，如果短时间内有多个任务同时提交给渲染器，那么渲染器会尽最大可能快速消耗这些任务请求；由于异步执行性质，每个渲染行为的实际执行时间会略微晚于调用 `tick()` 或 `tick_to()` 的时间。
+
+并且如果在任务数量消耗完之前，进度条触发了 `reset()` 或 `abort()`，那么剩余渲染任务会被丢弃（但不会影响实际渲染效果）；也就是说当前渲染模式只保证渲染次数不大于调用 `tick()` 或 `tick_to()` 的次数，且渲染时机会略微晚于调用这两个方法的时刻。
+
+在 `pgbar::Policy::Sync` 模式下，渲染动作由每次调用 `tick()` 或 `tick_to()` 方法的线程直接执行；也就是说，每次调用 `tick()` 不仅会更新进度状态，也会立即将最新进度条输出到终端。
+
+此时进度条的每一次渲染都严格匹配 `tick()` 或 `tick_to()` 的调用。
 
 具体的渲染策略由第二个模板参数定义。
 
@@ -851,8 +872,8 @@ int main()
   pgbar::BlockBar<pgbar::Channel::Stderr, pgbar::Policy::Sync> bar; // 使用同步渲染
 }
 ```
-
-无论选择哪种渲染调度策略，终端上的具体渲染方式都由第三个模板参数 `pgbar::Region` 决定。
+#### 渲染方式
+终端上的具体渲染方式由第三个模板参数 `pgbar::Region` 决定。
 
 该参数有两个可选值：默认的固定区域渲染 `pgbar::Region::Fixed`，以及基于相对位置的渲染 `pgbar::Region::Relative`。
 
@@ -883,7 +904,7 @@ int main()
     bar.tick(); /* do something... */
 
   // Notice: At least two newlines must be inserted after the output information
-  std::cerr << "Extra log information" << std::endl << std::endl;
+  std::cerr << "Extra log information\n\n" << std::flush;
 
   while ( bar.active() )
     bar.tick();
@@ -1256,12 +1277,20 @@ int main()
 ```
 
 特别需要注意的是，绑定到相同输出流上的对象不允许同时运行，否则会抛出异常 `pgbar::exception::InvalidState`；关于这一点的详细说明见 [FAQ-渲染器设计](#渲染器设计)。
-#### 渲染策略
-`SpinBar` 的渲染调度策略有两种：同步（`pgbar::Policy::Sync`）或异步（`pgbar::Policy::Async`）；不同的调度策略会将渲染行为交给不同的线程执行。
+#### 渲染调度策略
+`SpinBar` 有三种渲染调度策略：`pgbar::Policy::Async`、`pgbar::Policy::Signal` 和 `pgbar::Policy::Async`，不同的渲染策略决定了由哪个线程负责执行渲染行为。
 
-启用异步渲染（默认）时，进度条的渲染由一个后台线程以固定时间间隔自动完成。
+在 `pgbar::Policy::Async` 模式下，所有渲染行为都由渲染器的后台线程执行，且每次渲染输出后该线程都会休眠一定时间，这个休眠的时间可以通过 `pgbar::config::refresh_interval()` 查看并修改。
 
-而在同步渲染模式下，渲染动作则由每次调用 `tick()` 或 `tick_to()` 的线程执行；每次调用 `tick()` 不仅会更新进度状态，也会立即将最新进度条输出到终端。
+在 `pgbar::Policy::Signal` 模式下，每次调用 `tick()` 或 `tick_to()` 时，调用该方法的线程会向渲染器提交一个渲染请求，每个渲染任务依然由后台线程执行，但每次执行渲染任务后不会休眠。
+
+此时，如果短时间内有多个任务同时提交给渲染器，那么渲染器会尽最大可能快速消耗这些任务请求；由于异步执行性质，每个渲染行为的实际执行时间会略微晚于调用 `tick()` 或 `tick_to()` 的时间。
+
+并且如果在任务数量消耗完之前，进度条触发了 `reset()` 或 `abort()`，那么剩余渲染任务会被丢弃（但不会影响实际渲染效果）；也就是说当前渲染模式只保证渲染次数不大于调用 `tick()` 或 `tick_to()` 的次数，且渲染时机会略微晚于调用这两个方法的时刻。
+
+在 `pgbar::Policy::Sync` 模式下，渲染动作由每次调用 `tick()` 或 `tick_to()` 方法的线程直接执行；也就是说，每次调用 `tick()` 不仅会更新进度状态，也会立即将最新进度条输出到终端。
+
+此时进度条的每一次渲染都严格匹配 `tick()` 或 `tick_to()` 的调用。
 
 具体的渲染策略由第二个模板参数定义。
 
@@ -1278,8 +1307,8 @@ int main()
   pgbar::SpinBar<pgbar::Channel::Stderr, pgbar::Policy::Sync> bar; // 使用同步渲染
 }
 ```
-
-无论选择哪种渲染调度策略，进度条在终端的渲染方式都由第三个模板参数 `pgbar::Region` 决定。
+#### 渲染方式
+终端上的具体渲染方式由第三个模板参数 `pgbar::Region` 决定。
 
 该参数有两个可选值：在固定终端区域渲染的 `pgbar::Region::Fixed`（默认值），以及相较于上一次渲染输出位置渲染的 `pgbar::Region::Relative`。
 
@@ -1310,7 +1339,7 @@ int main()
     bar.tick(); /* do something... */
 
   // Notice: At least two newlines must be inserted after the output information
-  std::cerr << "Extra log information" << std::endl << std::endl;
+  std::cerr << "Extra log information\n\n" << std::flush;
 
   while ( bar.active() )
     bar.tick();
@@ -1714,12 +1743,20 @@ int main()
 ```
 
 特别需要注意的是，绑定到相同输出流上的对象不允许同时运行，否则会抛出异常 `pgbar::exception::InvalidState`；关于这一点的详细说明见 [FAQ-渲染器设计](#渲染器设计)。
-#### 渲染策略
-`SweepBar` 的渲染调度策略有两种：同步（`pgbar::Policy::Sync`）或异步（`pgbar::Policy::Async`）；不同的调度策略会将渲染行为交给不同的线程执行。
+#### 渲染调度策略
+`SweepBar` 有三种渲染调度策略：`pgbar::Policy::Async`、`pgbar::Policy::Signal` 和 `pgbar::Policy::Async`，不同的渲染策略决定了由哪个线程负责执行渲染行为。
 
-启用异步渲染（默认）时，进度条的渲染由一个后台线程以固定时间间隔自动完成。
+在 `pgbar::Policy::Async` 模式下，所有渲染行为都由渲染器的后台线程执行，且每次渲染输出后该线程都会休眠一定时间，这个休眠的时间可以通过 `pgbar::config::refresh_interval()` 查看并修改。
 
-而在同步渲染模式下，渲染动作则由每次调用 `tick()` 或 `tick_to()` 的线程执行；每次调用 `tick()` 不仅会更新进度状态，也会立即将最新进度条输出到终端。
+在 `pgbar::Policy::Signal` 模式下，每次调用 `tick()` 或 `tick_to()` 时，调用该方法的线程会向渲染器提交一个渲染请求，每个渲染任务依然由后台线程执行，但每次执行渲染任务后不会休眠。
+
+此时，如果短时间内有多个任务同时提交给渲染器，那么渲染器会尽最大可能快速消耗这些任务请求；由于异步执行性质，每个渲染行为的实际执行时间会略微晚于调用 `tick()` 或 `tick_to()` 的时间。
+
+并且如果在任务数量消耗完之前，进度条触发了 `reset()` 或 `abort()`，那么剩余渲染任务会被丢弃（但不会影响实际渲染效果）；也就是说当前渲染模式只保证渲染次数不大于调用 `tick()` 或 `tick_to()` 的次数，且渲染时机会略微晚于调用这两个方法的时刻。
+
+在 `pgbar::Policy::Sync` 模式下，渲染动作由每次调用 `tick()` 或 `tick_to()` 方法的线程直接执行；也就是说，每次调用 `tick()` 不仅会更新进度状态，也会立即将最新进度条输出到终端。
+
+此时进度条的每一次渲染都严格匹配 `tick()` 或 `tick_to()` 的调用。
 
 具体的渲染策略由第二个模板参数定义。
 
@@ -1736,8 +1773,8 @@ int main()
   pgbar::SweepBar<pgbar::Channel::Stderr, pgbar::Policy::Sync> bar; // 使用同步渲染
 }
 ```
-
-无论选择哪种渲染调度策略，进度条在终端的渲染方式都由第三个模板参数 `pgbar::Region` 决定。
+#### 渲染方式
+终端上的具体渲染方式由第三个模板参数 `pgbar::Region` 决定。
 
 该参数有两个可选值：在固定终端区域渲染的 `pgbar::Region::Fixed`（默认值），以及相较于上一次渲染输出位置渲染的 `pgbar::Region::Relative`。
 
@@ -1768,7 +1805,7 @@ int main()
     bar.tick(); /* do something... */
 
   // Notice: At least two newlines must be inserted after the output information
-  std::cerr << "Extra log information" << std::endl << std::endl;
+  std::cerr << "Extra log information\n\n" << std::flush;
 
   while ( bar.active() )
     bar.tick();
@@ -2172,12 +2209,20 @@ int main()
 ```
 
 特别需要注意的是，绑定到相同输出流上的对象不允许同时运行，否则会抛出异常 `pgbar::exception::InvalidState`；关于这一点的详细说明见 [FAQ-渲染器设计](#渲染器设计)。
-#### 渲染策略
-`FlowBar` 的渲染调度策略有两种：同步（`pgbar::Policy::Sync`）或异步（`pgbar::Policy::Async`）；不同的调度策略会将渲染行为交给不同的线程执行。
+#### 渲染调度策略
+`FlowBar` 有三种渲染调度策略：`pgbar::Policy::Async`、`pgbar::Policy::Signal` 和 `pgbar::Policy::Async`，不同的渲染策略决定了由哪个线程负责执行渲染行为。
 
-启用异步渲染（默认）时，进度条的渲染由一个后台线程以固定时间间隔自动完成。
+在 `pgbar::Policy::Async` 模式下，所有渲染行为都由渲染器的后台线程执行，且每次渲染输出后该线程都会休眠一定时间，这个休眠的时间可以通过 `pgbar::config::refresh_interval()` 查看并修改。
 
-而在同步渲染模式下，渲染动作则由每次调用 `tick()` 或 `tick_to()` 的线程执行；每次调用 `tick()` 不仅会更新进度状态，也会立即将最新进度条输出到终端。
+在 `pgbar::Policy::Signal` 模式下，每次调用 `tick()` 或 `tick_to()` 时，调用该方法的线程会向渲染器提交一个渲染请求，每个渲染任务依然由后台线程执行，但每次执行渲染任务后不会休眠。
+
+此时，如果短时间内有多个任务同时提交给渲染器，那么渲染器会尽最大可能快速消耗这些任务请求；由于异步执行性质，每个渲染行为的实际执行时间会略微晚于调用 `tick()` 或 `tick_to()` 的时间。
+
+并且如果在任务数量消耗完之前，进度条触发了 `reset()` 或 `abort()`，那么剩余渲染任务会被丢弃（但不会影响实际渲染效果）；也就是说当前渲染模式只保证渲染次数不大于调用 `tick()` 或 `tick_to()` 的次数，且渲染时机会略微晚于调用这两个方法的时刻。
+
+在 `pgbar::Policy::Sync` 模式下，渲染动作由每次调用 `tick()` 或 `tick_to()` 方法的线程直接执行；也就是说，每次调用 `tick()` 不仅会更新进度状态，也会立即将最新进度条输出到终端。
+
+此时进度条的每一次渲染都严格匹配 `tick()` 或 `tick_to()` 的调用。
 
 具体的渲染策略由第二个模板参数定义。
 
@@ -2194,8 +2239,8 @@ int main()
   pgbar::FlowBar<pgbar::Channel::Stderr, pgbar::Policy::Sync> bar; // 使用同步渲染
 }
 ```
-
-无论选择哪种渲染调度策略，进度条在终端的渲染方式都由第三个模板参数 `pgbar::Region` 决定。
+#### 渲染方式
+终端上的具体渲染方式由第三个模板参数 `pgbar::Region` 决定。
 
 该参数有两个可选值：在固定终端区域渲染的 `pgbar::Region::Fixed`（默认值），以及相较于上一次渲染输出位置渲染的 `pgbar::Region::Relative`。
 
@@ -2226,7 +2271,7 @@ int main()
     bar.tick(); /* do something... */
 
   // Notice: At least two newlines must be inserted after the output information
-  std::cerr << "Extra log information" << std::endl << std::endl;
+  std::cerr << "Extra log information\n\n" << std::flush;
 
   while ( bar.active() )
     bar.tick();
