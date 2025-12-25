@@ -107,7 +107,7 @@ namespace pgbar {
           if ( ioctl( fd, TIOCGWINSZ, &ws ) != -1 )
             return ws.ws_col;
 #endif
-          return 100;
+          return 0;
         }
       };
     } // namespace console

@@ -295,7 +295,7 @@ assert( bar.config().fixed_width() != 0 ); // The exact value depends on the con
 
 The specific terminal line width (in characters) can be obtained using `pgbar::config::terminal_width()`. If the passed output stream does not point to an actual terminal device, the return value will be 0.
 
-> If the running platform is neither `Windows` nor `Unix-like`, then this function will only return a fixed value of 100.
+> If the running platform is neither `Windows` nor `Unix-like`, then this function will only return a fixed value of 0.
 
 ```cpp
 assert( pgbar::config::terminal_width( pgbar::Channel::Stdout ) > bar.config().fixed_width() );
@@ -765,7 +765,7 @@ assert( bar.config().fixed_width() != 0 ); // The exact value depends on the con
 
 The specific terminal line width (in characters) can be obtained using `pgbar::config::terminal_width()`. If the passed output stream does not point to an actual terminal device, the return value will be 0.
 
-> If the running platform is neither `Windows` nor `Unix-like`, then this function will only return a fixed value of 100.
+> If the running platform is neither `Windows` nor `Unix-like`, then this function will only return a fixed value of 0.
 
 ```cpp
 assert( pgbar::config::terminal_width( pgbar::Channel::Stdout ) > bar.config().fixed_width() );
@@ -1666,7 +1666,7 @@ assert( bar.config().fixed_width() != 0 ); // The exact value depends on the con
 
 The specific terminal line width (in characters) can be obtained using `pgbar::config::terminal_width()`. If the passed output stream does not point to an actual terminal device, the return value will be 0.
 
-> If the running platform is neither `Windows` nor `Unix-like`, then this function will only return a fixed value of 100.
+> If the running platform is neither `Windows` nor `Unix-like`, then this function will only return a fixed value of 0.
 
 ```cpp
 assert( pgbar::config::terminal_width( pgbar::Channel::Stdout ) > bar.config().fixed_width() );
@@ -2131,7 +2131,7 @@ assert( bar.config().fixed_width() != 0 ); // The exact value depends on the con
 
 The specific terminal line width (in characters) can be obtained using `pgbar::config::terminal_width()`. If the passed output stream does not point to an actual terminal device, the return value will be 0.
 
-> If the running platform is neither `Windows` nor `Unix-like`, then this function will only return a fixed value of 100.
+> If the running platform is neither `Windows` nor `Unix-like`, then this function will only return a fixed value of 0.
 
 ```cpp
 assert( pgbar::config::terminal_width( pgbar::Channel::Stdout ) > bar.config().fixed_width() );
