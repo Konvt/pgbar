@@ -41,10 +41,7 @@ namespace pgbar {
                                                    └ trigger<Sync>() → Shot → Idle
 
           any state
-            └─ suspend() → Asleep → Dormant
-
-          any state
-            └─ abort() → Halt → Dormant
+            └─ abort() → Asleep → Dormant
 
           any state
             └─ drop() → Dead
@@ -217,11 +214,9 @@ namespace pgbar {
               concurrent::spin_wait(
                 [&]() noexcept { return state_.load( std::memory_order_acquire ) != desired(); } );
             } else {
-              {
-                std::lock_guard<std::mutex> lock { sched_mtx_ };
-                cond_var_.notify_one();
-              }
-              std::lock_guard<concurrent::SharedMutex> lock { res_mtx_ };
+              std::lock_guard<concurrent::SharedMutex> lock1 { res_mtx_ };
+              std::lock_guard<std::mutex> lock2 { sched_mtx_ };
+              cond_var_.notify_one();
               task_();
             }
           }
@@ -233,7 +228,6 @@ namespace pgbar {
         {
           if PGBAR__CXX17_CNSTXPR ( Mode == Policy::Signal ) {
             if ( state_.load( std::memory_order_acquire ) != State::Dormant ) {
-              PGBAR__ASSERT( state_ != State::Idle );
               quota_.fetch_add( 1, std::memory_order_release );
               std::lock_guard<std::mutex> lock { sched_mtx_ };
               cond_var_.notify_one();
@@ -327,7 +321,7 @@ namespace pgbar {
           return true;
         }
 
-        PGBAR__NODISCARD PGBAR__FORCEINLINE bool aborted() const noexcept { return box_.empty(); }
+        PGBAR__NODISCARD PGBAR__FORCEINLINE bool interrupted() const noexcept { return !box_.empty(); }
         PGBAR__NODISCARD PGBAR__FORCEINLINE bool empty() const noexcept
         {
           concurrent::SharedLock<concurrent::SharedMutex> lock { res_mtx_ };
