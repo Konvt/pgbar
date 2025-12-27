@@ -272,11 +272,24 @@ namespace pgbar {
             state_transfer( State::Loop, State::Warmup );
           else if PGBAR__CXX17_CNSTXPR ( Mode == Policy::Signal ) {
             quota_.fetch_add( 1, std::memory_order_release );
-            state_transfer( State::Pulse, State::Primed );
-            quota_.notify_one();
+            auto expected = State::Pulse;
+            if ( state_.compare_exchange_strong( expected, State::Primed, std::memory_order_release ) ) {
+              quota_.notify_one();
+              state_.wait( State::Primed, std::memory_order_acquire );
+            }
           } else if PGBAR__CXX17_CNSTXPR ( Mode == Policy::Sync )
             state_transfer( State::Idle, State::Shot );
 #else
+          auto state_transfer = [this]( State expected, State desired ) noexcept {
+            if ( state_.compare_exchange_strong( expected, desired, std::memory_order_release ) ) {
+              {
+                std::lock_guard<std::mutex> lock { sched_mtx_ };
+                cond_var_.notify_one();
+              }
+              concurrent::spin_wait(
+                [this]() noexcept { return state_.load( std::memory_order_acquire ) != desired; } );
+            }
+          };
           if PGBAR__CXX17_CNSTXPR ( Mode == Policy::Async ) {
             auto expected = State::Loop;
             if ( state_.compare_exchange_strong( expected, State::Warmup, std::memory_order_release ) )
@@ -284,26 +297,9 @@ namespace pgbar {
                 [this]() noexcept { return state_.load( std::memory_order_acquire ) != State::Warmup; } );
           } else if PGBAR__CXX17_CNSTXPR ( Mode == Policy::Signal ) {
             quota_.fetch_add( 1, std::memory_order_release );
-            auto expected = State::Pulse;
-            if ( state_.compare_exchange_strong( expected, State::Primed, std::memory_order_release ) ) {
-              {
-                std::lock_guard<std::mutex> lock { sched_mtx_ };
-                cond_var_.notify_one();
-              }
-              concurrent::spin_wait(
-                [this]() noexcept { return state_.load( std::memory_order_acquire ) != State::Primed; } );
-            }
-          } else if PGBAR__CXX17_CNSTXPR ( Mode == Policy::Sync ) {
-            auto expected = State::Idle;
-            if ( state_.compare_exchange_strong( expected, State::Shot, std::memory_order_release ) ) {
-              {
-                std::lock_guard<std::mutex> lock { sched_mtx_ };
-                cond_var_.notify_one();
-              }
-              concurrent::spin_wait(
-                [this]() noexcept { return state_.load( std::memory_order_acquire ) != State::Shot; } );
-            }
-          }
+            state_transfer( State::Pulse, State::Primed );
+          } else if PGBAR__CXX17_CNSTXPR ( Mode == Policy::Sync )
+            state_transfer( State::Idle, State::Shot );
 #endif
         }
 
