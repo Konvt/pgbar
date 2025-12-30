@@ -60,11 +60,9 @@ namespace pgbar {
 
       public:
         using iterator_category = typename std::conditional<
-          _details::traits::AnyOf<
-            std::is_same<_details::traits::IterCategory_t<Itr>, std::input_iterator_tag>,
-            std::is_same<_details::traits::IterCategory_t<Itr>, std::output_iterator_tag>>::value,
+          std::is_same<_details::traits::IterCategory_t<Itr>, std::output_iterator_tag>::value,
           _details::traits::IterCategory_t<Itr>,
-          std::forward_iterator_tag>::type;
+          std::input_iterator_tag>::type;
         using value_type      = _details::traits::IterValue_t<Itr>;
         using difference_type = _details::traits::IterDifference_t<Itr>;
         using reference       = _details::traits::IterReference_t<Itr>;

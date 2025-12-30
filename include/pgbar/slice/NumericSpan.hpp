@@ -36,15 +36,11 @@ namespace pgbar {
         _details::types::Size itr_cnt_;
 
       public:
-#if PGBAR__CXX20
         using iterator_category = std::random_access_iterator_tag;
-#else
-        using iterator_category = std::bidirectional_iterator_tag;
-#endif
-        using value_type      = N;
-        using difference_type = std::ptrdiff_t;
-        using pointer         = value_type*;
-        using reference       = value_type;
+        using value_type        = N;
+        using difference_type   = std::ptrdiff_t;
+        using pointer           = value_type*;
+        using reference         = value_type;
 
         constexpr iterator( N startpoint, N step, _details::types::Size iterated = 0 ) noexcept
           : itr_start_ { startpoint }, itr_step_ { step }, itr_cnt_ { iterated }
