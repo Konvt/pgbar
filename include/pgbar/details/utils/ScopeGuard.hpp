@@ -108,7 +108,7 @@ namespace pgbar {
         {}
         ~ScopeFail() noexcept
         {
-          if ( exceptions_on_entry_ < utils::uncaught_exceptions() ) {
+          if ( exceptions_on_entry_ < uncaught_exceptions() ) {
             (void)( this->callback()() );
             this->release();
           }

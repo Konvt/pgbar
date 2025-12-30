@@ -31,7 +31,11 @@ namespace pgbar {
       PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX23_CNSTXPR std::unique_ptr<T> make_unique(
         Args&&... args )
       {
+#if PGBAR__CXX14
+        return std::make_unique<T>( std::forward<Args>( args )... );
+#else
         return std::unique_ptr<T>( ::new T( std::forward<Args>( args )... ) );
+#endif
       }
 #endif
 
