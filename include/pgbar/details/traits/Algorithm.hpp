@@ -115,11 +115,15 @@ namespace pgbar {
         using type = typename Helper<Split_l<std::tuple<TailCollections...>>,
                                      Split_r<std::tuple<TailCollections...>>>::type;
 #else
+        template<typename First, typename... Rests>
+        struct Helper {
+          using type = First;
+        };
         template<typename First, typename Second, typename... Tail>
-        using Helper_t = typename Merge<Combine_t<First, Second>, Tail...>::type;
+        struct Helper<First, Second, Tail...> : Merge<Combine_t<First, Second>, Tail...> {};
 
       public:
-        using type = Helper_t<FirstCollection, TailCollections...>;
+        using type = typename Helper<FirstCollection, TailCollections...>::type;
 #endif
       };
       template<typename FirstCollection, typename... TailCollections>
