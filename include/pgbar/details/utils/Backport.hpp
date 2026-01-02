@@ -7,9 +7,9 @@
 #include <functional>
 #include <memory>
 #include <utility>
-#ifndef __cpp_lib_invoke
+#if !defined( __cpp_lib_invoke ) || ( defined( _MSC_VER ) && !PGBAR__CXX17 )
 # include "../traits/Backport.hpp"
-# include "../traits/Util.hpp"
+# include "../traits/ConceptTraits.hpp"
 #endif
 #ifdef __cpp_lib_ranges
 # include <ranges>
@@ -19,14 +19,6 @@ namespace pgbar {
   namespace _details {
     namespace utils {
       // Before C++17, not all std entities had feature macros.
-#if PGBAR__CXX14
-      template<typename T, typename... Args>
-      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX23_CNSTXPR auto make_unique( Args&&... args )
-      {
-        return std::make_unique<T>( std::forward<Args>( args )... );
-      }
-#else
-      // picking up the standard's mess...
       template<typename T, typename... Args>
       PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX23_CNSTXPR std::unique_ptr<T> make_unique(
         Args&&... args )
@@ -37,7 +29,19 @@ namespace pgbar {
         return std::unique_ptr<T>( ::new T( std::forward<Args>( args )... ) );
 #endif
       }
+
+      template<typename T, typename U = T>
+      PGBAR__CXX14_CNSTXPR T exchange( T& obj, U&& new_val )
+        noexcept( std::is_nothrow_move_constructible<T>::value && std::is_nothrow_assignable<T&, U&&>::value )
+      {
+#if PGBAR__CXX14
+        return std::exchange( obj, std::forward<U>( new_val ) );
+#else
+        T old_value = std::move( obj );
+        obj         = std::forward<U>( new_val );
+        return old_value;
 #endif
+      }
 
       PGBAR__FORCEINLINE int uncaught_exceptions() noexcept
       {
@@ -132,7 +136,8 @@ namespace pgbar {
       void as_const( const T&& ) = delete;
 #endif
 
-#ifdef __cpp_lib_invoke
+      // The `std::invoke` in MSVC will result in a hard compilation error when used in SFINAE.
+#if defined( __cpp_lib_invoke ) && ( !defined( _MSC_VER ) || PGBAR__CXX17 )
       template<typename Fn, typename... Args>
       PGBAR__FORCEINLINE constexpr decltype( auto ) invoke( Fn&& fn, Args&&... args )
         noexcept( noexcept( std::invoke( std::forward<Fn>( fn ), std::forward<Args>( args )... ) ) )
@@ -218,6 +223,34 @@ namespace pgbar {
           decltype( std::forward<Fn>( fn )( std::forward<Args>( args )... ) )>::type
       {
         return std::forward<Fn>( fn )( std::forward<Args>( args )... );
+      }
+#endif
+
+#ifdef __cpp_lib_to_address
+      template<typename Ptr>
+      PGBAR__FORCEINLINE constexpr auto to_address( Ptr&& p ) noexcept
+      {
+        return std::to_address( std::forward<Ptr>( p ) );
+      }
+#else
+      template<typename Ptr>
+      PGBAR__FORCEINLINE constexpr auto to_address( const Ptr& p ) noexcept
+        -> decltype( std::pointer_traits<Ptr>::to_address( p ) )
+      {
+        return std::pointer_traits<Ptr>::to_address( p );
+      }
+      // template argument None is used to lower the priority of this overloaded
+      template<typename Ptr, typename... None>
+      PGBAR__FORCEINLINE constexpr auto to_address( const Ptr& p, None... ) noexcept
+        -> decltype( to_address( p.operator->() ) )
+      {
+        return to_address( p.operator->() );
+      }
+      template<typename T>
+      PGBAR__FORCEINLINE constexpr T* to_address( T* p ) noexcept
+      {
+        static_assert( !std::is_function<T>::value, "pgbar::_details::utils::to_address: Unexpected type" );
+        return p;
       }
 #endif
 

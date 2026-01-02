@@ -74,6 +74,40 @@ namespace pgbar {
       template<typename T>
       using SentinelOf_t = typename SentinelOf<T>::type;
 
+      template<typename T>
+      struct is_pointer_like {
+      private:
+        template<typename>
+        static constexpr std::false_type check( ... );
+        template<typename U>
+        static constexpr typename std::enable_if<
+          Not<AnyOf<std::is_void<decltype( *std::declval<U&>() )>,
+                    std::is_void<decltype( std::declval<U&>().operator->() )>,
+                    std::is_void<decltype( static_cast<bool>( std::declval<U&>() ) )>>>::value,
+          std::true_type>::type
+          check( int );
+
+      public:
+        static constexpr bool value = AllOf<Not<std::is_reference<T>>, decltype( check<T>( 0 ) )>::value;
+      };
+      template<typename P>
+      struct is_pointer_like<P*> : std::true_type {};
+
+      // Check whether the type Instance is an instantiated version of Tmp or whether it inherits from Tmp
+      // itself.
+      template<typename Instance, template<typename...> class Tmp>
+      struct is_instance_of {
+      private:
+        template<typename... Args>
+        static constexpr std::true_type check( const Tmp<Args...>& );
+        static constexpr std::false_type check( ... );
+
+      public:
+        static constexpr bool value =
+          AllOf<Not<std::is_reference<Instance>>,
+                decltype( check( std::declval<typename std::remove_cv<Instance>::type>() ) )>::value;
+      };
+
 #ifdef __cpp_lib_concepts
       template<typename Itr, typename Snt = Itr>
       struct is_sized_cursor

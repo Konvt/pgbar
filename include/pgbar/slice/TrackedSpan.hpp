@@ -3,6 +3,7 @@
 
 #include "../details/prefabs/BasicBar.hpp"
 #include "../details/traits/ConceptTraits.hpp"
+#include "../details/traits/Util.hpp"
 #ifdef __cpp_lib_ranges
 # include <ranges>
 #endif
@@ -24,7 +25,7 @@ namespace pgbar {
       static_assert( _details::traits::AllOf<std::is_copy_constructible<UIRef>,
                                              _details::traits::is_pointer_like<UIRef>>::value,
                      "pgbar::slice::TrackedSpan: Must be a copyable pointer-like bar reference" );
-      static_assert( _details::traits::is_iterable_bar<_details::traits::Pointee_t<UIRef>>::value,
+      static_assert( _details::traits::is_iterable_bar<_details::traits::PointeeOf_t<UIRef>>::value,
                      "pgbar::slice::TrackedSpan: Must have a method to configure the iteration "
                      "count for the object's configuration type" );
 

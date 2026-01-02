@@ -287,7 +287,7 @@ namespace pgbar {
                 cond_var_.notify_one();
               }
               concurrent::spin_wait(
-                [this]() noexcept { return state_.load( std::memory_order_acquire ) != desired; } );
+                [&]() noexcept { return state_.load( std::memory_order_acquire ) != desired; } );
             }
           };
           if PGBAR__CXX17_CNSTXPR ( Mode == Policy::Async ) {

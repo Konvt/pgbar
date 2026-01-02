@@ -204,7 +204,7 @@ namespace pgbar {
         template<typename T>
         using Param_t = typename std::conditional<std::is_scalar<T>::value, T, T&&>::type;
         template<typename T>
-        using Fn_t = typename std::
+        using Delegate_t = typename std::
           conditional<std::is_const<typename std::remove_reference<CrefInfo>::type>::value, const T, T>::type;
 
       protected:
@@ -213,6 +213,9 @@ namespace pgbar {
           noexcept( Noexcept )
 # endif
           ;
+
+        template<typename Fn>
+        using Fn_t = decltype( utils::forward_as<CrefInfo>( std::declval<typename std::decay<Fn>::type>() ) );
 
         static PGBAR__NOINLINE PGBAR__CXX14_CNSTXPR R invoke_null( const AnyFn&, Param_t<Args>... )
           noexcept( Noexcept )
@@ -224,14 +227,14 @@ namespace pgbar {
         static PGBAR__NOINLINE PGBAR__CXX14_CNSTXPR R invoke_inline( const AnyFn& fn, Param_t<Args>... args )
           noexcept( Noexcept )
         {
-          const auto ptr = utils::launder_as<Fn_t<T>>( ( &const_cast<AnyFn&>( fn ).sso_ ) );
+          const auto ptr = utils::launder_as<Delegate_t<T>>( ( &const_cast<AnyFn&>( fn ).sso_ ) );
           return utils::invoke( utils::forward_as<CrefInfo>( *ptr ), std::forward<Args>( args )... );
         }
         template<typename T>
         static PGBAR__NOINLINE PGBAR__CXX14_CNSTXPR R invoke_dynamic( const AnyFn& fn, Param_t<Args>... args )
           noexcept( Noexcept )
         {
-          const auto dptr = utils::launder_as<Fn_t<T>>( fn.dptr_ );
+          const auto dptr = utils::launder_as<Delegate_t<T>>( fn.dptr_ );
           return utils::invoke( utils::forward_as<CrefInfo>( *dptr ), std::forward<Args>( args )... );
         }
 
@@ -251,7 +254,7 @@ namespace pgbar {
       class UniqueFunction<R( Args... )>
         : public FnInvoker<UniqueFunction<R( Args... )>, int&, R, false, Args...> {
         // Function types without ref qualifier will be treated as non-const lvalue reference types.
-        using Base = FnStore<UniqueFunction>;
+        using Base = FnInvoker<UniqueFunction, int&, R, false, Args...>;
 
       public:
         UniqueFunction( const UniqueFunction& )              = delete;
@@ -264,9 +267,14 @@ namespace pgbar {
 
         constexpr UniqueFunction( std::nullptr_t ) noexcept : UniqueFunction() {}
         template<typename F,
-                 typename = typename std::enable_if<
-                   traits::AllOf<std::is_constructible<typename std::decay<F>::type, F>,
-                                 traits::is_invocable_to<R, F, Args...>>::value>::type>
+                 typename = typename std::enable_if<traits::AllOf<
+                   // It's so strange that even if we have a no-template overload here,
+                   // using an earlier standard (c++14) in msvc still causes compile error
+                   // because the compiler attempts to instantiate the template version with std::nullptr_t.
+                   // Therefore we need to add a SFINAE below to prevent the instantiation.
+                   traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
+                   std::is_constructible<typename std::decay<F>::type, F>,
+                   traits::is_invocable_to<R, typename Base::template Fn_t<F>, Args...>>::value>::type>
         UniqueFunction( F&& fn ) noexcept( Base::template Inlinable<typename std::decay<F>::type>::value )
         {
           Base::store_fn( this->vtable_, this->callee_, std::forward<F>( fn ) );
@@ -275,9 +283,11 @@ namespace pgbar {
         // In C++11, `std::in_place_type` does not exist, and we will not use it either.
         // Therefore, we do not provide an overloaded constructor for this type here.
         template<typename F>
-        typename std::enable_if<traits::AllOf<std::is_constructible<typename std::decay<F>::type, F>,
-                                              traits::is_invocable_to<R, F, Args...>>::value,
-                                UniqueFunction&>::type
+        typename std::enable_if<
+          traits::AllOf<traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
+                        std::is_constructible<typename std::decay<F>::type, F>,
+                        traits::is_invocable_to<R, typename Base::template Fn_t<F>, Args...>>::value,
+          UniqueFunction&>::type
           operator=( F&& fn ) & noexcept( Base::template Inlinable<typename std::decay<F>::type>::value )
         {
           this->reset( std::forward<F>( fn ) );
