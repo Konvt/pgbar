@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-alpha.3] - 2026-01-03
+### Added
+- None
+
+### Changed
+- Renamed an internal method
+- Now the return value of `terminal_witdth()` is 0 instead of 100 when the platform neither Windows nor unix-like
+- Modified the synchronization method of the atomic state machine in the renderer
+
+### Fixed
+- Fixed a potential data race issue in the `Renderer`
+- Fixed the compilation errors on MSVC pointed out in Issue #8
+- Corrected some iterator categories
+
+### Removed
+- None
+
+- - -
+
 ## [1.0.0-alpha.2] - 2025-12-24
 ### Added
 - Marked `tick()` as a pure virtual function in `Indicator`
