@@ -151,6 +151,12 @@ namespace pgbar {
         void shutdown() noexcept
         {
           concurrent::atomic_commit_all( state_, State::Dead );
+#ifndef __cpp_lib_atomic_wait
+          {
+            std::lock_guard<std::mutex> lock { sched_mtx_ };
+            cond_var_.notify_all();
+          }
+#endif
           if ( runner_.joinable() )
             runner_.join();
           runner_ = std::thread();
