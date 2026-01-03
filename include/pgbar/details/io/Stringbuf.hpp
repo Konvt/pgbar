@@ -10,20 +10,18 @@ namespace pgbar {
     namespace io {
       // A simple string buffer, unrelated to the `std::stringbuf` in the STL.
       class Stringbuf {
-        using Self = Stringbuf;
-
       protected:
         std::vector<types::Char> buffer_;
 
       public:
         PGBAR__CXX20_CNSTXPR Stringbuf() = default;
 
-        PGBAR__CXX20_CNSTXPR Stringbuf( const Self& )         = default;
-        PGBAR__CXX20_CNSTXPR Stringbuf( Self&& ) noexcept     = default;
-        PGBAR__CXX20_CNSTXPR Self& operator=( const Self& ) & = default;
-        PGBAR__CXX20_CNSTXPR Self& operator=( Self&& ) &      = default;
+        PGBAR__CXX20_CNSTXPR Stringbuf( const Stringbuf& )              = default;
+        PGBAR__CXX20_CNSTXPR Stringbuf( Stringbuf&& ) noexcept          = default;
+        PGBAR__CXX20_CNSTXPR Stringbuf& operator=( const Stringbuf& ) & = default;
+        PGBAR__CXX20_CNSTXPR Stringbuf& operator=( Stringbuf&& ) &      = default;
         // Intentional non-virtual destructors.
-        PGBAR__CXX20_CNSTXPR ~Stringbuf()                     = default;
+        PGBAR__CXX20_CNSTXPR ~Stringbuf()                               = default;
 
         PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR bool empty() const noexcept
         {
@@ -38,44 +36,45 @@ namespace pgbar {
           buffer_.shrink_to_fit();
         }
 
-        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR Self& reserve( types::Size capacity ) &
+        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR Stringbuf& reserve( types::Size capacity ) &
         {
           buffer_.reserve( capacity );
           return *this;
         }
 
-        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR Self& append( types::Char info, types::Size num = 1 ) &
+        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR Stringbuf& append( types::Char info, types::Size num = 1 ) &
         {
           buffer_.insert( buffer_.end(), num, info );
           return *this;
         }
         template<types::Size N>
-        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR Self& append( const char ( &info )[N], types::Size num = 1 ) &
+        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR Stringbuf& append( const char ( &info )[N],
+                                                                   types::Size num = 1 ) &
         {
           while ( num-- )
             buffer_.insert( buffer_.end(), info, info + N );
           return *this;
         }
-        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR Self& append( types::ROStr info, types::Size num = 1 ) &
+        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR Stringbuf& append( types::ROStr info, types::Size num = 1 ) &
         {
           while ( num-- )
             buffer_.insert( buffer_.end(), info.cbegin(), info.cend() );
           return *this;
         }
-        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR Self& append( const charcodes::U8Raw& info,
-                                                              types::Size num = 1 ) &
+        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR Stringbuf& append( const charcodes::U8Raw& info,
+                                                                   types::Size num = 1 ) &
         {
           return append( info.str(), num );
         }
-        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR Self& append( const types::Char* head,
-                                                              const types::Char* tail ) &
+        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR Stringbuf& append( const types::Char* head,
+                                                                   const types::Char* tail ) &
         {
           if ( head != nullptr && tail != nullptr )
             buffer_.insert( buffer_.end(), head, tail );
           return *this;
         }
-        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR Self& append( const charcodes::EncodedView& info,
-                                                              types::Size num = 1 ) &
+        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR Stringbuf& append( const charcodes::EncodedView& info,
+                                                                   types::Size num = 1 ) &
         {
           if ( info ) {
             while ( num-- )
@@ -90,18 +89,19 @@ namespace pgbar {
                         std::is_same<typename std::decay<T>::type, types::String>,
                         std::is_same<typename std::decay<T>::type, charcodes::U8Raw>,
                         std::is_same<typename std::decay<T>::type, charcodes::EncodedView>>::value,
-          Self&>::type
-          operator<<( Self& stream, T&& info )
+          Stringbuf&>::type
+          operator<<( Stringbuf& stream, T&& info )
         {
           return stream.append( std::forward<T>( info ) );
         }
-        friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR Self& operator<<( Self& stream, types::ROStr info )
+        friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR Stringbuf& operator<<( Stringbuf& stream,
+                                                                              types::ROStr info )
         {
           return stream.append( info );
         }
         template<types::Size N>
-        friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR Self& operator<<( Self& stream,
-                                                                         const char ( &info )[N] )
+        friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR Stringbuf& operator<<( Stringbuf& stream,
+                                                                              const char ( &info )[N] )
         {
           return stream.append( info );
         }
@@ -114,13 +114,13 @@ namespace pgbar {
         friend PGBAR__CXX20_CNSTXPR void swap( Stringbuf& a, Stringbuf& b ) noexcept { a.swap( b ); }
 
 #ifdef __cpp_lib_char8_t
-        PGBAR__FORCEINLINE Self& append( types::LitU8 info, types::Size num = 1 ) &
+        PGBAR__FORCEINLINE Stringbuf& append( types::LitU8 info, types::Size num = 1 ) &
         {
           while ( num-- )
             buffer_.insert( buffer_.end(), info.data(), info.data() + info.size() );
           return *this;
         }
-        friend PGBAR__FORCEINLINE Self& operator<<( Self& stream, types::LitU8 info )
+        friend PGBAR__FORCEINLINE Stringbuf& operator<<( Stringbuf& stream, types::LitU8 info )
         {
           return stream.append( info );
         }

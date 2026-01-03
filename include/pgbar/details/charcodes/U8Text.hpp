@@ -11,8 +11,6 @@ namespace pgbar {
     namespace charcodes {
       // A UTF-8 string that supports splitting strings by character width.
       class U8Text : public U8Raw {
-        using Self = U8Text;
-
       protected:
         std::vector<Font> chars_;
 
@@ -43,13 +41,13 @@ namespace pgbar {
                                     } );
           bytes_ = std::move( u8_bytes );
         }
-        PGBAR__CXX20_CNSTXPR U8Text( const Self& )            = default;
-        PGBAR__CXX20_CNSTXPR U8Text( Self&& )                 = default;
-        PGBAR__CXX20_CNSTXPR Self& operator=( const Self& ) & = default;
-        PGBAR__CXX20_CNSTXPR Self& operator=( Self&& ) &      = default;
-        PGBAR__CXX20_CNSTXPR ~U8Text()                        = default;
+        PGBAR__CXX20_CNSTXPR U8Text( const U8Text& )              = default;
+        PGBAR__CXX20_CNSTXPR U8Text( U8Text&& )                   = default;
+        PGBAR__CXX20_CNSTXPR U8Text& operator=( const U8Text& ) & = default;
+        PGBAR__CXX20_CNSTXPR U8Text& operator=( U8Text&& ) &      = default;
+        PGBAR__CXX20_CNSTXPR ~U8Text()                            = default;
 
-        Self& operator=( types::ROStr u8_bytes ) &
+        U8Text& operator=( types::ROStr u8_bytes ) &
         {
           auto new_chars = parse_glyph( u8_bytes.data(), u8_bytes.size() );
           auto new_bytes = types::String( u8_bytes );
@@ -63,7 +61,7 @@ namespace pgbar {
           bytes_.swap( new_bytes );
           return *this;
         }
-        Self& operator=( types::String u8_bytes ) &
+        U8Text& operator=( types::String u8_bytes ) &
         {
           auto new_chars = parse_glyph( u8_bytes.data(), u8_bytes.size() );
           chars_.swap( new_chars );
@@ -114,12 +112,12 @@ namespace pgbar {
           };
         }
 
-        PGBAR__CXX20_CNSTXPR void swap( Self& other ) noexcept
+        PGBAR__CXX20_CNSTXPR void swap( U8Text& other ) noexcept
         {
           U8Raw::swap( other );
           chars_.swap( other.chars_ );
         }
-        friend PGBAR__CXX20_CNSTXPR void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
+        friend PGBAR__CXX20_CNSTXPR void swap( U8Text& a, U8Text& b ) noexcept { a.swap( b ); }
 
 #ifdef __cpp_lib_char8_t
         explicit U8Text( types::LitU8 u8_sv ) : U8Text()

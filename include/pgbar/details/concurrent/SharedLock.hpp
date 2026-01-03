@@ -17,8 +17,6 @@ namespace pgbar {
 #else
       template<typename Mtx>
       class SharedLock final {
-        using Self = SharedLock;
-
         Mtx& mtx_;
 
       public:

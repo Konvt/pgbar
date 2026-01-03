@@ -13,7 +13,6 @@ namespace pgbar {
     static_assert( _details::traits::AllOf<_details::traits::is_config<Config>,
                                            _details::traits::is_config<Configs>...>::value,
                    "pgbar::MultiBar: Invalid type" );
-    using Self = MultiBar;
 
     template<_details::types::Size Pos>
     using ConfigAt_t = _details::traits::TypeAt_t<Pos, Config, Configs...>;
@@ -73,11 +72,11 @@ namespace pgbar {
       : package_ { std::move( bar ), std::move( bars )... }
     {}
 
-    MultiBar( const Self& )                  = delete;
-    Self& operator=( const Self& ) &         = delete;
-    MultiBar( Self&& rhs ) noexcept          = default;
-    Self& operator=( Self&& rhs ) & noexcept = default;
-    ~MultiBar()                              = default;
+    MultiBar( const MultiBar& )                      = delete;
+    MultiBar& operator=( const MultiBar& ) &         = delete;
+    MultiBar( MultiBar&& rhs ) noexcept              = default;
+    MultiBar& operator=( MultiBar&& rhs ) & noexcept = default;
+    ~MultiBar()                                      = default;
 
     // Check whether a progress bar is running
     PGBAR__NODISCARD PGBAR__FORCEINLINE bool active() const noexcept { return package_.online(); }
@@ -222,21 +221,21 @@ namespace pgbar {
       return at<Pos>().action();
     }
 
-    void swap( Self& other ) noexcept { package_.swap( other.package_ ); }
-    friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
+    void swap( MultiBar& other ) noexcept { package_.swap( other.package_ ); }
+    friend void swap( MultiBar& a, MultiBar& b ) noexcept { a.swap( b ); }
 
     template<_details::types::Size Pos>
-    friend PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR BarAt_t<Pos>& get( Self& self ) noexcept
+    friend PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR BarAt_t<Pos>& get( MultiBar& self ) noexcept
     {
       return self.template at<Pos>();
     }
     template<_details::types::Size Pos>
-    friend PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR const BarAt_t<Pos>& get( const Self& self ) noexcept
+    friend PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR const BarAt_t<Pos>& get( const MultiBar& self ) noexcept
     {
       return self.template at<Pos>();
     }
     template<_details::types::Size Pos>
-    friend PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR BarAt_t<Pos>&& get( Self&& self ) noexcept
+    friend PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR BarAt_t<Pos>&& get( MultiBar&& self ) noexcept
     {
       return std::move( self ).template at<Pos>();
     }

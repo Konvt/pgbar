@@ -10,8 +10,6 @@ namespace pgbar {
       class DynContext final {
         struct Slot final {
         private:
-          using Self = Slot;
-
           template<typename Derived>
           static void render( Indicator* item )
           {

@@ -17,8 +17,6 @@ namespace pgbar {
     namespace render {
       template<Channel Tag>
       class Renderer final {
-        using Self = Renderer;
-
         static std::atomic<TimeGranule> _working_interval;
 
         std::atomic<std::uint64_t> quota_      = { 0 };
@@ -173,14 +171,14 @@ namespace pgbar {
           _working_interval.store( new_rate, std::memory_order_release );
         }
 
-        static Self& itself() noexcept
+        static Renderer& itself() noexcept
         {
-          static Self instance;
+          static Renderer instance;
           return instance;
         }
 
-        Renderer( const Self& )          = delete;
-        Self& operator=( const Self& ) & = delete;
+        Renderer( const Renderer& )              = delete;
+        Renderer& operator=( const Renderer& ) & = delete;
         ~Renderer() noexcept { shutdown(); }
 
         // `activate` guarantees to perform the render task at least once.

@@ -9,16 +9,17 @@ namespace pgbar {
     namespace wrappers {
       template<typename T>
       class MovableRef {
-        using Self = MovableRef;
-
         T* ref_;
 
       public:
         constexpr MovableRef() noexcept : ref_ { nullptr } {}
-        PGBAR__CXX14_CNSTXPR MovableRef( const Self& )        = default;
-        PGBAR__CXX14_CNSTXPR Self& operator=( const Self& ) & = default;
-        PGBAR__CXX14_CNSTXPR MovableRef( Self&& rhs ) noexcept : ref_ { rhs.ref_ } { rhs.ref_ = nullptr; }
-        PGBAR__CXX14_CNSTXPR Self& operator=( Self&& rhs ) & noexcept
+        PGBAR__CXX14_CNSTXPR MovableRef( const MovableRef& )              = default;
+        PGBAR__CXX14_CNSTXPR MovableRef& operator=( const MovableRef& ) & = default;
+        PGBAR__CXX14_CNSTXPR MovableRef( MovableRef&& rhs ) noexcept : ref_ { rhs.ref_ }
+        {
+          rhs.ref_ = nullptr;
+        }
+        PGBAR__CXX14_CNSTXPR MovableRef& operator=( MovableRef&& rhs ) & noexcept
         {
           ref_     = rhs.ref_;
           rhs.ref_ = nullptr;
@@ -27,14 +28,14 @@ namespace pgbar {
 
         template<typename U,
                  typename = typename std::enable_if<
-                   traits::AllOf<traits::Not<std::is_same<typename std::decay<U>::type, Self>>,
+                   traits::AllOf<traits::Not<std::is_same<typename std::decay<U>::type, MovableRef>>,
                                  std::is_convertible<U&&, T&>>::value>::type>
         PGBAR__CXX17_CNSTXPR MovableRef( U&& x ) noexcept
         {
           T& t = std::forward<U>( x );
           ref_ = std::addressof( t );
         }
-        PGBAR__CXX17_CNSTXPR Self& operator=( T& ref ) & noexcept
+        PGBAR__CXX17_CNSTXPR MovableRef& operator=( T& ref ) & noexcept
         {
           ref_ = std::addressof( ref );
           return *this;
@@ -73,51 +74,51 @@ namespace pgbar {
 
         explicit constexpr operator bool() const noexcept { return ref_ != nullptr; }
 
-        PGBAR__CXX20_CNSTXPR void swap( Self& other ) noexcept { std::swap( ref_, other.ref_ ); }
-        friend PGBAR__CXX20_CNSTXPR void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
+        PGBAR__CXX20_CNSTXPR void swap( MovableRef& other ) noexcept { std::swap( ref_, other.ref_ ); }
+        friend PGBAR__CXX20_CNSTXPR void swap( MovableRef& a, MovableRef& b ) noexcept { a.swap( b ); }
 
         template<typename U>
         PGBAR__NODISCARD friend constexpr
           typename std::enable_if<std::is_same<typename std::decay<U>::type, T>::value, bool>::type
-          operator==( const Self& a, const MovableRef<const U>& b ) noexcept
+          operator==( const MovableRef& a, const MovableRef<const U>& b ) noexcept
         {
           return a.ref_ == b.ref_;
         }
         template<typename U>
         PGBAR__NODISCARD friend constexpr
           typename std::enable_if<std::is_same<typename std::decay<U>::type, T>::value, bool>::type
-          operator!=( const Self& a, const MovableRef<const U>& b ) noexcept
+          operator!=( const MovableRef& a, const MovableRef<const U>& b ) noexcept
         {
           return !( a == b );
         }
         template<typename U>
         PGBAR__NODISCARD friend constexpr
           typename std::enable_if<std::is_same<typename std::decay<U>::type, T>::value, bool>::type
-          operator==( const MovableRef<const U>& a, const Self& b ) noexcept
+          operator==( const MovableRef<const U>& a, const MovableRef& b ) noexcept
         {
           return a.ref_ == b.ref_;
         }
         template<typename U>
         PGBAR__NODISCARD friend constexpr
           typename std::enable_if<std::is_same<typename std::decay<U>::type, T>::value, bool>::type
-          operator!=( const MovableRef<const U>& a, const Self& b ) noexcept
+          operator!=( const MovableRef<const U>& a, const MovableRef& b ) noexcept
         {
           return !( b == a );
         }
-        PGBAR__NODISCARD friend constexpr bool operator==( const Self& a, const T& b ) noexcept
+        PGBAR__NODISCARD friend constexpr bool operator==( const MovableRef& a, const T& b ) noexcept
         {
           return a.ref_ == std::addressof( b );
         }
         template<typename U>
-        PGBAR__NODISCARD friend constexpr bool operator!=( const Self& a, const T& b ) noexcept
+        PGBAR__NODISCARD friend constexpr bool operator!=( const MovableRef& a, const T& b ) noexcept
         {
           return !( a == b );
         }
-        PGBAR__NODISCARD friend constexpr bool operator==( const T& a, const Self& b ) noexcept
+        PGBAR__NODISCARD friend constexpr bool operator==( const T& a, const MovableRef& b ) noexcept
         {
           return b == a;
         }
-        PGBAR__NODISCARD friend constexpr bool operator!=( const T& a, const Self& b ) noexcept
+        PGBAR__NODISCARD friend constexpr bool operator!=( const T& a, const MovableRef& b ) noexcept
         {
           return !( b == a );
         }

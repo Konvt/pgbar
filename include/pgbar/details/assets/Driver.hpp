@@ -284,7 +284,6 @@ namespace pgbar {
       class CoreBar<Base, Derived<Soul, Outlet, Mode, Area>> : public Base {
         static_assert( traits::is_config<Soul>::value,
                        "pgbar::_details::prefabs::CoreBar: Invalid config type" );
-        using Self   = CoreBar;
         using Subcls = Derived<Soul, Outlet, Mode, Area>;
 
         PGBAR__FORCEINLINE void make_frame()
@@ -302,7 +301,7 @@ namespace pgbar {
           default: return;
           }
         }
-        friend PGBAR__FORCEINLINE void make_frame( Self& self ) { self.make_frame(); }
+        friend PGBAR__FORCEINLINE void make_frame( CoreBar& self ) { self.make_frame(); }
 
       protected:
         enum class StateCategory : std::uint8_t { Stop, Awake, Refresh, Finish };
@@ -377,14 +376,14 @@ namespace pgbar {
         }
 
       public:
-        CoreBar( const Self& )           = delete;
-        Self& operator=( const Self& ) & = delete;
+        CoreBar( const CoreBar& )              = delete;
+        CoreBar& operator=( const CoreBar& ) & = delete;
 
         CoreBar( Soul&& config ) noexcept : config_ { std::move( config ) } {}
-        CoreBar( Self&& rhs ) noexcept( std::is_nothrow_move_constructible<Base>::value )
+        CoreBar( CoreBar&& rhs ) noexcept( std::is_nothrow_move_constructible<Base>::value )
           : Base( std::move( rhs ) ), config_ { std::move( rhs.config_ ) }
         {}
-        Self& operator=( Self&& rhs ) & noexcept( std::is_nothrow_move_assignable<Base>::value )
+        CoreBar& operator=( CoreBar&& rhs ) & noexcept( std::is_nothrow_move_assignable<Base>::value )
         {
           config_ = std::move( rhs.config_ );
           Base::operator=( std::move( rhs ) );
@@ -422,8 +421,6 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class ReactiveBar : public Base {
-        using Self = ReactiveBar;
-
         union Callback {
           wrappers::UniqueFunction<void()> on_;
           wrappers::UniqueFunction<void( Derived& )> on_self_;
@@ -478,16 +475,16 @@ namespace pgbar {
         }
 
       public:
-        ReactiveBar( const Self& )       = delete;
-        Self& operator=( const Self& ) & = delete;
+        ReactiveBar( const ReactiveBar& )              = delete;
+        ReactiveBar& operator=( const ReactiveBar& ) & = delete;
 
         using Base::Base;
-        ReactiveBar( Self&& rhs ) noexcept( std::is_nothrow_move_constructible<Base>::value )
+        ReactiveBar( ReactiveBar&& rhs ) noexcept( std::is_nothrow_move_constructible<Base>::value )
           : Base( std::move( rhs ) )
         {
           rhs.move_to( *this );
         }
-        Self& operator=( Self&& rhs ) & noexcept( std::is_nothrow_move_assignable<Base>::value )
+        ReactiveBar& operator=( ReactiveBar&& rhs ) & noexcept( std::is_nothrow_move_assignable<Base>::value )
         { // The thread insecurity here is deliberately designed.
           // Because for a move-only type, transferring ownership simultaneously
           // in multiple locations should not occur.
@@ -543,7 +540,7 @@ namespace pgbar {
         }
 
         template<typename F>
-        friend PGBAR__FORCEINLINE auto operator|=( Self& bar, F&& fn )
+        friend PGBAR__FORCEINLINE auto operator|=( ReactiveBar& bar, F&& fn )
 #ifdef __cpp_concepts
           requires( std::is_constructible_v<wrappers::UniqueFunction<void()>, F &&>
                     || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F &&> )
@@ -569,7 +566,7 @@ namespace pgbar {
                           std::is_constructible<wrappers::UniqueFunction<void( Derived& )>, F&&>>>::value,
           Derived&>::type
 #endif
-          operator|( Self& bar, F&& fn )
+          operator|( ReactiveBar& bar, F&& fn )
         {
           return bar.action( std::forward<F>( fn ) );
         }
@@ -585,22 +582,25 @@ namespace pgbar {
                           std::is_constructible<wrappers::UniqueFunction<void( Derived& )>, F&&>>>::value,
           Derived&&>::type
 #endif
-          operator|( Self&& bar, F&& fn )
+          operator|( ReactiveBar&& bar, F&& fn )
         {
           return std::move( bar.action( std::forward<F>( fn ) ) );
         }
 
-        friend PGBAR__FORCEINLINE void operator|=( Self& bar, std::nullptr_t ) noexcept { bar.action(); }
-        friend PGBAR__FORCEINLINE Derived& operator|( Self& bar, std::nullptr_t ) noexcept
+        friend PGBAR__FORCEINLINE void operator|=( ReactiveBar& bar, std::nullptr_t ) noexcept
+        {
+          bar.action();
+        }
+        friend PGBAR__FORCEINLINE Derived& operator|( ReactiveBar& bar, std::nullptr_t ) noexcept
         {
           return bar.action();
         }
-        friend PGBAR__FORCEINLINE Derived&& operator|( Self&& bar, std::nullptr_t ) noexcept
+        friend PGBAR__FORCEINLINE Derived&& operator|( ReactiveBar&& bar, std::nullptr_t ) noexcept
         {
           return std::move( bar.action() );
         }
 
-        void swap( Self& other ) noexcept
+        void swap( ReactiveBar& other ) noexcept
         {
           Base::swap( other );
           switch ( tag_ ) {
@@ -637,13 +637,11 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class TickableBar : public Base {
-        using Self = TickableBar;
-
       public:
         using Base::Base;
-        constexpr TickableBar( Self&& rhs )                  = default;
-        PGBAR__CXX14_CNSTXPR Self& operator=( Self&& rhs ) & = default;
-        PGBAR__CXX20_CNSTXPR virtual ~TickableBar()          = default;
+        constexpr TickableBar( TickableBar&& rhs )                         = default;
+        PGBAR__CXX14_CNSTXPR TickableBar& operator=( TickableBar&& rhs ) & = default;
+        PGBAR__CXX20_CNSTXPR virtual ~TickableBar()                        = default;
 
         PGBAR__FORCEINLINE void tick() & final
         {
@@ -695,7 +693,6 @@ namespace pgbar {
                Policy Mode,
                Region A>
       class PlainBar<Base, Derived<Soul, Outlet, Mode, A>> : public Base {
-        using Self = PlainBar;
         template<typename, typename>
         friend class CoreBar;
         template<typename, typename>
@@ -789,16 +786,16 @@ namespace pgbar {
         }
 
       public:
-        PlainBar( const Self& )          = delete;
-        Self& operator=( const Self& ) & = delete;
+        PlainBar( const PlainBar& )              = delete;
+        PlainBar& operator=( const PlainBar& ) & = delete;
 
         PlainBar( Soul&& config ) noexcept( std::is_nothrow_constructible<Base, Soul&&>::value )
           : Base( std::move( config ) ), state_ { State::Stop }
         {}
-        PlainBar( Self&& rhs ) noexcept( std::is_nothrow_move_constructible<Base>::value )
+        PlainBar( PlainBar&& rhs ) noexcept( std::is_nothrow_move_constructible<Base>::value )
           : Base( std::move( rhs ) ), state_ { State::Stop }
         {}
-        Self& operator=( Self&& rhs ) & noexcept( std::is_nothrow_move_assignable<Base>::value )
+        PlainBar& operator=( PlainBar&& rhs ) & noexcept( std::is_nothrow_move_assignable<Base>::value )
         {
           Base::operator=( std::move( rhs ) );
           return *this;
@@ -819,7 +816,6 @@ namespace pgbar {
                Policy Mode,
                Region A>
       class FrameBar<Base, Derived<Soul, Outlet, Mode, A>> : public Base {
-        using Self   = FrameBar;
         using Subcls = Derived<Soul, Outlet, Mode, A>;
         template<typename, typename>
         friend class CoreBar;
@@ -937,16 +933,16 @@ namespace pgbar {
         }
 
       public:
-        FrameBar( const Self& )          = delete;
-        Self& operator=( const Self& ) & = delete;
+        FrameBar( const FrameBar& )              = delete;
+        FrameBar& operator=( const FrameBar& ) & = delete;
 
         FrameBar( Soul&& config ) noexcept( std::is_nothrow_constructible<Base, Soul&&>::value )
           : Base( std::move( config ) ), state_ { State::Stop }
         {}
-        FrameBar( Self&& rhs ) noexcept( std::is_nothrow_move_constructible<Base>::value )
+        FrameBar( FrameBar&& rhs ) noexcept( std::is_nothrow_move_constructible<Base>::value )
           : Base( std::move( rhs ) ), state_ { State::Stop }
         {}
-        Self& operator=( Self&& rhs ) & noexcept( std::is_nothrow_move_assignable<Base>::value )
+        FrameBar& operator=( FrameBar&& rhs ) & noexcept( std::is_nothrow_move_assignable<Base>::value )
         {
           Base::operator=( std::move( rhs ) );
           return *this;

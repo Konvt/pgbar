@@ -6,7 +6,6 @@
 namespace pgbar {
   template<Channel Outlet = Channel::Stderr, Policy Mode = Policy::Async, Region Area = Region::Fixed>
   class DynamicBar {
-    using Self    = DynamicBar;
     using Context = _details::assets::DynContext<Outlet, Mode, Area>;
 
     std::shared_ptr<Context> core_;
@@ -24,15 +23,15 @@ namespace pgbar {
     }
 
   public:
-    DynamicBar()                     = default;
-    DynamicBar( const Self& )        = delete;
-    Self& operator=( const Self& ) & = delete;
-    DynamicBar( Self&& rhs ) noexcept
+    DynamicBar()                                 = default;
+    DynamicBar( const DynamicBar& )              = delete;
+    DynamicBar& operator=( const DynamicBar& ) & = delete;
+    DynamicBar( DynamicBar&& rhs ) noexcept
     {
       PGBAR__ASSERT( rhs.active() == false );
       core_ = std::move( rhs.core_ );
     }
-    Self& operator=( Self&& rhs ) & noexcept
+    DynamicBar& operator=( DynamicBar&& rhs ) & noexcept
     { // The thread insecurity here is deliberately designed.
       // Because for a move-only type, transferring ownership simultaneously
       // in multiple locations should not occur.
@@ -158,7 +157,7 @@ namespace pgbar {
         std::forward<Options>( options )... );
     }
 
-    void swap( Self& other ) noexcept
+    void swap( DynamicBar& other ) noexcept
     { // The thread insecurity here is deliberately designed.
       // The reason can be found in the move assignment.
       PGBAR__TRUST( this != &other );
@@ -166,7 +165,7 @@ namespace pgbar {
       PGBAR__ASSERT( lhs.active() == false );
       core_.swap( other.core_ );
     }
-    friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
+    friend void swap( DynamicBar& a, DynamicBar& b ) noexcept { a.swap( b ); }
   };
 
   // Creates a tuple of unique_ptr pointing to bars using existing bar instances.

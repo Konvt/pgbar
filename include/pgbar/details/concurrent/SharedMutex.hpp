@@ -18,8 +18,6 @@ namespace pgbar {
 #else
       // A simple `Shared Mutex` implementation for any C++ version.
       class SharedMutex final {
-        using Self = SharedMutex;
-
       protected:
         std::atomic<std::uint64_t> num_readers_;
         std::mutex writer_mtx_;
@@ -34,8 +32,8 @@ namespace pgbar {
          */
 
       public:
-        SharedMutex( const Self& )       = delete;
-        Self& operator=( const Self& ) & = delete;
+        SharedMutex( const SharedMutex& )              = delete;
+        SharedMutex& operator=( const SharedMutex& ) & = delete;
 
         SharedMutex() noexcept : num_readers_ { 0 } {}
         ~SharedMutex() = default;

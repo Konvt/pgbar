@@ -45,8 +45,6 @@ namespace pgbar {
        */
       template<Channel Outlet>
       class OStream final : public Stringbuf {
-        using Self = OStream;
-
 #if PGBAR__WIN && !defined( PGBAR_UTF8 )
         std::vector<WCHAR> wb_buffer_;
         std::vector<types::Char> localized_;
@@ -61,7 +59,7 @@ namespace pgbar {
         using SinkBuffer = const std::vector<types::Char>&;
 #endif
 
-        static Self& itself() noexcept( std::is_nothrow_default_constructible<Stringbuf>::value )
+        static OStream& itself() noexcept( std::is_nothrow_default_constructible<Stringbuf>::value )
         {
           static OStream instance;
           return instance;
@@ -107,10 +105,10 @@ namespace pgbar {
 #endif
         }
 
-        PGBAR__CXX20_CNSTXPR OStream( const Self& )           = delete;
-        PGBAR__CXX20_CNSTXPR Self& operator=( const Self& ) & = delete;
+        PGBAR__CXX20_CNSTXPR OStream( const OStream& )              = delete;
+        PGBAR__CXX20_CNSTXPR OStream& operator=( const OStream& ) & = delete;
         // Intentional non-virtual destructors.
-        PGBAR__CXX20_CNSTXPR ~OStream()                       = default;
+        PGBAR__CXX20_CNSTXPR ~OStream()                             = default;
 
 #if PGBAR__WIN && !defined( PGBAR_UTF8 )
         PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR void release() noexcept
@@ -130,7 +128,7 @@ namespace pgbar {
         }
 #endif
 
-        Self& flush() &
+        OStream& flush() &
         {
           if ( this->buffer_.empty() )
             return *this;
@@ -179,8 +177,8 @@ namespace pgbar {
           return *this;
         }
 
-        friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR Self& operator<<( OStream& stream,
-                                                                         OStream& ( *fnptr )(OStream&))
+        friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR OStream& operator<<( OStream& stream,
+                                                                            OStream& ( *fnptr )(OStream&))
         {
           PGBAR__TRUST( fnptr != nullptr );
           return fnptr( stream );

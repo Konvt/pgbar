@@ -43,31 +43,30 @@ namespace pgbar {
                                      const std::chrono::steady_clock::time_point& zero_point ) const
         {
           PGBAR__TRUST( num_task_done <= num_all_tasks );
-          using Self = Config;
-          if ( this->visual_masks_[utils::as_val( Self::Mask::Cnt )]
-               || this->visual_masks_[utils::as_val( Self::Mask::Sped )]
-               || this->visual_masks_[utils::as_val( Self::Mask::Elpsd )]
-               || this->visual_masks_[utils::as_val( Self::Mask::Cntdwn )] ) {
-            if ( this->visual_masks_[utils::as_val( Self::Mask::Cnt )] ) {
+          if ( this->visual_masks_[utils::as_val( Config::Mask::Cnt )]
+               || this->visual_masks_[utils::as_val( Config::Mask::Sped )]
+               || this->visual_masks_[utils::as_val( Config::Mask::Elpsd )]
+               || this->visual_masks_[utils::as_val( Config::Mask::Cntdwn )] ) {
+            if ( this->visual_masks_[utils::as_val( Config::Mask::Cnt )] ) {
               this->build_counter( buffer, num_task_done, num_all_tasks );
-              if ( this->visual_masks_[utils::as_val( Self::Mask::Sped )]
-                   || this->visual_masks_[utils::as_val( Self::Mask::Elpsd )]
-                   || this->visual_masks_[utils::as_val( Self::Mask::Cntdwn )] )
+              if ( this->visual_masks_[utils::as_val( Config::Mask::Sped )]
+                   || this->visual_masks_[utils::as_val( Config::Mask::Elpsd )]
+                   || this->visual_masks_[utils::as_val( Config::Mask::Cntdwn )] )
                 buffer << this->divider_;
             }
             const auto time_passed = std::chrono::steady_clock::now() - zero_point;
-            if ( this->visual_masks_[utils::as_val( Self::Mask::Sped )] ) {
+            if ( this->visual_masks_[utils::as_val( Config::Mask::Sped )] ) {
               this->build_speed( buffer, time_passed, num_task_done, num_all_tasks );
-              if ( this->visual_masks_[utils::as_val( Self::Mask::Elpsd )]
-                   || this->visual_masks_[utils::as_val( Self::Mask::Cntdwn )] )
+              if ( this->visual_masks_[utils::as_val( Config::Mask::Elpsd )]
+                   || this->visual_masks_[utils::as_val( Config::Mask::Cntdwn )] )
                 buffer << this->divider_;
             }
-            if ( this->visual_masks_[utils::as_val( Self::Mask::Elpsd )] ) {
+            if ( this->visual_masks_[utils::as_val( Config::Mask::Elpsd )] ) {
               this->build_elapsed( buffer, time_passed );
-              if ( this->visual_masks_[utils::as_val( Self::Mask::Cntdwn )] )
+              if ( this->visual_masks_[utils::as_val( Config::Mask::Cntdwn )] )
                 buffer << this->divider_;
             }
-            if ( this->visual_masks_[utils::as_val( Self::Mask::Cntdwn )] )
+            if ( this->visual_masks_[utils::as_val( Config::Mask::Cntdwn )] )
               this->build_countdown( buffer, time_passed, num_task_done, num_all_tasks );
           }
           return buffer;

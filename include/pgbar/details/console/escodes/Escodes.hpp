@@ -26,8 +26,6 @@ namespace pgbar {
         PGBAR__CXX17_INLINE constexpr types::Char linestart    = '\r';
 
         class RGBColor {
-          using Self = RGBColor;
-
           std::array<types::Char, 17> sgr_; // Select Graphic Rendition
           std::uint8_t length_;
 
@@ -147,26 +145,26 @@ namespace pgbar {
             from_str( hex_str, N - 1 );
           }
 
-          PGBAR__CXX20_CNSTXPR RGBColor( const Self& other )          = default;
-          PGBAR__CXX20_CNSTXPR Self& operator=( const Self& other ) & = default;
+          PGBAR__CXX20_CNSTXPR RGBColor( const RGBColor& other )              = default;
+          PGBAR__CXX20_CNSTXPR RGBColor& operator=( const RGBColor& other ) & = default;
 
-          PGBAR__CXX23_CNSTXPR Self& operator=( types::HexRGB hex_val ) & noexcept
+          PGBAR__CXX23_CNSTXPR RGBColor& operator=( types::HexRGB hex_val ) & noexcept
           {
             from_hex( hex_val );
             return *this;
           }
-          PGBAR__CXX23_CNSTXPR Self& operator=( Color enum_val ) & noexcept
+          PGBAR__CXX23_CNSTXPR RGBColor& operator=( Color enum_val ) & noexcept
           {
             from_hex( utils::as_val( enum_val ) );
             return *this;
           }
-          PGBAR__CXX23_CNSTXPR Self& operator=( types::ROStr hex_str ) &
+          PGBAR__CXX23_CNSTXPR RGBColor& operator=( types::ROStr hex_str ) &
           {
             from_str( hex_str.data(), hex_str.size() );
             return *this;
           }
           template<types::Size N>
-          PGBAR__CXX23_CNSTXPR Self& operator=( const types::Char ( &hex_str )[N] ) &
+          PGBAR__CXX23_CNSTXPR RGBColor& operator=( const types::Char ( &hex_str )[N] ) &
           {
             from_str( hex_str, N );
             return *this;
@@ -185,7 +183,7 @@ namespace pgbar {
           }
           friend PGBAR__CXX20_CNSTXPR void swap( RGBColor& a, RGBColor& b ) noexcept { a.swap( b ); }
 
-          friend PGBAR__FORCEINLINE io::Stringbuf& operator<<( io::Stringbuf& buf, const Self& col )
+          friend PGBAR__FORCEINLINE io::Stringbuf& operator<<( io::Stringbuf& buf, const RGBColor& col )
           {
 #ifndef PGBAR_NOCOLOR
             buf.append( '\x1B' )

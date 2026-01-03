@@ -48,22 +48,21 @@ namespace pgbar {
           ScopeFail : private ScpStore<Fn> {
         static_assert( traits::is_invocable<typename std::remove_reference<Fn>::type&>::value,
                        "pgbar::_details::utils::ScopeFail: Invalid callback type" );
-        using Self = ScopeFail;
         using Base = ScpStore<Fn>;
 
         int exceptions_on_entry_;
 
       public:
-        ScopeFail( const Self& )       = delete;
-        Self& operator=( Self&& )      = delete;
-        Self& operator=( const Self& ) = delete;
+        ScopeFail( const ScopeFail& )            = delete;
+        ScopeFail& operator=( ScopeFail&& )      = delete;
+        ScopeFail& operator=( const ScopeFail& ) = delete;
 
         template<
           typename F,
           typename std::enable_if<
             traits::AllOf<
-              traits::Not<
-                std::is_same<typename std::remove_cv<typename std::remove_reference<F>::type>::type, Self>>,
+              traits::Not<std::is_same<typename std::remove_cv<typename std::remove_reference<F>::type>::type,
+                                       ScopeFail>>,
               std::is_constructible<Fn, F>,
               traits::Not<std::is_lvalue_reference<F>>,
               std::is_nothrow_constructible<Fn, F>>::value,
@@ -75,8 +74,8 @@ namespace pgbar {
           typename F,
           typename std::enable_if<
             traits::AllOf<
-              traits::Not<
-                std::is_same<typename std::remove_cv<typename std::remove_reference<F>::type>::type, Self>>,
+              traits::Not<std::is_same<typename std::remove_cv<typename std::remove_reference<F>::type>::type,
+                                       ScopeFail>>,
               std::is_constructible<Fn, F>,
               traits::AnyOf<std::is_lvalue_reference<F>,
                             traits::Not<std::is_nothrow_constructible<Fn, F>>>>::value,

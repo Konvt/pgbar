@@ -9,8 +9,6 @@ namespace pgbar {
       // Basic string view, only provide basic reference semantics,
       // the function of traversing characters is not offered.
       class EncodedView {
-        using Self = EncodedView;
-
         const types::Char *head_, *tail_;
         types::Size width_;
 
@@ -52,13 +50,13 @@ namespace pgbar {
 #endif
         explicit constexpr operator bool() const noexcept { return !empty(); }
 
-        PGBAR__CXX20_CNSTXPR void swap( Self& other ) noexcept
+        PGBAR__CXX20_CNSTXPR void swap( EncodedView& other ) noexcept
         {
           std::swap( head_, other.head_ );
           std::swap( tail_, other.tail_ );
           std::swap( width_, other.width_ );
         }
-        PGBAR__CXX20_CNSTXPR friend void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
+        PGBAR__CXX20_CNSTXPR friend void swap( EncodedView& a, EncodedView& b ) noexcept { a.swap( b ); }
       };
     } // namespace charcodes
   } // namespace _details

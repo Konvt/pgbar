@@ -28,7 +28,6 @@ namespace pgbar {
                         traits::TmpContain<traits::C3_t<BarType>, assets::BasicAnimation>>::value,
           "pgbar::_details::prefabs::BasicConfig: Invalid progress bar type" );
 
-        using Self = BasicConfig;
         using Base =
           typename traits::LI_t<BarType,
                                 assets::PercentMeter,
@@ -47,19 +46,20 @@ namespace pgbar {
                                              traits::OptionFor_t<assets::Postfix>,
                                              traits::OptionFor_t<assets::Segment>>;
 
-        friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR void unpack( Self& cfg, option::Style&& val ) noexcept
+        friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR void unpack( BasicConfig& cfg,
+                                                                    option::Style&& val ) noexcept
         {
           cfg.visual_masks_ = val.value();
         }
 
         template<bool Enable>
         class Modifier final {
-          friend Self;
-          Self& self_;
+          friend BasicConfig;
+          BasicConfig& self_;
           std::atomic<bool> owner_;
 
-          Modifier( Self& self ) noexcept : self_ { self }, owner_ { true } { self_.rw_mtx_.lock(); }
-          Modifier( Self& self, std::adopt_lock_t ) noexcept : self_ { self }, owner_ { true } {}
+          Modifier( BasicConfig& self ) noexcept : self_ { self }, owner_ { true } { self_.rw_mtx_.lock(); }
+          Modifier( BasicConfig& self, std::adopt_lock_t ) noexcept : self_ { self }, owner_ { true } {}
 #if !PGBAR__CXX17
           // There was not standard NRVO support before C++17.
           Modifier( Modifier&& rhs ) noexcept : self_ { rhs.self_ }, owner_ { true }
@@ -156,7 +156,7 @@ namespace pgbar {
           (void)std::initializer_list<bool> { ( unpack( *this, std::move( args ) ), false )... };
         }
 
-        BasicConfig( const Self& other )
+        BasicConfig( const BasicConfig& other )
           noexcept( traits::AllOf<std::is_nothrow_default_constructible<Base>,
                                   std::is_nothrow_copy_assignable<Base>>::value )
         {
@@ -165,7 +165,7 @@ namespace pgbar {
           Base::operator=( other );
           visual_masks_ = other.visual_masks_;
         }
-        BasicConfig( Self&& rhs ) noexcept
+        BasicConfig( BasicConfig&& rhs ) noexcept
         {
           // static_assert(
           //   std::is_nothrow_default_constructible<Base>::value,
@@ -176,7 +176,8 @@ namespace pgbar {
           using std::swap;
           swap( visual_masks_, rhs.visual_masks_ );
         }
-        Self& operator=( const Self& other ) & noexcept( std::is_nothrow_copy_assignable<Base>::value )
+        BasicConfig& operator=( const BasicConfig& other ) & noexcept(
+          std::is_nothrow_copy_assignable<Base>::value )
         {
           PGBAR__TRUST( this != &other );
           concurrent::SharedLock<concurrent::SharedMutex> lock1 { other.rw_mtx_, std::defer_lock };
@@ -187,7 +188,7 @@ namespace pgbar {
           Base::operator=( other );
           return *this;
         }
-        Self& operator=( Self&& rhs ) & noexcept
+        BasicConfig& operator=( BasicConfig&& rhs ) & noexcept
         {
           PGBAR__ASSERT( this != &rhs );
           std::lock( this->rw_mtx_, rhs.rw_mtx_ );
@@ -242,7 +243,7 @@ namespace pgbar {
         PGBAR__NODISCARD Modifier<true> enable() & noexcept { return Modifier<true>( *this ); }
         PGBAR__NODISCARD Modifier<false> disable() & noexcept { return Modifier<false>( *this ); }
 
-        PGBAR__CXX23_CNSTXPR void swap( Self& other ) noexcept
+        PGBAR__CXX23_CNSTXPR void swap( BasicConfig& other ) noexcept
         {
           std::lock( this->rw_mtx_, other.rw_mtx_ );
           std::lock_guard<concurrent::SharedMutex> lock1 { this->rw_mtx_, std::adopt_lock };
@@ -251,10 +252,10 @@ namespace pgbar {
           swap( visual_masks_, other.visual_masks_ );
           Base::swap( other );
         }
-        friend PGBAR__CXX23_CNSTXPR void swap( Self& a, Self& b ) noexcept { a.swap( b ); }
+        friend PGBAR__CXX23_CNSTXPR void swap( BasicConfig& a, BasicConfig& b ) noexcept { a.swap( b ); }
 
         template<typename Option>
-        friend auto operator|=( Self& cfg, Option&& opt )
+        friend auto operator|=( BasicConfig& cfg, Option&& opt )
 #ifdef __cpp_concepts
           requires traits::TpContain<PermittedSet, std::decay_t<Option>>::value
 #else
@@ -271,7 +272,7 @@ namespace pgbar {
 #else
         friend typename std::enable_if<traits::TpContain<PermittedSet, Option>::value, Derived&>::type
 #endif
-          operator|( Self& cfg, Option&& opt )
+          operator|( BasicConfig& cfg, Option&& opt )
         {
           return cfg.with( std::forward<Option>( opt ) );
         }
@@ -284,7 +285,7 @@ namespace pgbar {
           typename std::enable_if<traits::TpContain<PermittedSet, typename std::decay<Option>::type>::value,
                                   Derived&&>::type
 #endif
-          operator|( Self&& cfg, Option&& opt )
+          operator|( BasicConfig&& cfg, Option&& opt )
         {
           return std::move( cfg.with( std::forward<Option>( opt ) ) );
         }
