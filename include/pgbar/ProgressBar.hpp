@@ -13,9 +13,9 @@ namespace pgbar {
       template<typename Base, typename Derived>
       class CharIndic : public Base {
       protected:
-        PGBAR__CXX23_CNSTXPR io::Stringbuf& build_char( io::Stringbuf& buffer,
-                                                        types::Float num_percent,
-                                                        types::Size num_frame_cnt ) const
+        PGBAR__CXX23_CNSTXPR io::CharPipeline& build_char( io::CharPipeline& buffer,
+                                                           types::Float num_percent,
+                                                           types::Size num_frame_cnt ) const
         {
           PGBAR__TRUST( num_percent >= 0.0 );
           PGBAR__TRUST( num_percent <= 1.0 );
@@ -176,9 +176,9 @@ namespace pgbar {
         friend Base;
 
       protected:
-        PGBAR__FORCEINLINE io::Stringbuf& build_animation( io::Stringbuf& buffer,
-                                                           types::Float num_percent,
-                                                           types::Size num_frame_cnt ) const
+        PGBAR__FORCEINLINE io::CharPipeline& build_animation( io::CharPipeline& buffer,
+                                                              types::Float num_percent,
+                                                              types::Size num_frame_cnt ) const
         {
           return this->build_char( buffer, num_percent, num_frame_cnt );
         }
@@ -186,8 +186,8 @@ namespace pgbar {
       public:
         using Base::Base;
 
-        PGBAR__FORCEINLINE io::Stringbuf& build(
-          io::Stringbuf& buffer,
+        PGBAR__FORCEINLINE io::CharPipeline& build(
+          io::CharPipeline& buffer,
           types::Size num_frame_cnt,
           std::uint64_t num_task_done,
           std::uint64_t num_all_tasks,

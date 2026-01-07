@@ -1,7 +1,7 @@
 #ifndef PGBAR__COMMONBUILDER
 #define PGBAR__COMMONBUILDER
 
-#include "../io/Stringbuf.hpp"
+#include "../io/CharPipeline.hpp"
 #include "../utils/Backport.hpp"
 // #include "../prefabs/BasicConfig.hpp"
 
@@ -37,10 +37,10 @@ namespace pgbar {
          * Builds and only builds the components belows:
          * `CounterMeter`, `SpeedMeter`, `ElapsedTimer` and `CountdownTimer`
          */
-        io::Stringbuf& common_build( io::Stringbuf& buffer,
-                                     std::uint64_t num_task_done,
-                                     std::uint64_t num_all_tasks,
-                                     const std::chrono::steady_clock::time_point& zero_point ) const
+        io::CharPipeline& common_build( io::CharPipeline& buffer,
+                                        std::uint64_t num_task_done,
+                                        std::uint64_t num_all_tasks,
+                                        const std::chrono::steady_clock::time_point& zero_point ) const
         {
           PGBAR__TRUST( num_task_done <= num_all_tasks );
           if ( this->visual_masks_[utils::as_val( Config::Mask::Cnt )]

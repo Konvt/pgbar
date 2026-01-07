@@ -1,7 +1,7 @@
 #ifndef PGBAR__ANIMATEDBUILDER
 #define PGBAR__ANIMATEDBUILDER
 
-#include "../io/Stringbuf.hpp"
+#include "../io/CharPipeline.hpp"
 #include "../utils/Backport.hpp"
 #include "CommonBuilder.hpp"
 // #include "../prefabs/BasicConfig.hpp"
@@ -16,12 +16,12 @@ namespace pgbar {
 
       protected:
         template<typename... Args>
-        io::Stringbuf& indirect_build( io::Stringbuf& buffer,
-                                       std::uint64_t num_task_done,
-                                       std::uint64_t num_all_tasks,
-                                       types::Float num_percent,
-                                       const std::chrono::steady_clock::time_point& zero_point,
-                                       Args&&... args ) const
+        io::CharPipeline& indirect_build( io::CharPipeline& buffer,
+                                          std::uint64_t num_task_done,
+                                          std::uint64_t num_all_tasks,
+                                          types::Float num_percent,
+                                          const std::chrono::steady_clock::time_point& zero_point,
+                                          Args&&... args ) const
         {
           if ( !this->prefix_.empty() || !this->postfix_.empty() || this->visual_masks_.any() ) {
             this->try_style( buffer, this->info_col_ );

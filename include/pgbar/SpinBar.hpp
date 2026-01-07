@@ -13,8 +13,9 @@ namespace pgbar {
       template<typename Base, typename Derived>
       class SpinIndic : public Base {
       protected:
-        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR io::Stringbuf& build_spin( io::Stringbuf& buffer,
-                                                                           types::Size num_frame_cnt ) const
+        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR io::CharPipeline& build_spin(
+          io::CharPipeline& buffer,
+          types::Size num_frame_cnt ) const
         {
           if ( this->lead_.empty() )
             return buffer;
@@ -98,11 +99,11 @@ namespace pgbar {
       public:
         using CommonBuilder<Self>::CommonBuilder;
 
-        io::Stringbuf& build( io::Stringbuf& buffer,
-                              types::Size num_frame_cnt,
-                              std::uint64_t num_task_done,
-                              std::uint64_t num_all_tasks,
-                              const std::chrono::steady_clock::time_point& zero_point ) const
+        io::CharPipeline& build( io::CharPipeline& buffer,
+                                 types::Size num_frame_cnt,
+                                 std::uint64_t num_task_done,
+                                 std::uint64_t num_all_tasks,
+                                 const std::chrono::steady_clock::time_point& zero_point ) const
         {
           PGBAR__TRUST( num_task_done <= num_all_tasks );
           const auto num_percent = static_cast<types::Float>( num_task_done ) / num_all_tasks;

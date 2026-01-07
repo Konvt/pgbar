@@ -1,7 +1,7 @@
 #ifndef PGBAR__OSTREAM
 #define PGBAR__OSTREAM
 
-#include "Stringbuf.hpp"
+#include "CharPipeline.hpp"
 #ifdef __cpp_lib_span
 # include <span>
 #endif
@@ -44,7 +44,7 @@ namespace pgbar {
        * the class still uses the method `write` of `std::ostream` in standard library.
        */
       template<Channel Outlet>
-      class OStream final : public Stringbuf {
+      class OStream final : public CharPipeline {
 #if PGBAR__WIN && !defined( PGBAR_UTF8 )
         std::vector<WCHAR> wb_buffer_;
         std::vector<types::Char> localized_;
@@ -59,7 +59,7 @@ namespace pgbar {
         using SinkBuffer = const std::vector<types::Char>&;
 #endif
 
-        static OStream& itself() noexcept( std::is_nothrow_default_constructible<Stringbuf>::value )
+        static OStream& itself() noexcept( std::is_nothrow_default_constructible<CharPipeline>::value )
         {
           static OStream instance;
           return instance;
@@ -113,7 +113,7 @@ namespace pgbar {
 #if PGBAR__WIN && !defined( PGBAR_UTF8 )
         PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR void release() noexcept
         {
-          Stringbuf::release();
+          CharPipeline::release();
           wb_buffer_.clear();
           wb_buffer_.shrink_to_fit();
           localized_.clear();
@@ -122,7 +122,7 @@ namespace pgbar {
 
         PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR void clear() & noexcept
         {
-          Stringbuf::clear();
+          CharPipeline::clear();
           wb_buffer_.clear();
           localized_.clear();
         }
@@ -136,23 +136,28 @@ namespace pgbar {
 #if PGBAR__WIN && !defined( PGBAR_UTF8 )
           if ( !console::TermContext<Outlet>::itself().connected() ) {
             writeout( this->buffer_ );
-            Stringbuf::clear();
+            CharPipeline::clear();
             return *this;
           }
           const auto codepage = GetConsoleOutputCP();
           if ( codepage == CP_UTF8 ) {
             writeout( this->buffer_ );
-            Stringbuf::clear();
+            CharPipeline::clear();
             return *this;
           }
 
-          const auto wlen =
-            MultiByteToWideChar( CP_UTF8, 0, buffer_.data(), static_cast<int>( buffer_.size() ), nullptr, 0 );
+          // The target type char is not subject to strict alias restrictions.
+          const auto wlen = MultiByteToWideChar( CP_UTF8,
+                                                 0,
+                                                 reinterpret_cast<LPCCH>( buffer_.data() ),
+                                                 static_cast<int>( buffer_.size() ),
+                                                 nullptr,
+                                                 0 );
           PGBAR__TRUST( wlen > 0 );
           wb_buffer_.resize( static_cast<types::Size>( wlen ) );
           MultiByteToWideChar( CP_UTF8,
                                0,
-                               buffer_.data(),
+                               reinterpret_cast<LPCCH>( buffer_.data() ),
                                static_cast<int>( buffer_.size() ),
                                wb_buffer_.data(),
                                wlen );
@@ -165,7 +170,7 @@ namespace pgbar {
                                0,
                                wb_buffer_.data(),
                                wlen,
-                               localized_.data(),
+                               reinterpret_cast<LPSTR>( localized_.data() ),
                                mblen,
                                nullptr,
                                nullptr );

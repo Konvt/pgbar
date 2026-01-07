@@ -5,7 +5,7 @@
 #include "../../slice/NumericSpan.hpp"
 #include "../concurrent/SharedLock.hpp"
 #include "../concurrent/SharedMutex.hpp"
-#include "../io/Stringbuf.hpp"
+#include "../io/CharPipeline.hpp"
 #include "../traits/C3.hpp"
 #include "../traits/TypeSet.hpp"
 #include "../utils/Backport.hpp"
@@ -49,16 +49,16 @@ namespace pgbar {
         enum class Mask : std::uint8_t { Colored = 0, Bolded };
         std::bitset<2> fonts_;
 
-        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR io::Stringbuf& try_dye(
-          io::Stringbuf& buffer,
+        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR io::CharPipeline& try_dye(
+          io::CharPipeline& buffer,
           const console::escodes::RGBColor& rgb ) const
         {
           if ( fonts_[utils::as_val( Mask::Colored )] )
             buffer << rgb;
           return buffer;
         }
-        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR io::Stringbuf& try_style(
-          io::Stringbuf& buffer,
+        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR io::CharPipeline& try_style(
+          io::CharPipeline& buffer,
           const console::escodes::RGBColor& rgb ) const
         {
           try_dye( buffer, rgb );
@@ -66,7 +66,7 @@ namespace pgbar {
             buffer << console::escodes::fontbold;
           return buffer;
         }
-        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR io::Stringbuf& try_reset( io::Stringbuf& buffer ) const
+        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR io::CharPipeline& try_reset( io::CharPipeline& buffer ) const
         {
           if ( fonts_.any() )
             buffer << console::escodes::fontreset;
@@ -474,7 +474,8 @@ namespace pgbar {
         charcodes::U8Raw prefix_;
         console::escodes::RGBColor prfx_col_;
 
-        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR io::Stringbuf& build_prefix( io::Stringbuf& buffer ) const
+        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR io::CharPipeline& build_prefix(
+          io::CharPipeline& buffer ) const
         {
           if ( prefix_.empty() )
             return buffer;
@@ -534,7 +535,8 @@ namespace pgbar {
         charcodes::U8Raw postfix_;
         console::escodes::RGBColor pstfx_col_;
 
-        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR io::Stringbuf& build_postfix( io::Stringbuf& buffer ) const
+        PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR io::CharPipeline& build_postfix(
+          io::CharPipeline& buffer ) const
         {
           if ( postfix_.empty() )
             return buffer;
@@ -657,8 +659,8 @@ namespace pgbar {
 #define PGBAR__DEFAULT_PERCENT u8" --.--%"
 
       protected:
-        PGBAR__FORCEINLINE io::Stringbuf& build_percent( io::Stringbuf& buffer,
-                                                         types::Float num_percent ) const
+        PGBAR__FORCEINLINE io::CharPipeline& build_percent( io::CharPipeline& buffer,
+                                                            types::Float num_percent ) const
         {
           PGBAR__TRUST( num_percent >= 0.0 );
           PGBAR__TRUST( num_percent <= 1.0 );
@@ -709,10 +711,10 @@ namespace pgbar {
         std::uint16_t magnitude_;
         std::uint8_t nth_longest_unit_;
 
-        io::Stringbuf& build_speed( io::Stringbuf& buffer,
-                                    const TimeGranule& time_passed,
-                                    std::uint64_t num_task_done,
-                                    std::uint64_t num_all_tasks ) const
+        io::CharPipeline& build_speed( io::CharPipeline& buffer,
+                                       const TimeGranule& time_passed,
+                                       std::uint64_t num_task_done,
+                                       std::uint64_t num_all_tasks ) const
         {
           PGBAR__TRUST( num_task_done <= num_all_tasks );
           if ( num_all_tasks == 0 )
@@ -805,9 +807,9 @@ namespace pgbar {
       template<typename Base, typename Derived>
       class CounterMeter : public Base {
       protected:
-        PGBAR__FORCEINLINE io::Stringbuf& build_counter( io::Stringbuf& buffer,
-                                                         std::uint64_t num_task_done,
-                                                         std::uint64_t num_all_tasks ) const
+        PGBAR__FORCEINLINE io::CharPipeline& build_counter( io::CharPipeline& buffer,
+                                                            std::uint64_t num_task_done,
+                                                            std::uint64_t num_all_tasks ) const
         {
           PGBAR__TRUST( num_task_done <= num_all_tasks );
           if ( num_all_tasks == 0 )
@@ -830,10 +832,10 @@ namespace pgbar {
 
       template<typename Base, typename Derived>
       class Timer : public Base {
-        PGBAR__NODISCARD PGBAR__FORCEINLINE io::Stringbuf& to_hms( io::Stringbuf& buffer,
-                                                                   TimeGranule duration ) const
+        PGBAR__NODISCARD PGBAR__FORCEINLINE io::CharPipeline& to_hms( io::CharPipeline& buffer,
+                                                                      TimeGranule duration ) const
         {
-          auto zfill2 = [&]( std::int64_t num_time ) -> io::Stringbuf& {
+          auto zfill2 = [&]( std::int64_t num_time ) -> io::CharPipeline& {
             PGBAR__TRUST( num_time >= 0 );
             if ( num_time > 99 )
               return buffer.append( 'X', 2 );
@@ -855,8 +857,8 @@ namespace pgbar {
 
       protected:
 #define PGBAR__ELASPED u8"--:--:--"
-        PGBAR__FORCEINLINE io::Stringbuf& build_elapsed( io::Stringbuf& buffer,
-                                                         TimeGranule time_passed ) const
+        PGBAR__FORCEINLINE io::CharPipeline& build_elapsed( io::CharPipeline& buffer,
+                                                            TimeGranule time_passed ) const
         {
           return to_hms( buffer, time_passed );
         }
@@ -866,10 +868,10 @@ namespace pgbar {
         }
 
 #define PGBAR__COUNTDOWN u8"~" PGBAR__ELASPED
-        PGBAR__CXX20_CNSTXPR io::Stringbuf& build_countdown( io::Stringbuf& buffer,
-                                                             const TimeGranule& time_passed,
-                                                             std::uint64_t num_task_done,
-                                                             std::uint64_t num_all_tasks ) const
+        PGBAR__CXX20_CNSTXPR io::CharPipeline& build_countdown( io::CharPipeline& buffer,
+                                                                const TimeGranule& time_passed,
+                                                                std::uint64_t num_task_done,
+                                                                std::uint64_t num_all_tasks ) const
         {
           PGBAR__TRUST( num_task_done <= num_all_tasks );
           if ( num_task_done == 0 || num_all_tasks == 0 )

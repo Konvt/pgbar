@@ -13,8 +13,8 @@ namespace pgbar {
       template<typename Base, typename Derived>
       class BlockIndic : public Base {
       protected:
-        PGBAR__CXX23_CNSTXPR io::Stringbuf& build_block( io::Stringbuf& buffer,
-                                                         types::Float num_percent ) const
+        PGBAR__CXX23_CNSTXPR io::CharPipeline& build_block( io::CharPipeline& buffer,
+                                                            types::Float num_percent ) const
         {
           PGBAR__TRUST( num_percent >= 0.0 );
           PGBAR__TRUST( num_percent <= 1.0 );
@@ -173,8 +173,8 @@ namespace pgbar {
         friend Base;
 
       protected:
-        PGBAR__FORCEINLINE io::Stringbuf& build_animation( io::Stringbuf& buffer,
-                                                           types::Float num_percent ) const
+        PGBAR__FORCEINLINE io::CharPipeline& build_animation( io::CharPipeline& buffer,
+                                                              types::Float num_percent ) const
         {
           return this->build_block( buffer, num_percent );
         }
@@ -182,8 +182,8 @@ namespace pgbar {
       public:
         using Base::Base;
 
-        PGBAR__FORCEINLINE io::Stringbuf& build(
-          io::Stringbuf& buffer,
+        PGBAR__FORCEINLINE io::CharPipeline& build(
+          io::CharPipeline& buffer,
           std::uint64_t num_task_done,
           std::uint64_t num_all_tasks,
           const std::chrono::steady_clock::time_point& zero_point ) const

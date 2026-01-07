@@ -1,7 +1,7 @@
 #ifndef PGBAR__COLOR
 #define PGBAR__COLOR
 
-#include "../../io/Stringbuf.hpp"
+#include "../../io/CharPipeline.hpp"
 #include "../../utils/Backport.hpp"
 #ifdef __cpp_lib_to_chars
 # include <charconv>
@@ -183,7 +183,7 @@ namespace pgbar {
           }
           friend PGBAR__CXX20_CNSTXPR void swap( RGBColor& a, RGBColor& b ) noexcept { a.swap( b ); }
 
-          friend PGBAR__FORCEINLINE io::Stringbuf& operator<<( io::Stringbuf& buf, const RGBColor& col )
+          friend PGBAR__FORCEINLINE io::CharPipeline& operator<<( io::CharPipeline& buf, const RGBColor& col )
           {
 #ifndef PGBAR_NOCOLOR
             buf.append( '\x1B' )
