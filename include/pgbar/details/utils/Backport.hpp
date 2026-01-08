@@ -73,24 +73,30 @@ namespace pgbar {
         destruct_at( std::addressof( object ) );
       }
 
+#ifdef __cpp_lib_launder
       // Available only for buffers that use placement new.
       template<typename To, typename From>
       PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR To* launder_as( From* src ) noexcept
       {
-#ifdef __cpp_lib_launder
         return std::launder( reinterpret_cast<To*>( src ) );
-#elif defined( __GNUC__ )
-# if __GNUC__ >= 7
+      }
+#else
+      // Available only for buffers that use placement new.
+      template<typename To, typename From>
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR To* launder_as( From* src ) noexcept
+      {
+# if defined( __GNUC__ )
+#  if __GNUC__ >= 7
         return __builtin_launder( reinterpret_cast<To*>( src ) );
-# else
+#  else
         // same as the impl of folly::launder (v2017.09.04)
         __asm__( "" : "+r"( src ) );
-# endif
-#elif defined( __clang__ )
-# if __clang_major__ >= 8
+#  endif
+# elif defined( __clang__ )
+#  if __clang_major__ >= 8
         return __builtin_launder( reinterpret_cast<To*>( src ) );
+#  endif
 # endif
-#endif
         // By default, we can only trust that reinterpret_cast can give us what we want.
         return reinterpret_cast<To*>( src );
       }
@@ -102,22 +108,25 @@ namespace pgbar {
       To* launder_as( volatile void* src ) = delete;
       template<typename To>
       To* launder_as( const volatile void* src ) = delete;
-#ifdef __clang__
-# pragma clang diagnostic push
-# pragma clang diagnostic ignored "-Wambiguous-ellipsis"
-#endif
+# ifdef __clang__
+#  pragma clang diagnostic push
+#  pragma clang diagnostic ignored "-Wambiguous-ellipsis"
+# endif
+# if !defined( _MSC_VER ) || defined( _MSVC_PERMISSIVE )
       template<typename To, typename R, typename... Args>
       To* launder_as( R ( * )( Args... ) ) = delete;
       template<typename To, typename R, typename... Args>
       To* launder_as( R ( * )( Args...... ) ) = delete;
-#if PGBAR__CXX17
+#  if PGBAR__CXX17
       template<typename To, typename R, typename... Args>
       To* launder_as( R ( * )( Args... ) noexcept ) = delete;
       template<typename To, typename R, typename... Args>
       To* launder_as( R ( * )( Args...... ) noexcept ) = delete;
-#endif
-#ifdef __clang__
-# pragma clang diagnostic pop
+#  endif
+# endif
+# ifdef __clang__
+#  pragma clang diagnostic pop
+# endif
 #endif
 
 #ifdef __cpp_lib_as_const
