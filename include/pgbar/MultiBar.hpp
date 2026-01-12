@@ -85,7 +85,7 @@ namespace pgbar {
     // Abort all the progress bars.
     PGBAR__FORCEINLINE void abort() noexcept { package_.kill(); }
     // Returns the number of progress bars.
-    PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr _details::types::Size size() const noexcept
+    PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CNSTEVAL _details::types::Size size() const noexcept
     {
       return sizeof...( Configs ) + 1;
     }

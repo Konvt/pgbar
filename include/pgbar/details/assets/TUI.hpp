@@ -673,7 +673,7 @@ namespace pgbar {
           return buffer << utils::format<utils::TxtLayout::Right>( fixed_len_percent(), std::move( orig ) );
         }
 
-        PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr types::Size fixed_len_percent() const noexcept
+        PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CNSTEVAL types::Size fixed_len_percent() const noexcept
         {
           return sizeof( PGBAR__DEFAULT_PERCENT ) - 1;
         }
@@ -862,7 +862,7 @@ namespace pgbar {
         {
           return to_hms( buffer, time_passed );
         }
-        PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr types::Size fixed_len_elapsed() const noexcept
+        PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CNSTEVAL types::Size fixed_len_elapsed() const noexcept
         {
           return sizeof( PGBAR__ELASPED ) - 1;
         }
@@ -888,7 +888,7 @@ namespace pgbar {
           buffer << '~';
           return to_hms( buffer, time_per_task * remaining_tasks );
         }
-        PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr types::Size fixed_len_countdown() const noexcept
+        PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CNSTEVAL types::Size fixed_len_countdown() const noexcept
         {
           return sizeof( PGBAR__COUNTDOWN ) - 1;
         }

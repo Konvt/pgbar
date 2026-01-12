@@ -47,12 +47,12 @@ namespace pgbar {
         static PGBAR__NOINLINE PGBAR__CXX14_CNSTXPR void move_null( AnyFn&, AnyFn& ) noexcept {}
 
         template<typename T>
-        static PGBAR__NOINLINE PGBAR__CXX14_CNSTXPR void destroy_inline( AnyFn& fn ) noexcept
+        static PGBAR__NOINLINE PGBAR__CXX20_CNSTXPR void destroy_inline( AnyFn& fn ) noexcept
         {
           utils::destruct_at( utils::launder_as<T>( &fn.sso_ ) );
         }
         template<typename T>
-        static PGBAR__NOINLINE void move_inline( AnyFn& dst, AnyFn& src ) noexcept
+        static PGBAR__CXX20_CNSTXPR PGBAR__NOINLINE void move_inline( AnyFn& dst, AnyFn& src ) noexcept
         {
           utils::construct_at<T>( &dst.sso_, std::move( *utils::launder_as<T>( &src.sso_ ) ) );
           destroy_inline<T>( src );
@@ -70,14 +70,15 @@ namespace pgbar {
 # endif
         }
         template<typename T>
-        static PGBAR__NOINLINE PGBAR__CXX14_CNSTXPR void move_dynamic( AnyFn& dst, AnyFn& src ) noexcept
+        static PGBAR__NOINLINE PGBAR__CXX23_CNSTXPR void move_dynamic( AnyFn& dst, AnyFn& src ) noexcept
         {
           dst.dptr_ = src.dptr_;
           src.dptr_ = &table_null();
         }
 
         template<typename F>
-        static typename std::enable_if<Inlinable<typename std::decay<F>::type>::value>::type
+        static PGBAR__CXX23_CNSTXPR
+          typename std::enable_if<Inlinable<typename std::decay<F>::type>::value>::type
           store_fn( const VTable*( &vtable ), AnyFn& any, F&& fn ) noexcept
         {
           using T             = typename std::decay<F>::type;
@@ -87,7 +88,8 @@ namespace pgbar {
           vtable = &table_inline<T>();
         }
         template<typename F>
-        static typename std::enable_if<!Inlinable<typename std::decay<F>::type>::value>::type
+        static PGBAR__CXX23_CNSTXPR
+          typename std::enable_if<!Inlinable<typename std::decay<F>::type>::value>::type
           store_fn( const VTable*( &vtable ), AnyFn& any, F&& fn ) noexcept( false )
         {
           using T   = typename std::decay<F>::type;
@@ -138,7 +140,7 @@ namespace pgbar {
           vtable_ = &table_null();
         }
         template<typename F>
-        void reset( F&& fn ) noexcept( Inlinable<typename std::decay<F>::type>::value )
+        PGBAR__CXX23_CNSTXPR void reset( F&& fn ) noexcept( Inlinable<typename std::decay<F>::type>::value )
         {
           const VTable* vtable = nullptr;
           AnyFn tmp;
@@ -241,7 +243,7 @@ namespace pgbar {
         constexpr FnInvoker()                                      = default;
         constexpr FnInvoker( FnInvoker&& )                         = default;
         PGBAR__CXX14_CNSTXPR FnInvoker& operator=( FnInvoker&& ) & = default;
-        PGBAR__CXX23_CNSTXPR ~FnInvoker()                          = default;
+        PGBAR__CXX20_CNSTXPR ~FnInvoker()                          = default;
 
       public:
         using result_type = R;
@@ -263,7 +265,7 @@ namespace pgbar {
         constexpr UniqueFunction()                                           = default;
         constexpr UniqueFunction( UniqueFunction&& )                         = default;
         PGBAR__CXX14_CNSTXPR UniqueFunction& operator=( UniqueFunction&& ) & = default;
-        PGBAR__CXX23_CNSTXPR ~UniqueFunction()                               = default;
+        PGBAR__CXX20_CNSTXPR ~UniqueFunction()                               = default;
 
         constexpr UniqueFunction( std::nullptr_t ) noexcept : UniqueFunction() {}
         template<typename F,
@@ -283,7 +285,7 @@ namespace pgbar {
         // In C++11, `std::in_place_type` does not exist, and we will not use it either.
         // Therefore, we do not provide an overloaded constructor for this type here.
         template<typename F>
-        typename std::enable_if<
+        PGBAR__CXX14_CNSTXPR typename std::enable_if<
           traits::AllOf<traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
                         std::is_constructible<typename std::decay<F>::type, F>,
                         traits::is_invocable_to<R, typename Base::template Fn_t<F>, Args...>>::value,
@@ -293,13 +295,13 @@ namespace pgbar {
           this->reset( std::forward<F>( fn ) );
           return *this;
         }
-        PGBAR__CXX23_CNSTXPR UniqueFunction& operator=( std::nullptr_t ) noexcept
+        PGBAR__CXX14_CNSTXPR UniqueFunction& operator=( std::nullptr_t ) noexcept
         {
           this->reset();
           return *this;
         }
 
-        PGBAR__FORCEINLINE R operator()( Args... args )
+        PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR R operator()( Args... args )
         {
           PGBAR__TRUST( this->vtable_ != nullptr );
           return ( *this->vtable_->invoke )( this->callee_, std::forward<Args>( args )... );

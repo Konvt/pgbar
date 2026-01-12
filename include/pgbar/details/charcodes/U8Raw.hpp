@@ -19,8 +19,9 @@ namespace pgbar {
         types::String bytes_;
 
         /// @return The utf codepoint and the number of byte of the utf-8 character.
-        static std::pair<types::CodePoint, types::Size> next_codepoint( const types::Char* raw_u8_str,
-                                                                        types::Size str_length )
+        static PGBAR__CXX23_CNSTXPR std::pair<types::CodePoint, types::Size> next_codepoint(
+          const types::Char* raw_u8_str,
+          types::Size str_length )
         {
           // After RFC 3629, the maximum length of each standard UTF-8 character is 4 bytes.
           auto utf_bytes        = reinterpret_cast<const types::Bit8*>( raw_u8_str );
@@ -77,7 +78,7 @@ namespace pgbar {
       public:
         // See the Unicode CodeCharts documentation for complete code points.
         // Also can see the `if-else` version in misc/UTF-8-test.cpp
-        static constexpr std::array<CodeChart, 47> code_chart() noexcept
+        static PGBAR__CNSTEVAL std::array<CodeChart, 47> code_chart() noexcept
         {
           return {
             { { 0x0, 0x19, 0 },        { 0x20, 0x7E, 1 },        { 0x7F, 0xA0, 0 },
@@ -118,7 +119,7 @@ namespace pgbar {
          *
          * @return Returns the render width of the given string.
          */
-        PGBAR__NODISCARD static types::Size text_width( types::ROStr u8_str )
+        PGBAR__NODISCARD static PGBAR__CXX20_CNSTXPR types::Size text_width( types::ROStr u8_str )
         {
           types::Size width     = 0;
           const auto raw_u8_str = u8_str.data();
@@ -135,7 +136,7 @@ namespace pgbar {
         PGBAR__CXX20_CNSTXPR U8Raw() noexcept( std::is_nothrow_default_constructible<types::String>::value )
           : width_ { 0 }
         {}
-        explicit U8Raw( types::String u8_bytes ) : U8Raw()
+        explicit PGBAR__CXX20_CNSTXPR U8Raw( types::String u8_bytes ) : U8Raw()
         {
           width_ = text_width( u8_bytes );
           bytes_ = std::move( u8_bytes );
@@ -146,7 +147,7 @@ namespace pgbar {
         PGBAR__CXX20_CNSTXPR U8Raw& operator=( U8Raw&& ) &      = default;
         PGBAR__CXX20_CNSTXPR ~U8Raw()                           = default;
 
-        U8Raw& operator=( types::ROStr u8_bytes ) &
+        PGBAR__CXX20_CNSTXPR U8Raw& operator=( types::ROStr u8_bytes ) &
         {
           const auto new_width = text_width( u8_bytes );
           auto new_bytes       = types::String( u8_bytes );
@@ -154,7 +155,7 @@ namespace pgbar {
           width_ = new_width;
           return *this;
         }
-        U8Raw& operator=( types::String u8_bytes ) &
+        PGBAR__CXX20_CNSTXPR U8Raw& operator=( types::String u8_bytes ) &
         {
           width_ = text_width( u8_bytes );
           bytes_.swap( u8_bytes );
@@ -250,7 +251,7 @@ namespace pgbar {
                        "pgbar::_details::charcodes::U8Raw: Unexpected type size mismatch" );
 #endif
 #ifdef __cpp_lib_char8_t
-        explicit U8Raw( types::LitU8 u8_sv ) : U8Raw()
+        explicit PGBAR__CXX20_CNSTXPR U8Raw( types::LitU8 u8_sv ) : U8Raw()
         {
           auto new_bytes = types::String( u8_sv.size(), '\0' );
           std::copy( u8_sv.cbegin(), u8_sv.cend(), new_bytes.begin() );
@@ -275,13 +276,17 @@ namespace pgbar {
           std::copy( a.cbegin(), a.cend(), std::back_inserter( tmp ) );
           return std::move( tmp ) + b.bytes_;
         }
-        PGBAR__NODISCARD friend PGBAR__FORCEINLINE types::String operator+( U8Raw&& a, types::LitU8 b )
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR types::String operator+(
+          U8Raw&& a,
+          types::LitU8 b )
         {
           a.bytes_.reserve( a.bytes_.size() + b.size() );
           std::copy( b.cbegin(), b.cend(), std::back_inserter( a.bytes_ ) );
           return std::move( a.bytes_ );
         }
-        PGBAR__NODISCARD friend PGBAR__FORCEINLINE types::String operator+( const U8Raw& a, types::LitU8 b )
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR types::String operator+(
+          const U8Raw& a,
+          types::LitU8 b )
         {
           auto tmp = a.bytes_;
           tmp.reserve( a.bytes_.size() + b.size() );

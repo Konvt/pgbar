@@ -14,14 +14,14 @@ namespace pgbar {
 
       protected:
         template<typename F>
-        ScpStore( std::true_type, F&& fn ) noexcept : callback_ { std::forward<F>( fn ) }
+        constexpr ScpStore( std::true_type, F&& fn ) noexcept : callback_ { std::forward<F>( fn ) }
         {}
         template<typename F>
-        ScpStore( std::false_type, F&& fn ) noexcept( std::is_nothrow_constructible<Fn, F&>::value )
+        constexpr ScpStore( std::false_type, F&& fn ) noexcept( std::is_nothrow_constructible<Fn, F&>::value )
           : callback_ { fn }
         {}
 
-        PGBAR__FORCEINLINE Fn& callback() noexcept { return callback_; }
+        PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR Fn& callback() noexcept { return callback_; }
       };
       template<typename Fn>
       class ScpStore<Fn,
@@ -30,14 +30,14 @@ namespace pgbar {
         : private Fn {
       protected:
         template<typename F>
-        ScpStore( std::true_type, F&& fn ) noexcept : Fn( std::forward<F>( fn ) )
+        constexpr ScpStore( std::true_type, F&& fn ) noexcept : Fn( std::forward<F>( fn ) )
         {}
         template<typename F>
-        ScpStore( std::false_type, F&& fn ) noexcept( std::is_nothrow_constructible<Fn, F&>::value )
+        constexpr ScpStore( std::false_type, F&& fn ) noexcept( std::is_nothrow_constructible<Fn, F&>::value )
           : Fn( fn )
         {}
 
-        PGBAR__FORCEINLINE Fn& callback() noexcept { return static_cast<Fn&>( *this ); }
+        PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR Fn& callback() noexcept { return static_cast<Fn&>( *this ); }
       };
 
       template<typename Fn>
@@ -113,7 +113,7 @@ namespace pgbar {
           }
         }
 
-        PGBAR__FORCEINLINE void release() noexcept
+        PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR void release() noexcept
         {
           exceptions_on_entry_ = ( std::numeric_limits<int>::max )();
         }

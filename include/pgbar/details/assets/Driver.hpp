@@ -45,11 +45,11 @@ namespace pgbar {
           noexcept( std::is_nothrow_constructible<Base, Args&&...>::value )
           : Base( std::forward<Args>( args )... ), task_cnt_ { 0 }
         {}
-        PGBAR__CXX14_CNSTXPR IterableBar( IterableBar&& rhs ) noexcept : Base( std::move( rhs ) )
+        IterableBar( IterableBar&& rhs ) noexcept : Base( std::move( rhs ) )
         {
           task_cnt_.store( 0, std::memory_order_relaxed );
         }
-        PGBAR__CXX14_CNSTXPR IterableBar& operator=( IterableBar&& rhs ) & noexcept
+        IterableBar& operator=( IterableBar&& rhs ) & noexcept
         {
           Base::operator=( std::move( rhs ) );
           return *this;
@@ -68,7 +68,7 @@ namespace pgbar {
          * @return Return a range `[startpoint, endpoint)` that moves unidirectionally.
          */
         template<typename N>
-        PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR auto iterate( N startpoint, N endpoint, N step ) &
+        PGBAR__NODISCARD auto iterate( N startpoint, N endpoint, N step ) &
 #ifdef __cpp_concepts
           -> slice::TrackedSpan<slice::NumericSpan<N>, wrappers::MovableRef<Derived>>
           requires std::is_arithmetic_v<N>
@@ -86,7 +86,7 @@ namespace pgbar {
           };
         }
         template<typename N, typename Proc>
-        PGBAR__CXX14_CNSTXPR auto iterate( N startpoint, N endpoint, N step, Proc&& op )
+        auto iterate( N startpoint, N endpoint, N step, Proc&& op )
 #ifdef __cpp_concepts
           requires std::is_arithmetic_v<N>
 #else
@@ -128,7 +128,7 @@ namespace pgbar {
 
         // Only available for integer types.
         template<typename N>
-        PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR auto iterate( N startpoint, N endpoint ) &
+        PGBAR__NODISCARD auto iterate( N startpoint, N endpoint ) &
 #ifdef __cpp_concepts
           -> slice::TrackedSpan<slice::NumericSpan<N>, wrappers::MovableRef<Derived>>
           requires std::is_integral_v<N>
@@ -145,7 +145,7 @@ namespace pgbar {
           };
         }
         template<typename N, typename Proc>
-        PGBAR__CXX14_CNSTXPR auto iterate( N startpoint, N endpoint, Proc&& op )
+        auto iterate( N startpoint, N endpoint, Proc&& op )
 #ifdef __cpp_concepts
           requires std::is_integral_v<N>
 #else
@@ -157,7 +157,7 @@ namespace pgbar {
         }
 
         template<typename N>
-        PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR auto iterate( N endpoint ) &
+        PGBAR__NODISCARD auto iterate( N endpoint ) &
 #ifdef __cpp_concepts
           -> slice::TrackedSpan<slice::NumericSpan<N>, wrappers::MovableRef<Derived>>
           requires std::is_integral_v<N>
@@ -171,7 +171,7 @@ namespace pgbar {
           return { { endpoint }, wrappers::mref( static_cast<Derived&>( *this ) ) };
         }
         template<typename N, typename Proc>
-        PGBAR__CXX14_CNSTXPR auto iterate( N endpoint, Proc&& op )
+        auto iterate( N endpoint, Proc&& op )
 #ifdef __cpp_concepts
           requires std::is_integral_v<N>
 #else
@@ -184,7 +184,7 @@ namespace pgbar {
 
         // Visualize unidirectional traversal of a iterator interval defined by parameters.
         template<typename Itr, typename Snt>
-        PGBAR__NODISCARD PGBAR__CXX14_CNSTXPR auto iterate( Itr startpoint, Snt endpoint ) & noexcept(
+        PGBAR__NODISCARD auto iterate( Itr startpoint, Snt endpoint ) & noexcept(
           traits::AllOf<std::is_nothrow_move_constructible<Itr>,
                         std::is_nothrow_move_constructible<Snt>>::value )
 #ifdef __cpp_concepts
@@ -203,7 +203,7 @@ namespace pgbar {
           };
         }
         template<typename Itr, typename Snt, typename Proc>
-        PGBAR__CXX14_CNSTXPR auto iterate( Itr startpoint, Snt endpoint, Proc&& op )
+        auto iterate( Itr startpoint, Snt endpoint, Proc&& op )
 #ifdef __cpp_concepts
           requires traits::is_sized_cursor<Itr, Snt>::value
 #else
@@ -217,7 +217,7 @@ namespace pgbar {
         // Visualize unidirectional traversal of a abstract range interval defined by `container`'s
         // slice.
         template<class R>
-        PGBAR__NODISCARD PGBAR__CXX17_CNSTXPR auto iterate( R& container ) &
+        PGBAR__NODISCARD auto iterate( R& container ) &
 #ifdef __cpp_concepts
           -> slice::TrackedSpan<slice::BoundedSpan<std::remove_reference_t<R>>, wrappers::MovableRef<Derived>>
           requires( traits::is_bounded_range<std::remove_reference_t<R>>::value
@@ -235,15 +235,14 @@ namespace pgbar {
 #ifdef __cpp_concepts
         template<class R>
           requires( traits::is_bounded_range<R>::value && std::ranges::view<R> )
-        PGBAR__NODISCARD PGBAR__CXX17_CNSTXPR slice::TrackedSpan<R, wrappers::MovableRef<Derived>> iterate(
-          R view ) &
+        PGBAR__NODISCARD slice::TrackedSpan<R, wrappers::MovableRef<Derived>> iterate( R view ) &
         {
           throw_if_active();
           return { std::move( view ), wrappers::mref( static_cast<Derived&>( *this ) ) };
         }
 #endif
         template<class R, typename Proc>
-        PGBAR__CXX17_CNSTXPR auto iterate( R&& range, Proc&& op )
+        auto iterate( R&& range, Proc&& op )
 #ifdef __cpp_concepts
           requires traits::is_bounded_range<std::remove_reference_t<R>>::value
 #else
@@ -427,11 +426,11 @@ namespace pgbar {
           std::uint8_t nil_;
 
           constexpr Callback() noexcept : nil_ {} {}
-          PGBAR__CXX23_CNSTXPR ~Callback() noexcept {}
+          PGBAR__CXX20_CNSTXPR ~Callback() noexcept {}
         } hook_;
         enum class Tag : std::uint8_t { Nil, Nullary, Unary } tag_ = Tag::Nil;
 
-        PGBAR__CXX23_CNSTXPR void destroy() noexcept
+        PGBAR__CXX20_CNSTXPR void destroy() noexcept
         {
           switch ( tag_ ) {
           case Tag::Nullary: utils::destruct_at( hook_.on_ ); break;
