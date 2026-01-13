@@ -85,7 +85,7 @@ namespace pgbar {
       return _details::console::TermContext<Channel::Stderr>::itself().detect();
     }
 
-    PGBAR__NODISCARD inline _details::types::Size terminal_width( Channel channel ) noexcept
+    PGBAR__NODISCARD inline std::uint16_t terminal_width( Channel channel ) noexcept
     {
       if ( channel == Channel::Stdout )
         return _details::console::TermContext<Channel::Stdout>::itself().width();

@@ -14,12 +14,12 @@ namespace pgbar {
       class FlowIndic : public Base {
       protected:
         PGBAR__CXX23_CNSTXPR io::CharPipeline& build_flow( io::CharPipeline& buffer,
-                                                           types::Size num_frame_cnt ) const
+                                                           std::uint64_t num_frame_cnt ) const
         {
           if ( this->bar_width_ == 0 )
             return buffer;
 
-          num_frame_cnt = static_cast<types::Size>( num_frame_cnt * this->shift_factor_ );
+          num_frame_cnt = static_cast<std::uint64_t>( num_frame_cnt * this->shift_factor_ );
 
           this->try_reset( buffer );
           this->try_dye( buffer, this->start_col_ ) << this->starting_;
@@ -174,7 +174,7 @@ namespace pgbar {
 
       protected:
         PGBAR__FORCEINLINE io::CharPipeline& build_animation( io::CharPipeline& buffer,
-                                                              types::Size num_frame_cnt ) const
+                                                              std::uint64_t num_frame_cnt ) const
         {
           return this->build_flow( buffer, num_frame_cnt );
         }
@@ -184,7 +184,7 @@ namespace pgbar {
 
         PGBAR__FORCEINLINE io::CharPipeline& build(
           io::CharPipeline& buffer,
-          types::Size num_frame_cnt,
+          std::uint64_t num_frame_cnt,
           std::uint64_t num_task_done,
           std::uint64_t num_all_tasks,
           const std::chrono::steady_clock::time_point& zero_point ) const

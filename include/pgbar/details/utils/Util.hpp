@@ -15,14 +15,10 @@ namespace pgbar {
   namespace _details {
     namespace utils {
       // Perfectly forward the I-th element of a tuple, constructing one by default if it's out of bound.
-      template<types::Size I,
-               typename T,
-               typename Tuple,
-               typename = typename std::enable_if<traits::AllOf<
-                 traits::BoolConstant<( I < std::tuple_size<typename std::decay<Tuple>::type>::value )>,
-                 std::is_default_constructible<T>>::value>::type>
-      PGBAR__FORCEINLINE constexpr auto pick_or( Tuple&& tup ) noexcept
-        -> decltype( std::get<I>( std::forward<Tuple>( tup ) ) )
+      template<types::Size I, typename T, typename Tuple>
+      PGBAR__FORCEINLINE constexpr auto pick_or( Tuple&& tup ) noexcept ->
+        typename std::enable_if<std::is_default_constructible<T>::value,
+                                decltype( std::get<I>( std::forward<Tuple>( tup ) ) )>::type
       {
         static_assert( std::is_convertible<typename std::tuple_element<I, Tuple>::type, T>::value,
                        "pgbar::_details::traits::pick_or: Incompatible type" );
@@ -78,7 +74,7 @@ namespace pgbar {
       // Format a finite floating point number.
       template<typename Floating>
       PGBAR__NODISCARD typename std::enable_if<std::is_floating_point<Floating>::value, types::String>::type
-        format( Floating val, int precision ) noexcept( false )
+        format( Floating val, int precision = 3 ) noexcept( false )
       {
         /* Unlike the integer version,
          * the std::to_string in the standard library does not provide a precision limit

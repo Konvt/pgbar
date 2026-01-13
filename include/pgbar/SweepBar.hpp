@@ -14,12 +14,12 @@ namespace pgbar {
       class SweepIndic : public Base {
       protected:
         PGBAR__CXX20_CNSTXPR io::CharPipeline& build_sweep( io::CharPipeline& buffer,
-                                                            types::Size num_frame_cnt ) const
+                                                            std::uint64_t num_frame_cnt ) const
         {
           if ( this->bar_width_ == 0 )
             return buffer;
 
-          num_frame_cnt = static_cast<types::Size>( num_frame_cnt * this->shift_factor_ );
+          num_frame_cnt = static_cast<std::uint64_t>( num_frame_cnt * this->shift_factor_ );
 
           this->try_reset( buffer );
           this->try_dye( buffer, this->start_col_ ) << this->starting_;
@@ -28,14 +28,14 @@ namespace pgbar {
             const auto& current_lead = this->lead_[num_frame_cnt % this->lead_.size()];
             if ( current_lead.width() <= this->bar_width_ ) {
               // virtual_point is a value between 1 and this->bar_width
-              const auto virtual_point = [this, num_frame_cnt]() noexcept -> types::Size {
+              const auto virtual_point = [this, num_frame_cnt]() noexcept -> std::uint64_t {
                 if ( this->bar_width_ == 1 )
                   return 1;
                 const auto period = 2 * this->bar_width_ - 2;
                 const auto pos    = num_frame_cnt % period;
                 return pos < this->bar_width_ ? pos + 1 : 2 * this->bar_width_ - pos - 1;
               }();
-              const auto len_left_fill = [this, virtual_point, &current_lead]() noexcept -> types::Size {
+              const auto len_left_fill = [this, virtual_point, &current_lead]() noexcept -> std::uint64_t {
                 const auto len_half_lead = ( current_lead.width() / 2 ) + current_lead.width() % 2;
                 if ( virtual_point <= len_half_lead )
                   return 0;
@@ -160,7 +160,7 @@ namespace pgbar {
 
       protected:
         PGBAR__FORCEINLINE io::CharPipeline& build_animation( io::CharPipeline& buffer,
-                                                              types::Size num_frame_cnt ) const
+                                                              std::uint64_t num_frame_cnt ) const
         {
           return this->build_sweep( buffer, num_frame_cnt );
         }
@@ -170,7 +170,7 @@ namespace pgbar {
 
         PGBAR__FORCEINLINE io::CharPipeline& build(
           io::CharPipeline& buffer,
-          types::Size num_frame_cnt,
+          std::uint64_t num_frame_cnt,
           std::uint64_t num_task_done,
           std::uint64_t num_all_tasks,
           const std::chrono::steady_clock::time_point& zero_point ) const

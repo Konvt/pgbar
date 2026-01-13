@@ -15,7 +15,7 @@ namespace pgbar {
       protected:
         PGBAR__CXX23_CNSTXPR io::CharPipeline& build_char( io::CharPipeline& buffer,
                                                            types::Float num_percent,
-                                                           types::Size num_frame_cnt ) const
+                                                           std::uint64_t num_frame_cnt ) const
         {
           PGBAR__TRUST( num_percent >= 0.0 );
           PGBAR__TRUST( num_percent <= 1.0 );
@@ -36,7 +36,7 @@ namespace pgbar {
 
             if ( !this->lead_.empty() ) {
               num_frame_cnt =
-                static_cast<types::Size>( num_frame_cnt * this->shift_factor_ ) % this->lead_.size();
+                static_cast<std::uint64_t>( num_frame_cnt * this->shift_factor_ ) % this->lead_.size();
               const auto& current_lead = this->lead_[num_frame_cnt];
               if ( current_lead.width() <= len_vacancy ) {
                 this->try_reset( buffer );
@@ -53,7 +53,7 @@ namespace pgbar {
             const auto flag = [this, num_frame_cnt, &len_vacancy]() noexcept {
               if ( !this->lead_.empty() ) {
                 const auto offset =
-                  static_cast<types::Size>( num_frame_cnt * this->shift_factor_ ) % this->lead_.size();
+                  static_cast<std::uint64_t>( num_frame_cnt * this->shift_factor_ ) % this->lead_.size();
                 if ( this->lead_[offset].width() <= len_vacancy ) {
                   len_vacancy -= this->lead_[offset].width();
                   return true;
@@ -178,7 +178,7 @@ namespace pgbar {
       protected:
         PGBAR__FORCEINLINE io::CharPipeline& build_animation( io::CharPipeline& buffer,
                                                               types::Float num_percent,
-                                                              types::Size num_frame_cnt ) const
+                                                              std::uint64_t num_frame_cnt ) const
         {
           return this->build_char( buffer, num_percent, num_frame_cnt );
         }
@@ -188,7 +188,7 @@ namespace pgbar {
 
         PGBAR__FORCEINLINE io::CharPipeline& build(
           io::CharPipeline& buffer,
-          types::Size num_frame_cnt,
+          std::uint64_t num_frame_cnt,
           std::uint64_t num_task_done,
           std::uint64_t num_all_tasks,
           const std::chrono::steady_clock::time_point& zero_point ) const

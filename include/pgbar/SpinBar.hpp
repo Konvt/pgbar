@@ -15,11 +15,11 @@ namespace pgbar {
       protected:
         PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR io::CharPipeline& build_spin(
           io::CharPipeline& buffer,
-          types::Size num_frame_cnt ) const
+          std::uint64_t num_frame_cnt ) const
         {
           if ( this->lead_.empty() )
             return buffer;
-          num_frame_cnt = static_cast<types::Size>( num_frame_cnt * this->shift_factor_ );
+          num_frame_cnt = static_cast<std::uint64_t>( num_frame_cnt * this->shift_factor_ );
           num_frame_cnt %= this->lead_.size();
           PGBAR__ASSERT( this->len_longest_lead_ >= this->lead_[num_frame_cnt].width() );
 
@@ -100,7 +100,7 @@ namespace pgbar {
         using CommonBuilder<Self>::CommonBuilder;
 
         io::CharPipeline& build( io::CharPipeline& buffer,
-                                 types::Size num_frame_cnt,
+                                 std::uint64_t num_frame_cnt,
                                  std::uint64_t num_task_done,
                                  std::uint64_t num_all_tasks,
                                  const std::chrono::steady_clock::time_point& zero_point ) const

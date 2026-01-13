@@ -2,7 +2,6 @@
 #define PGBAR__UTILS_BACKPORT
 
 #include "../core/Core.hpp"
-#include "../types/Types.hpp"
 #include <exception>
 #include <functional>
 #include <memory>
@@ -13,6 +12,8 @@
 #endif
 #ifdef __cpp_lib_ranges
 # include <ranges>
+#elif !defined( __cpp_lib_nonmember_container_access )
+# include "../types/Types.hpp"
 #endif
 
 namespace pgbar {
@@ -309,22 +310,24 @@ namespace pgbar {
 
 #ifdef __cpp_lib_ranges
       template<typename Range>
-      PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr types::Size size( Range&& rn )
+      PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr auto size( Range&& rn )
         noexcept( noexcept( std::ranges::size( std::forward<Range>( rn ) ) ) )
       {
         return std::ranges::size( std::forward<Range>( rn ) );
       }
 #elif defined( __cpp_lib_nonmember_container_access )
       template<typename Range>
-      PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr types::Size size( Range&& rn )
+      PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr auto size( Range&& rn )
         noexcept( noexcept( std::size( std::forward<Range>( rn ) ) ) )
+          -> decltype( std::size( std::forward<Range>( rn ) ) )
       {
         return std::size( std::forward<Range>( rn ) );
       }
 #else
       template<typename Range>
-      PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr types::Size size( Range&& rn )
+      PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr auto size( Range&& rn )
         noexcept( noexcept( std::forward<Range>( rn ).size() ) )
+          -> decltype( std::forward<Range>( rn ).size() )
       {
         return std::forward<Range>( rn ).size();
       }

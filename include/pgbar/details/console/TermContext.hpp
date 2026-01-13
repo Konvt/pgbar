@@ -86,7 +86,7 @@ namespace pgbar {
 #endif
         }
 
-        PGBAR__NODISCARD types::Size width() noexcept
+        PGBAR__NODISCARD std::uint16_t width() noexcept
         {
           if ( !detect() )
             return 0;
