@@ -207,19 +207,27 @@ namespace pgbar {
          */
         ~BasicConfig() = default;
 
-        Derived& style( types::Bit8 val ) & noexcept
-        {
-          std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          unpack( *this, option::Style( val ) );
-          return static_cast<Derived&>( *this );
-        }
+#define PGBAR__METHOD( ReturnType )                                \
+  std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
+  unpack( *this, option::Style( val ) );                           \
+  return static_cast<ReturnType>( *this )
+
+        Derived& style( types::Bit8 val ) & noexcept { PGBAR__METHOD( Derived& ); }
+        Derived&& style( types::Bit8 val ) && noexcept { PGBAR__METHOD( Derived&& ); }
+
+#undef PGBAR__METHOD
+#define PGBAR__METHOD( ReturnType )                                                       \
+  std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };                        \
+  unpack( *this, std::move( arg ) );                                                      \
+  (void)std::initializer_list<bool> { ( unpack( *this, std::move( args ) ), false )... }; \
+  return static_cast<ReturnType>( *this )
 
         template<typename Arg, typename... Args>
 #ifdef __cpp_concepts
           requires( traits::Distinct<traits::TypeList<Arg, Args...>>::value
                     && traits::TpContain<PermittedSet, Arg>::value
                     && ( traits::TpContain<PermittedSet, Args>::value && ... ) )
-        Derived&
+        decltype( auto )
 #else
         typename std::enable_if<traits::AllOf<traits::Distinct<traits::TypeList<Arg, Args...>>,
                                               traits::TpContain<PermittedSet, Arg>,
@@ -228,13 +236,28 @@ namespace pgbar {
 #endif
           with( Arg arg, Args... args ) &
         {
-          std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          unpack( *this, std::move( arg ) );
-          (void)std::initializer_list<bool> { ( unpack( *this, std::move( args ) ), false )... };
-          return static_cast<Derived&>( *this );
+          PGBAR__METHOD( Derived& );
+        }
+        template<typename Arg, typename... Args>
+#ifdef __cpp_concepts
+          requires( traits::Distinct<traits::TypeList<Arg, Args...>>::value
+                    && traits::TpContain<PermittedSet, Arg>::value
+                    && ( traits::TpContain<PermittedSet, Args>::value && ... ) )
+        decltype( auto )
+#else
+        typename std::enable_if<traits::AllOf<traits::Distinct<traits::TypeList<Arg, Args...>>,
+                                              traits::TpContain<PermittedSet, Arg>,
+                                              traits::TpContain<PermittedSet, Args>...>::value,
+                                Derived&>::type
+#endif
+          with( Arg arg, Args... args ) &&
+        {
+          PGBAR__METHOD( Derived&& );
         }
 
-        PGBAR__NODISCARD types::Size fixed_width() const noexcept
+#undef PGBAR__METHOD
+
+        PGBAR__NODISCARD std::uint64_t fixed_width() const noexcept
         {
           concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
           return static_cast<const Derived*>( this )->fixed_render_size();
@@ -268,7 +291,7 @@ namespace pgbar {
         template<typename Option>
 #ifdef __cpp_concepts
           requires traits::TpContain<PermittedSet, Option>::value
-        friend Derived&
+        friend decltype( auto )
 #else
         friend typename std::enable_if<traits::TpContain<PermittedSet, Option>::value, Derived&>::type
 #endif
@@ -279,7 +302,7 @@ namespace pgbar {
         template<typename Option>
 #ifdef __cpp_concepts
           requires traits::TpContain<PermittedSet, std::decay_t<Option>>::value
-        friend Derived&&
+        friend decltype( auto )
 #else
         friend
           typename std::enable_if<traits::TpContain<PermittedSet, typename std::decay<Option>::type>::value,

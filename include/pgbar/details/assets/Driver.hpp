@@ -493,11 +493,17 @@ namespace pgbar {
         }
         PGBAR__CXX23_CNSTXPR ~ReactiveBar() noexcept { destroy(); }
 
+#define PGBAR__METHOD( UnionMem, TagVal, ReturnType )      \
+  std::lock_guard<std::mutex> lock { this->mtx_ };         \
+  utils::construct_at( &UnionMem, std::forward<F>( fn ) ); \
+  tag_ = Tag::TagVal;                                      \
+  return static_cast<ReturnType>( *this )
+
         template<typename F>
 #ifdef __cpp_concepts
           requires( !std::is_null_pointer_v<std::decay_t<F>>
                     && std::is_constructible_v<wrappers::UniqueFunction<void()>, F &&> )
-        Derived&
+        decltype( auto )
 #else
         typename std::enable_if<
           traits::AllOf<traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
@@ -507,16 +513,29 @@ namespace pgbar {
           action( F&& fn ) & noexcept(
             std::is_nothrow_constructible<wrappers::UniqueFunction<void()>, F>::value )
         {
-          std::lock_guard<std::mutex> lock { this->mtx_ };
-          utils::construct_at( &hook_.on_, std::forward<F>( fn ) );
-          tag_ = Tag::Nullary;
-          return static_cast<Derived&>( *this );
+          PGBAR__METHOD( hook_.on_, Nullary, Derived& );
+        }
+        template<typename F>
+#ifdef __cpp_concepts
+          requires( !std::is_null_pointer_v<std::decay_t<F>>
+                    && std::is_constructible_v<wrappers::UniqueFunction<void()>, F &&> )
+        decltype( auto )
+#else
+        typename std::enable_if<
+          traits::AllOf<traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
+                        std::is_constructible<wrappers::UniqueFunction<void()>, F&&>>::value,
+          Derived&&>::type
+#endif
+          action( F&& fn ) && noexcept(
+            std::is_nothrow_constructible<wrappers::UniqueFunction<void()>, F>::value )
+        {
+          PGBAR__METHOD( hook_.on_, Nullary, Derived&& );
         }
         template<typename F>
 #ifdef __cpp_concepts
           requires( !std::is_null_pointer_v<std::decay_t<F>>
                     && std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F &&> )
-        Derived&
+        decltype( auto )
 #else
         typename std::enable_if<
           traits::AllOf<traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
@@ -526,30 +545,48 @@ namespace pgbar {
           action( F&& fn ) & noexcept(
             std::is_nothrow_constructible<wrappers::UniqueFunction<void( Derived& )>, F>::value )
         {
-          std::lock_guard<std::mutex> lock { this->mtx_ };
-          utils::construct_at( &hook_.on_self_, std::forward<F>( fn ) );
-          tag_ = Tag::Unary;
-          return static_cast<Derived&>( *this );
+          PGBAR__METHOD( hook_.on_self_, Unary, Derived& );
         }
-        Derived& action() noexcept
+        template<typename F>
+#ifdef __cpp_concepts
+          requires( !std::is_null_pointer_v<std::decay_t<F>>
+                    && std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F &&> )
+        decltype( auto )
+#else
+        typename std::enable_if<
+          traits::AllOf<traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
+                        std::is_constructible<wrappers::UniqueFunction<void( Derived& )>, F&&>>::value,
+          Derived&&>::type
+#endif
+          action( F&& fn ) && noexcept(
+            std::is_nothrow_constructible<wrappers::UniqueFunction<void( Derived& )>, F>::value )
         {
-          std::lock_guard<std::mutex> lock { this->mtx_ };
-          destroy();
-          return static_cast<Derived&>( *this );
+          PGBAR__METHOD( hook_.on_self_, Unary, Derived&& );
         }
 
+#undef PGBAR__METHOD
+#define PGBAR__METHOD( ReturnType )                \
+  std::lock_guard<std::mutex> lock { this->mtx_ }; \
+  destroy();                                       \
+  return static_cast<ReturnType>( *this )
+
+        Derived& action() & noexcept { PGBAR__METHOD( Derived& ); }
+        Derived&& action() && noexcept { PGBAR__METHOD( Derived&& ); }
+
+#undef PGBAR__METHOD
+
         template<typename F>
-        friend PGBAR__FORCEINLINE auto operator|=( ReactiveBar& bar, F&& fn )
 #ifdef __cpp_concepts
           requires( std::is_constructible_v<wrappers::UniqueFunction<void()>, F &&>
                     || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F &&> )
+        friend PGBAR__FORCEINLINE decltype( auto )
 #else
-          -> typename std::enable_if<traits::AllOf<
-            traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
-            traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F&&>,
-                          std::is_constructible<wrappers::UniqueFunction<void( Derived& )>, F&&>>>::value>::
-            type
+        friend PGBAR__FORCEINLINE typename std::enable_if<traits::AllOf<
+          traits::Not<std::is_same<typename std::decay<F>::type, std::nullptr_t>>,
+          traits::AnyOf<std::is_constructible<wrappers::UniqueFunction<void()>, F&&>,
+                        std::is_constructible<wrappers::UniqueFunction<void( Derived& )>, F&&>>>::value>::type
 #endif
+          operator|=( ReactiveBar& bar, F&& fn )
         {
           bar.action( std::forward<F>( fn ) );
         }
@@ -557,7 +594,7 @@ namespace pgbar {
 #ifdef __cpp_concepts
           requires( std::is_constructible_v<wrappers::UniqueFunction<void()>, F &&>
                     || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F &&> )
-        friend PGBAR__FORCEINLINE Derived&
+        friend PGBAR__FORCEINLINE decltype( auto )
 #else
         friend PGBAR__FORCEINLINE typename std::enable_if<
           traits::AllOf<
@@ -573,7 +610,7 @@ namespace pgbar {
 #ifdef __cpp_concepts
           requires( std::is_constructible_v<wrappers::UniqueFunction<void()>, F &&>
                     || std::is_constructible_v<wrappers::UniqueFunction<void( Derived& )>, F &&> )
-        friend PGBAR__FORCEINLINE Derived&&
+        friend PGBAR__FORCEINLINE decltype( auto )
 #else
         friend PGBAR__FORCEINLINE typename std::enable_if<
           traits::AllOf<

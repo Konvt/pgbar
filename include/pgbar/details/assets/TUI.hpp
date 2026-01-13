@@ -89,15 +89,17 @@ namespace pgbar {
         }
         ~CoreConfig() = default;
 
-#define PGBAR__METHOD( OptionName, ParamName )               \
+#define PGBAR__METHOD( OptionName, ReturnType )              \
   std::lock_guard<concurrent::SharedMutex> lock { rw_mtx_ }; \
-  unpack( *this, option::OptionName( ParamName ) );          \
-  return static_cast<Derived&>( *this )
+  unpack( *this, option::OptionName( _enable ) );            \
+  return static_cast<ReturnType>( *this )
 
         // Enable or disable the color effect.
-        Derived& colored( bool _enable ) & noexcept { PGBAR__METHOD( Colored, _enable ); }
+        Derived& colored( bool _enable ) & noexcept { PGBAR__METHOD( Colored, Derived& ); }
+        Derived&& colored( bool _enable ) && noexcept { PGBAR__METHOD( Colored, Derived&& ); }
         // Enable or disable the bold effect.
-        Derived& bolded( bool _enable ) & noexcept { PGBAR__METHOD( Bolded, _enable ); }
+        Derived& bolded( bool _enable ) & noexcept { PGBAR__METHOD( Bolded, Derived& ); }
+        Derived&& bolded( bool _enable ) && noexcept { PGBAR__METHOD( Bolded, Derived&& ); }
 
 #undef PGBAR__METHOD
 #define PGBAR__METHOD( Offset )                                     \
@@ -129,13 +131,16 @@ namespace pgbar {
         constexpr Countable() = default;
         PGBAR__NONEMPTY_COMPONENT( Countable, PGBAR__CXX14_CNSTXPR )
 
+#define PGBAR__METHOD( ReturnType )                                \
+  std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
+  unpack( *this, option::Tasks( param ) );                         \
+  return static_cast<ReturnType>( *this )
+
         // Set the number of tasks, passing in zero is no exception.
-        Derived& tasks( std::uint64_t param ) & noexcept
-        {
-          std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          unpack( *this, option::Tasks( param ) );
-          return static_cast<Derived&>( *this );
-        }
+        Derived& tasks( std::uint64_t param ) & noexcept { PGBAR__METHOD( Derived& ); }
+        Derived&& tasks( std::uint64_t param ) && noexcept { PGBAR__METHOD( Derived&& ); }
+#undef PGBAR__METHOD
+
         // Get the current number of tasks.
         PGBAR__NODISCARD std::uint64_t tasks() const noexcept
         {
@@ -165,12 +170,15 @@ namespace pgbar {
         constexpr Reversible() = default;
         PGBAR__NONEMPTY_COMPONENT( Reversible, PGBAR__CXX14_CNSTXPR )
 
-        Derived& reverse( bool flag ) & noexcept
-        {
-          std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          unpack( *this, option::Reversed( flag ) );
-          return static_cast<Derived&>( *this );
-        }
+#define PGBAR__METHOD( ReturnType )                                \
+  std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
+  unpack( *this, option::Reversed( flag ) );                       \
+  return static_cast<ReturnType>( *this )
+
+        Derived& reverse( bool flag ) & noexcept { PGBAR__METHOD( Derived& ); }
+        Derived&& reverse( bool flag ) && noexcept { PGBAR__METHOD( Derived&& ); }
+
+#undef PGBAR__METHOD
 
         PGBAR__NODISCARD bool reverse() const noexcept
         {
@@ -211,9 +219,9 @@ namespace pgbar {
         }
 
       protected:
+        types::Size len_longest_lead_;
         std::vector<charcodes::U8Text> lead_;
         console::escodes::RGBColor lead_col_;
-        types::Size len_longest_lead_;
 
         PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR types::Size fixed_len_frames() const noexcept
         {
@@ -224,25 +232,45 @@ namespace pgbar {
         PGBAR__CXX20_CNSTXPR Frames() = default;
         PGBAR__NONEMPTY_COMPONENT( Frames, PGBAR__CXX20_CNSTXPR )
 
-#define PGBAR__METHOD( OptionName, ParamName, Operation )          \
-  std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
-  unpack( *this, option::OptionName( Operation( ParamName ) ) );   \
-  return static_cast<Derived&>( *this )
+#define PGBAR__METHOD( OptionName, ParamName, ReturnType, Operation ) \
+  std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };    \
+  unpack( *this, option::OptionName( Operation( ParamName ) ) );      \
+  return static_cast<ReturnType>( *this )
 
         /// @throw exception::InvalidArgument If the passed parameters are not coding in UTF-8.
-        Derived& lead( std::vector<types::String> _leads ) & { PGBAR__METHOD( Lead, _leads, std::move ); }
+        Derived& lead( std::vector<types::String> _leads ) &
+        {
+          PGBAR__METHOD( Lead, _leads, Derived&, std::move );
+        }
+        Derived&& lead( std::vector<types::String> _leads ) &&
+        {
+          PGBAR__METHOD( Lead, _leads, Derived&&, std::move );
+        }
         /// @throw exception::InvalidArgument If the passed parameters are not coding in UTF-8.
-        Derived& lead( types::String _lead ) & { PGBAR__METHOD( Lead, _lead, std::move ); }
+        Derived& lead( types::String _lead ) & { PGBAR__METHOD( Lead, _lead, Derived&, std::move ); }
+        Derived&& lead( types::String _lead ) && { PGBAR__METHOD( Lead, _lead, Derived&&, std::move ); }
 #ifdef __cpp_lib_char8_t
-        Derived& lead( const std::vector<types::LitU8>& _leads ) & { PGBAR__METHOD( Lead, _leads, ); }
-        Derived& lead( types::LitU8 _lead ) & { PGBAR__METHOD( Lead, _lead, ); }
+        Derived& lead( const std::vector<types::LitU8>& _leads ) &
+        {
+          PGBAR__METHOD( Lead, _leads, Derived&, );
+        }
+        Derived&& lead( const std::vector<types::LitU8>& _leads ) &&
+        {
+          PGBAR__METHOD( Lead, _leads, Derived&&, );
+        }
+        Derived& lead( types::LitU8 _lead ) & { PGBAR__METHOD( Lead, _lead, Derived&, ); }
+        Derived&& lead( types::LitU8 _lead ) && { PGBAR__METHOD( Lead, _lead, Derived&&, ); }
 #endif
 
         /// @brief Set the color of the component `lead`.
         /// @throw exception::InvalidArgument If the passed parameters is not a valid RGB color string.
         Derived& lead_color( console::escodes::RGBColor _lead_color ) &
         {
-          PGBAR__METHOD( LeadColor, _lead_color, std::move );
+          PGBAR__METHOD( LeadColor, _lead_color, Derived&, std::move );
+        }
+        Derived&& lead_color( console::escodes::RGBColor _lead_color ) &&
+        {
+          PGBAR__METHOD( LeadColor, _lead_color, Derived&&, std::move );
         }
 
 #undef PGBAR__METHOD
@@ -276,24 +304,34 @@ namespace pgbar {
         PGBAR__CXX20_CNSTXPR Filler() = default;
         PGBAR__NONEMPTY_COMPONENT( Filler, PGBAR__CXX20_CNSTXPR )
 
-#define PGBAR__METHOD( OptionName, ParamName, Operation )          \
-  std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
-  unpack( *this, option::OptionName( Operation( ParamName ) ) );   \
-  return static_cast<Derived&>( *this )
+#define PGBAR__METHOD( OptionName, ParamName, ReturnType, Operation ) \
+  std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };    \
+  unpack( *this, option::OptionName( Operation( ParamName ) ) );      \
+  return static_cast<ReturnType>( *this )
 
         /// @throw exception::InvalidArgument If the passed parameters are not coding in UTF-8.
-        Derived& filler( types::String _filler ) & { PGBAR__METHOD( Filler, _filler, std::move ); }
+        Derived& filler( types::String _filler ) & { PGBAR__METHOD( Filler, _filler, Derived&, std::move ); }
+        Derived&& filler( types::String _filler ) &&
+        {
+          PGBAR__METHOD( Filler, _filler, Derived&&, std::move );
+        }
 #ifdef __cpp_lib_char8_t
-        Derived& filler( types::LitU8 _filler ) & { PGBAR__METHOD( Filler, _filler, ); }
+        Derived& filler( types::LitU8 _filler ) & { PGBAR__METHOD( Filler, _filler, Derived&, ); }
+        Derived&& filler( types::LitU8 _filler ) && { PGBAR__METHOD( Filler, _filler, Derived&&, ); }
 #endif
 
         /// @throw exception::InvalidArgument If the passed parameters is not a valid RGB color string.
         Derived& filler_color( console::escodes::RGBColor _filler_color ) &
         {
-          PGBAR__METHOD( FillerColor, _filler_color, std::move );
+          PGBAR__METHOD( FillerColor, _filler_color, Derived&, std::move );
+        }
+        Derived&& filler_color( console::escodes::RGBColor _filler_color ) &&
+        {
+          PGBAR__METHOD( FillerColor, _filler_color, Derived&&, std::move );
         }
 
 #undef PGBAR__METHOD
+
         PGBAR__CXX20_CNSTXPR void swap( Filler& other ) noexcept
         {
           filler_.swap( other.filler_ );
@@ -321,22 +359,35 @@ namespace pgbar {
         PGBAR__CXX20_CNSTXPR Remains() = default;
         PGBAR__NONEMPTY_COMPONENT( Remains, PGBAR__CXX20_CNSTXPR )
 
-#define PGBAR__METHOD( OptionName, ParamName, Operation )          \
-  std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
-  unpack( *this, option::OptionName( Operation( ParamName ) ) );   \
-  return static_cast<Derived&>( *this )
+#define PGBAR__METHOD( OptionName, ParamName, ReturnType, Operation ) \
+  std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };    \
+  unpack( *this, option::OptionName( Operation( ParamName ) ) );      \
+  return static_cast<ReturnType>( *this )
 
         /// @throw exception::InvalidArgument If the passed parameters is not a valid RGB color string.
         Derived& remains_color( console::escodes::RGBColor _remains_color ) &
         {
-          PGBAR__METHOD( RemainsColor, _remains_color, std::move );
+          PGBAR__METHOD( RemainsColor, _remains_color, Derived&, std::move );
+        }
+        Derived&& remains_color( console::escodes::RGBColor _remains_color ) &&
+        {
+          PGBAR__METHOD( RemainsColor, _remains_color, Derived&&, std::move );
         }
 
         /// @throw exception::InvalidArgument If the passed parameters are not coding in UTF-8.
-        Derived& remains( types::String _remains ) & { PGBAR__METHOD( Remains, _remains, std::move ); }
+        Derived& remains( types::String _remains ) &
+        {
+          PGBAR__METHOD( Remains, _remains, Derived&, std::move );
+        }
+        Derived&& remains( types::String _remains ) &&
+        {
+          PGBAR__METHOD( Remains, _remains, Derived&&, std::move );
+        }
 #ifdef __cpp_lib_char8_t
-        Derived& remains( types::LitU8 _remains ) & { PGBAR__METHOD( Remains, _remains, ); }
+        Derived& remains( types::LitU8 _remains ) & { PGBAR__METHOD( Remains, _remains, Derived&, ); }
+        Derived&& remains( types::LitU8 _remains ) && { PGBAR__METHOD( Remains, _remains, Derived&&, ); }
 #endif
+
 #undef PGBAR__METHOD
 
         PGBAR__CXX20_CNSTXPR void swap( Remains& other ) noexcept
@@ -362,6 +413,11 @@ namespace pgbar {
         PGBAR__CXX20_CNSTXPR BasicAnimation() = default;
         PGBAR__NONEMPTY_COMPONENT( BasicAnimation, PGBAR__CXX20_CNSTXPR )
 
+#define PGBAR__METHOD( ReturnType )                                \
+  std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
+  unpack( *this, option::Shift( _shift_factor ) );                 \
+  return static_cast<ReturnType>( *this )
+
         /**
          * Set the rate factor of the animation with negative value slowing down the switch per frame
          * and positive value speeding it up.
@@ -370,12 +426,10 @@ namespace pgbar {
          *
          * If the value is zero, freeze the animation.
          */
-        Derived& shift( std::int8_t _shift_factor ) & noexcept
-        {
-          std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          unpack( *this, option::Shift( _shift_factor ) );
-          return static_cast<Derived&>( *this );
-        }
+        Derived& shift( std::int8_t _shift_factor ) & noexcept { PGBAR__METHOD( Derived& ); }
+        Derived&& shift( std::int8_t _shift_factor ) && noexcept { PGBAR__METHOD( Derived&& ); }
+
+#undef PGBAR__METHOD
 
         PGBAR__CXX20_CNSTXPR void swap( BasicAnimation& other ) noexcept
         {
@@ -400,9 +454,9 @@ namespace pgbar {
 #undef PGBAR__UNPAKING
 
       protected:
-        types::Size bar_width_;
         charcodes::U8Raw starting_, ending_;
         console::escodes::RGBColor start_col_, end_col_;
+        std::uint16_t bar_width_;
 
         PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR types::Size fixed_len_bar() const noexcept
         {
@@ -413,41 +467,70 @@ namespace pgbar {
         PGBAR__CXX20_CNSTXPR BasicIndicator() = default;
         PGBAR__NONEMPTY_COMPONENT( BasicIndicator, PGBAR__CXX20_CNSTXPR )
 
-#define PGBAR__METHOD( OptionName, ParamName, Operation )          \
-  std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
-  unpack( *this, option::OptionName( Operation( ParamName ) ) );   \
-  return static_cast<Derived&>( *this )
+#define PGBAR__METHOD( OptionName, ParamName, ReturnType, Operation ) \
+  std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };    \
+  unpack( *this, option::OptionName( Operation( ParamName ) ) );      \
+  return static_cast<ReturnType>( *this )
 
         /// @throw exception::InvalidArgument If the passed parameters are not coding in UTF-8.
-        Derived& starting( types::String _starting ) & { PGBAR__METHOD( Starting, _starting, std::move ); }
+        Derived& starting( types::String _starting ) &
+        {
+          PGBAR__METHOD( Starting, _starting, Derived&, std::move );
+        }
+        Derived&& starting( types::String _starting ) &&
+        {
+          PGBAR__METHOD( Starting, _starting, Derived&&, std::move );
+        }
         /// @throw exception::InvalidArgument If the passed parameters are not coding in UTF-8.
-        Derived& ending( types::String _ending ) & { PGBAR__METHOD( Ending, _ending, std::move ); }
+        Derived& ending( types::String _ending ) & { PGBAR__METHOD( Ending, _ending, Derived&, std::move ); }
+        Derived&& ending( types::String _ending ) &&
+        {
+          PGBAR__METHOD( Ending, _ending, Derived&&, std::move );
+        }
 #ifdef __cpp_lib_char8_t
-        Derived& starting( types::LitU8 _starting ) & { PGBAR__METHOD( Starting, _starting, ); }
-        Derived& ending( types::LitU8 _ending ) & { PGBAR__METHOD( Ending, _ending, ); }
+        Derived& starting( types::LitU8 _starting ) & { PGBAR__METHOD( Starting, _starting, Derived&, ); }
+        Derived&& starting( types::LitU8 _starting ) && { PGBAR__METHOD( Starting, _starting, Derived&&, ); }
+        Derived& ending( types::LitU8 _ending ) & { PGBAR__METHOD( Ending, _ending, Derived&, ); }
+        Derived&& ending( types::LitU8 _ending ) && { PGBAR__METHOD( Ending, _ending, Derived&&, ); }
 #endif
 
         /// @throw exception::InvalidArgument  If the passed parameters is not a valid RGB color string.
         Derived& start_color( console::escodes::RGBColor _start_color ) &
         {
-          PGBAR__METHOD( StartColor, _start_color, std::move );
+          PGBAR__METHOD( StartColor, _start_color, Derived&, std::move );
+        }
+        Derived&& start_color( console::escodes::RGBColor _start_color ) &&
+        {
+          PGBAR__METHOD( StartColor, _start_color, Derived&&, std::move );
         }
         /// @throw exception::InvalidArgument If the passed parameters is not a valid RGB color string.
         Derived& end_color( console::escodes::RGBColor _end_color ) &
         {
-          PGBAR__METHOD( EndColor, _end_color, std::move );
+          PGBAR__METHOD( EndColor, _end_color, Derived&, std::move );
+        }
+        Derived&& end_color( console::escodes::RGBColor _end_color ) &&
+        {
+          PGBAR__METHOD( EndColor, _end_color, Derived&&, std::move );
         }
 
         // Set the width of the bar indicator.
-        Derived& bar_width( types::Size _width ) & noexcept { PGBAR__METHOD( BarWidth, _width, ); }
+        Derived& bar_width( std::uint16_t _width ) & noexcept
+        {
+          PGBAR__METHOD( BarWidth, _width, Derived&, );
+        }
+        Derived&& bar_width( std::uint16_t _width ) && noexcept
+        {
+          PGBAR__METHOD( BarWidth, _width, Derived&&, );
+        }
 
-        PGBAR__NODISCARD types::Size bar_width() const noexcept
+#undef PGBAR__METHOD
+
+        PGBAR__NODISCARD std::uint16_t bar_width() const noexcept
         {
           concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
           return bar_width_;
         }
 
-#undef PGBAR__METHOD
         PGBAR__CXX20_CNSTXPR void swap( BasicIndicator& other ) noexcept
         {
           std::swap( bar_width_, other.bar_width_ );
@@ -492,22 +575,31 @@ namespace pgbar {
         PGBAR__CXX20_CNSTXPR Prefix() = default;
         PGBAR__NONEMPTY_COMPONENT( Prefix, PGBAR__CXX20_CNSTXPR )
 
-#define PGBAR__METHOD( OptionName, ParamName, Operation )          \
-  std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
-  unpack( *this, option::OptionName( Operation( ParamName ) ) );   \
-  return static_cast<Derived&>( *this )
+#define PGBAR__METHOD( OptionName, ParamName, ReturnType, Operation ) \
+  std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };    \
+  unpack( *this, option::OptionName( Operation( ParamName ) ) );      \
+  return static_cast<ReturnType>( *this )
 
         /// @throw exception::InvalidArgument If the passed parameters are not coding in UTF-8.
-        Derived& prefix( types::String _prefix ) & { PGBAR__METHOD( Prefix, _prefix, std::move ); }
+        Derived& prefix( types::String _prefix ) & { PGBAR__METHOD( Prefix, _prefix, Derived&, std::move ); }
+        Derived&& prefix( types::String _prefix ) &&
+        {
+          PGBAR__METHOD( Prefix, _prefix, Derived&&, std::move );
+        }
 
 #ifdef __cpp_lib_char8_t
-        Derived& prefix( types::LitU8 _prefix ) & { PGBAR__METHOD( Prefix, _prefix, ); }
+        Derived& prefix( types::LitU8 _prefix ) & { PGBAR__METHOD( Prefix, _prefix, Derived&, ); }
+        Derived&& prefix( types::LitU8 _prefix ) && { PGBAR__METHOD( Prefix, _prefix, Derived&&, ); }
 #endif
 
         /// @throw exception::InvalidArgument If the passed parameters is not a valid RGB color string.
         Derived& prefix_color( console::escodes::RGBColor _prfx_color ) &
         {
-          PGBAR__METHOD( PrefixColor, _prfx_color, std::move );
+          PGBAR__METHOD( PrefixColor, _prfx_color, Derived&, std::move );
+        }
+        Derived&& prefix_color( console::escodes::RGBColor _prfx_color ) &&
+        {
+          PGBAR__METHOD( PrefixColor, _prfx_color, Derived&&, std::move );
         }
 
 #undef PGBAR__METHOD
@@ -554,21 +646,33 @@ namespace pgbar {
         PGBAR__CXX20_CNSTXPR Postfix() = default;
         PGBAR__NONEMPTY_COMPONENT( Postfix, PGBAR__CXX20_CNSTXPR )
 
-#define PGBAR__METHOD( OptionName, ParamName, Operation )          \
-  std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
-  unpack( *this, option::OptionName( Operation( ParamName ) ) );   \
-  return static_cast<Derived&>( *this )
+#define PGBAR__METHOD( OptionName, ParamName, ReturnType, Operation ) \
+  std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };    \
+  unpack( *this, option::OptionName( Operation( ParamName ) ) );      \
+  return static_cast<ReturnType>( *this )
 
         /// @throw exception::InvalidArgument If the passed parameters are not coding in UTF-8.
-        Derived& postfix( types::String _postfix ) & { PGBAR__METHOD( Postfix, _postfix, std::move ); }
+        Derived& postfix( types::String _postfix ) &
+        {
+          PGBAR__METHOD( Postfix, _postfix, Derived&, std::move );
+        }
+        Derived&& postfix( types::String _postfix ) &&
+        {
+          PGBAR__METHOD( Postfix, _postfix, Derived&&, std::move );
+        }
 #ifdef __cpp_lib_char8_t
-        Derived& postfix( types::LitU8 _postfix ) & { PGBAR__METHOD( Postfix, _postfix, ); }
+        Derived& postfix( types::LitU8 _postfix ) & { PGBAR__METHOD( Postfix, _postfix, Derived&, ); }
+        Derived&& postfix( types::LitU8 _postfix ) && { PGBAR__METHOD( Postfix, _postfix, Derived&&, ); }
 #endif
 
         /// @throw exception::InvalidArgument If the passed parameters is not a valid RGB color string.
         Derived& postfix_color( console::escodes::RGBColor _pstfx_color ) &
         {
-          PGBAR__METHOD( PostfixColor, _pstfx_color, std::move );
+          PGBAR__METHOD( PostfixColor, _pstfx_color, Derived&, std::move );
+        }
+        Derived&& postfix_color( console::escodes::RGBColor _pstfx_color ) &&
+        {
+          PGBAR__METHOD( PostfixColor, _pstfx_color, Derived&&, std::move );
         }
 
 #undef PGBAR__METHOD
@@ -600,7 +704,7 @@ namespace pgbar {
         console::escodes::RGBColor info_col_;
 
         PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR types::Size fixed_len_segment(
-          types::Size num_column ) const noexcept
+          std::uint16_t num_column ) const noexcept
         {
           switch ( num_column ) {
           case 0:  return 0;
@@ -613,33 +717,71 @@ namespace pgbar {
         PGBAR__CXX20_CNSTXPR Segment() = default;
         PGBAR__NONEMPTY_COMPONENT( Segment, PGBAR__CXX20_CNSTXPR )
 
-#define PGBAR__METHOD( OptionName, ParamName, Operation )          \
-  std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
-  unpack( *this, option::OptionName( Operation( ParamName ) ) );   \
-  return static_cast<Derived&>( *this )
+#define PGBAR__METHOD( OptionName, ParamName, ReturnType, Operation ) \
+  std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ };    \
+  unpack( *this, option::OptionName( Operation( ParamName ) ) );      \
+  return static_cast<ReturnType>( *this )
 
         /// @throw exception::InvalidArgument If the passed parameters are not coding in UTF-8.
-        Derived& divider( types::String _divider ) & { PGBAR__METHOD( Divider, _divider, std::move ); }
+        Derived& divider( types::String _divider ) &
+        {
+          PGBAR__METHOD( Divider, _divider, Derived&, std::move );
+        }
+        Derived&& divider( types::String _divider ) &&
+        {
+          PGBAR__METHOD( Divider, _divider, Derived&&, std::move );
+        }
+
         /// @throw exception::InvalidArgument If the passed parameters are not coding in UTF-8.
         Derived& left_border( types::String _l_border ) &
         {
-          PGBAR__METHOD( LeftBorder, _l_border, std::move );
+          PGBAR__METHOD( LeftBorder, _l_border, Derived&, std::move );
         }
+        Derived&& left_border( types::String _l_border ) &&
+        {
+          PGBAR__METHOD( LeftBorder, _l_border, Derived&&, std::move );
+        }
+
         /// @throw exception::InvalidArgument If the passed parameters are not coding in UTF-8.
         Derived& right_border( types::String _r_border ) &
         {
-          PGBAR__METHOD( RightBorder, _r_border, std::move );
+          PGBAR__METHOD( RightBorder, _r_border, Derived&, std::move );
+        }
+        Derived&& right_border( types::String _r_border ) &&
+        {
+          PGBAR__METHOD( RightBorder, _r_border, Derived&&, std::move );
         }
 #ifdef __cpp_lib_char8_t
-        Derived& divider( types::LitU8 _divider ) & { PGBAR__METHOD( Divider, _divider, ); }
-        Derived& left_border( types::LitU8 _l_border ) & { PGBAR__METHOD( LeftBorder, _l_border, ); }
-        Derived& right_border( types::LitU8 _r_border ) & { PGBAR__METHOD( RightBorder, _r_border, ); }
+        Derived& divider( types::LitU8 _divider ) & { PGBAR__METHOD( Divider, _divider, Derived&, ); }
+        Derived&& divider( types::LitU8 _divider ) && { PGBAR__METHOD( Divider, _divider, Derived&&, ); }
+
+        Derived& left_border( types::LitU8 _l_border ) &
+        {
+          PGBAR__METHOD( LeftBorder, _l_border, Derived&, );
+        }
+        Derived&& left_border( types::LitU8 _l_border ) &&
+        {
+          PGBAR__METHOD( LeftBorder, _l_border, Derived&&, );
+        }
+
+        Derived& right_border( types::LitU8 _r_border ) &
+        {
+          PGBAR__METHOD( RightBorder, _r_border, Derived&, );
+        }
+        Derived&& right_border( types::LitU8 _r_border ) &&
+        {
+          PGBAR__METHOD( RightBorder, _r_border, Derived&&, );
+        }
 #endif
 
         /// @throw exception::InvalidArgument If the passed parameters is not a valid RGB color string.
         Derived& info_color( console::escodes::RGBColor _info_color ) &
         {
-          PGBAR__METHOD( InfoColor, _info_color, std::move );
+          PGBAR__METHOD( InfoColor, _info_color, Derived&, std::move );
+        }
+        Derived&& info_color( console::escodes::RGBColor _info_color ) &&
+        {
+          PGBAR__METHOD( InfoColor, _info_color, Derived&&, std::move );
         }
 
 #undef PGBAR__METHOD
@@ -724,8 +866,8 @@ namespace pgbar {
           /* Since the cube of the maximum value of std::uint16_t does not exceed
            * the representable range of std::uint64_t,
            * we choose to use std::uint16_t to represent the scaling magnitude. */
-          const types::Size tier1 = magnitude_ * magnitude_;
-          const types::Size tier2 = tier1 * magnitude_;
+          const std::uint64_t tier1 = magnitude_ * magnitude_;
+          const std::uint64_t tier2 = tier1 * magnitude_;
           // tier0 is magnitude_ itself
 
           const auto seconds_passed    = std::chrono::duration<types::Float>( time_passed ).count();
@@ -760,10 +902,10 @@ namespace pgbar {
         PGBAR__CXX20_CNSTXPR SpeedMeter() = default;
         PGBAR__NONEMPTY_COMPONENT( SpeedMeter, PGBAR__CXX20_CNSTXPR )
 
-#define PGBAR__METHOD( OptionName, ParamName )                     \
+#define PGBAR__METHOD( OptionName, ParamName, ReturnType )         \
   std::lock_guard<concurrent::SharedMutex> lock { this->rw_mtx_ }; \
   unpack( *this, option::OptionName( std::move( ParamName ) ) );   \
-  return static_cast<Derived&>( *this )
+  return static_cast<ReturnType>( *this )
 
         /**
          * @throw exception::InvalidArgument
@@ -774,14 +916,28 @@ namespace pgbar {
          * The given each unit will be treated as 1,000 times greater than the previous one
          * (from left to right).
          */
-        Derived& speed_unit( std::array<types::String, 4> _units ) & { PGBAR__METHOD( SpeedUnit, _units ); }
+        Derived& speed_unit( std::array<types::String, 4> _units ) &
+        {
+          PGBAR__METHOD( SpeedUnit, _units, Derived& );
+        }
+        Derived&& speed_unit( std::array<types::String, 4> _units ) &&
+        {
+          PGBAR__METHOD( SpeedUnit, _units, Derived&& );
+        }
 #ifdef __cpp_lib_char8_t
         /**
          * @param _units
          * The given each unit will be treated as 1,000 times greater than the previous one
          * (from left to right).
          */
-        Derived& speed_unit( std::array<types::LitU8, 4> _units ) & { PGBAR__METHOD( SpeedUnit, _units ); }
+        Derived& speed_unit( std::array<types::LitU8, 4> _units ) &
+        {
+          PGBAR__METHOD( SpeedUnit, _units, Derived& );
+        }
+        Derived&& speed_unit( std::array<types::LitU8, 4> _units ) &&
+        {
+          PGBAR__METHOD( SpeedUnit, _units, Derived&& );
+        }
 #endif
 
         /**
@@ -791,7 +947,14 @@ namespace pgbar {
          * Defines the threshold at which values are converted to higher-order units
          * (e.g. 1000 -> "1k", 1000000 -> "1M").
          */
-        Derived& magnitude( std::uint16_t _magnitude ) & noexcept { PGBAR__METHOD( Magnitude, _magnitude ); }
+        Derived& magnitude( std::uint16_t _magnitude ) & noexcept
+        {
+          PGBAR__METHOD( Magnitude, _magnitude, Derived& );
+        }
+        Derived&& magnitude( std::uint16_t _magnitude ) && noexcept
+        {
+          PGBAR__METHOD( Magnitude, _magnitude, Derived&& );
+        }
 
 #undef PGBAR__METHOD
 
@@ -820,7 +983,7 @@ namespace pgbar {
                         << '/' << utils::format( num_all_tasks );
         }
 
-        PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR types::Size fixed_len_counter()
+        PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR std::uint32_t fixed_len_counter()
           const noexcept
         {
           return utils::count_digits( this->task_range_.back() ) * 2 + 1;
