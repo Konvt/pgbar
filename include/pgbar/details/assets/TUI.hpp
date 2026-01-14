@@ -831,7 +831,7 @@ namespace pgbar {
                                                                     option::SpeedUnit&& val ) noexcept
         {
           cfg.units_            = std::move( val.value() );
-          cfg.nth_longest_unit_ = static_cast<std::uint8_t>( std::distance(
+          cfg.nth_longest_unit_ = static_cast<std::uint8_t>( utils::distance(
             cfg.units_.cbegin(),
             std::max_element( cfg.units_.cbegin(),
                               cfg.units_.cend(),

@@ -107,9 +107,10 @@ namespace pgbar {
           auto itr = std::find_if( items_.cbegin(), items_.cend(), []( const Slot& slot ) noexcept {
             return slot.target_ != nullptr;
           } );
-          items_.erase( items_.cbegin(), itr );
           if PGBAR__CXX17_CNSTXPR ( Area == Region::Fixed )
-            num_modified_lines_.fetch_add( std::distance( items_.cbegin(), itr ), std::memory_order_release );
+            num_modified_lines_.fetch_add( utils::distance( items_.cbegin(), itr ),
+                                           std::memory_order_release );
+          items_.erase( items_.cbegin(), itr );
         }
 
         template<bool Forced>
