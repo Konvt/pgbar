@@ -12,6 +12,7 @@
 #include "../utils/Util.hpp"
 #include <bitset>
 #include <limits>
+#include <mutex>
 
 namespace pgbar {
   // The Basic components of the progress bar.
@@ -38,7 +39,7 @@ namespace pgbar {
   friend PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR void unpack( CoreConfig& cfg,                    \
                                                               option::OptionName&& val ) noexcept \
   {                                                                                               \
-    cfg.fonts_[utils::as_val( Mask::OptionName )] = val.value();                                  \
+    cfg.fonts_[utils::to_underlying( Mask::OptionName )] = val.value();                           \
   }
         PGBAR__UNPAKING( Colored, colored_ )
         PGBAR__UNPAKING( Bolded, bolded_ )
@@ -53,7 +54,7 @@ namespace pgbar {
           io::CharPipeline& buffer,
           const console::escodes::RGBColor& rgb ) const
         {
-          if ( fonts_[utils::as_val( Mask::Colored )] )
+          if ( fonts_[utils::to_underlying( Mask::Colored )] )
             buffer << rgb;
           return buffer;
         }
@@ -62,7 +63,7 @@ namespace pgbar {
           const console::escodes::RGBColor& rgb ) const
         {
           try_dye( buffer, rgb );
-          if ( fonts_[utils::as_val( Mask::Bolded )] )
+          if ( fonts_[utils::to_underlying( Mask::Bolded )] )
             buffer << console::escodes::fontbold;
           return buffer;
         }
@@ -104,7 +105,7 @@ namespace pgbar {
 #undef PGBAR__METHOD
 #define PGBAR__METHOD( Offset )                                     \
   concurrent::SharedLock<concurrent::SharedMutex> lock { rw_mtx_ }; \
-  return fonts_[utils::as_val( Mask::Offset )]
+  return fonts_[utils::to_underlying( Mask::Offset )]
 
         // Check whether the color effect is enabled.
         PGBAR__NODISCARD bool colored() const noexcept { PGBAR__METHOD( Colored ); }
@@ -815,7 +816,7 @@ namespace pgbar {
           return buffer << utils::format<utils::TxtLayout::Right>( fixed_len_percent(), std::move( orig ) );
         }
 
-        PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CNSTEVAL types::Size fixed_len_percent() const noexcept
+        PGBAR__NODISCARD static PGBAR__FORCEINLINE PGBAR__CNSTEVAL types::Size fixed_len_percent() noexcept
         {
           return sizeof( PGBAR__DEFAULT_PERCENT ) - 1;
         }
@@ -1025,7 +1026,7 @@ namespace pgbar {
         {
           return to_hms( buffer, time_passed );
         }
-        PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CNSTEVAL types::Size fixed_len_elapsed() const noexcept
+        PGBAR__NODISCARD static PGBAR__FORCEINLINE PGBAR__CNSTEVAL types::Size fixed_len_elapsed() noexcept
         {
           return sizeof( PGBAR__ELASPED ) - 1;
         }
@@ -1051,7 +1052,7 @@ namespace pgbar {
           buffer << '~';
           return to_hms( buffer, time_per_task * remaining_tasks );
         }
-        PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CNSTEVAL types::Size fixed_len_countdown() const noexcept
+        PGBAR__NODISCARD static PGBAR__FORCEINLINE PGBAR__CNSTEVAL types::Size fixed_len_countdown() noexcept
         {
           return sizeof( PGBAR__COUNTDOWN ) - 1;
         }

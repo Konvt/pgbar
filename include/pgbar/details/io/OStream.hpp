@@ -89,8 +89,9 @@ namespace pgbar {
 #elif PGBAR__UNIX
           types::Size total_written = 0;
           do {
-            ssize_t num_written =
-              write( utils::as_val( Outlet ), bytes.data() + total_written, bytes.size() - total_written );
+            ssize_t num_written = write( utils::to_underlying( Outlet ),
+                                         bytes.data() + total_written,
+                                         bytes.size() - total_written );
             if ( errno == EINTR )
               num_written = ( std::max )( 0, num_written );
             else if ( num_written < 0 )

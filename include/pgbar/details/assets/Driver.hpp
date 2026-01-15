@@ -433,8 +433,8 @@ namespace pgbar {
         PGBAR__CXX20_CNSTXPR void destroy() noexcept
         {
           switch ( tag_ ) {
-          case Tag::Nullary: utils::destruct_at( hook_.on_ ); break;
-          case Tag::Unary:   utils::destruct_at( hook_.on_self_ ); break;
+          case Tag::Nullary: utils::destroy_at( hook_.on_ ); break;
+          case Tag::Unary:   utils::destroy_at( hook_.on_self_ ); break;
 
           case Tag::Nil: PGBAR__FALLTHROUGH;
           default:       break;

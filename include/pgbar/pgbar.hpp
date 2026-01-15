@@ -49,7 +49,6 @@
 # undef PGBAR__UNLIKELY
 # undef PGBAR__CXX14
 # undef PGBAR__CXX14_CNSTXPR
-# undef PGBAR__CXX11
 
 # undef PGBAR__BLACK
 # undef PGBAR__RED

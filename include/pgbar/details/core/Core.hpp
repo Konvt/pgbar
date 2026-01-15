@@ -18,20 +18,6 @@
 # define PGBAR__UNKNOWN 1
 #endif
 
-// Check whether the compiler and the standard library come from the same vendor,
-// which is very useful when handling the backport of some std entities.
-#ifndef PGBAR__CONSISTENT_VENDOR
-// Allow to be forcibly injected from the outside with a value of 1.
-# if !( defined( __INTEL_COMPILER ) || defined( __NVCOMPILER ) || defined( __PGIC__ ) ) \
-   && ( ( defined( __GLIBCXX__ ) && defined( __GNUC__ ) && !defined( __clang__ ) )      \
-        || ( defined( _LIBCPP_VERSION ) && defined( __clang__ ) )                       \
-        || ( defined( _MSVC_STL_VERSION ) && defined( _MSC_VER ) ) )
-#  define PGBAR__CONSISTENT_VENDOR 1
-# else
-#  define PGBAR__CONSISTENT_VENDOR 0
-# endif
-#endif
-
 #if defined( __GNUC__ ) || defined( __clang__ )
 // pgbar does not detect the differences in compiler versions
 // which released before the publication of the C++11 standard.
@@ -67,7 +53,11 @@
 # define PGBAR__CXX23 0
 # define PGBAR__CXX23_CNSTXPR
 
-# ifdef __GNUC__
+# ifdef _MSC_VER
+#  define PGBAR__ASSUME( expr ) __assume( expr )
+# elif __clang_major__ > 3 || ( __clang_major__ == 3 && __clang_minor__ >= 6 )
+#  define PGBAR__ASSUME( expr ) __builtin_assume( expr )
+# elif defined( __GNUC__ )
 #  define PGBAR__ASSUME( expr )  \
     do {                         \
       if ( expr ) {              \
@@ -75,17 +65,12 @@
         __builtin_unreachable(); \
       }                          \
     } while ( false )
-# elif defined( __clang__ )
-#  if __clang_major__ > 3 || ( __clang_major__ == 3 && __clang_minor__ >= 6 )
-#   define PGBAR__ASSUME( expr ) __builtin_assume( expr )
-#  endif
-# elif defined( _MSC_VER )
-#  define PGBAR__ASSUME( expr ) __assume( expr )
 # endif
 
 # ifndef PGBAR__ASSUME
 #  define PGBAR__ASSUME( _ ) PGBAR__ASSERT( 0 )
 # endif
+
 #endif
 #if PGBAR__CC_STD >= 202002L
 # define PGBAR__CXX20         1
@@ -109,20 +94,15 @@
 # define PGBAR__CXX17_CNSTXPR
 # define PGBAR__CXX17_INLINE
 
-# ifdef __GNUC__
-#  define PGBAR__NODISCARD __attribute__( ( warn_unused_result ) )
-#  if __GNUC__ >= 7
-#   define PGBAR__FALLTHROUGH __attribute__( ( fallthrough ) )
-#  endif
-# elif defined( __clang__ )
-#  if __clang_major__ > 3 || ( __clang_major__ == 3 && __clang_minor__ >= 5 )
-#   define PGBAR__FALLTHROUGH [[clang::fallthrough]]
-#  endif
-#  if __clang_major__ > 3 || ( __clang_major__ == 3 && __clang_minor__ >= 9 )
-#   define PGBAR__NODISCARD __attribute__( ( warn_unused_result ) )
-#  endif
-# elif defined( _MSC_VER )
+# ifdef _MSC_VER
 #  define PGBAR__NODISCARD _Check_return_
+# elif __clang_major__ > 3 || ( __clang_major__ == 3 && __clang_minor__ >= 9 )
+#  define PGBAR__FALLTHROUGH [[clang::fallthrough]]
+# elif ( __clang_major__ == 3 && __clang_minor__ >= 5 ) || defined( __GNUC__ )
+#  define PGBAR__NODISCARD __attribute__( ( warn_unused_result ) )
+# endif
+# if __GNUC__ >= 7
+#  define PGBAR__FALLTHROUGH __attribute__( ( fallthrough ) )
 # endif
 
 # ifndef PGBAR__FALLTHROUGH
@@ -131,6 +111,7 @@
 # ifndef PGBAR__NODISCARD
 #  define PGBAR__NODISCARD
 # endif
+
 #endif
 #if PGBAR__CC_STD >= 201402L
 # define PGBAR__CXX14         1
@@ -139,9 +120,7 @@
 # define PGBAR__CXX14 0
 # define PGBAR__CXX14_CNSTXPR
 #endif
-#if PGBAR__CC_STD >= 201103L
-# define PGBAR__CXX11 1
-#else
+#if PGBAR__CC_STD < 201103L
 # error "The library 'pgbar' requires C++11"
 #endif
 

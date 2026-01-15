@@ -132,8 +132,9 @@ namespace pgbar {
       PGBAR__NODISCARD PGBAR__FORCEINLINE _details::types::Size fixed_render_size() const noexcept
       {
         return this->common_render_size()
-             + ( this->visual_masks_[_details::utils::as_val( Base::Mask::Ani )] ? this->fixed_len_bar()
-                                                                                 : 0 );
+             + ( this->visual_masks_[_details::utils::to_underlying( Base::Mask::Ani )]
+                   ? this->fixed_len_bar()
+                   : 0 );
       }
 
     public:

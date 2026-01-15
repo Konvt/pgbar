@@ -71,8 +71,9 @@ namespace pgbar {
       PGBAR__NODISCARD PGBAR__FORCEINLINE _details::types::Size fixed_render_size() const noexcept
       {
         return this->common_render_size()
-             + ( this->visual_masks_[_details::utils::as_val( Base::Mask::Ani )] ? this->fixed_len_frames()
-                                                                                 : 0 );
+             + ( this->visual_masks_[_details::utils::to_underlying( Base::Mask::Ani )]
+                   ? this->fixed_len_frames()
+                   : 0 );
       }
 
     public:
@@ -116,20 +117,20 @@ namespace pgbar {
 
           this->build_prefix( buffer );
           this->try_reset( buffer );
-          if ( this->visual_masks_[utils::as_val( Self::Mask::Ani )] ) {
+          if ( this->visual_masks_[utils::to_underlying( Self::Mask::Ani )] ) {
             this->build_spin( buffer, num_frame_cnt );
             this->try_reset( buffer );
             auto masks = this->visual_masks_;
-            if ( masks.reset( utils::as_val( Self::Mask::Ani ) ).any() ) {
+            if ( masks.reset( utils::to_underlying( Self::Mask::Ani ) ).any() ) {
               this->try_style( buffer, this->info_col_ );
               buffer << this->divider_;
             }
           }
-          if ( this->visual_masks_[utils::as_val( Self::Mask::Per )] ) {
+          if ( this->visual_masks_[utils::to_underlying( Self::Mask::Per )] ) {
             this->build_percent( buffer, num_percent );
             auto masks = this->visual_masks_;
-            if ( masks.reset( utils::as_val( Self::Mask::Ani ) )
-                   .reset( utils::as_val( Self::Mask::Per ) )
+            if ( masks.reset( utils::to_underlying( Self::Mask::Ani ) )
+                   .reset( utils::to_underlying( Self::Mask::Per ) )
                    .any() )
               buffer << this->divider_;
           }

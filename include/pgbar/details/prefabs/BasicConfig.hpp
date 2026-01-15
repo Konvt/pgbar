@@ -76,12 +76,12 @@ namespace pgbar {
           Modifier( const Modifier& )              = delete;
           Modifier& operator=( const Modifier& ) & = delete;
 
-#define PGBAR__METHOD( MethodName, EnumName )                       \
-  Modifier&& MethodName()&& noexcept                                \
-  {                                                                 \
-    if ( owner_.load( std::memory_order_acquire ) )                 \
-      self_.visual_masks_.set( utils::as_val( EnumName ), Enable ); \
-    return static_cast<Modifier&&>( *this );                        \
+#define PGBAR__METHOD( MethodName, EnumName )                              \
+  Modifier&& MethodName()&& noexcept                                       \
+  {                                                                        \
+    if ( owner_.load( std::memory_order_acquire ) )                        \
+      self_.visual_masks_.set( utils::to_underlying( EnumName ), Enable ); \
+    return static_cast<Modifier&&>( *this );                               \
   }
           PGBAR__METHOD( percent, Mask::Per )
           PGBAR__METHOD( animation, Mask::Ani )
@@ -116,11 +116,11 @@ namespace pgbar {
         PGBAR__NODISCARD PGBAR__FORCEINLINE types::Size common_render_size() const noexcept
         {
           return this->fixed_len_prefix() + this->fixed_len_postfix()
-               + ( visual_masks_[utils::as_val( Mask::Per )] ? this->fixed_len_percent() : 0 )
-               + ( visual_masks_[utils::as_val( Mask::Cnt )] ? this->fixed_len_counter() : 0 )
-               + ( visual_masks_[utils::as_val( Mask::Sped )] ? this->fixed_len_speed() : 0 )
-               + ( visual_masks_[utils::as_val( Mask::Elpsd )] ? this->fixed_len_elapsed() : 0 )
-               + ( visual_masks_[utils::as_val( Mask::Cntdwn )] ? this->fixed_len_countdown() : 0 )
+               + ( visual_masks_[utils::to_underlying( Mask::Per )] ? Base::fixed_len_percent() : 0 )
+               + ( visual_masks_[utils::to_underlying( Mask::Cnt )] ? this->fixed_len_counter() : 0 )
+               + ( visual_masks_[utils::to_underlying( Mask::Sped )] ? this->fixed_len_speed() : 0 )
+               + ( visual_masks_[utils::to_underlying( Mask::Elpsd )] ? Base::fixed_len_elapsed() : 0 )
+               + ( visual_masks_[utils::to_underlying( Mask::Cntdwn )] ? Base::fixed_len_countdown() : 0 )
                + this->fixed_len_segment( this->visual_masks_.count() );
         }
 
@@ -140,12 +140,13 @@ namespace pgbar {
         // Enable all components
         static constexpr types::Bit8 Entire = ~0;
 
+        template<typename... Args
 #ifdef __cpp_concepts
-        template<typename... Args>
+                 >
           requires( traits::Distinct<traits::TypeList<Args...>>::value
                     && ( traits::TpContain<PermittedSet, Args>::value && ... ) )
 #else
-        template<typename... Args,
+                 ,
                  typename = typename std::enable_if<
                    traits::AllOf<traits::Distinct<traits::TypeList<Args...>>,
                                  traits::TpContain<PermittedSet, Args>...>::value>::type>
@@ -190,7 +191,7 @@ namespace pgbar {
         }
         BasicConfig& operator=( BasicConfig&& rhs ) & noexcept
         {
-          PGBAR__ASSERT( this != &rhs );
+          PGBAR__TRUST( this != &rhs );
           std::lock( this->rw_mtx_, rhs.rw_mtx_ );
           std::lock_guard<concurrent::SharedMutex> lock1 { this->rw_mtx_, std::adopt_lock };
           std::lock_guard<concurrent::SharedMutex> lock2 { rhs.rw_mtx_, std::adopt_lock };

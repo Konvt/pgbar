@@ -49,7 +49,7 @@ namespace pgbar {
         template<typename T>
         static PGBAR__NOINLINE PGBAR__CXX20_CNSTXPR void destroy_inline( AnyFn& fn ) noexcept
         {
-          utils::destruct_at( utils::launder_as<T>( &fn.sso_ ) );
+          utils::destroy_at( utils::launder_as<T>( &fn.sso_ ) );
         }
         template<typename T>
         static PGBAR__CXX20_CNSTXPR PGBAR__NOINLINE void move_inline( AnyFn& dst, AnyFn& src ) noexcept
@@ -62,7 +62,7 @@ namespace pgbar {
         static PGBAR__NOINLINE PGBAR__CXX20_CNSTXPR void destroy_dynamic( AnyFn& fn ) noexcept
         {
           const auto dptr = utils::launder_as<T>( fn.dptr_ );
-          utils::destruct_at( dptr );
+          utils::destroy_at( dptr );
 # ifdef __cpp_aligned_new
           ::operator delete( fn.dptr_, std::align_val_t( alignof( T ) ) );
 # else
@@ -211,13 +211,14 @@ namespace pgbar {
 
       protected:
         using Delegate = R ( * )( const AnyFn&, Param_t<Args>... )
-# if PGBAR__CXX17
+# ifdef __cpp_noexcept_function_type
           noexcept( Noexcept )
 # endif
           ;
 
         template<typename Fn>
-        using Fn_t = decltype( utils::forward_as<CrefInfo>( std::declval<typename std::decay<Fn>::type>() ) );
+        using Fn_t =
+          decltype( utils::forward_like<CrefInfo>( std::declval<typename std::decay<Fn>::type>() ) );
 
         static PGBAR__NOINLINE PGBAR__CXX14_CNSTXPR R invoke_null( const AnyFn&, Param_t<Args>... )
           noexcept( Noexcept )
@@ -230,14 +231,14 @@ namespace pgbar {
           noexcept( Noexcept )
         {
           const auto ptr = utils::launder_as<Delegate_t<T>>( ( &const_cast<AnyFn&>( fn ).sso_ ) );
-          return utils::invoke( utils::forward_as<CrefInfo>( *ptr ), std::forward<Args>( args )... );
+          return utils::invoke( utils::forward_like<CrefInfo>( *ptr ), std::forward<Args>( args )... );
         }
         template<typename T>
         static PGBAR__NOINLINE PGBAR__CXX14_CNSTXPR R invoke_dynamic( const AnyFn& fn, Param_t<Args>... args )
           noexcept( Noexcept )
         {
           const auto dptr = utils::launder_as<Delegate_t<T>>( fn.dptr_ );
-          return utils::invoke( utils::forward_as<CrefInfo>( *dptr ), std::forward<Args>( args )... );
+          return utils::invoke( utils::forward_like<CrefInfo>( *dptr ), std::forward<Args>( args )... );
         }
 
         constexpr FnInvoker()                                      = default;

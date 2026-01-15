@@ -7,7 +7,7 @@
 #ifdef __cpp_lib_ranges
 # include <ranges>
 #endif
-#if PGBAR__CXX20
+#ifdef __cpp_lib_three_way_comparison
 # include <compare>
 #endif
 
@@ -140,7 +140,7 @@ namespace pgbar {
         {
           return a.itr_start_ == b.itr_start_ && a.itr_step_ == b.itr_step_ && a.itr_cnt_ == b.itr_cnt_;
         }
-#if PGBAR__CXX20
+#ifdef __cpp_lib_three_way_comparison
         PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr std::partial_ordering operator<=>(
           const iterator& a,
           const iterator& b ) noexcept

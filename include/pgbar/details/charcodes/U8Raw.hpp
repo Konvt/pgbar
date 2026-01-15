@@ -24,30 +24,29 @@ namespace pgbar {
           types::Size str_length )
         {
           // After RFC 3629, the maximum length of each standard UTF-8 character is 4 bytes.
-          auto utf_bytes        = reinterpret_cast<const types::Bit8*>( raw_u8_str );
-          const auto first_byte = *utf_bytes;
+          const auto first_byte = *raw_u8_str;
           auto validator        = [=]( types::Size expected_len ) -> types::CodePoint {
             if ( expected_len > str_length )
               PGBAR__UNLIKELY throw exception::InvalidArgument( "pgbar: incomplete UTF-8 sequence" );
             for ( types::Size i = 1; i < expected_len; ++i ) {
-              if ( ( utf_bytes[i] & 0xC0 ) != 0x80 )
+              if ( ( raw_u8_str[i] & 0xC0 ) != 0x80 )
                 PGBAR__UNLIKELY throw exception::InvalidArgument( "pgbar: invalid UTF-8 continuation byte" );
             }
 
             types::CodePoint ret, overlong;
             switch ( expected_len ) {
             case 2:
-              ret      = ( ( first_byte & 0x1F ) << 6 ) | ( utf_bytes[1] & 0x3F );
+              ret      = ( ( first_byte & 0x1F ) << 6 ) | ( raw_u8_str[1] & 0x3F );
               overlong = 0x80;
               break;
             case 3:
               ret =
-                ( ( first_byte & 0xF ) << 12 ) | ( ( utf_bytes[1] & 0x3F ) << 6 ) | ( utf_bytes[2] & 0x3F );
+                ( ( first_byte & 0xF ) << 12 ) | ( ( raw_u8_str[1] & 0x3F ) << 6 ) | ( raw_u8_str[2] & 0x3F );
               overlong = 0x800;
               break;
             case 4:
-              ret = ( ( first_byte & 0x7 ) << 18 ) | ( ( utf_bytes[1] & 0x3F ) << 12 )
-                  | ( ( utf_bytes[2] & 0x3F ) << 6 ) | ( utf_bytes[3] & 0x3F );
+              ret = ( ( first_byte & 0x7 ) << 18 ) | ( ( raw_u8_str[1] & 0x3F ) << 12 )
+                  | ( ( raw_u8_str[2] & 0x3F ) << 6 ) | ( raw_u8_str[3] & 0x3F );
               overlong = 0x10000;
               break;
             default: utils::unreachable();

@@ -134,7 +134,9 @@ namespace pgbar {
           {
             from_hex( hex_val );
           }
-          PGBAR__CXX23_CNSTXPR RGBColor( Color enum_val ) noexcept : RGBColor( utils::as_val( enum_val ) ) {}
+          PGBAR__CXX23_CNSTXPR RGBColor( Color enum_val ) noexcept
+            : RGBColor( utils::to_underlying( enum_val ) )
+          {}
           PGBAR__CXX23_CNSTXPR RGBColor( types::ROStr hex_str ) : RGBColor()
           {
             from_str( hex_str.data(), hex_str.size() );
@@ -155,7 +157,7 @@ namespace pgbar {
           }
           PGBAR__CXX23_CNSTXPR RGBColor& operator=( Color enum_val ) & noexcept
           {
-            from_hex( utils::as_val( enum_val ) );
+            from_hex( utils::to_underlying( enum_val ) );
             return *this;
           }
           PGBAR__CXX23_CNSTXPR RGBColor& operator=( types::ROStr hex_str ) &

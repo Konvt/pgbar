@@ -32,18 +32,18 @@ namespace pgbar {
           this->try_reset( buffer );
           if ( this->visual_masks_.any() )
             this->try_style( buffer, this->info_col_ );
-          if ( this->visual_masks_[utils::as_val( Config::Mask::Per )] ) {
+          if ( this->visual_masks_[utils::to_underlying( Config::Mask::Per )] ) {
             this->build_percent( buffer, num_percent );
             auto masks = this->visual_masks_;
-            if ( masks.reset( utils::as_val( Config::Mask::Per ) ).any() )
+            if ( masks.reset( utils::to_underlying( Config::Mask::Per ) ).any() )
               buffer << this->divider_;
           }
-          if ( this->visual_masks_[utils::as_val( Config::Mask::Ani )] ) {
+          if ( this->visual_masks_[utils::to_underlying( Config::Mask::Ani )] ) {
             static_cast<const Impl*>( this )->build_animation( buffer, std::forward<Args>( args )... );
             this->try_reset( buffer );
             auto masks = this->visual_masks_;
-            if ( masks.reset( utils::as_val( Config::Mask::Ani ) )
-                   .reset( utils::as_val( Config::Mask::Per ) )
+            if ( masks.reset( utils::to_underlying( Config::Mask::Ani ) )
+                   .reset( utils::to_underlying( Config::Mask::Per ) )
                    .any() ) {
               this->try_style( buffer, this->info_col_ );
               buffer << this->divider_;

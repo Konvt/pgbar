@@ -124,7 +124,7 @@ namespace pgbar {
         }
       };
 
-#if PGBAR__CXX17
+#ifdef __cpp_deduction_guides
       template<typename T>
       MovableRef( T& ) -> MovableRef<T>;
 #endif

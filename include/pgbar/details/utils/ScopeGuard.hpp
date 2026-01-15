@@ -8,47 +8,49 @@
 namespace pgbar {
   namespace _details {
     namespace utils {
-      template<typename Fn, typename = void>
+      template<typename EF, typename = void>
       class ScpStore { // scope, not that "scp"
-        Fn callback_;
+        EF callback_;
 
       protected:
-        template<typename F>
-        constexpr ScpStore( std::true_type, F&& fn ) noexcept : callback_ { std::forward<F>( fn ) }
+        template<typename Fn>
+        constexpr ScpStore( std::true_type, Fn&& fn ) noexcept : callback_ { std::forward<Fn>( fn ) }
         {}
-        template<typename F>
-        constexpr ScpStore( std::false_type, F&& fn ) noexcept( std::is_nothrow_constructible<Fn, F&>::value )
+        template<typename Fn>
+        constexpr ScpStore( std::false_type, Fn&& fn )
+          noexcept( std::is_nothrow_constructible<EF, Fn&>::value )
           : callback_ { fn }
         {}
 
-        PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR Fn& callback() noexcept { return callback_; }
+        PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR EF& callback() noexcept { return callback_; }
       };
-      template<typename Fn>
-      class ScpStore<Fn,
+      template<typename EF>
+      class ScpStore<EF,
                      typename std::enable_if<
-                       traits::AllOf<std::is_empty<Fn>, traits::Not<traits::is_final<Fn>>>::value>::type>
-        : private Fn {
+                       traits::AllOf<std::is_empty<EF>, traits::Not<traits::is_final<EF>>>::value>::type>
+        : private EF {
       protected:
-        template<typename F>
-        constexpr ScpStore( std::true_type, F&& fn ) noexcept : Fn( std::forward<F>( fn ) )
+        template<typename Fn>
+        constexpr ScpStore( std::true_type, Fn&& fn ) noexcept : EF( std::forward<Fn>( fn ) )
         {}
-        template<typename F>
-        constexpr ScpStore( std::false_type, F&& fn ) noexcept( std::is_nothrow_constructible<Fn, F&>::value )
-          : Fn( fn )
+        template<typename Fn>
+        constexpr ScpStore( std::false_type, Fn&& fn )
+          noexcept( std::is_nothrow_constructible<EF, Fn&>::value )
+          : EF( fn )
         {}
 
-        PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR Fn& callback() noexcept { return static_cast<Fn&>( *this ); }
+        PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR EF& callback() noexcept { return static_cast<EF&>( *this ); }
       };
 
-      template<typename Fn>
+      template<typename EF>
       class
 #if PGBAR__CXX17
         PGBAR__NODISCARD
 #endif
-          ScopeFail : private ScpStore<Fn> {
-        static_assert( traits::is_invocable<typename std::remove_reference<Fn>::type&>::value,
+          ScopeFail : private ScpStore<EF> {
+        static_assert( traits::is_invocable<typename std::remove_reference<EF>::type&>::value,
                        "pgbar::_details::utils::ScopeFail: Invalid callback type" );
-        using Base = ScpStore<Fn>;
+        using Base = ScpStore<EF>;
 
         int exceptions_on_entry_;
 
@@ -57,54 +59,33 @@ namespace pgbar {
         ScopeFail& operator=( ScopeFail&& )      = delete;
         ScopeFail& operator=( const ScopeFail& ) = delete;
 
-        template<
-          typename F,
-          typename std::enable_if<
-            traits::AllOf<
-              traits::Not<std::is_same<typename std::remove_cv<typename std::remove_reference<F>::type>::type,
-                                       ScopeFail>>,
-              std::is_constructible<Fn, F>,
-              traits::Not<std::is_lvalue_reference<F>>,
-              std::is_nothrow_constructible<Fn, F>>::value,
-            bool>::type = 0>
-        explicit ScopeFail( F&& fn ) noexcept
-          : Base( std::true_type(), std::forward<F>( fn ) ), exceptions_on_entry_ { uncaught_exceptions() }
-        {}
-        template<
-          typename F,
-          typename std::enable_if<
-            traits::AllOf<
-              traits::Not<std::is_same<typename std::remove_cv<typename std::remove_reference<F>::type>::type,
-                                       ScopeFail>>,
-              std::is_constructible<Fn, F>,
-              traits::AnyOf<std::is_lvalue_reference<F>,
-                            traits::Not<std::is_nothrow_constructible<Fn, F>>>>::value,
-            bool>::type = 0>
-        explicit ScopeFail( F&& fn ) noexcept( std::is_nothrow_constructible<Fn, F&>::value )
+        template<typename Fn,
+                 typename = typename std::enable_if<
+                   traits::AllOf<traits::Not<std::is_same<typename std::decay<Fn>::type, ScopeFail>>,
+                                 std::is_constructible<EF, Fn>>::value>::type>
+        explicit ScopeFail( Fn&& fn ) noexcept( traits::AnyOf<std::is_nothrow_constructible<EF, Fn>,
+                                                              std::is_nothrow_constructible<EF, Fn&>>::value )
         try
-          : Base( std::false_type(), std::forward<F>( fn ) ), exceptions_on_entry_ { uncaught_exceptions() } {
+          : Base( traits::AllOf<traits::Not<std::is_lvalue_reference<Fn>>,
+                                std::is_nothrow_constructible<EF, Fn>>(),
+                  std::forward<Fn>( fn ) )
+          , exceptions_on_entry_ { uncaught_exceptions() } {
         } catch ( ... ) {
           (void)fn();
           // it would be a bit contradictory to rethrow an exception here...
           // at least the gnu experimental/scope doesn't do that.
         }
-        template<typename F,
-                 typename std::enable_if<
-                   traits::AllOf<std::is_same<F, Fn>, std::is_nothrow_move_constructible<Fn>>::value,
-                   bool>::type = 0>
-        ScopeFail( ScopeFail<F>&& rhs ) noexcept
-          : Base( std::true_type(), std::forward<F>( rhs.callback() ) )
-          , exceptions_on_entry_ { uncaught_exceptions() }
-        {}
-        template<typename F,
-                 typename std::enable_if<traits::AllOf<std::is_same<F, Fn>,
-                                                       traits::Not<std::is_nothrow_move_constructible<Fn>>,
-                                                       std::is_copy_constructible<Fn>>::value,
-                                         bool>::type = 0>
-        ScopeFail( ScopeFail<F>&& rhs ) noexcept( std::is_nothrow_copy_constructible<Fn>::value )
-          : Base( std::false_type(), std::forward<F>( rhs.callback() ) )
-          , exceptions_on_entry_ { uncaught_exceptions() }
-        {}
+        template<
+          typename Fn = EF,
+          typename    = typename std::enable_if<traits::AnyOf<std::is_nothrow_move_constructible<Fn>,
+                                                              std::is_copy_constructible<Fn>>::value>::type>
+        ScopeFail( ScopeFail&& rhs ) noexcept( traits::AnyOf<std::is_nothrow_move_constructible<EF>,
+                                                             std::is_nothrow_copy_constructible<EF>>::value )
+          : Base( std::is_nothrow_move_constructible<EF>(), std::forward<EF>( rhs.callback() ) )
+          , exceptions_on_entry_ { rhs.exceptions_on_entry_ }
+        {
+          rhs.release();
+        }
         ~ScopeFail() noexcept
         {
           if ( exceptions_on_entry_ < uncaught_exceptions() ) {
@@ -115,11 +96,11 @@ namespace pgbar {
 
         PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR void release() noexcept
         {
-          exceptions_on_entry_ = ( std::numeric_limits<int>::max )();
+          exceptions_on_entry_ = std::numeric_limits<int>::max();
         }
       };
 
-#if PGBAR__CXX17
+#ifdef __cpp_deduction_guides
       template<typename F>
       ScopeFail( F fn ) -> ScopeFail<F>;
 #endif

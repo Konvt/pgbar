@@ -49,7 +49,7 @@ namespace pgbar {
                   .append( ' ', len_right_fill % this->filler_.width() )
                   .append( this->filler_, len_right_fill / this->filler_.width() );
               } else {
-#if PGBAR__CXX17
+#ifdef __cpp_structured_bindings
                 const auto& [left_part, right_part] = current_lead.split_by( len_vacancy );
 #else
                 const auto _division  = current_lead.split_by( len_vacancy );
@@ -146,8 +146,9 @@ namespace pgbar {
       PGBAR__NODISCARD PGBAR__FORCEINLINE _details::types::Size fixed_render_size() const noexcept
       {
         return this->common_render_size()
-             + ( this->visual_masks_[_details::utils::as_val( Base::Mask::Ani )] ? this->fixed_len_bar()
-                                                                                 : 0 );
+             + ( this->visual_masks_[_details::utils::to_underlying( Base::Mask::Ani )]
+                   ? this->fixed_len_bar()
+                   : 0 );
       }
 
     public:

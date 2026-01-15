@@ -49,17 +49,6 @@ namespace pgbar {
       using MakeIndexSeq = typename _make_index_seq_helper<N>::type;
 #endif
 
-#if PGBAR__CXX14
-      template<typename T>
-      using is_final = std::is_final<T>;
-#elif defined( __GNUC__ ) || defined( __clang__ ) || defined( _MSC_VER )
-      template<typename T>
-      using is_final = std::integral_constant<bool, __is_final( T )>;
-#else
-      template<typename T>
-      using is_final = std::integral_constant<bool, true>;
-#endif
-
 #ifdef __cpp_lib_bool_constant
       template<bool B>
       using BoolConstant = std::bool_constant<B>;
@@ -68,7 +57,17 @@ namespace pgbar {
       using BoolConstant = std::integral_constant<bool, B>;
 #endif
 
-#if PGBAR__CXX17
+#if PGBAR__CXX14
+      using std::is_final;
+#elif defined( __GNUC__ ) || defined( __clang__ ) || defined( _MSC_VER )
+      template<typename T>
+      using is_final = BoolConstant<__is_final( T )>;
+#else
+      template<typename T>
+      using is_final = BoolConstant<true>;
+#endif
+
+#ifdef __cpp_lib_logical_traits
       template<typename... Preds>
       using AllOf = std::conjunction<Preds...>;
 
@@ -78,44 +77,34 @@ namespace pgbar {
       template<typename Pred>
       using Not = std::negation<Pred>;
 #else
-      template<typename... Preds>
-      struct AllOf : std::true_type {};
-      template<typename Pred>
-      struct AllOf<Pred> : Pred {};
-      template<typename Pred, typename... Preds>
-      struct AllOf<Pred, Preds...> {
-      private:
-        template<bool Cond, typename... Ps>
-        struct _Select;
-        template<typename... Ps>
-        struct _Select<true, Ps...> : AllOf<Ps...> {};
-        template<typename... Ps>
-        struct _Select<false, Ps...> : std::false_type {};
-
-      public:
-        static constexpr bool value = _Select<bool( Pred::value ), Preds...>::value;
+      template<typename, typename Pred, typename... Preds>
+      struct _allof {
+        using type = Pred;
       };
+      template<typename Pred1, typename Pred2, typename... Preds>
+      struct _allof<typename std::enable_if<bool( Pred1::value )>::type, Pred1, Pred2, Preds...>
+        : _allof<void, Pred2, Preds...> {};
 
       template<typename... Preds>
-      struct AnyOf : std::false_type {};
-      template<typename Pred>
-      struct AnyOf<Pred> : Pred {};
-      template<typename Pred, typename... Preds>
-      struct AnyOf<Pred, Preds...> {
-      private:
-        template<bool Cond, typename... Ps>
-        struct _Select;
-        template<typename... Ps>
-        struct _Select<true, Ps...> : std::true_type {};
-        template<typename... Ps>
-        struct _Select<false, Ps...> : AnyOf<Ps...> {};
+      struct AllOf : _allof<void, Preds...>::type {};
+      template<>
+      struct AllOf<> : std::true_type {};
 
-      public:
-        static constexpr bool value = _Select<bool( Pred::value ), Preds...>::value;
+      template<typename, typename Pred, typename... Preds>
+      struct _anyof {
+        using type = Pred;
       };
+      template<typename Pred1, typename Pred2, typename... Preds>
+      struct _anyof<typename std::enable_if<!bool( Pred1::value )>::type, Pred1, Pred2, Preds...>
+        : _anyof<void, Pred2, Preds...> {};
+
+      template<typename... Preds>
+      struct AnyOf : _anyof<void, Preds...>::type {};
+      template<>
+      struct AnyOf<> : std::false_type {};
 
       template<typename Pred>
-      struct Not : BoolConstant<!bool( Pred::value )> {};
+      using Not = BoolConstant<!bool( Pred::value )>;
 #endif
     } // namespace traits
   } // namespace _details
