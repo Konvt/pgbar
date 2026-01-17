@@ -78,28 +78,26 @@ namespace pgbar {
       using Not = std::negation<Pred>;
 #else
       template<typename, typename Pred, typename... Preds>
-      struct _allof {
+      struct _impl_allof {
         using type = Pred;
       };
       template<typename Pred1, typename Pred2, typename... Preds>
-      struct _allof<typename std::enable_if<bool( Pred1::value )>::type, Pred1, Pred2, Preds...>
-        : _allof<void, Pred2, Preds...> {};
-
+      struct _impl_allof<typename std::enable_if<bool( Pred1::value )>::type, Pred1, Pred2, Preds...>
+        : _impl_allof<void, Pred2, Preds...> {};
       template<typename... Preds>
-      struct AllOf : _allof<void, Preds...>::type {};
+      struct AllOf : _impl_allof<void, Preds...>::type {};
       template<>
       struct AllOf<> : std::true_type {};
 
       template<typename, typename Pred, typename... Preds>
-      struct _anyof {
+      struct _impl_anyof {
         using type = Pred;
       };
       template<typename Pred1, typename Pred2, typename... Preds>
-      struct _anyof<typename std::enable_if<!bool( Pred1::value )>::type, Pred1, Pred2, Preds...>
-        : _anyof<void, Pred2, Preds...> {};
-
+      struct _impl_anyof<typename std::enable_if<!bool( Pred1::value )>::type, Pred1, Pred2, Preds...>
+        : _impl_anyof<void, Pred2, Preds...> {};
       template<typename... Preds>
-      struct AnyOf : _anyof<void, Preds...>::type {};
+      struct AnyOf : _impl_anyof<void, Preds...>::type {};
       template<>
       struct AnyOf<> : std::false_type {};
 

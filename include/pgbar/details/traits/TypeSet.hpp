@@ -21,18 +21,18 @@ namespace pgbar {
       struct TpAppend<TypeSet<Es...>, T> {
       private:
         template<bool Cond, typename NewOne>
-        struct _Select;
+        struct _select;
         template<typename NewOne>
-        struct _Select<true, NewOne> {
+        struct _select<true, NewOne> {
           using type = TypeSet<Es...>;
         };
         template<typename NewOne>
-        struct _Select<false, NewOne> {
+        struct _select<false, NewOne> {
           using type = TypeSet<Es..., NewOne>;
         };
 
       public:
-        using type = typename _Select<TpContain<TypeSet<Es...>, T>::value, T>::type;
+        using type = typename _select<TpContain<TypeSet<Es...>, T>::value, T>::type;
       };
 
       template<typename Element>
@@ -77,20 +77,15 @@ namespace pgbar {
       struct Combine<TypeSet<Es...>, Collection<T, Ts...>>
         : Combine<TpAppend_t<TypeSet<Es...>, T>, Collection<Ts...>> {};
 
+      template<typename Visited, typename List>
+      struct _impl_distinct;
+      template<typename Visited>
+      struct _impl_distinct<Visited, TypeList<>> : std::true_type {};
+      template<typename Visited, typename U, typename... Us>
+      struct _impl_distinct<Visited, TypeList<U, Us...>>
+        : AllOf<Not<TpContain<Visited, U>>, _impl_distinct<TpAppend_t<Visited, U>, TypeList<Us...>>> {};
       template<typename... Elements>
-      struct Distinct<TypeList<Elements...>> {
-      private:
-        template<typename Visited, typename List>
-        struct Helper;
-        template<typename Visited>
-        struct Helper<Visited, TypeList<>> : std::true_type {};
-        template<typename Visited, typename U, typename... Us>
-        struct Helper<Visited, TypeList<U, Us...>>
-          : AllOf<Not<TpContain<Visited, U>>, Helper<TpAppend_t<Visited, U>, TypeList<Us...>>> {};
-
-      public:
-        static constexpr bool value = Helper<TypeSet<>, TypeList<Elements...>>::value;
-      };
+      struct Distinct<TypeList<Elements...>> : _impl_distinct<TypeSet<>, TypeList<Elements...>> {};
     } // namespace traits
   } // namespace _details
 } // namespace pgbar

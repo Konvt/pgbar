@@ -59,17 +59,17 @@ namespace pgbar {
       struct TpFill {
       private:
         template<bool Cond, typename List>
-        struct _Select;
+        struct _select;
         template<typename List>
-        struct _Select<false, List> : TpAppend<List, Element> {};
+        struct _select<false, List> : TpAppend<List, Element> {};
         template<typename List>
-        struct _Select<true, List> {
+        struct _select<true, List> {
           using type = List;
         };
         using Half_t = typename TpFill<Element, N / 2>::type;
 
       public:
-        using type = typename _Select<( N % 2 == 0 ), Combine_t<Half_t, Half_t>>::type;
+        using type = typename _select<( N % 2 == 0 ), Combine_t<Half_t, Half_t>>::type;
       };
       template<typename Element>
       struct TpFill<Element, 0> {

@@ -15,6 +15,11 @@
 #ifdef __cpp_lib_ranges
 # include <ranges>
 #endif
+#if !defined( __cpp_lib_forward_like )                                              \
+  || ( defined( __clang__ ) && !defined( _LIBCPP_VERSION ) && __clang_major__ >= 19 \
+       && __clang_major__ <= 20 )
+# include "../traits/Util.hpp"
+#endif
 
 namespace pgbar {
   namespace _details {
@@ -24,8 +29,8 @@ namespace pgbar {
       using std::make_unique;
 #else
       template<typename T, typename... Args>
-      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX23_CNSTXPR std::unique_ptr<T> make_unique(
-        Args&&... args )
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX23_CNSTXPR
+        std::unique_ptr<T> make_unique( Args&&... args )
       {
         return std::unique_ptr<T>( ::new T( std::forward<Args>( args )... ) );
       }
@@ -113,6 +118,7 @@ namespace pgbar {
 #  pragma clang diagnostic push
 #  pragma clang diagnostic ignored "-Wambiguous-ellipsis"
 # endif
+      // see https://github.com/Konvt/pgbar/issues/8#issuecomment-3723488239
 # if !defined( _MSC_VER ) || defined( _MSVC_PERMISSIVE )
 #  define PGBAR__METHOD( Variadic, Noexcept )           \
     template<typename To, typename R, typename... Args> \
@@ -291,8 +297,9 @@ namespace pgbar {
       using std::construct_at;
 #else
       template<typename T, typename... Args>
-      PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR typename std::enable_if<std::is_array<T>::value, T*>::type
-        construct_at( T* location ) noexcept( noexcept( ::new( std::declval<void*>() ) T[1]() ) )
+      PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR
+        typename std::enable_if<std::is_array<T>::value, T*>::type construct_at( T* location )
+          noexcept( noexcept( ::new ( std::declval<void*>() ) T[1]() ) )
       {
         // static_assert( !std::is_unbounded_array_v<T> );
         return ::new ( location ) T[1]();
@@ -300,7 +307,7 @@ namespace pgbar {
       template<typename T, typename... Args>
       PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR typename std::enable_if<!std::is_array<T>::value, T*>::type
         construct_at( T* location, Args&&... args )
-          noexcept( noexcept( ::new( std::declval<void*>() ) T( std::forward<Args>( args )... ) ) )
+          noexcept( noexcept( ::new ( std::declval<void*>() ) T( std::forward<Args>( args )... ) ) )
       {
         return ::new ( location ) T( std::forward<Args>( args )... );
       }
@@ -317,8 +324,8 @@ namespace pgbar {
       using std::to_underlying;
 #else
       template<typename E>
-      PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr typename std::underlying_type<E>::type to_underlying(
-        E enum_val ) noexcept
+      PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr
+        typename std::underlying_type<E>::type to_underlying( E enum_val ) noexcept
       {
         return static_cast<typename std::underlying_type<E>::type>( enum_val );
       }
@@ -330,27 +337,19 @@ namespace pgbar {
       using std::forward_like;
 #else
       template<typename As, typename T>
-      constexpr auto forward_like( T&& param ) noexcept -> typename std::enable_if<
-        std::is_const<typename std::remove_reference<As>::type>::value,
+      constexpr auto forward_like( T&& param ) noexcept ->
         typename std::conditional<std::is_lvalue_reference<As>::value,
-                                  const typename std::remove_reference<T>::type&,
-                                  const typename std::remove_reference<T>::type&&>::type>::type
+                                  traits::CopyConst_t<typename std::remove_reference<As>::type,
+                                                      typename std::remove_reference<T>::type>&,
+                                  traits::CopyConst_t<typename std::remove_reference<As>::type,
+                                                      typename std::remove_reference<T>::type>&&>::type
       {
-        return static_cast<typename std::conditional<std::is_lvalue_reference<As>::value,
-                                                     const typename std::remove_reference<T>::type&,
-                                                     const typename std::remove_reference<T>::type&&>::type>(
-          param );
-      }
-      template<typename As, typename T>
-      constexpr auto forward_like( T&& param ) noexcept -> typename std::enable_if<
-        !std::is_const<typename std::remove_reference<As>::type>::value,
-        typename std::conditional<std::is_lvalue_reference<As>::value,
-                                  typename std::remove_reference<T>::type&,
-                                  typename std::remove_reference<T>::type&&>::type>::type
-      {
-        return static_cast<typename std::conditional<std::is_lvalue_reference<As>::value,
-                                                     typename std::remove_reference<T>::type&,
-                                                     typename std::remove_reference<T>::type&&>::type>(
+        return static_cast<
+          typename std::conditional<std::is_lvalue_reference<As>::value,
+                                    traits::CopyConst_t<typename std::remove_reference<As>::type,
+                                                        typename std::remove_reference<T>::type>&,
+                                    traits::CopyConst_t<typename std::remove_reference<As>::type,
+                                                        typename std::remove_reference<T>::type>&&>::type>(
           param );
       }
 #endif

@@ -33,6 +33,9 @@ namespace pgbar {
       struct PointeeOf<P*> {
         using type = P;
       };
+
+      template<typename Src, typename Dst>
+      using CopyConst_t = typename std::conditional<std::is_const<Src>::value, const Dst, Dst>::type;
     } // namespace traits
   } // namespace _details
 } // namespace pgbar

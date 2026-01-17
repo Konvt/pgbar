@@ -74,94 +74,85 @@ namespace pgbar {
       template<typename T>
       using SentinelOf_t = typename SentinelOf<T>::type;
 
-      template<typename T>
-      struct is_pointer_like {
-      private:
-        template<typename>
-        static constexpr std::false_type check( ... );
-        template<typename U>
-        static constexpr typename std::enable_if<
-          Not<AnyOf<std::is_void<decltype( *std::declval<U&>() )>,
-                    std::is_void<decltype( std::declval<U&>().operator->() )>,
-                    std::is_void<decltype( static_cast<bool>( std::declval<U&>() ) )>>>::value,
-          std::true_type>::type
-          check( int );
-
-      public:
-        static constexpr bool value = AllOf<Not<std::is_reference<T>>, decltype( check<T>( 0 ) )>::value;
-      };
+      template<typename T, typename = void>
+      struct _impl_is_pointer_like : std::false_type {};
       template<typename P>
-      struct is_pointer_like<P*> : std::true_type {};
+      struct _impl_is_pointer_like<P*, void> : std::true_type {};
+      template<typename T>
+      struct _impl_is_pointer_like<
+        T,
+        typename std::enable_if<
+          Not<AnyOf<std::is_reference<T>,
+                    std::is_void<decltype( *std::declval<T&>() )>,
+                    std::is_void<decltype( std::declval<T&>().operator->() )>,
+                    std::is_void<decltype( static_cast<bool>( std::declval<T&>() ) )>>>::value>::type>
+        : std::true_type {};
+      template<typename T>
+      using is_pointer_like = _impl_is_pointer_like<T>;
 
       // Check whether the type Instance is an instantiated version of Tmp or whether it inherits from Tmp
       // itself.
       template<typename Instance, template<typename...> class Tmp>
-      struct is_instance_of {
+      struct _impl_is_instance_of {
       private:
         template<typename... Args>
         static constexpr std::true_type check( const Tmp<Args...>& );
         static constexpr std::false_type check( ... );
 
       public:
-        static constexpr bool value =
-          AllOf<Not<std::is_reference<Instance>>,
-                decltype( check( std::declval<typename std::remove_cv<Instance>::type>() ) )>::value;
+        using result = AllOf<Not<std::is_reference<Instance>>,
+                             decltype( check( std::declval<typename std::remove_cv<Instance>::type>() ) )>;
       };
+      template<typename Instance, template<typename...> class Tmp>
+      using is_instance_of = typename _impl_is_instance_of<Instance, Tmp>::result;
 
 #ifdef __cpp_lib_concepts
       template<typename Itr, typename Snt = Itr>
-      struct is_sized_cursor
-        : BoolConstant<std::movable<Itr> && std::weakly_incrementable<Itr> && std::indirectly_readable<Itr>
-                       && std::sized_sentinel_for<Snt, Itr>> {};
+      using is_sized_cursor =
+        BoolConstant<std::movable<Itr> && std::weakly_incrementable<Itr> && std::indirectly_readable<Itr>
+                     && std::sized_sentinel_for<Snt, Itr>>;
 #else
-      template<typename Itr, typename Snt = Itr>
-      struct is_sized_cursor {
-      private:
-        template<typename, typename>
-        static constexpr std::false_type check( ... );
-        template<typename I, typename S>
-        static constexpr typename std::enable_if<
-          AllOf<std::is_signed<IterDifference_t<I>>,
-                std::is_same<decltype( ++std::declval<I>() ), I&>,
-                std::is_void<decltype( std::declval<I>()++, void() )>,
-                std::is_same<decltype( *std::declval<I>() ), IterReference_t<I>>,
-                std::is_same<decltype( std::distance( std::declval<I>(), std::declval<S>() ) ),
-                             IterDifference_t<I>>,
-                std::is_convertible<decltype( std::declval<I>() != std::declval<S>() ), bool>>::value,
-          std::true_type>::type
-          check( int );
-
-      public:
-        static constexpr bool value = AllOf<Not<std::is_reference<Itr>>,
-                                            Not<std::is_reference<Snt>>,
-                                            std::is_move_constructible<Itr>,
-                                            decltype( check<Itr, Snt>( 0 ) )>::value;
-      };
+      template<typename Itr, typename Snt, typename = void>
+      struct _impl_is_sized_cursor : std::false_type {};
       template<typename P>
-      struct is_sized_cursor<P*, P*> : std::true_type {};
+      struct _impl_is_sized_cursor<P*, P*, void> : std::true_type {};
+      template<typename Itr, typename Snt>
+      struct _impl_is_sized_cursor<
+        Itr,
+        Snt,
+        typename std::enable_if<AllOf<
+          Not<std::is_reference<Itr>>,
+          Not<std::is_reference<Snt>>,
+          std::is_move_constructible<Itr>,
+          std::is_signed<IterDifference_t<Itr>>,
+          std::is_same<decltype( ++std::declval<Itr>() ), Itr&>,
+          std::is_void<decltype( std::declval<Itr>()++, void() )>,
+          std::is_same<decltype( *std::declval<Itr>() ), IterReference_t<Itr>>,
+          std::is_same<decltype( std::distance( std::declval<Itr>(), std::declval<Snt>() ) ),
+                       IterDifference_t<Itr>>,
+          std::is_convertible<decltype( std::declval<Itr>() != std::declval<Snt>() ), bool>>::value>::type>
+        : std::true_type {};
+      template<typename Itr, typename Snt = Itr>
+      using is_sized_cursor = _impl_is_sized_cursor<Itr, Snt>;
 #endif
 
 #ifdef __cpp_lib_ranges
       template<typename T>
-      struct is_bounded_range : BoolConstant<std::ranges::sized_range<T>> {};
+      using is_bounded_range = BoolConstant<std::ranges::sized_range<T>>;
 #else
-      template<typename T>
-      struct is_bounded_range {
-      private:
-        template<typename>
-        static constexpr std::false_type check( ... );
-        template<typename U>
-        static constexpr typename std::enable_if<
-          AllOf<std::is_convertible<decltype( std::declval<U>().begin() != std::declval<U>().end() ), bool>,
-                Not<std::is_void<decltype( std::declval<U>().size() )>>>::value,
-          std::true_type>::type
-          check( int );
-
-      public:
-        static constexpr bool value = AllOf<Not<std::is_reference<T>>, decltype( check<T>( 0 ) )>::value;
-      };
+      template<typename T, typename = void>
+      struct _impl_is_bounded_range : std::false_type {};
       template<typename T, types::Size N>
-      struct is_bounded_range<T[N]> : std::true_type {};
+      struct _impl_is_bounded_range<T[N], void> : std::true_type {};
+      template<typename T>
+      struct _impl_is_bounded_range<
+        T,
+        typename std::enable_if<
+          AllOf<Not<std::is_reference<T>>,
+                std::is_convertible<decltype( std::declval<T>().begin() != std::declval<T>().end() ), bool>,
+                Not<std::is_void<decltype( std::declval<T>().size() )>>>::value>::type> : std::true_type {};
+      template<typename T>
+      using is_bounded_range = _impl_is_bounded_range<T>;
 #endif
     } // namespace traits
   } // namespace _details

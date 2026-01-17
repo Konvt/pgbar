@@ -94,14 +94,14 @@ namespace pgbar {
           struct Helper;
 
           template<bool Cond, types::Size Pos>
-          struct _Select;
+          struct _select;
           template<types::Size Pos>
-          struct _Select<true, Pos> : std::integral_constant<types::Size, Pos> {};
+          struct _select<true, Pos> : std::integral_constant<types::Size, Pos> {};
           template<types::Size Pos>
-          struct _Select<false, Pos> : Helper<Pos + 1> {};
+          struct _select<false, Pos> : Helper<Pos + 1> {};
 
           template<types::Size I>
-          struct Helper : _Select<FeasibleList<TypeAt_t<I, MergedLists...>, MergedLists...>::value, I> {};
+          struct Helper : _select<FeasibleList<TypeAt_t<I, MergedLists...>, MergedLists...>::value, I> {};
 
         public:
           static constexpr types::Size value = Helper<0>::value;

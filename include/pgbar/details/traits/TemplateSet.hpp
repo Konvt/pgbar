@@ -17,36 +17,36 @@ namespace pgbar {
       struct TmpAppend<TemplateSet<Es...>, T> {
       private:
         template<bool Cond, template<typename...> class NewOne>
-        struct _Select;
+        struct _select;
         template<template<typename...> class NewOne>
-        struct _Select<true, NewOne> {
+        struct _select<true, NewOne> {
           using type = TemplateSet<Es...>;
         };
         template<template<typename...> class NewOne>
-        struct _Select<false, NewOne> {
+        struct _select<false, NewOne> {
           using type = TemplateSet<Es..., NewOne>;
         };
 
       public:
-        using type = typename _Select<TmpContain<TemplateSet<Es...>, T>::value, T>::type;
+        using type = typename _select<TmpContain<TemplateSet<Es...>, T>::value, T>::type;
       };
 
       template<template<typename...> class... Es, template<typename...> class T>
       struct TmpPrepend<TemplateSet<Es...>, T> {
       private:
         template<bool Cond, template<typename...> class NewOne>
-        struct _Select;
+        struct _select;
         template<template<typename...> class NewOne>
-        struct _Select<true, NewOne> {
+        struct _select<true, NewOne> {
           using type = TemplateSet<Es...>;
         };
         template<template<typename...> class NewOne>
-        struct _Select<false, NewOne> {
+        struct _select<false, NewOne> {
           using type = TemplateSet<NewOne, Es...>;
         };
 
       public:
-        using type = typename _Select<TmpContain<TemplateSet<Es...>, T>::value, T>::type;
+        using type = typename _select<TmpContain<TemplateSet<Es...>, T>::value, T>::type;
       };
     } // namespace traits
   } // namespace _details

@@ -33,16 +33,16 @@ namespace pgbar {
     public:
       class iterator {
         N itr_start_, itr_step_;
-        _details::types::Size itr_cnt_;
+        std::uint64_t itr_cnt_;
 
       public:
         using iterator_category = std::random_access_iterator_tag;
         using value_type        = N;
-        using difference_type   = std::ptrdiff_t;
+        using difference_type   = decltype( std::declval<value_type>() - std::declval<value_type>() );
         using pointer           = value_type*;
         using reference         = value_type;
 
-        constexpr iterator( N startpoint, N step, _details::types::Size iterated = 0 ) noexcept
+        constexpr iterator( N startpoint, N step, std::uint64_t iterated = 0 ) noexcept
           : itr_start_ { startpoint }, itr_step_ { step }, itr_cnt_ { iterated }
         {}
         constexpr iterator() noexcept : iterator( {}, 1, {} ) {}
@@ -74,104 +74,100 @@ namespace pgbar {
         }
         PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr reference operator*() const noexcept
         {
-          return static_cast<reference>( itr_start_
-                                         + itr_cnt_ * static_cast<_details::types::Size>( itr_step_ ) );
+          return static_cast<reference>( itr_start_ + itr_cnt_ * static_cast<std::uint64_t>( itr_step_ ) );
         }
         PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr reference operator[](
-          _details::types::Size inc ) const noexcept
+          difference_type inc ) const noexcept
         {
-          return *( *this + inc );
+          return static_cast<reference>( itr_start_ + itr_step_ * ( itr_cnt_ + inc ) );
         }
 
-        friend PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR iterator operator+( const iterator& itr,
+        friend PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR iterator operator+( iterator itr,
                                                                            value_type increment ) noexcept
         {
           return { itr.itr_start_,
                    itr.itr_step_,
-                   itr.itr_cnt_ + static_cast<_details::types::Size>( increment / itr.itr_step_ ) };
+                   itr.itr_cnt_ + static_cast<std::uint64_t>( increment / itr.itr_step_ ) };
         }
         friend PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR iterator operator+( value_type increment,
-                                                                           const iterator& itr ) noexcept
+                                                                           iterator itr ) noexcept
         {
           return itr + increment;
         }
-        friend PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR iterator operator-( const iterator& itr,
+        friend PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR iterator operator-( iterator itr,
                                                                            value_type increment ) noexcept
         {
           return { itr.itr_start_,
                    itr.itr_step_,
-                   itr.itr_cnt_ - static_cast<_details::types::Size>( increment / itr.itr_step_ ) };
+                   itr.itr_cnt_ - static_cast<std::uint64_t>( increment / itr.itr_step_ ) };
         }
         friend PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR iterator operator-( value_type increment,
-                                                                           const iterator& itr ) noexcept
+                                                                           iterator itr ) noexcept
         {
-          return itr - increment;
+          return itr + ( -increment );
         }
-        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr difference_type operator-(
-          const iterator& a,
-          const iterator& b ) noexcept
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr difference_type operator-( iterator a,
+                                                                                        iterator b ) noexcept
         {
           return static_cast<difference_type>( *a - *b );
         }
         friend PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR iterator& operator+=( iterator& itr,
                                                                              value_type increment ) noexcept
         {
-          itr.itr_cnt_ += static_cast<_details::types::Size>( increment / itr.itr_step_ );
+          itr.itr_cnt_ += static_cast<std::uint64_t>( increment / itr.itr_step_ );
           return itr;
         }
         friend PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR iterator& operator-=( iterator& itr,
                                                                              value_type increment ) noexcept
         {
-          itr.itr_cnt_ -= static_cast<_details::types::Size>( increment / itr.itr_step_ );
+          itr.itr_cnt_ -= static_cast<std::uint64_t>( increment / itr.itr_step_ );
           return itr;
         }
-        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator==( const iterator& itr,
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator==( iterator itr,
                                                                               value_type num ) noexcept
         {
           return *itr == num;
         }
-        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator!=( const iterator& itr,
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator!=( iterator itr,
                                                                               value_type num ) noexcept
         {
           return !( itr == num );
         }
-        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator==( const iterator& a,
-                                                                              const iterator& b ) noexcept
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator==( iterator a,
+                                                                              iterator b ) noexcept
         {
           return a.itr_start_ == b.itr_start_ && a.itr_step_ == b.itr_step_ && a.itr_cnt_ == b.itr_cnt_;
         }
 #ifdef __cpp_lib_three_way_comparison
         PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr std::partial_ordering operator<=>(
-          const iterator& a,
-          const iterator& b ) noexcept
+          iterator a,
+          iterator b ) noexcept
         {
           if ( a.itr_start_ != b.itr_start_ || a.itr_step_ != b.itr_step_ )
             return std::partial_ordering::unordered;
           return static_cast<std::partial_ordering>( a.itr_cnt_ <=> b.itr_cnt_ );
         }
 #else
-        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator!=( const iterator& a,
-                                                                              const iterator& b ) noexcept
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator!=( iterator a,
+                                                                              iterator b ) noexcept
         {
           return !( a == b );
         }
-        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator<( const iterator& a,
-                                                                             const iterator& b ) noexcept
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator<( iterator a, iterator b ) noexcept
         {
           return a.itr_start_ == b.itr_start_ && a.itr_step_ == b.itr_step_ && a.itr_cnt_ < b.itr_cnt_;
         }
-        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator>( const iterator& a,
-                                                                             const iterator& b ) noexcept
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator>( iterator a, iterator b ) noexcept
         {
           return b < a;
         }
-        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator<=( const iterator& a,
-                                                                              const iterator& b ) noexcept
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator<=( iterator a,
+                                                                              iterator b ) noexcept
         {
           return !( b < a );
         }
-        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator>=( const iterator& a,
-                                                                              const iterator& b ) noexcept
+        PGBAR__NODISCARD friend PGBAR__FORCEINLINE constexpr bool operator>=( iterator a,
+                                                                              iterator b ) noexcept
         {
           return !( a < b );
         }
@@ -229,7 +225,7 @@ namespace pgbar {
       PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr N front() const noexcept { return start_; }
       PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr N back() const noexcept { return end_; }
       PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr N step() const noexcept { return step_; }
-      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX23_CNSTXPR _details::types::Size size() const noexcept
+      PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX23_CNSTXPR std::uint64_t size() const noexcept
       {
         PGBAR__TRUST( step_ != 0 );
         if PGBAR__CXX17_CNSTXPR ( std::is_unsigned<N>::value )
@@ -240,7 +236,7 @@ namespace pgbar {
           else
             return ( ( start_ - end_ - step_ ) - 1 ) / ( -step_ );
         } else
-          return static_cast<_details::types::Size>( std::ceil( ( end_ - start_ ) / step_ ) );
+          return static_cast<std::uint64_t>( std::ceil( ( end_ - start_ ) / step_ ) );
       }
       PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr bool empty() const noexcept { return size() == 0; }
 
@@ -255,7 +251,7 @@ namespace pgbar {
       friend PGBAR__CXX14_CNSTXPR void swap( NumericSpan<N>& a, NumericSpan<N>& b ) noexcept { a.swap( b ); }
 
       PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr typename iterator::reference operator[](
-        _details::types::Size inc ) const noexcept
+        typename iterator::difference_type inc ) const noexcept
       {
         return *( begin() + inc );
       }
