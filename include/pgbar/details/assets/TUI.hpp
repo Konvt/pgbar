@@ -2,7 +2,6 @@
 #define PGBAR__TUI
 
 #include "../../option/Option.hpp"
-#include "../../slice/NumericSpan.hpp"
 #include "../concurrent/SharedLock.hpp"
 #include "../concurrent/SharedMutex.hpp"
 #include "../io/CharPipeline.hpp"
@@ -122,11 +121,11 @@ namespace pgbar {
         friend PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR void unpack( Countable& cfg,
                                                                     option::Tasks&& val ) noexcept
         {
-          cfg.task_range_ = slice::NumericSpan<std::uint64_t>( val.value() );
+          cfg.task_quota_ =  val.value();
         }
 
       protected:
-        slice::NumericSpan<std::uint64_t> task_range_;
+        std::uint64_t task_quota_;
 
       public:
         constexpr Countable() = default;
@@ -146,12 +145,12 @@ namespace pgbar {
         PGBAR__NODISCARD std::uint64_t tasks() const noexcept
         {
           concurrent::SharedLock<concurrent::SharedMutex> lock { this->rw_mtx_ };
-          return task_range_.back();
+          return task_quota_;
         }
 
         PGBAR__CXX14_CNSTXPR void swap( Countable& other ) noexcept
         {
-          task_range_.swap( other.task_range_ );
+          std::swap( task_quota_, other.task_quota_ );
           Base::swap( other );
         }
       };
@@ -987,7 +986,7 @@ namespace pgbar {
         PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR std::uint32_t fixed_len_counter()
           const noexcept
         {
-          return utils::count_digits( this->task_range_.back() ) * 2 + 1;
+          return utils::count_digits( this->task_quota_ ) * 2 + 1;
         }
 
       public:
