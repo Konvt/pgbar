@@ -1,6 +1,7 @@
 #ifndef PGBAR__TRAITS_UTIL
 #define PGBAR__TRAITS_UTIL
 
+#include "ConceptTraits.hpp"
 #include "TypeList.hpp"
 
 namespace pgbar {
@@ -24,6 +25,7 @@ namespace pgbar {
 
       template<typename T>
       struct PointeeOf {
+        static_assert( is_pointer_like<T>::value, "pgbar::_details::traits::PointeeOf: Invalid type" );
         using type = typename std::remove_reference<decltype( *std::declval<T&>() )>::type;
       };
       template<typename T>
