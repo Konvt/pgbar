@@ -1,40 +1,21 @@
 #ifndef PGBAR_ERROR
 #define PGBAR_ERROR
 
-#include "../details/core/Core.hpp"
+#include "../details/charcodes/CoWString.hpp"
 #include <exception>
-#ifdef __cpp_lib_string_view
-# include <string_view>
-#endif
+#include <system_error>
 
 namespace pgbar {
   namespace exception {
-    /**
-     * The base exception class.
-     *
-     * It should only takes the literal strings, otherwise it isn't well-defined.
-     */
+    // The base exception class.
     class Error : public std::exception {
     protected:
-#if __cpp_lib_string_view
-      std::string_view message_;
-#else
-      const char* message_;
-#endif
+      _details::charcodes::CoWString message_;
 
     public:
-      template<std::size_t N>
-      Error( const char ( &mes )[N] ) noexcept : message_ { mes }
-      {}
+      Error( _details::charcodes::CoWString mes ) noexcept : message_ { std::move( mes ) } {}
       ~Error() override = default;
-      PGBAR__NODISCARD const char* what() const noexcept override
-      {
-#if __cpp_lib_string_view
-        return message_.data();
-#else
-        return message_;
-#endif
-      }
+      PGBAR__NODISCARD const char* what() const noexcept override { return message_.c_str(); }
     };
 
     // Exception for invalid function arguments.
@@ -53,9 +34,16 @@ namespace pgbar {
 
     // Exception for local system error.
     class SystemError : public Error {
+    protected:
+      std::error_code err_;
+
     public:
-      using Error::Error;
+      SystemError( std::error_code err, _details::charcodes::CoWString mes ) noexcept
+        : Error( std::move( mes ) ), err_ { err }
+      {}
       ~SystemError() override = default;
+
+      const std::error_code& code() const noexcept { return err_; }
     };
   } // namespace exception
 } // namespace pgbar

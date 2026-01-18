@@ -104,6 +104,16 @@ namespace pgbar {
       template<typename Pred>
       using Not = BoolConstant<!bool( Pred::value )>;
 #endif
+
+#ifdef __cpp_lib_is_implicit_lifetime
+      using std::is_implicit_lifetime;
+#else
+      // We cannot guarantee that the constraints on implicit lifetime types
+      // in standards prior to C++23 are as lenient.
+      // Therefore, we conservatively chose std::is_trivial.
+      template<typename T>
+      using is_implicit_lifetime = std::is_trivial<T>;
+#endif
     } // namespace traits
   } // namespace _details
 } // namespace pgbar

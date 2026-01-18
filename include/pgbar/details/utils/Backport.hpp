@@ -366,6 +366,22 @@ namespace pgbar {
 # endif
       }
 #endif
+
+#ifdef __cpp_lib_start_lifetime_as
+      using std::start_lifetime_as_array;
+#else
+# define PGBAR__METHOD( Qualifier )                                                                   \
+   template<typename T>                                                                               \
+   PGBAR__FORCEINLINE constexpr T* start_lifetime_as_array( Qualifier void* p, std::size_t ) noexcept \
+   {                                                                                                  \
+     return static_cast<T*>( p );                                                                     \
+   }
+      PGBAR__METHOD()
+      PGBAR__METHOD( const )
+      PGBAR__METHOD( volatile )
+      PGBAR__METHOD( const volatile )
+# undef PGBAR__METHOD
+#endif
     } // namespace utils
 
     namespace traits {

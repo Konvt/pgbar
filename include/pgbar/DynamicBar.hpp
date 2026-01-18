@@ -305,8 +305,16 @@ namespace pgbar {
     if ( count == 0 )
       PGBAR__UNLIKELY return {};
     else if ( count < sizeof...( Objs ) )
-      PGBAR__UNLIKELY throw exception::InvalidArgument(
-        "pgbar: the number of provided objects exceeds the specified count" );
+      PGBAR__UNLIKELY
+      {
+        _details::charcodes::CoWString message =
+          _details::charcodes::make_literal( "pgbar: provided object count (" );
+        message.append( _details::utils::format( sizeof...( Objs ) ) )
+          .append( ") exceeds the specified count (" )
+          .append( _details::utils::format( count ) )
+          .push_back( ')' );
+        throw exception::InvalidArgument( std::move( message ) );
+      }
 
     DynamicBar<Bar::Sink, Bar::Strategy, Bar::Layout> factory;
     std::vector<std::unique_ptr<Bar>> products;
@@ -345,8 +353,16 @@ namespace pgbar {
     if ( count == 0 )
       PGBAR__UNLIKELY return {};
     else if ( count < sizeof...( Configs ) )
-      PGBAR__UNLIKELY throw exception::InvalidArgument(
-        "pgbar: the number of provided configs exceeds the specified count" );
+      PGBAR__UNLIKELY
+      {
+        _details::charcodes::CoWString message =
+          _details::charcodes::make_literal( "pgbar: provided configs count (" );
+        message.append( _details::utils::format( sizeof...( Configs ) ) )
+          .append( ") exceeds the specified count (" )
+          .append( _details::utils::format( count ) )
+          .push_back( ')' );
+        throw exception::InvalidArgument( std::move( message ) );
+      }
 
     DynamicBar<Outlet, Mode, Area> factory;
     std::vector<std::unique_ptr<_details::prefabs::BasicBar<Config, Outlet, Mode, Area>>> products;
@@ -385,8 +401,16 @@ namespace pgbar {
     if ( count == 0 )
       PGBAR__UNLIKELY return {};
     else if ( count < sizeof...( Configs ) )
-      PGBAR__UNLIKELY throw exception::InvalidArgument(
-        "pgbar: the number of provided bars exceeds the specified count" );
+      PGBAR__UNLIKELY
+      {
+        _details::charcodes::CoWString message =
+          _details::charcodes::make_literal( "pgbar: provided bar count (" );
+        message.append( _details::utils::format( sizeof...( Configs ) ) )
+          .append( ") exceeds the specified count (" )
+          .append( _details::utils::format( count ) )
+          .push_back( ')' );
+        throw exception::InvalidArgument( std::move( message ) );
+      }
 
     DynamicBar<Outlet, Mode, Area> factory;
     std::vector<std::unique_ptr<_details::prefabs::BasicBar<Config, Outlet, Mode, Area>>> products;

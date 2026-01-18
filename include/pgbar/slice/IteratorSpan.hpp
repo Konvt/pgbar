@@ -203,7 +203,8 @@ namespace pgbar {
       {
         const auto length = _details::utils::distance( start_, end_ );
         if ( length < 0 )
-          throw exception::InvalidArgument( "pgbar: negative iterator range" );
+          PGBAR__UNLIKELY throw exception::InvalidArgument(
+            _details::charcodes::make_literal( "pgbar: negative iterator range" ) );
         size_ = static_cast<_details::types::Size>( length );
       }
       PGBAR__CXX17_CNSTXPR IteratorSpan( const IteratorSpan& )              = default;

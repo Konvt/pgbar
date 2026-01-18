@@ -200,7 +200,7 @@ namespace pgbar {
                    }
                  } ) )
               PGBAR__UNLIKELY throw exception::InvalidState(
-                "pgbar: another progress bar instance is already running" );
+                charcodes::make_literal( "pgbar: another progress bar instance is already running" ) );
 
             io::OStream<Outlet>::itself() << io::release;
             num_modified_lines_.store( 0, std::memory_order_relaxed );

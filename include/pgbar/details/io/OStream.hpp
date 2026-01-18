@@ -2,6 +2,7 @@
 #define PGBAR__OSTREAM
 
 #include "CharPipeline.hpp"
+#include <cerrno>
 #ifdef __cpp_lib_span
 # include <span>
 #endif
@@ -78,7 +79,9 @@ namespace pgbar {
                 return GetStdHandle( STD_ERROR_HANDLE );
             }();
             if ( ostream == INVALID_HANDLE_VALUE )
-              PGBAR__UNLIKELY throw exception::SystemError( "pgbar: cannot open the standard output stream" );
+              PGBAR__UNLIKELY throw exception::SystemError(
+                std::error_code( errno, std::generic_category() ),
+                charcodes::make_literal( "pgbar: cannot open the standard output stream" ) );
             WriteFile( ostream,
                        bytes.data() + total_written,
                        static_cast<DWORD>( bytes.size() - total_written ),
@@ -95,7 +98,9 @@ namespace pgbar {
             if ( errno == EINTR )
               num_written = ( std::max )( 0, num_written );
             else if ( num_written < 0 )
-              PGBAR__UNLIKELY throw exception::SystemError( "pgbar: write to output stream failed" );
+              PGBAR__UNLIKELY throw exception::SystemError(
+                std::error_code( errno, std::generic_category() ),
+                charcodes::make_literal( "pgbar: write to output stream failed" ) );
             total_written += static_cast<types::Size>( num_written );
           } while ( total_written < bytes.size() );
 #else

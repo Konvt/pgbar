@@ -27,10 +27,11 @@ namespace pgbar {
           const auto first_byte = *raw_u8_str;
           auto validator        = [=]( types::Size expected_len ) -> types::CodePoint {
             if ( expected_len > str_length )
-              PGBAR__UNLIKELY throw exception::InvalidArgument( "pgbar: incomplete UTF-8 sequence" );
+              PGBAR__UNLIKELY throw exception::InvalidArgument( "pgbar: incomplete UTF-8 sequence"_cow );
             for ( types::Size i = 1; i < expected_len; ++i ) {
               if ( ( raw_u8_str[i] & 0xC0 ) != 0x80 )
-                PGBAR__UNLIKELY throw exception::InvalidArgument( "pgbar: invalid UTF-8 continuation byte" );
+                PGBAR__UNLIKELY throw exception::InvalidArgument(
+                  "pgbar: invalid UTF-8 continuation byte"_cow );
             }
 
             types::CodePoint ret, overlong;
@@ -52,7 +53,7 @@ namespace pgbar {
             default: utils::unreachable();
             }
             if ( ret < overlong )
-              PGBAR__UNLIKELY throw exception::InvalidArgument( "pgbar: overlong UTF-8 sequence" );
+              PGBAR__UNLIKELY throw exception::InvalidArgument( "pgbar: overlong UTF-8 sequence"_cow );
             return ret;
           };
 
@@ -63,15 +64,15 @@ namespace pgbar {
           else if ( ( first_byte & 0xF0 ) == 0xE0 ) {
             const auto codepoint = validator( 3 );
             if ( codepoint >= 0xD800 && codepoint <= 0xDFFF )
-              PGBAR__UNLIKELY throw exception::InvalidArgument( "pgbar: UTF-8 surrogate code point" );
+              PGBAR__UNLIKELY throw exception::InvalidArgument( "pgbar: UTF-8 surrogate code point"_cow );
             return { codepoint, 3 };
           } else if ( ( first_byte & 0xF8 ) == 0xF0 ) {
             const auto codepoint = validator( 4 );
             if ( codepoint > 0x10FFFF )
-              PGBAR__UNLIKELY throw exception::InvalidArgument( "pgbar: UTF-8 code point out of range" );
+              PGBAR__UNLIKELY throw exception::InvalidArgument( "pgbar: UTF-8 code point out of range"_cow );
             return { codepoint, 4 };
           } else
-            PGBAR__UNLIKELY throw exception::InvalidArgument( "pgbar: illegal UTF-8 leading byte" );
+            PGBAR__UNLIKELY throw exception::InvalidArgument( "pgbar: illegal UTF-8 leading byte"_cow );
         }
 
       public:

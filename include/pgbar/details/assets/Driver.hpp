@@ -29,7 +29,8 @@ namespace pgbar {
         PGBAR__FORCEINLINE void throw_if_active()
         {
           if ( static_cast<Derived*>( this )->active() )
-            PGBAR__UNLIKELY throw exception::InvalidState( "pgbar: try to iterate using an active object" );
+            PGBAR__UNLIKELY throw exception::InvalidState(
+              charcodes::make_literal( "pgbar: try to iterate using an active object" ) );
         }
 
       protected:
@@ -367,7 +368,7 @@ namespace pgbar {
                  }
                } ) )
             PGBAR__UNLIKELY throw exception::InvalidState(
-              "pgbar: another progress bar instance is already running" );
+              charcodes::make_literal( "pgbar: another progress bar instance is already running" ) );
 
           io::OStream<Outlet>::itself() << io::release; // reset the state.
           auto guard = utils::make_scope_fail( [&executor]() noexcept { executor.dismiss(); } );
@@ -788,7 +789,8 @@ namespace pgbar {
             if ( state_.load( std::memory_order_acquire ) == State::Stop ) {
               this->task_end_ = this->config_.tasks();
               if ( this->task_end_ == 0 )
-                PGBAR__UNLIKELY throw exception::InvalidState( "pgbar: the number of tasks is zero" );
+                PGBAR__UNLIKELY throw exception::InvalidState(
+                  charcodes::make_literal( "pgbar: the number of tasks is zero" ) );
 
               if ( config::auto_style_off() && !config::intty( Outlet ) )
                 this->config_.colored( false ).bolded( false );
@@ -997,7 +999,8 @@ namespace pgbar {
         void warmup() &
         {
           if ( this->task_end_ == 0 )
-            PGBAR__UNLIKELY throw exception::InvalidState( "pgbar: the number of tasks is zero" );
+            PGBAR__UNLIKELY throw exception::InvalidState(
+              charcodes::make_literal( "pgbar: the number of tasks is zero" ) );
         }
 
       public:

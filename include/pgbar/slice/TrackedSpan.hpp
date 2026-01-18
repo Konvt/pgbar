@@ -219,17 +219,13 @@ namespace pgbar {
         _details::traits::AllOf<std::is_nothrow_move_constructible<View>,
                                 std::is_nothrow_move_assignable<View>>::value )
       {
-        auto tmp = std::move( view_ );
-        view_    = std::move( view );
-        return tmp;
+        return _details::utils::exchange( view_, view );
       }
       PGBAR__CXX14_CNSTXPR UIRef replace( UIRef ui ) & noexcept(
         _details::traits::AllOf<std::is_nothrow_move_constructible<UIRef>,
                                 std::is_nothrow_move_assignable<UIRef>>::value )
       {
-        auto tmp = std::move( ui_ );
-        ui_      = std::move( ui );
-        return tmp;
+        return _details::utils::exchange( ui_, ui );
       }
 
       PGBAR__NODISCARD PGBAR__FORCEINLINE PGBAR__CXX17_CNSTXPR bool empty() const noexcept

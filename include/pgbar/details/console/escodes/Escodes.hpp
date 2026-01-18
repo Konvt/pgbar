@@ -92,12 +92,17 @@ namespace pgbar {
           PGBAR__CXX23_CNSTXPR void from_str( const types::Char* hex_str, types::Size length ) &
           {
             if ( ( length != 7 && length != 4 ) || *hex_str != '#' )
-              throw exception::InvalidArgument( "pgbar: invalid hex color format" );
+              throw exception::InvalidArgument(
+                charcodes::make_literal( "pgbar: invalid hex color format" ) );
 
             for ( types::Size i = 1; i < length; i++ ) {
               if ( ( hex_str[i] < '0' || hex_str[i] > '9' ) && ( hex_str[i] < 'A' || hex_str[i] > 'F' )
-                   && ( hex_str[i] < 'a' || hex_str[i] > 'f' ) )
-                throw exception::InvalidArgument( "pgbar: invalid hexadecimal letter" );
+                   && ( hex_str[i] < 'a' || hex_str[i] > 'f' ) ) {
+                charcodes::CoWString message =
+                  charcodes::make_literal( "pgbar: invalid hexadecimal letter (" );
+                message.append( 1, hex_str[i] ).append( 1, ')' );
+                throw exception::InvalidArgument( std::move( message ) );
+              }
             }
 
 #ifndef PGBAR_NOCOLOR
