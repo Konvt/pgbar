@@ -280,7 +280,7 @@ namespace pgbar {
         {
           if ( a.owner_ == b.owner_ )
             return static_cast<difference_type>( a.pos_ ) - static_cast<difference_type>( b.pos_ );
-          return std::numeric_limits<difference_type>::max();
+          return ( std::numeric_limits<difference_type>::max )();
         }
 
         explicit constexpr operator bool() const noexcept { return owner_ != nullptr; }

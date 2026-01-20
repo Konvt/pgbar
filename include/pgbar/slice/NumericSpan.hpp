@@ -107,7 +107,7 @@ namespace pgbar {
                                                                                         iterator b ) noexcept
         {
           return ( a.itr_start_ != b.itr_start_ || a.itr_step_ != b.itr_step_ )
-                 ? std::numeric_limits<difference_type>::max()
+                 ? ( std::numeric_limits<difference_type>::max )()
                  : a.itr_cnt_ - b.itr_cnt_;
         }
         friend PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR iterator& operator+=( iterator& itr,

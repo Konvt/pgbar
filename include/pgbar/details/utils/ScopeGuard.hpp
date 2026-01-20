@@ -47,7 +47,7 @@ namespace pgbar {
 #if PGBAR__CXX17
         PGBAR__NODISCARD
 #endif
-          ScopeFail : private ScpStore<EF> {
+        ScopeFail : private ScpStore<EF> {
         static_assert( traits::is_invocable<typename std::remove_reference<EF>::type&>::value,
                        "pgbar::_details::utils::ScopeFail: Invalid callback type" );
         using Base = ScpStore<EF>;
@@ -96,7 +96,7 @@ namespace pgbar {
 
         PGBAR__FORCEINLINE PGBAR__CXX14_CNSTXPR void release() noexcept
         {
-          exceptions_on_entry_ = std::numeric_limits<int>::max();
+          exceptions_on_entry_ = ( std::numeric_limits<int>::max )();
         }
       };
 
