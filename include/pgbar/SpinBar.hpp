@@ -15,7 +15,7 @@ namespace pgbar {
       protected:
         PGBAR__FORCEINLINE PGBAR__CXX20_CNSTXPR io::CharPipeline& build_spin(
           io::CharPipeline& buffer,
-          std::uint64_t num_frame_cnt ) const
+          std::uint32_t num_frame_cnt ) const
         {
           if ( this->lead_.empty() )
             return buffer;

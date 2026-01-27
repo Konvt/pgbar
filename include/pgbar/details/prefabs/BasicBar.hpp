@@ -3,7 +3,6 @@
 
 #include "../assets/Driver.hpp"
 #include "../traits/C3.hpp"
-#include "../traits/Util.hpp"
 #include <memory>
 
 namespace pgbar {

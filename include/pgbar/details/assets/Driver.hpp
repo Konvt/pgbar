@@ -259,7 +259,7 @@ namespace pgbar {
       template<typename Base, typename Derived>
       class MotionalBar : public Base {
       protected:
-        std::uint64_t idx_frame_;
+        std::uint32_t idx_frame_;
 
       public:
         using Base::Base;

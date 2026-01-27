@@ -2,6 +2,7 @@
 #define PGBAR__UTILS_BACKPORT
 
 #include "../core/Core.hpp"
+#include "../types/Types.hpp"
 #include <exception>
 #include <functional>
 #include <memory>
@@ -284,8 +285,8 @@ namespace pgbar {
       {
         return std::forward<Range>( rn ).size();
       }
-      template<typename Range, std::size_t N>
-      PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr std::size_t size( const Range ( & )[N] ) noexcept
+      template<typename Range, types::Size N>
+      PGBAR__NODISCARD PGBAR__FORCEINLINE constexpr types::Size size( const Range ( & )[N] ) noexcept
       {
         return N;
       }
@@ -372,7 +373,7 @@ namespace pgbar {
 #else
 # define PGBAR__METHOD( Qualifier )                                                                   \
    template<typename T>                                                                               \
-   PGBAR__FORCEINLINE constexpr T* start_lifetime_as_array( Qualifier void* p, std::size_t ) noexcept \
+   PGBAR__FORCEINLINE constexpr T* start_lifetime_as_array( Qualifier void* p, types::Size ) noexcept \
    {                                                                                                  \
      return static_cast<T*>( p );                                                                     \
    }

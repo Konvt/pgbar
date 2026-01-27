@@ -15,7 +15,7 @@ namespace pgbar {
       protected:
         PGBAR__CXX23_CNSTXPR io::CharPipeline& build_char( io::CharPipeline& buffer,
                                                            types::Float num_percent,
-                                                           std::uint64_t num_frame_cnt ) const
+                                                           std::uint32_t num_frame_cnt ) const
         {
           PGBAR__TRUST( num_percent >= 0.0 );
           PGBAR__TRUST( num_percent <= 1.0 );

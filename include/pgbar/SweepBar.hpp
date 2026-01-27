@@ -14,7 +14,7 @@ namespace pgbar {
       class SweepIndic : public Base {
       protected:
         PGBAR__CXX20_CNSTXPR io::CharPipeline& build_sweep( io::CharPipeline& buffer,
-                                                            std::uint64_t num_frame_cnt ) const
+                                                            std::uint32_t num_frame_cnt ) const
         {
           if ( this->bar_width_ == 0 )
             return buffer;
