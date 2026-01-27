@@ -612,6 +612,7 @@ namespace pgbar {
             tag_ = Kind::Inline;
           } else if PGBAR__CXX17_CNSTXPR ( Next == Kind::Dynamic ) {
             PGBAR__TRUST( tag_ != Kind::Dynamic );
+            PGBAR__TRUST( cap > 1 );
             throw_if_exceed( cap - 1 );
             auto cow = make_cow( cap );
             try {
@@ -1118,7 +1119,7 @@ namespace pgbar {
         }
 #endif
 
-        PGBAR__NODISCARD constexpr operator std::basic_string<Char, Traits, Alloc>() const
+        PGBAR__NODISCARD explicit constexpr operator std::basic_string<Char, Traits, Alloc>() const
         {
           return { data(), length_ };
         }
@@ -1236,13 +1237,13 @@ namespace pgbar {
         }
 #ifdef __cpp_lib_containers_ranges
         template<std::ranges::input_range R>
-          requires( !std::ranges::sized_range<R>
-                    && std::convertible_to<std::ranges::range_reference_t<R>, value_type> )
+          requires( std::convertible_to<std::ranges::range_reference_t<R>, value_type> )
         PGBAR__CXX20_CNSTXPR BasicCoWString( std::from_range_t, R&& rg, const Alloc& alloc )
           : BasicCoWString( std::ranges::begin( rg ), std::ranges::end( rg ), alloc )
         {}
-        template<std::ranges::sized_range R>
-          requires( std::convertible_to<std::ranges::range_reference_t<R>, value_type> )
+        template<std::ranges::forward_range R>
+          requires( std::ranges::sized_range<R>
+                    && std::convertible_to<std::ranges::range_reference_t<R>, value_type> )
         PGBAR__CXX20_CNSTXPR BasicCoWString( std::from_range_t, R&& rg, const Alloc& alloc )
           : BasicCoWString( alloc )
         {
@@ -1252,12 +1253,12 @@ namespace pgbar {
                                         [&]( Char* dest, size_type new_cap ) {
                                           PGBAR__TRUST( length <= new_cap );
                                           (void)new_cap;
-                                          std::ranges::copy( utils::begin( rg ), utils::end( rg ), dest );
+                                          std::ranges::copy( std::forward<R>( rg ), dest );
                                           return length;
                                         } );
           } else {
             transfer_to<Kind::Inline>( 0, [&]( Char* dest, size_type ) {
-              std::ranges::copy( utils::begin( rg ), utils::end( rg ), dest );
+              std::ranges::copy( std::forward<R>( rg ), dest );
               return length;
             } );
           }
