@@ -96,7 +96,7 @@ namespace pgbar {
                                          bytes.data() + total_written,
                                          bytes.size() - total_written );
             if ( errno == EINTR )
-              num_written = ( std::max )( (ssize_t)0, num_written );
+              num_written = (std::max<ssize_t>)( 0, num_written );
             else if ( num_written < 0 )
               PGBAR__UNLIKELY throw exception::SystemError(
                 std::error_code( errno, std::generic_category() ),
