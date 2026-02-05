@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-alpha.4] - 2026-02-05
+### Added
+- Added rvalue overloads for some methods to allow config types and bar types to call these methods and return rvalue references when in rvalue form
+- Added a Copy-on-Write string type so that exception types can contain certain context information
+
+### Changed
+- Renamed the internal component `Stringbuf` to `CharPipeline`
+- Modified some constraints and return types of internal templates
+- Corrected the implementation of some interal backport components
+- Modified the implementation of internal traits to ensure that traits returning a bool value strictly derive from either `std::true_type` or `std::false_type`
+- Corrected the implementation of NumericSpan
+
+### Fixed
+- Fixed a deadlock bug when using pre-c++20 standard
+- Fixed the compilation errors that should not exist when compiling without the `/permissive-` mode in MSVC
+- Fixed issue #9: no matching function for call to 'max'
+
+### Removed
+- Removed some unnecessary type aliases
+
+- - -
+
 ## [1.0.0-alpha.3] - 2026-01-03
 ### Added
 - None
