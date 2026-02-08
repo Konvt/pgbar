@@ -571,8 +571,14 @@ namespace pgbar {
   destroy();                                       \
   return static_cast<ReturnType>( *this )
 
-        Derived& action() & noexcept { PGBAR__METHOD( Derived& ); }
-        Derived&& action() && noexcept { PGBAR__METHOD( Derived&& ); }
+        Derived& action() & noexcept
+        {
+          PGBAR__METHOD( Derived& );
+        }
+        Derived&& action() && noexcept
+        {
+          PGBAR__METHOD( Derived&& );
+        }
 
 #undef PGBAR__METHOD
 
@@ -683,14 +689,15 @@ namespace pgbar {
         PGBAR__FORCEINLINE void tick() & final
         {
           static_cast<Derived*>( this )->do_tick(
-            [this]() noexcept { this->task_cnt_.fetch_add( 1, std::memory_order_release ); } );
+            [this]() noexcept { this->task_cnt_.fetch_add( 1, std::memory_order_relaxed ); } );
         }
         PGBAR__FORCEINLINE void tick( std::uint64_t next_step ) &
         {
           static_cast<Derived*>( this )->do_tick( [&]() noexcept {
-            const auto task_cnt = this->task_cnt_.load( std::memory_order_acquire );
+            const auto task_cnt = this->task_cnt_.load( std::memory_order_relaxed );
             this->task_cnt_.fetch_add( task_cnt + next_step > this->task_end_ ? this->task_end_ - task_cnt
-                                                                              : next_step );
+                                                                              : next_step,
+                                       std::memory_order_relaxed );
           } );
         }
         /**
@@ -704,11 +711,8 @@ namespace pgbar {
         {
           static_cast<Derived*>( this )->do_tick( [&]() noexcept {
             auto updater = [this]( std::uint64_t target ) noexcept {
-              auto current = this->task_cnt_.load( std::memory_order_acquire );
-              while ( !this->task_cnt_.compare_exchange_weak( current,
-                                                              target,
-                                                              std::memory_order_release,
-                                                              std::memory_order_acquire )
+              auto current = this->task_cnt_.load( std::memory_order_relaxed );
+              while ( !this->task_cnt_.compare_exchange_weak( current, target, std::memory_order_relaxed )
                       && target <= current ) {}
             };
             if ( percentage <= 100 ) {
@@ -749,7 +753,7 @@ namespace pgbar {
         {
           PGBAR__ASSERT( this->task_cnt_ <= this->task_end_ );
           this->config_.build( io::OStream<Outlet>::itself(),
-                               this->task_cnt_.load( std::memory_order_acquire ),
+                               this->task_cnt_.load( std::memory_order_relaxed ),
                                this->task_end_,
                                this->zero_point_ );
         }
@@ -794,7 +798,7 @@ namespace pgbar {
 
               if ( config::auto_style_off() && !config::intty( Outlet ) )
                 this->config_.colored( false ).bolded( false );
-              this->task_cnt_.store( 0, std::memory_order_release );
+              this->task_cnt_.store( 0, std::memory_order_relaxed );
               this->zero_point_ = std::chrono::steady_clock::now();
               state_.store( State::Awake, std::memory_order_release );
 
@@ -807,7 +811,7 @@ namespace pgbar {
           case State::Refresh: {
             ticker();
 
-            if ( this->task_cnt_.load( std::memory_order_acquire ) >= this->task_end_ )
+            if ( this->task_cnt_.load( std::memory_order_relaxed ) >= this->task_end_ )
               PGBAR__UNLIKELY
               {
                 if ( this->mtx_.try_lock() ) {
@@ -879,7 +883,7 @@ namespace pgbar {
           PGBAR__ASSERT( this->task_cnt_ <= this->task_end_ );
           this->config_.build( io::OStream<Outlet>::itself(),
                                this->idx_frame_,
-                               this->task_cnt_.load( std::memory_order_acquire ),
+                               this->task_cnt_.load( std::memory_order_relaxed ),
                                this->task_end_,
                                this->zero_point_ );
           ++this->idx_frame_;
@@ -889,7 +893,7 @@ namespace pgbar {
           PGBAR__ASSERT( this->task_cnt_ <= this->task_end_ );
           this->config_.build( io::OStream<Outlet>::itself(),
                                this->idx_frame_,
-                               this->task_cnt_.load( std::memory_order_acquire ),
+                               this->task_cnt_.load( std::memory_order_relaxed ),
                                this->task_end_,
                                this->zero_point_ );
           state_.store( State::Stop, std::memory_order_release );
@@ -935,7 +939,7 @@ namespace pgbar {
 
               if ( config::auto_style_off() && !config::intty( Outlet ) )
                 this->config_.colored( false ).bolded( false );
-              this->task_cnt_.store( 0, std::memory_order_release );
+              this->task_cnt_.store( 0, std::memory_order_relaxed );
               this->zero_point_ = std::chrono::steady_clock::now();
               this->state_.store( State::Awake, std::memory_order_release );
 
@@ -950,7 +954,7 @@ namespace pgbar {
           case State::ProgressRefresh: {
             ticker();
 
-            if ( this->task_cnt_.load( std::memory_order_acquire ) >= this->task_end_ )
+            if ( this->task_cnt_.load( std::memory_order_relaxed ) >= this->task_end_ )
               PGBAR__UNLIKELY
               {
                 if ( this->mtx_.try_lock() ) {
